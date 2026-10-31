@@ -1,0 +1,6 @@
+# Prettier checks application code and configuration.
+# Approved design references are read-only.
+reference/
+# Documentation is formatted by hand; do not reformat it.
+*.md
+pnpm-lock.yaml

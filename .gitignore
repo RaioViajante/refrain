@@ -1,13 +1,32 @@
 # Operating system files
 .DS_Store
 
-# Local environment and secrets. Commit only .env.example (variable names, no values).
+# Local environment and secrets. Commit only .env.example, which holds
+# non-secret placeholder values for local development.
 .env
 .env.*
 !.env.example
+*.pem
+
+# Database dumps can contain real writing; never commit them.
+*.dump
 
 # Local agent settings
 .claude/settings.local.json
 
-# Tool-specific entries (node_modules, build output, coverage, test reports)
-# are added when the application is scaffolded.
+# Dependencies
+/node_modules
+
+# Next.js build output and generated types
+/.next/
+/out/
+/build
+next-env.d.ts
+*.tsbuildinfo
+
+# Test output
+/coverage
+
+# Package manager logs
+npm-debug.log*
+.pnpm-debug.log*

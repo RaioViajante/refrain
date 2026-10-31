@@ -1,0 +1,10 @@
+# pnpm settings. Refrain is a single package; there are no workspace packages.
+
+# Supply chain: resolve only versions published at least seven days ago.
+minimumReleaseAge: 10080
+
+# Dependency install scripts are blocked unless listed here as allowed.
+allowBuilds:
+  esbuild: false
+  sharp: false
+  unrs-resolver: false
