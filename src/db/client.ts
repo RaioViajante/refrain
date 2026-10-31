@@ -8,6 +8,12 @@ import * as schema from "./schema";
 
 export type Database = NodePgDatabase<typeof schema>;
 
+/** A transaction (or savepoint) opened by `Database.transaction`. */
+export type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+
+/** Anything that can run queries: the database itself or a transaction. */
+export type DatabaseExecutor = Database | Transaction;
+
 interface Connection {
   pool: Pool;
   db: Database;

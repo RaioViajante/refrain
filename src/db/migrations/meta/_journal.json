@@ -1,0 +1,34 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1793477022740,
+      "tag": "0000_relational_domain",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793477040386,
+      "tag": "0001_memory_music_deferrable_position",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793479697061,
+      "tag": "0002_publication_history_and_slug_retirement",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793480808707,
+      "tag": "0003_slug_kind_and_history_backfill",
+      "breakpoints": true
+    }
+  ]
+}

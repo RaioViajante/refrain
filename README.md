@@ -56,7 +56,7 @@ pnpm db:up
 pnpm dev
 ```
 
-then open `http://localhost:3000`. checks: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:integration`. the rest is in [development.md](docs/development.md).
+then open `http://localhost:3000`. checks: `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm test:integration` after `pnpm db:test:up`. the rest is in [development.md](docs/development.md).
 
 #### read next
 
@@ -75,6 +75,6 @@ then open `http://localhost:3000`. checks: `pnpm lint`, `pnpm typecheck`, `pnpm 
 
 #### current status
 
-m1.1, the application foundation: the app runs locally against postgresql 17, with tests and ci. there is no schema, writing studio, or journal page yet. see [roadmap.md](docs/roadmap.md).
+m1.2, the relational domain: the schema for the catalog, journals, memories, and track reflections, with migrations and integration tests on postgresql 17. there is no writing studio or journal page yet. see [roadmap.md](docs/roadmap.md).
 
 refrain is also a university project, presented on november 16, 2026. see [requirements.md](docs/requirements.md).

@@ -1,6 +1,6 @@
 # Development
 
-**Status:** the application foundation (M1.1) exists: a Next.js application, a local PostgreSQL 17 database through Docker Compose, a server-only Drizzle client, automated checks, and CI. There is no domain schema, migration, or seed data yet; those arrive in M1.2 ([Roadmap](roadmap.md)).
+**Status:** the application foundation (M1.1) and the relational domain (M1.2) exist: a Next.js application, a local PostgreSQL 17 database through Docker Compose, a separate disposable test database, the domain schema with versioned migrations, automated checks, and CI. There is no seed data: the development database holds only what you write into it ([Roadmap](roadmap.md)).
 
 Every command in this document has been run successfully. Add a command only after it has run.
 
@@ -25,6 +25,15 @@ pnpm dev                # http://localhost:3000
 
 The development page shows `Database: connected` when the server reaches PostgreSQL, and `Database: not reachable` otherwise.
 
+To create the domain tables in the development database, run `pnpm db:migrate` once (and again after pulling new migrations). It only adds what is pending and never seeds data.
+
+To run the integration tests, add the two test variables from `.env.example` to `.env` if it predates M1.2, then:
+
+```sh
+pnpm db:test:up         # disposable test database on port 5433
+pnpm test:integration
+```
+
 ### Configuration
 
 All local configuration lives in one file, `.env`, which Git ignores. Docker Compose, Next.js, Drizzle Kit, and the integration tests all read it. [`.env.example`](../.env.example) lists every variable:
@@ -33,9 +42,11 @@ All local configuration lives in one file, `.env`, which Git ignores. Docker Com
 | --- | --- | --- |
 | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | Docker Compose | Credentials used when the database volume is first created |
 | `POSTGRES_PORT` | Docker Compose | Host port, bound to `127.0.0.1` only (default `5432`) |
-| `DATABASE_URL` | Server code, Drizzle Kit, integration tests | PostgreSQL connection string. Server-side only. Never give it a `NEXT_PUBLIC_` prefix. |
+| `DATABASE_URL` | Server code, Drizzle Kit | Development connection string. Server-side only. Never give it a `NEXT_PUBLIC_` prefix. Integration tests never use it. |
+| `POSTGRES_TEST_PORT` | Docker Compose | Host port of the [test database](#test-database), bound to `127.0.0.1` only (default `5433`) |
+| `TEST_DATABASE_URL` | Integration tests | Connection string of the disposable [test database](#test-database). The only database the integration tests connect to. |
 
-Variables already set in the environment take precedence over `.env`, which is how CI supplies its own `DATABASE_URL`.
+Variables already set in the environment take precedence over `.env`, which is how CI supplies its own `TEST_DATABASE_URL`. A `.env` created before M1.2 lacks the two test variables; copy them from `.env.example`.
 
 ### Commands
 
@@ -48,10 +59,12 @@ Variables already set in the environment take precedence over `.env`, which is h
 | `pnpm format` / `pnpm format:check` | Prettier: write, or check only. Markdown and the local `reference/` are excluded. |
 | `pnpm typecheck` | Generates Next.js route types, then runs `tsc --noEmit` (strict) |
 | `pnpm test` | Unit tests (Vitest). No database needed. |
-| `pnpm test:integration` | Integration tests against the real PostgreSQL in `DATABASE_URL`. Fails if it is not reachable; it never skips. |
-| `pnpm db:up` / `pnpm db:down` | Start PostgreSQL and wait for health / stop it. Data is kept in the `refrain_postgres-data` volume. |
-| `pnpm db:generate` | Generate a SQL migration from the Drizzle schema. Like every Drizzle Kit command, it needs `DATABASE_URL`. |
+| `pnpm test:integration` | Integration tests against the disposable [test database](#test-database) in `TEST_DATABASE_URL`. Refuses to run if the safety checks fail, and fails if the database is not reachable; it never skips. |
+| `pnpm db:up` / `pnpm db:down` | Start the development PostgreSQL and wait for health / stop it. Data is kept in the `refrain_postgres-data` volume. |
+| `pnpm db:test:up` / `pnpm db:test:down` | Start the test database and wait for health / stop and remove it, discarding its data. They touch only the `postgres-test` container. |
+| `pnpm db:generate` | Generate a SQL migration from the Drizzle schema. Like every Drizzle Kit command, it needs `DATABASE_URL` (well formed; generating does not connect). |
 | `pnpm db:migrate` | Apply pending migrations to the database in `DATABASE_URL` |
+| `pnpm db:check` | Check that the committed migration snapshots are consistent. Does not connect. |
 
 ### Local database
 
@@ -79,13 +92,49 @@ docker compose down --volumes
 pnpm db:up
 ```
 
+### Test database
+
+Integration tests write data, so they run against their own PostgreSQL server, never the development database.
+
+| | Development database | Test database |
+| --- | --- | --- |
+| Compose service | `postgres` | `postgres-test` (profile `test`; `pnpm db:up` does not start it) |
+| Host port | `127.0.0.1:5432` | `127.0.0.1:5433` |
+| User / database | `refrain` / `refrain` | `refrain_test` / `refrain_test` |
+| Storage | Named volume `refrain_postgres-data` | In memory (`tmpfs`). Discarded whenever the container stops. |
+| Read through | `DATABASE_URL` | `TEST_DATABASE_URL` |
+
+**Safety checks.** The integration tests never read `DATABASE_URL`. Before any test file runs, [`src/testing/global-setup.ts`](../src/testing/global-setup.ts) applies the checks in [`src/testing/test-database.ts`](../src/testing/test-database.ts) and refuses to continue unless all of them pass:
+
+1. `TEST_DATABASE_URL` is set. There is no fallback.
+2. It is a `postgres://` URL **without query parameters**, which node-postgres would let override the host or port.
+3. Its *effective* target, meaning the host, port, and database node-postgres resolves and would connect to, has a loopback host (`localhost`, `127.0.0.1`, or `::1`) and a database name ending in `_test`.
+4. If `DATABASE_URL` is set, its effective target is resolved the same way, query parameters such as `?host=` and `?port=` included, and its database must have a **different name**, whatever its host and port. One server is reachable under many host spellings (`0.0.0.0`, `127.1`, `::ffff:127.0.0.1`, …) and through forwarded ports, so hosts and ports cannot prove two databases distinct. If `DATABASE_URL` cannot be resolved to exactly one host, one valid port, and one database, the tests refuse to run rather than skip the comparison.
+5. On the server, the connected database carries the disposable-test marker: a database comment written only by [`docker/postgres-test/01-mark-disposable.sql`](../docker/postgres-test/01-mark-disposable.sql). The local `postgres-test` service applies it when it initializes, and CI applies it to its own service container. A database name can be mistyped; the marker has to be placed on purpose.
+
+Each test worker then points the application's database client at the validated test URL, so code under test cannot reach the development database, and [`src/testing/isolation.integration.test.ts`](../src/testing/isolation.integration.test.ts) asserts it.
+
+**Clean state without resets.** Each test runs inside a transaction that is always rolled back ([`src/testing/database.ts`](../src/testing/database.ts)), so tests leave no rows behind and are repeatable. There is no reset or truncate command. Test files run one at a time.
+
+**Lifecycle.**
+
+```sh
+pnpm db:test:up          # start a fresh, marked test database and wait until it is healthy
+pnpm test:integration    # safety checks, then the integration tests
+pnpm db:test:down        # stop it and discard its data
+```
+
+**Recovery.** If the test database is in a bad state, run `pnpm db:test:down` and `pnpm db:test:up`: the new container starts empty and marked. This never affects the development database or its volume.
+
 ### Troubleshooting
 
 | Symptom | Cause and fix |
 | --- | --- |
 | `Set POSTGRES_PASSWORD in .env` from Docker Compose | `.env` is missing. Run `cp .env.example .env`. |
-| `Database: not reachable`, or integration tests fail with `ECONNREFUSED` | PostgreSQL is not running. Run `pnpm db:up` and check `docker compose ps`. The server log records only an error code, never connection details. |
+| `Database: not reachable` | PostgreSQL is not running. Run `pnpm db:up` and check `docker compose ps`. The server log records only an error code, never connection details. |
 | `DATABASE_URL is not set` | `.env` is missing, or it lacks `DATABASE_URL`. |
+| `Refusing to run integration tests: …` | A [test database](#test-database) safety check failed; the message names it. Usually `TEST_DATABASE_URL` is missing from an older `.env` (copy it from `.env.example`), or the test database is not running (`pnpm db:test:up`). Never point it at a database whose contents matter. |
+| Integration tests fail with `ECONNREFUSED` on port 5433 | The test database is not running. Run `pnpm db:test:up`. |
 | Port 5432 is already in use | Set `POSTGRES_PORT` in `.env`, change the port in `DATABASE_URL` to match, and run `pnpm db:up` again. |
 | A changed `POSTGRES_PASSWORD` has no effect, or authentication fails | The image applies the `POSTGRES_*` values only when it creates an empty volume. Restore the old values, or reset the database (this deletes local data). |
 | An engine warning about the Node.js version | Use the version in `.nvmrc`. 24.x releases earlier than 24.22.1 lack a security fix. |
@@ -165,9 +214,10 @@ If the plan changes or the repository becomes public, enable these as protection
 | Lint | `pnpm lint` | In CI. Includes module-boundary rules, which a unit test proves. |
 | Format check | `pnpm format:check` | In CI |
 | Type check | `pnpm typecheck` | In CI. TypeScript strict mode. |
-| Unit tests | `pnpm test` | In CI. Today: configuration validation and module boundaries. Domain rules (ratings, state transitions, slug rules) are added with the domain. |
+| Unit tests | `pnpm test` | In CI. Configuration validation, test-database safety checks, module boundaries, rating and slug rules. `DATABASE_URL` and `TEST_DATABASE_URL` are removed before unit tests run, so a unit test cannot reach a database. |
 | Build | `pnpm build` | In CI, run without `DATABASE_URL` to prove that the build does not need a database |
-| Integration tests | `pnpm test:integration` | In CI, against a PostgreSQL 17 service container. Today: connectivity and server version. Constraints, transactions, the publication predicate, and the academic queries are added from M1.2. |
+| Schema consistency | `pnpm db:check`, then `pnpm db:generate` must produce no new migration | In CI. Fails when `src/db/schema.ts` changes without a committed migration. |
+| Integration tests | `pnpm test:integration` | In CI, against a disposable PostgreSQL 17 service container with test credentials, marked as disposable by the same script as the local test database. Global setup applies the committed migrations first. Covers connectivity, test-database isolation, migrations and delete rules, the schema constraints ([coverage](data-model.md#validation)), transactions, the academic queries, and the database-level parts of INV-1 to INV-5. |
 | End-to-end smoke | Playwright | Planned. Critical studio and public flows. |
 
 The workflow has read-only `permissions` (`contents: read`), a concurrency group per pull request or branch, a 20-minute timeout, and no secrets. Its PostgreSQL credentials belong to a disposable service container and are not secrets. Actions are pinned to full commit SHAs. It does not publish artifacts or deploy.
@@ -175,20 +225,30 @@ The workflow has read-only `permissions` (`contents: read`), a concurrency group
 ## Testing approach
 
 - **Domain rules:** unit tests with no database.
-- **Persistence and SQL:** integration tests against real PostgreSQL. Database behavior is not mocked: foreign keys, `CHECK` constraints, and transactions are exactly what these tests must prove.
+- **Persistence and SQL:** integration tests against real PostgreSQL, in the disposable [test database](#test-database). Database behavior is not mocked: foreign keys, `CHECK` constraints, and transactions are exactly what these tests must prove. A rejection test asserts the SQLSTATE and the name of the constraint that fired (helpers in [`src/testing/`](../src/testing/)), so it cannot pass because of an unrelated error.
+- **Invariants:** each of ADR 0002's INV-1 to INV-5 has database-level tests now; the HTTP-level parts are listed in [Security § Required tests](security.md#required-tests) and arrive with the routes.
 - **Privacy:** the tests listed in [Security § Required tests](security.md#required-tests).
 - **UI:** Playwright for complete flows, including keyboard operation of the rating input, the language menu, and dialogs. Run at desktop width and at 390px.
-- **Fixtures:** synthetic and clearly labeled. Real writing never appears in tests.
+- **Fixtures:** synthetic and labeled `[Test]` ([`src/testing/fixtures.ts`](../src/testing/fixtures.ts)). They exist only inside rolled-back test transactions. Real writing never appears in tests, and nothing is seeded into the development database.
 
 ## Database changes
 
-The schema lives in [`src/db/schema.ts`](../src/db/schema.ts). Drizzle Kit writes versioned SQL migrations to `src/db/migrations/`, a directory that is created by the first migration (M1.2). Configuration: [`drizzle.config.ts`](../drizzle.config.ts).
+The schema lives in [`src/db/schema.ts`](../src/db/schema.ts), and Drizzle Kit writes versioned SQL migrations to [`src/db/migrations/`](../src/db/migrations/). Configuration: [`drizzle.config.ts`](../drizzle.config.ts). The model is described in [Data Model](data-model.md).
 
 1. Change the Drizzle schema.
-2. Run `pnpm db:generate` and **read the generated SQL**.
+2. Run `pnpm db:generate --name=<what_changed>` and **read the generated SQL**.
 3. Check for data loss: dropped columns, changed types, removed constraints on authored tables.
-4. Run `pnpm db:migrate` against a local database that contains data, not only against an empty one. Drizzle records applied migrations in `drizzle.__drizzle_migrations`.
-5. Commit the schema change and the migration together, and describe the migration in the PR.
+4. Run `pnpm test:integration`: global setup applies every migration to the empty test database, and the tests verify the result.
+5. Run `pnpm db:migrate` against your local development database. Once it contains data, this also checks the migration against existing rows. Drizzle records applied migrations in `drizzle.__drizzle_migrations`.
+6. Commit the schema change and the migration together, and describe the migration in the PR.
+
+**Enumerated values.** Entry kinds, locales, visibility statuses, and artist kinds are defined once, as arrays in `src/db/schema.ts`, and their `CHECK` constraints are generated from them ([ADR 0003](decisions/0003-relational-schema-conventions.md)). To introduce a value, add it to the array and run `pnpm db:generate`: the migration drops the constraint and adds it again with the new list. To remove or rename a value, first migrate the rows that use it, then narrow the constraint.
+
+**Backfills.** When a migration adds a constraint that existing rows might violate, add the backfill `UPDATE` to the generated SQL before the constraint, with a comment, and apply the migration to a database that holds rows from the earlier migrations (as `0002` was).
+
+**Custom SQL.** For something Drizzle cannot declare (today: one deferrable constraint), run `pnpm db:generate --custom --name=<what>` and write the SQL into the empty file it creates. Comment the schema where the object lives, so readers of `schema.ts` know it exists.
+
+**Applied migrations are permanent.** Never edit or delete a migration that has been applied anywhere outside a disposable test database. Fix mistakes with a new migration.
 
 Never use `drizzle-kit push`: every schema change goes through a reviewed migration file. Migrations are never applied automatically to a production database; that procedure is written down when a deployment target exists.
 

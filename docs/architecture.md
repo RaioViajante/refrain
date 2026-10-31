@@ -1,6 +1,6 @@
 # Architecture
 
-**Status:** the modular monolith is an accepted decision ([ADR 0001](decisions/0001-modular-monolith.md)). The module responsibilities below reflect the accepted domain decisions in [ADR 0002](decisions/0002-domain-model-decisions.md). The application foundation (M1.1) is implemented: the Next.js application, the Persistence module's database client, and lint-enforced module boundaries. No domain module exists yet. Installed technologies and their versions are recorded in [Development § Toolchain](development.md#toolchain); the others remain planned.
+**Status:** the modular monolith is an accepted decision ([ADR 0001](decisions/0001-modular-monolith.md)). The module responsibilities below reflect the accepted domain decisions in [ADR 0002](decisions/0002-domain-model-decisions.md). The application foundation (M1.1) is implemented: the Next.js application, the Persistence module's database client, and lint-enforced module boundaries. M1.2 adds the relational schema, the read queries of the Catalog, Journals, and Publication modules, and the first transactional commands: publishing and unpublishing a language version and changing a slug (Publication), and "Delete now" (Journals). No route or screen calls them yet, and Identity and Integrations do not exist yet. Installed technologies and their versions are recorded in [Development § Toolchain](development.md#toolchain); the others remain planned.
 
 ## Shape
 
@@ -70,7 +70,7 @@ Before a technology is adopted, its compatibility with the chosen Next.js and Re
 
 ### Source layout
 
-The layout below is the target. In M1.1, only `src/app/` (a single development page, without locale routing) and `src/db/` exist. The other directories are created by the first feature that needs them, never as empty placeholders.
+The layout below is the target. Today `src/app/` (a single development page, without locale routing), `src/db/`, `src/modules/catalog/`, `src/modules/journals/`, `src/modules/publication/`, and `src/testing/` exist. The other directories are created by the first feature that needs them, never as empty placeholders.
 
 ```text
 src/
@@ -87,7 +87,8 @@ src/
     musicbrainz/
     cover-art-archive/
     wikimedia-commons/
-  db/                      schema, migrations, client, transaction helper
+  db/                      schema, migrations, client
+  testing/                 integration-test support: safety checks, fixtures (tests only)
   i18n/                    message catalogs (en, pt-BR)
   ui/                      shared components, hand-drawn SVG primitives
 ```
@@ -110,9 +111,12 @@ Rule 7 is enforced at build time. A Client Component that reaches a module impor
 
 - **Driver:** node-postgres (`pg`), through `drizzle-orm/node-postgres`. It is the most widely deployed PostgreSQL driver for Node.js, Drizzle and the planned authentication library both support it, and its `Pool` gives explicit control over connections and transactions. The alternative, `postgres` (postgres.js), had just released a new major version when the foundation was built.
 - **Client:** [`src/db/client.ts`](../src/db/client.ts) imports `server-only` and creates one connection pool on first use. Importing it never opens a connection, so `next build` needs no database. Configuration comes from `DATABASE_URL`, which is validated by [`src/db/env.ts`](../src/db/env.ts). Its error messages never echo the value.
-- **Public entry point:** [`src/db/index.ts`](../src/db/index.ts) exports `getDb` and `checkDatabaseConnection`.
+- **Public entry point:** [`src/db/index.ts`](../src/db/index.ts) exports `getDb`, `closeDb`, `checkDatabaseConnection`, the schema (as `schema`), and the `Database`, `Transaction`, and `DatabaseExecutor` types.
+- **Transactions:** Drizzle's `db.transaction` is the transaction helper; a nested call opens a savepoint. Module query and command functions take a `DatabaseExecutor` (the database or a transaction) as their first argument, so callers and tests choose the transaction. A command opens its own transaction, which becomes a savepoint when it is given one. Commands hold no authorization logic; the server action or route handler that calls them checks the session first. There is no repository layer.
 - **Logging:** connection failures log only an error code (a PostgreSQL SQLSTATE or a Node.js network code) or a fixed configuration message, never the connection string, host, or credentials.
-- **Schema and migrations:** `src/db/schema.ts` and `src/db/migrations/`. The workflow is in [Development § Database changes](development.md#database-changes). The domain schema arrives in M1.2.
+- **Schema and migrations:** [`src/db/schema.ts`](../src/db/schema.ts) and [`src/db/migrations/`](../src/db/migrations/), described in [Data Model](data-model.md). The workflow is in [Development § Database changes](development.md#database-changes).
+- **Raw SQL:** queries whose exact SQL matters (the publication predicate, the academic queries) are written with Drizzle's `sql` template. The node-postgres driver returns `timestamptz` values from raw SQL as text, so those projections convert them to `Date`.
+- **Tests:** integration tests use their own disposable database and never `DATABASE_URL` ([Development § Test database](development.md#test-database)).
 
 ## Rendering and caching
 

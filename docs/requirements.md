@@ -1,7 +1,7 @@
 # Requirements
 
 **Presentation:** November 16, 2026.
-**Status:** planned. No requirement is satisfied yet. The application foundation (M1.1) runs against PostgreSQL, but the related tables, CRUD, and queries these requirements need arrive later in M1. The evidence column describes what must be captured. The *Verified* column is filled in only after the evidence exists.
+**Status:** planned. No requirement is verified yet. M1.2 implemented the related tables (with primary and foreign keys) and the JOIN and aggregate queries, tested against real PostgreSQL; CRUD and the user interface that shows them arrive in M1.3. The evidence column describes what must be captured. The *Verified* column is filled in only after the evidence exists.
 
 This document covers the **mandatory academic requirements** only. Product behavior is defined in [Product](product.md). Architectural qualities such as module boundaries, internationalization, and the hand-drawn interface are project goals, not academic requirements, and must not be presented as substitutes for them.
 
@@ -23,11 +23,11 @@ This document covers the **mandatory academic requirements** only. Product behav
 | AC-01 | A Next.js application persisting to PostgreSQL, run locally through Docker Compose. Data survives an application restart. | The application running; data still present after restarting the app server; the PostgreSQL container listed | — |
 | AC-02 | Catalog tables (`artists`, `albums`, `album_artists`, `tracks`, `album_tracks`, `album_editions`, `edition_tracks`) and authored tables (`entries`, `entry_texts`, `album_journals`, `track_reflections`), with UUID primary keys and declared foreign keys ([Data Model](data-model.md)) | Migration SQL; `\d albums`, `\d album_artists`, and `\d track_reflections` output showing PK and FK constraints; a rejected insert that violates an FK | — |
 | AC-03 | **Catalog:** create, list and view, edit, and delete albums and artists. **Writing:** create, read, update, and delete an album journal and its track reflections. | Each operation performed through the UI, followed by a reload and a `SELECT` showing the row's state. Delete shown twice: a real `DELETE` of an unreferenced test record, and a `RESTRICT` refusal when deleting a record that writing references. | — |
-| AC-04 | Albums with their credited artists: `albums ⋈ album_artists ⋈ artists`, used by the Catalog and Albums pages | Query source in the repository, the rendered page, and the same SQL run in `psql` with its result | — |
+| AC-04 | Albums with their credited artists: `albums ⋈ album_artists ⋈ artists`, used by the Writing Studio's Catalog page (it lists private catalog data, so the public Albums listing uses a predicate-restricted variant) | Query source in the repository, the rendered page, and the same SQL run in `psql` with its result | — |
 | AC-05 | Aggregate: `COUNT` of written track reflections per album journal (Desk). Subquery: catalog usage count per album (Catalog). | Query source, the rendered counts, and the SQL run in `psql` with results matching the UI | — |
 | AC-06 | Browser UI → server action or route handler → application module → Drizzle → PostgreSQL → rendered response | A live walkthrough: an edit in the UI appears in `psql`; a change made in `psql` appears in the UI after reload; plus an integration test against real PostgreSQL | — |
 
-The candidate SQL for AC-04 and AC-05 is in [Data Model § Representative SQL](data-model.md#representative-sql). It is final once it runs against the implemented schema.
+The SQL for AC-04 and AC-05 is in [Data Model § Representative SQL](data-model.md#representative-sql). It runs against the implemented schema and is covered by integration tests; the evidence still requires the rendered pages.
 
 ### Notes on interpretation
 
@@ -43,7 +43,7 @@ Run it against a local database seeded with clearly labeled **test fixtures**. N
 2. Catalog: create a test artist and a test album credited to it. Reload and show both rows (AC-01, AC-03 create and read).
 3. Edit the album title in the UI and show the updated row (AC-03 update, AC-06).
 4. Create a test album journal with two track reflections. The Desk shows "2 of N tracks written" (AC-05).
-5. Show the Albums listing and run the JOIN query in `psql` (AC-04).
+5. Show the studio Catalog listing and run the JOIN query in `psql` (AC-04).
 6. Try to hard-delete the referenced album: refused. Delete an unreferenced test album: succeeds (AC-03 delete).
 
 Steps 1–6 cover every academic requirement and depend only on M1. If M2 and M3 are complete, these steps show the product rules as well:

@@ -6,6 +6,7 @@ Significant architectural, data, and workflow decisions are recorded here as sho
 | --- | --- | --- |
 | [0001](0001-modular-monolith.md) | Modular Monolith | Accepted |
 | [0002](0002-domain-model-decisions.md) | Domain Model Decisions | Accepted |
+| [0003](0003-relational-schema-conventions.md) | Relational Schema Conventions | Accepted |
 
 ## Format
 
@@ -20,9 +21,7 @@ File name: `NNNN-short-title.md`. Sections:
 
 ## Expected next decisions
 
-These come from the open questions in [Data Model](../data-model.md#open-questions):
+These come from the open questions in [Data Model](../data-model.md#open-questions). ADR 0003 settles enum representation, publication history, and slug retention.
 
-- Enum representation in PostgreSQL.
-- Restore behavior for published language versions.
-- Slug release after permanent deletion.
+- Restore behavior for published language versions (M2).
 - The mechanism for automatic purge, once its preconditions are met.

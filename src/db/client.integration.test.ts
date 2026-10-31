@@ -4,8 +4,8 @@ import { afterAll, describe, expect, it } from "vitest";
 import { closeDb, getDb } from "./client";
 import { checkDatabaseConnection, describeFailure } from "./health";
 
-// Runs against a real PostgreSQL server (local: `pnpm db:up`; CI: a service
-// container). Database behavior is never mocked.
+// Runs against the disposable test database (local: `pnpm db:test:up`; CI: a
+// service container). Database behavior is never mocked.
 describe("PostgreSQL connection", () => {
   afterAll(async () => {
     await closeDb();
