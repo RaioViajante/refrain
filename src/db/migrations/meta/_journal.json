@@ -29,6 +29,13 @@
       "when": 1793480808707,
       "tag": "0003_slug_kind_and_history_backfill",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793484602195,
+      "tag": "0004_identity_authentication",
+      "breakpoints": true
     }
   ]
 }

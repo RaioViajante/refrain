@@ -15,8 +15,12 @@
 //
 // One constraint is not expressible in Drizzle and lives in a custom
 // migration: the deferrable UNIQUE (memory_id, position) on memory_music.
+//
+// The Identity tables (auth_*) at the end of this file belong to Better Auth,
+// mapped to these conventions; no domain table references them.
 import { sql } from "drizzle-orm";
 import {
+  bigint,
   boolean,
   check,
   date,
@@ -708,4 +712,139 @@ export const entrySlugs = pgTable(
     ),
     index("entry_slugs_entry_id_idx").on(t.entryId),
   ],
+);
+
+// ---------------------------------------------------------------------------
+// Identity and Access: the tables Better Auth reads and writes (ADR 0004).
+//
+// Generated from Better Auth's core schema (`auth generate`, Drizzle, PostgreSQL)
+// and mapped to the conventions above: explicit snake_case names, uuid keys,
+// timestamptz. The property names are Better Auth's field names, which its
+// Drizzle adapter requires; src/modules/identity checks the mapping against
+// Better Auth's own schema validation in a unit test.
+//
+// These tables are separate from the writing. No authored or catalog table
+// references them, and they reference nothing outside themselves, so nothing
+// here can cascade into, or block, the author's writing.
+// ---------------------------------------------------------------------------
+
+export const authUsers = pgTable(
+  "auth_users",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    email: text("email").notNull(),
+    emailVerified: boolean("email_verified").notNull().default(false),
+    image: text("image"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    unique("auth_users_email_unique").on(t.email),
+    // Better Auth lowercases emails before every lookup and write.
+    check("auth_users_email_lowercase_check", sql`email = lower(email)`),
+    // Refrain has exactly one author (docs/security.md § Access control). A
+    // unique index over a constant admits at most one row, so a second
+    // account cannot exist, whatever path tries to create it.
+    uniqueIndex("auth_users_single_author_idx").on(sql`(true)`),
+  ],
+);
+
+export const authSessions = pgTable(
+  "auth_sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // The opaque session token. The cookie carries it with an HMAC signature.
+    token: text("token").notNull(),
+    userId: uuid("user_id").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    unique("auth_sessions_token_unique").on(t.token),
+    // Removing the account ends its sessions; nothing outside Identity is touched.
+    foreignKey({
+      name: "auth_sessions_user_fk",
+      columns: [t.userId],
+      foreignColumns: [authUsers.id],
+    }).onDelete("cascade"),
+    index("auth_sessions_user_id_idx").on(t.userId),
+  ],
+);
+
+export const authAccounts = pgTable(
+  "auth_accounts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // For a credential account, Better Auth sets account_id to the user id.
+    accountId: text("account_id").notNull(),
+    providerId: text("provider_id").notNull(),
+    userId: uuid("user_id").notNull(),
+    // Better Auth's core schema includes the OAuth columns. Refrain has no
+    // social sign-in, so the CHECK below keeps them unused.
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    idToken: text("id_token"),
+    accessTokenExpiresAt: timestamp("access_token_expires_at", {
+      withTimezone: true,
+    }),
+    refreshTokenExpiresAt: timestamp("refresh_token_expires_at", {
+      withTimezone: true,
+    }),
+    scope: text("scope"),
+    // The password hash (Better Auth's scrypt format), never the password.
+    password: text("password"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    unique("auth_accounts_provider_account_unique").on(
+      t.providerId,
+      t.accountId,
+    ),
+    foreignKey({
+      name: "auth_accounts_user_fk",
+      columns: [t.userId],
+      foreignColumns: [authUsers.id],
+    }).onDelete("cascade"),
+    index("auth_accounts_user_id_idx").on(t.userId),
+    // Email and password only: no social or linked accounts can be stored.
+    check(
+      "auth_accounts_credential_only_check",
+      sql`provider_id = 'credential' and password is not null`,
+    ),
+  ],
+);
+
+// Required by Better Auth's core schema. Refrain enables no feature that
+// writes it (no email verification, no password reset by email).
+export const authVerifications = pgTable(
+  "auth_verifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    identifier: text("identifier").notNull(),
+    value: text("value").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("auth_verifications_identifier_idx").on(t.identifier)],
+);
+
+// Rate-limit counters for the authentication endpoints, stored in PostgreSQL
+// so that limits survive restarts and hold across server instances.
+export const authRateLimits = pgTable(
+  "auth_rate_limits",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // `<client>|<path>`, built by Better Auth.
+    key: text("key").notNull(),
+    count: integer("count").notNull(),
+    // Milliseconds since the Unix epoch, as Better Auth stores it.
+    lastRequest: bigint("last_request", { mode: "number" }).notNull(),
+  },
+  (t) => [unique("auth_rate_limits_key_unique").on(t.key)],
 );

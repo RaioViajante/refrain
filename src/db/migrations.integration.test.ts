@@ -29,6 +29,15 @@ const authoredTables = [
   "entry_slugs",
 ];
 
+// Better Auth's tables (migration 0004, ADR 0004).
+const identityTables = [
+  "auth_users",
+  "auth_sessions",
+  "auth_accounts",
+  "auth_verifications",
+  "auth_rate_limits",
+];
+
 describe("migrations", () => {
   it("applied every migration in the journal, in order", async () => {
     const journal = JSON.parse(
@@ -44,13 +53,13 @@ describe("migrations", () => {
     );
   });
 
-  it("created exactly the catalog and authored tables", async () => {
+  it("created exactly the catalog, authored, and identity tables", async () => {
     const result = await getDb().execute<{ table_name: string }>(
       sql`select table_name from information_schema.tables
            where table_schema = 'public' order by table_name`,
     );
     expect(result.rows.map((row) => row.table_name)).toEqual(
-      [...catalogTables, ...authoredTables].sort(),
+      [...catalogTables, ...authoredTables, ...identityTables].sort(),
     );
   });
 });
@@ -138,5 +147,47 @@ describe("referential protection of authored content", () => {
         authoredTables.includes(fk.to_table),
     );
     expect(catalogToWriting).toEqual([]);
+  });
+});
+
+describe("separation of identity from the writing", () => {
+  async function foreignKeysTouching(tables: readonly string[]) {
+    const result = await getDb().execute<{
+      name: string;
+      from_table: string;
+      to_table: string;
+      on_delete: string;
+    }>(sql`
+      select c.conname as name,
+             c.conrelid::regclass::text as from_table,
+             c.confrelid::regclass::text as to_table,
+             c.confdeltype as on_delete
+        from pg_constraint c
+       where c.contype = 'f'
+         and c.connamespace = 'public'::regnamespace
+       order by c.conname`);
+    return result.rows.filter(
+      (fk) => tables.includes(fk.from_table) || tables.includes(fk.to_table),
+    );
+  }
+
+  it("links identity tables only to each other, cascading from the account", async () => {
+    // c = CASCADE. Removing the account ends its sessions and credential;
+    // no foreign key crosses into the catalog or the writing, so nothing in
+    // Identity can delete, block, or reveal an entry.
+    expect(await foreignKeysTouching(identityTables)).toEqual([
+      {
+        name: "auth_accounts_user_fk",
+        from_table: "auth_accounts",
+        to_table: "auth_users",
+        on_delete: "c",
+      },
+      {
+        name: "auth_sessions_user_fk",
+        from_table: "auth_sessions",
+        to_table: "auth_users",
+        on_delete: "c",
+      },
+    ]);
   });
 });
