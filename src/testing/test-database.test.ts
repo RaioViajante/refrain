@@ -92,7 +92,7 @@ describe("readTestDatabaseUrl", () => {
         TEST_DATABASE_URL: "postgres://a:b@localhost:5433/refrain_test",
         DATABASE_URL: "postgres://c:d@127.0.0.1:5433/refrain_test",
       },
-      "point to the same database",
+      "name the same database",
     );
   });
 
@@ -174,12 +174,37 @@ describe("readTestDatabaseUrl compares effective targets with DATABASE_URL", () 
   ])("refuses %s", (_label, developmentUrl) => {
     expectRefusal(
       { TEST_DATABASE_URL: test, DATABASE_URL: developmentUrl },
-      "point to the same database",
+      "name the same database",
     );
   });
 
+  // One server is reachable under many host spellings and through forwarded
+  // ports, so any DATABASE_URL naming the same database is refused.
+  it.each([
+    "postgres://a:b@0.0.0.0:5433/refrain_test",
+    "postgres://a:b@127.1:5433/refrain_test",
+    "postgres://a:b@2130706433:5433/refrain_test",
+    "postgres://a:b@[::ffff:127.0.0.1]:5433/refrain_test",
+    "postgres://a:b@localhost.:5433/refrain_test",
+    "postgres://a:b@host.docker.internal:5433/refrain_test",
+    "postgres://a:b@127.0.0.1:6543/refrain_test",
+    "postgres://a:b@db.example.com:5433/refrain_test",
+  ])(
+    "refuses any DATABASE_URL naming the same database: %s",
+    (developmentUrl) => {
+      expectRefusal(
+        { TEST_DATABASE_URL: test, DATABASE_URL: developmentUrl },
+        "name the same database",
+      );
+    },
+  );
+
   it.each([
     ["not a URL", "refrain-db"],
+    [
+      "a port that is not a number",
+      "postgres://a:b@127.0.0.1:5432/refrain?port=abc",
+    ],
     ["another scheme", "mysql://a:b@127.0.0.1:5433/refrain_test"],
     [
       "several hosts",
@@ -205,8 +230,8 @@ describe("readTestDatabaseUrl compares effective targets with DATABASE_URL", () 
       "postgres://refrain:pw@127.0.0.1:5432/refrain?sslmode=disable&application_name=x",
     ],
     [
-      "a remote database with the same name and port",
-      "postgres://a:b@db.example.com:5433/refrain_test",
+      "a database with another name on the same server",
+      "postgres://a:b@127.0.0.1:5433/refrain_other",
     ],
   ])("accepts a distinct DATABASE_URL: %s", (_label, developmentUrl) => {
     expect(
@@ -224,7 +249,7 @@ describe("readTestDatabaseUrl compares effective targets with DATABASE_URL", () 
         TEST_DATABASE_URL: "postgres://u:p@127.0.0.1/refrain_test",
         DATABASE_URL: "postgres://a:b@localhost:5432/refrain_test",
       },
-      "point to the same database",
+      "name the same database",
     );
   });
 

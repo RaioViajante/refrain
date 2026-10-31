@@ -11,8 +11,11 @@
 //    defaults are applied. TEST_DATABASE_URL must be a PostgreSQL URL without
 //    query parameters whose effective host is loopback and whose effective
 //    database ends in `_test`. If DATABASE_URL is set, it must be parseable
-//    and must not resolve to the same database; anything that cannot be
-//    compared unambiguously is refused, never skipped.
+//    and its effective database must have a *different name*, whatever its
+//    host and port: one server can be reached under many host spellings
+//    (0.0.0.0, 127.1, ::ffff:127.0.0.1, ...) and through forwarded ports, so
+//    hosts and ports cannot prove two targets distinct. Anything that cannot
+//    be resolved unambiguously is refused, never skipped.
 // 2. Server side, after connecting: the database itself carries the
 //    disposable-test marker, a database comment written only by
 //    docker/postgres-test/01-mark-disposable.sql. Names can be mistyped; the
@@ -24,6 +27,8 @@ import { Client } from "pg";
 
 export const TEST_DATABASE_MARKER = "refrain:disposable-test-database";
 
+// TEST_DATABASE_URL must use one of these names. This is an allow-list, so
+// other spellings of the same machine are refused rather than interpreted.
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 const TEST_DATABASE_NAME = /^[a-z0-9_]+_test$/;
 
@@ -75,26 +80,20 @@ export function effectiveTarget(
     .toLowerCase()
     .replace(/^\[(.*)\]$/, "$1");
   const database = String(client.database ?? "");
-  if (host === "" || host.includes(",") || database === "") {
+  const port = Number(client.port);
+  if (
+    host === "" ||
+    host.includes(",") ||
+    database === "" ||
+    !Number.isInteger(port) ||
+    port < 1 ||
+    port > 65535
+  ) {
     throw new TestDatabaseSafetyError(
-      `${variable} does not name exactly one host and one database.`,
+      `${variable} does not name exactly one host, one valid port, and one database.`,
     );
   }
-  return { host, port: Number(client.port), database };
-}
-
-// Loopback names and Unix sockets all reach a server on this machine, so
-// they are treated as the same host when comparing targets.
-function isLocal(host: string): boolean {
-  return LOOPBACK_HOSTS.has(host) || host.startsWith("/");
-}
-
-function sameDatabase(a: EffectiveTarget, b: EffectiveTarget): boolean {
-  return (
-    a.database === b.database &&
-    a.port === b.port &&
-    (a.host === b.host || (isLocal(a.host) && isLocal(b.host)))
-  );
+  return { host, port, database };
 }
 
 /**
@@ -150,10 +149,11 @@ export function readTestDatabaseUrl(env: Env): string {
           "so the test database cannot be proven distinct. Fix or unset DATABASE_URL.",
       );
     }
-    if (sameDatabase(development, target)) {
+    if (development.database === target.database) {
       throw new TestDatabaseSafetyError(
-        "TEST_DATABASE_URL and DATABASE_URL point to the same database. " +
-          "Integration tests need their own disposable database.",
+        "TEST_DATABASE_URL and DATABASE_URL name the same database, so they " +
+          "may point to the same database. Integration tests need their own " +
+          "disposable database with a different name.",
       );
     }
   }
