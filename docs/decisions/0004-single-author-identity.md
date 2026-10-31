@@ -1,7 +1,7 @@
 # ADR 0004: Single-Author Identity and Access
 
-- **Status:** Proposed (M1.3A, issue #9). It becomes Accepted when the author approves the pull request.
-- **Date:** 2026-10-31
+- **Status:** Accepted
+- **Date:** 2026-10-31. Proposed with M1.3A (issue #9, pull request #10), and accepted by the author in the review of #10 the same day. The author accepted the reliance on Better Auth's internal adapter (§3) as a documented maintenance risk.
 - **Scope:** Authentication, sessions, the provisioning of the single author account, and the authorization boundary of the Writing Studio. It implements the access-control requirements of [Security](../security.md#access-control) with the planned authentication library, Better Auth ([Architecture](../architecture.md#target-technologies)).
 
 ## Context
@@ -56,11 +56,36 @@ Better Auth 1.7.12 is the newest stable release that the repository's seven-day 
   - `context` is `auth.$context`, which is declared on Better Auth's typed `Auth` interface, and Better Auth's own test utilities create users the same way.
 - **Password reset.** Reset updates the hash with `internalAdapter.updatePassword` and deletes every session in the same transaction.
 
-**Risk:** `$context`, `linkAccount`, and `updatePassword` are typed but are not described in the documentation pages read on 2026-10-31. An upgrade could change them. The mitigations are:
-- the exact version pin;
-- an integration test that signs in, through the real handler, with an account created by `provisionAuthor`;
-- the schema-check unit test;
-- the HTTP test, which provisions through the real command.
+**Why the internal adapter.** Better Auth 1.7.12 documents only two ways to create an account on the server. Both conflict with the requirements:
+
+- **The sign-up endpoint (`auth.api.signUpEmail`).** It works only while sign-up is enabled, and sign-up stays disabled at all times.
+- **The Admin plugin's `createUser`.** It brings a role framework (see [Alternatives considered](#alternatives-considered)).
+
+The internal adapter is the mechanism the sign-up endpoint itself uses. It writes the account exactly as sign-up would, through Better Auth's hasher and field mapping, without enabling sign-up anywhere.
+
+**Accepted risk.** `$context`, `linkAccount`, and `updatePassword` are typed members of Better Auth's public types (`Auth`, `AuthContext`). The documentation pages read on 2026-10-31 do not describe them, so an upgrade could change them without notice.
+
+**Dependency.** This decision depends on **Better Auth 1.7.12** exactly. `package.json` pins it, and the lockfile fixes it.
+
+**Tests that protect the provisioning contract:**
+
+- `identity.integration.test.ts`, "provisioning":
+  - one account with one scrypt-hashed password credential (the hash format is asserted);
+  - refusal to run again, with the stored hash unchanged;
+  - refusal of unexpected identity state;
+  - refusal of weak passwords, with nothing written.
+- `identity.integration.test.ts`, "sign-in" and "authorization": an account created by `provisionAuthor` signs in through the real request handler and is authorized. This proves that Better Auth accepts what provisioning wrote.
+- `identity.integration.test.ts`, "password reset (local command)": the new password works, the old one fails, and every session is revoked.
+- `auth.test.ts`, "matches the Drizzle schema": Better Auth's own schema check against the Drizzle tables.
+- `studio.http.test.ts`, "the author command": the HTTP global setup provisions through the real `pnpm author:provision`. The tests cover a refused second run, a refused target, a refused password argument, and a password reset against the production server.
+- `cli.test.ts`, "account creation": only the local command imports provisioning, and nothing provisions at startup.
+
+**Upgrade procedure.** Upgrading Better Auth needs its own reviewed change. That change must:
+
+1. read the release notes and the installed source of `auth.$context`, `internalAdapter.createUser`, `internalAdapter.linkAccount`, `internalAdapter.updatePassword`, `internalAdapter.deleteUserSessions`, `password.hash`, and the sign-up route, and confirm that provisioning still makes the same calls as sign-up;
+2. re-check the configuration defaults this ADR relies on (§1, §5, §6) and the log messages reachable through the allowed endpoints (§7);
+3. run every test above, plus the full unit, integration, and HTTP suites, against the real test database;
+4. get a security review (`/refrain-security-review`).
 
 An upgrade that changes the account format fails these tests.
 
@@ -99,7 +124,8 @@ An upgrade that changes the account format fails these tests.
 - **Storage.** Counters are kept in PostgreSQL (`auth_rate_limits`), so they survive restarts and hold across instances.
 - **Limits.** Sign-in allows **5 attempts per 60 seconds**. Sign-out is never limited.
 - **One bucket for everyone.** No client-IP header is trusted yet (`ipAddressHeaders: []`), so all clients share one bucket per path. The limit then holds whatever a client claims to be.
-- **Cost:** a stranger can keep the sign-in form throttled, so the author cannot sign in while they continue. Locking the author out is less harmful than letting someone guess the password. The trade-off is revisited when a deployment puts a known proxy in front of the application, which can then name the client.
+- **Cost:** a stranger can keep the sign-in form throttled, so the author cannot sign in while they continue. Locking the author out is less harmful than letting someone guess the password.
+- **Accepted for local development only, not for a public deployment.** Before any public deployment, abuse protection must recognize clients through a trustworthy network identity, and that must be tested. A client-controlled forwarding header never counts as one. The mechanism depends on the deployment target, which is not chosen yet, so this ADR names none. This is a condition of the [deployment gate](../security.md#deployment-gate).
 
 ### 7. Configuration and logging
 
@@ -137,11 +163,11 @@ An upgrade that changes the account format fails these tests.
 
 - Provisioning relies on typed but undocumented Better Auth internals (§3), guarded by tests.
 - A stranger can throttle sign-in for everyone (§6).
-- The streaming studio page answers an unauthenticated request with HTTP 200, a static shell, and a streamed redirect to sign-in, not a 307. No studio content is sent, and the HTTP tests assert that. A future proxy redirect could add a 307 as a convenience, never as the control.
+- The streaming studio page answers an unauthenticated request with HTTP 200, a static shell, and a streamed redirect to sign-in, not a 307. No studio content is sent, and the HTTP tests assert that. A future proxy redirect could add a 307 as a convenience, never as the control. The redirect status and indexing behavior must be reviewed before a public deployment ([deployment gate](../security.md#deployment-gate)).
 - There is no second factor. A stolen session cookie works for at most seven days, or until sign-out or a password reset.
 
 ## Revisit when
 
 - the deployment target is chosen, especially if a reverse proxy can name the client for rate limiting (§6);
-- Better Auth is upgraded (re-run the full test suite, re-read §3, and re-check the log messages reachable through the allowed endpoints, §7);
+- Better Auth is upgraded: follow the upgrade procedure in §3;
 - the author wants a second factor (passkey or TOTP), which would be a new ADR.
