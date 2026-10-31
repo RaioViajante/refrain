@@ -87,7 +87,7 @@ Catalog metadata (albums, artists, tracks) is not personal, but public pages sho
 Implemented in M1.3A with Better Auth 1.7.12. The reasons for each choice are in [ADR 0004](decisions/0004-single-author-identity.md).
 
 - **Identity.** The single author is the account whose email is `REFRAIN_AUTHOR_EMAIL`. A valid session of any other account is not authorized (`not_author`). The database cannot hold a second account, and accounts can hold only a password credential, never a social login.
-- **Sessions.** Database rows. The cookie `refrain.session_token` carries an HMAC-signed token. It is `HttpOnly`, `SameSite=Strict`, and `Path=/`. Over HTTPS it is also `Secure`, with the `__Secure-` prefix. There is no cookie cache: every check reads PostgreSQL, so deleting a session row ends it at once. A session lasts seven days from sign-in, and checking it never extends it.
+- **Sessions.** Database rows. The cookie `refrain.session_token` carries an HMAC-signed token. It is `HttpOnly`, `SameSite=Strict`, and `Path=/`. Over HTTPS it is also `Secure`, with the `__Secure-` prefix. There is no cookie cache: every check reads PostgreSQL, so deleting a session row ends it at once. A session lasts seven days from sign-in, and checking it never extends it. The raw token is never sent to scripts: the handler removes it from the JSON that sign-in and get-session return.
 - **Sign-out** deletes the session row and expires the cookie. A replayed cookie grants nothing afterwards.
 - **Sign-in endpoint.** The only authentication endpoints reachable over HTTP are `POST /api/auth/sign-in/email`, `POST /api/auth/sign-out`, and `GET /api/auth/get-session`. Everything else under `/api/auth/` returns a bare 404, including sign-up, password reset, user updates, and session listing.
 - **Origins.** Every `POST` must carry `Origin` equal to `BETTER_AUTH_URL`, or it is refused with 403 before Better Auth runs. Better Auth's own origin and CSRF checks are also on, explicitly, in every environment.
@@ -145,7 +145,7 @@ Each new action or route gets a test that an unauthenticated request, a forged c
 
 ## Logging
 
-Logs record events and identifiers. They never contain entry titles or bodies, session tokens, passwords, or full request bodies. Error reports scrub the same fields. Everything the authentication library logs passes through a redacting logger that writes only fixed text, error names, HTTP statuses, and error codes ([`src/modules/identity/logging.ts`](../src/modules/identity/logging.ts)), because a failed query's message contains its parameters.
+Logs record events and identifiers. They never contain entry titles or bodies, session tokens, passwords, or full request bodies. Error reports scrub the same fields. Everything the authentication library logs passes through a redacting logger that writes only the fixed part of each message (the text before any interpolated value), error names, HTTP statuses, and error codes ([`src/modules/identity/logging.ts`](../src/modules/identity/logging.ts)). A failed query's message contains its parameters, and other messages contain values a client sent, such as an origin.
 
 ## Repository hygiene
 

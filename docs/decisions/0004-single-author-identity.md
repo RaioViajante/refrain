@@ -28,7 +28,7 @@ Better Auth 1.7.12 is the newest stable release that the repository's seven-day 
 
 - **Library and method.** Better Auth **1.7.12**, pinned exactly, with email and password only. There are no plugins, no social providers, and no account linking. Telemetry is off.
 - **Database sessions.** Sessions are rows in PostgreSQL, and the cookie carries an HMAC-signed session token. The cookie cache is disabled, so every check reads the session from the database, and a revoked session stops working at once.
-- **Fixed lifetime.** A session lasts **seven days** from sign-in. Checking a session never extends it (`disableSessionRefresh`, and `disableRefresh` on every check), so checks never write to the database.
+- **Fixed lifetime.** A session lasts **seven days** from sign-in. Checking a session never extends it (`disableSessionRefresh`, and `disableRefresh` on every check). A check writes to the database only when it finds an expired session: Better Auth then deletes that row.
 - **Cookies.**
   - The session cookie is `refrain.session_token`: `HttpOnly`, `SameSite=Strict`, and `Path=/`.
   - It is `Secure`, with the `__Secure-` prefix, whenever the base URL is HTTPS, which the configuration requires for anything but a loopback host.
@@ -106,7 +106,7 @@ An upgrade that changes the account format fails these tests.
 - **Required variables.** `BETTER_AUTH_SECRET` (at least 32 characters of random data), `BETTER_AUTH_URL` (an origin, HTTPS unless loopback), and `REFRAIN_AUTHOR_EMAIL` are required. There are no defaults.
 - **Refused variables.** The three implicit variables in the context are refused.
 - **When it is read.** Configuration is validated when the first authentication request or studio check runs, so `next build` needs no secret. A failure answers 503, or denies access, without details.
-- **Logging.** Everything Better Auth logs passes through a redacting logger. It writes fixed messages, error names, statuses, and codes, never error messages or query parameters.
+- **Logging.** Everything Better Auth logs passes through a redacting logger. It writes only the fixed part of each message (the text before any interpolated value), error names, statuses, and codes: never error messages, query parameters, or values a client sent, such as an origin.
 
 ### 8. Recovery and rotation
 
@@ -120,7 +120,7 @@ An upgrade that changes the account format fails these tests.
 - **The Admin plugin's `createUser`.** Rejected. It adds roles, bans, impersonation, and extra endpoints and columns: a role framework that one account does not need.
 - **SQL inserts written by hand.** Rejected. They would bypass Better Auth's hasher and field mapping, and be harder to keep correct across upgrades.
 - **Authorizing by user ID in the environment.** Rejected. It needs a second step after provisioning. The email is known before provisioning, and the single-row index already prevents a second account.
-- **Session refresh (sliding sessions).** Rejected for now. A fixed lifetime is simpler to reason about, and checks never write.
+- **Session refresh (sliding sessions).** Rejected for now. A fixed lifetime is simpler to reason about, and checks never extend a session.
 - **Per-IP rate limits from `X-Forwarded-For`.** Rejected while no proxy is trusted, because a client can spoof the header.
 
 ## Consequences
@@ -130,6 +130,7 @@ An upgrade that changes the account format fails these tests.
 - Sign-up cannot be reached by route, by library endpoint, or by server call. A second account cannot be stored at all.
 - The account exists only after someone with database access runs a local command on purpose.
 - Every studio check is a database lookup that ends with the session, and nothing the client claims can widen it.
+- The session token reaches the browser only in the `HttpOnly` cookie: the handler removes it from the JSON of sign-in and get-session, where Better Auth would return it to scripts.
 - Authentication state is never cached, framed, or logged with secrets.
 
 **Negative**
