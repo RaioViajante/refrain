@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+<!-- A handmade monochrome pencil, pointing precisely to the bottom-left. -->
+<g stroke="#191919" stroke-linecap="round" stroke-linejoin="round">
+  <!-- eraser, held by a simple pencil ferrule -->
+  <path d="M43.6 13.6 47.1 9.8 Q49.2 7.6 51.5 9.4 L55.4 13.2 Q57.6 15.2 55.8 17.5 L52.5 21.9 43.6 13.6Z" fill="#fff" stroke-width="2"/>
+  <path d="M45.4 11.9 Q49.7 15.9 54.2 19.5" fill="none" stroke-width="1.45"/>
+  <path d="M47.3 9.9 Q51.5 13.9 55.5 16.7" fill="none" stroke-width=".9" opacity=".7"/>
+  <!-- paper-white barrel, subtly off-kilter hand-inked lines -->
+  <path d="M17.7 39.6 Q30.3 26.8 43.5 13.6 L52.5 21.9 Q39.2 34.6 26.1 47.5Z" fill="#fff" stroke-width="2.15"/>
+  <!-- continuous graphite-shading along one facet -->
+  <path d="M21.4 43.4 Q34.6 30.4 47.9 17.9 L50.1 20.0 Q36.8 33.5 23.6 45.6Z" fill="#ededed" stroke="none"/>
+  <path d="M21.5 43.5 Q34.4 30.4 47.9 17.9" fill="none" stroke-width="1.18"/>
+  <path d="M23.7 45.7 Q36.9 32.6 50 20" fill="none" stroke-width=".95" opacity=".72"/>
+  <!-- brief diagonal engraving strokes, kept sparse for 32px legibility -->
+  <path d="M32.8 25.2 35.5 28 M38.4 19.9 41.2 22.6" fill="none" stroke-width=".85" opacity=".6"/>
+  <!-- exposed wooden nib -->
+  <path d="M9 56.4 17.7 39.6 26.1 47.5 9 56.4Z" fill="#fff" stroke-width="2.15"/>
+  <path d="M9.1 56.3 12.3 49.7 Q14.6 51.2 15.8 53.2Z" fill="#191919" stroke="none"/>
+  <path d="M12.3 49.7 18.7 43.1 M15.8 53.2 22.4 46.1" fill="none" stroke-width=".92" opacity=".82"/>
+  <!-- irregular extra edge gives the pencil a hand-drawn rather than geometric finish -->
+  <path d="M17.1 40.1 Q30.2 27.2 43.3 14.1" stroke-width=".55" stroke-opacity=".56" fill="none"/>
+</g>
+</svg>

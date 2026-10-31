@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>refrain v4.4 — design handoff</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;1,400&amp;family=Kalam:wght@300;400;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FFFFFF}
+.v4{background:#FFFFFF;color:#111111;font-family:'Atkinson Hyperlegible Next',system-ui,sans-serif;font-size:19px;line-height:1.7;padding:0 64px;min-height:100vh;box-sizing:border-box;-webkit-font-smoothing:antialiased}
+.v4 *{box-sizing:border-box}
+.wrap{max-width:1312px;margin:0 auto}
+.hand{font-family:'Caveat',cursive;font-weight:500;color:#2B2B2B;line-height:1.1;letter-spacing:.005em}
+.mut{color:#6B6B6B}
+.sm{font-size:15.5px;line-height:1.55}
+.xs{font-size:14px;line-height:1.5}
+.v4 a{color:#111111;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:4px;text-decoration-color:#A3A3A3;transition:text-decoration-color .2s ease}
+.v4 a:hover{text-decoration-color:#111111}
+.v4 a.ink,.v4 .ink{text-decoration:none;background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%2010%22%20preserveAspectRatio%3D%22none%22%3E%3Cpath%20d%3D%22M2.3%206.6%20C12.3%206.3%2C39.3%202.8%2C60.7%202.8%20C82.1%202.8%2C108.2%206.5%2C130.9%206.6%20C153.5%206.7%2C185.5%204%2C196.7%203.4%20M0.6%205.7%20C10.7%205.7%2C38.3%204.2%2C59.9%204.5%20C81.5%204.9%2C107.6%208%2C130.4%208%20C153.1%208%2C185.3%205.4%2C196.3%204.5%22%20fill%3D%22none%22%20stroke%3D%22%23111%22%20stroke-width%3D%221.6%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E");background-repeat:no-repeat;background-position:0 100%;background-size:0% 7px;padding-bottom:6px;transition:background-size .35s ease}
+.v4 a.ink:hover,.v4 a.ink[aria-current="page"],.v4 .ink.is-h{background-size:100% 7px}
+.v4 a.ink.on{background-size:100% 7px}
+.v4 :focus-visible{outline:2px solid #111111;outline-offset:4px;border-radius:2px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.hdr{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:10px 32px;padding:30px 0 0;font-size:16.5px;line-height:1.4}
+.brand{display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:19px;letter-spacing:-.01em}
+.v4 a.brand{text-decoration:none}
+.mark{flex:0 0 auto}
+.mark path{fill:none;stroke:#111;stroke-width:1.2;stroke-linecap:round;vector-effect:non-scaling-stroke}
+.mark circle{fill:#111}
+.nav{display:flex;gap:32px;justify-content:center}
+.rule{display:block;width:100%;height:8px;overflow:visible}
+.rule path{fill:none;stroke:#111;stroke-width:1;vector-effect:non-scaling-stroke;stroke-linecap:round}
+.rule.lt path{stroke:#C9C9C9}
+.rule.sh{width:84px;height:7px}
+.hb,.fld,.lmenu,.ck .bx{isolation:isolate}
+.o{z-index:-1;position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+.o path{fill:none;stroke:#111;stroke-width:1.3;vector-effect:non-scaling-stroke;stroke-linecap:round;transition:opacity .15s ease}
+.o .b{opacity:0}
+.o .fl{fill:#111;stroke:none}
+.hb{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:9px;background:none;border:0;margin:0;padding:0 20px;min-height:46px;font-family:inherit;font-size:16.5px;font-weight:600;line-height:1.2;color:#111;cursor:pointer;white-space:nowrap}
+.v4 a.hb{text-decoration:none}
+.hb:hover .o .a,.hb.is-h .o .a{opacity:0}
+.hb:hover .o .b,.hb.is-h .o .b{opacity:1}
+.hb:focus-visible,.hb.is-f{outline:none}
+.hb:focus-visible .o .a,.hb:focus-visible .o .b,.hb.is-f .o .a,.hb.is-f .o .b{opacity:1;stroke-width:1.9}
+.hb:active{transform:translateY(1px)}
+.hb.pri{color:#FFFFFF}
+.hb.pri .o .a{opacity:1}
+.hb.pri:hover .o .b,.hb.pri.is-h .o .b{opacity:1;transform:translate(2px,2px)}
+.hb[disabled],.hb.is-d{color:#A0A0A0;cursor:not-allowed}
+.hb[disabled] .o path,.hb.is-d .o path{stroke:#C8C8C8;stroke-dasharray:3 5}
+.hb[disabled]:hover .o .a{opacity:1}
+.hb.ico{padding:0;width:46px}
+.ic{flex:0 0 auto;overflow:visible}
+.ic path{fill:none;stroke:currentColor;stroke-width:1.35;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.st{flex:0 0 auto;overflow:visible}
+.st .s{fill:none;stroke:#111;stroke-width:1.15;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.st .f{fill:#111}
+.stars{display:inline-flex;gap:2px;vertical-align:-3px}
+.sbtn{background:none;border:0;padding:0;margin:0;cursor:pointer;width:14px;height:28px;overflow:hidden;display:inline-flex;align-items:center}
+.sbtn svg{flex:0 0 auto}
+.sbtn.r svg{margin-left:-14px}
+.sbtn:hover .s{stroke-width:1.8}
+.circ{position:absolute;left:-14px;top:-6px;width:calc(100% + 30px);height:calc(100% + 12px);overflow:visible;pointer-events:none}
+.circ path,.arr path,.brk path,.hatch path{fill:none;stroke:#111;stroke-width:1.2;stroke-linecap:round;vector-effect:non-scaling-stroke}
+.hatch{position:absolute;inset:0;width:100%;height:100%}
+.hatch path{stroke:#E1E1E1;stroke-width:1}
+.cover{position:relative;aspect-ratio:1;background:#F4F4F2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;padding:24px;color:#555}
+.cover>*{position:relative}
+.cover .hatch{position:absolute}
+.cover b{font-weight:700;color:#222}
+.thumb{position:relative;aspect-ratio:1;background:#F1F1EF;overflow:hidden}
+.trow{width:100%;display:grid;grid-template-columns:52px minmax(0,1fr) auto 26px;align-items:center;gap:16px;background:none;border:0;margin:0;padding:16px 6px;text-align:left;font-family:inherit;color:#111;cursor:pointer;transition:background .2s ease}
+.trow:hover{background:#F7F7F5}
+.trow[aria-disabled="true"]{cursor:default}
+.trow[aria-disabled="true"]:hover{background:none}
+.tn{font-family:'Caveat',cursive;font-size:27px;line-height:1;color:#6B6B6B;font-weight:500}
+.tt{position:relative;display:inline-block;font-size:22px;line-height:1.35;font-weight:650;letter-spacing:-.005em}
+.tt.no{font-weight:400;color:#7A7A7A}
+.tcr{display:block;font-size:14.5px;color:#6B6B6B;font-weight:400;line-height:1.4;margin-top:5px}
+.h1g{margin:0;font-size:104px;line-height:.95;font-weight:800;letter-spacing:-.035em}
+.tpanel{padding:0 6px 30px 74px;max-width:calc(64ch + 74px)}
+.ft{display:flex;flex-direction:column;align-items:center;gap:6px;padding:28px 0 44px;text-align:center;font-size:15px;color:#6B6B6B}
+.lb{position:relative;display:inline-flex;align-items:center;gap:8px;background:none;border:0;margin:0;padding:10px 14px;min-height:44px;cursor:pointer;font-family:inherit;font-size:16px;color:#111}
+.lb .ic.up{transition:transform .25s ease}
+.lb[aria-expanded="true"] .ic.up{transform:rotate(180deg)}
+.lmenu{position:absolute;left:50%;bottom:calc(100% + 6px);transform:translateX(-50%);width:250px;background:#FFFFFF;padding:10px 0 12px;z-index:5;text-align:left}
+.lopt{display:flex;align-items:center;justify-content:space-between;gap:20px;width:100%;background:none;border:0;margin:0;padding:9px 22px;min-height:44px;font-family:inherit;font-size:16.5px;color:#444;cursor:pointer;text-align:left}
+.lopt:hover{color:#111;background:#F7F7F5}
+.lopt[aria-current="true"]{color:#111;font-weight:650}
+.fld{position:relative;display:block}
+.fld input,.fld textarea,.fld select{position:relative;width:100%;background:transparent;border:0;margin:0;padding:12px 16px;min-height:50px;font-family:inherit;font-size:17.5px;color:#111;outline:none;resize:vertical;appearance:none}
+.fld textarea{line-height:1.7;padding:18px 20px;font-size:19px}
+.fld input::placeholder,.fld textarea::placeholder{color:#8A8A8A}
+.fld:hover .o .a{opacity:0}.fld:hover .o .b{opacity:1}
+.fld:focus-within .o .a,.fld:focus-within .o .b,.fld.is-f .o .a,.fld.is-f .o .b{opacity:1;stroke-width:1.9}
+.fld .lead{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#555}
+.fld.wl input{padding-left:46px}
+.fld .trail{position:absolute;right:14px;top:50%;transform:translateY(-50%);pointer-events:none;color:#444}
+.ck{position:relative;display:inline-flex;align-items:center;gap:12px;cursor:pointer;font-size:17px;min-height:44px}
+.ck input{position:absolute;opacity:0;width:22px;height:22px;margin:0;left:0;cursor:pointer}
+.ck .bx{position:relative;width:22px;height:22px;flex:0 0 auto}
+.ck .tick{position:absolute;left:-2px;top:-6px;opacity:0;transition:opacity .15s ease}
+.ck input:checked~.bx .tick,.ck.is-c .tick{opacity:1}
+.ck input:focus-visible~.bx .o path,.ck.is-f .o path{stroke-width:2.2}
+.ck.is-d{color:#A0A0A0;cursor:not-allowed}
+.ck.is-d .o path{stroke:#C8C8C8;stroke-dasharray:3 4}
+.rd{width:22px;height:22px;flex:0 0 auto;overflow:visible}
+.rd path{fill:none;stroke:#111;stroke-width:1.3;vector-effect:non-scaling-stroke}
+.rd circle{fill:#111;opacity:0}
+.ck input:checked~.rd circle,.ck.is-c .rd circle{opacity:1}
+.g2{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);column-gap:88px;row-gap:44px}
+.read{max-width:64ch}
+.read p{margin:0 0 1.2em}
+.read h3{margin:1.7em 0 .5em;font-size:24px;line-height:1.3;font-weight:750;letter-spacing:-.01em}
+.read blockquote{margin:1.5em 0 1.7em;padding:0 0 0 24px;border-left:1.5px solid #111;font-size:22px;line-height:1.55}
+.h2{margin:0;font-size:28px;line-height:1.2;font-weight:800;letter-spacing:-.015em}
+.cvg{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:36px 32px}
+.cvg a:hover .cover{background:#EFEFEC}
+.mob{display:none}
+@media (max-width:720px){
+ .cvg{grid-template-columns:repeat(2,minmax(0,1fr));gap:26px 16px}
+ .memrow{grid-template-columns:minmax(0,1fr)!important}
+ .v4{padding:0 20px;font-size:18px}
+ .hdr{grid-template-columns:minmax(0,1fr);justify-items:center;padding:20px 0 0;gap:12px}
+ .hdr>.dsk{display:none}
+ .nav{gap:24px}
+ .g2{grid-template-columns:minmax(0,1fr);row-gap:30px}
+ .trow{grid-template-columns:34px minmax(0,1fr) 22px;gap:4px 10px;padding:14px 2px}
+ .trow .tm{grid-column:2;grid-row:2}
+ .trow .tc{grid-column:3;grid-row:1}
+ .tn{font-size:24px}
+ .h1g{font-size:64px}
+ .tt{font-size:19.5px}
+ .tpanel{padding:0 2px 26px 44px}
+ .read h3{font-size:21px}
+ .read blockquote{font-size:19.5px;padding-left:16px}
+ .h2{font-size:24px}
+ .dsk{display:none}
+ .mob{display:revert}
+}
+@media (prefers-reduced-motion:reduce){.v4 a.ink,.o path,.lb .ic.up,.trow,.ck .tick{transition:none}}
+
+.v4{font-family:'Alegreya Sans',system-ui,sans-serif;font-size:21px;line-height:1.62;font-synthesis:none}
+.disp,.brand,.nav,.h1g,.h2,.tt,.tn,.hb,.lb,.lopt,.hand,.lede,.art,.at,.wm,.rlab,.read h3,.spec-w{font-family:'Kalam',cursive;letter-spacing:0}
+.brand{font-size:25px;font-weight:700}.nav{font-size:19.5px;font-weight:400}
+.h1g{font-size:104px;line-height:1;font-weight:700;letter-spacing:-.01em}.h2{font-size:31px;font-weight:700}
+.tt{font-size:22.5px;font-weight:400}.tt.no{font-weight:300;color:#6E6E6E}.tn{font-size:21px;font-weight:300}
+.hb{font-size:18px;font-weight:400}.lede{font-size:31px!important;font-weight:300!important;line-height:1.38!important}
+.hand{font-size:21px;font-weight:300;color:#444}.art{font-size:27px!important;font-weight:400!important}.at{font-size:20.5px!important;font-weight:400!important}.et{font-weight:700}
+.wm{font-size:52px!important;font-weight:700!important}
+.read h3{font-size:26px;font-weight:700}.rlab{font-size:18px;font-weight:300}
+.sm{font-size:16.5px}.xs{font-size:15px}
+.read blockquote{font-family:'Kalam',cursive;font-weight:300;font-size:23px}
+@media (max-width:720px){.v4{font-size:19.5px}.h1g{font-size:68px}.tt{font-size:20px}.lede{font-size:26px!important}}
+
+/* V4.2 refinements */
+.cover{background:#FAFAF8;color:#5C5C5C}
+.cover .hatch path{stroke:#E8E8E5}
+.thumb{background:#FAFAF8}
+.rule.lt path{stroke:#CFCFCF}
+.tt.no{font-weight:400;color:#6F6F6F}
+.tn{color:#5F5F5F}
+.et{font-family:'Kalam',cursive;font-weight:400!important;font-size:21px!important;line-height:1.35}
+.at{font-size:21px!important}
+.hb .o path{stroke-width:1.15}
+.intro{margin:0;max-width:30ch;font-family:'Kalam',cursive;font-weight:300;font-size:32px;line-height:1.4}
+.artl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px 32px}
+.artl a{display:grid;grid-template-columns:64px minmax(0,1fr);gap:16px;align-items:center;text-decoration:none;padding:6px 0}
+.artl a:hover .at{text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:5px}
+.cvg a:hover .at{text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:5px}
+.v4 a.rec,.v4 .artl a{text-decoration:none}
+.rec{display:grid;grid-template-columns:56px minmax(0,1fr) auto;gap:18px;align-items:center;padding:14px 4px;text-decoration:none}
+.rec:hover .et{text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:5px}
+.mgn{font-family:'Kalam',cursive;font-weight:300;font-size:21px;line-height:1.4;color:#444;max-width:16ch;margin:0;padding-left:14px;border-left:1px solid #CFCFCF}
+@media (max-width:720px){
+ .nav a{padding:10px 0}
+ .intro{font-size:26px}
+ .artl{grid-template-columns:minmax(0,1fr);gap:4px}
+ .rec{grid-template-columns:44px minmax(0,1fr);gap:4px 14px}
+ .rec .rd8{grid-column:2}
+ .tcr{font-size:14.5px}
+}
+
+/* ── V4.3 polish ───────────────────────────────────────── */
+/* one readable scale for secondary text: nothing below 15px, greys darkened for contrast */
+.mut{color:#5A5A5A}
+.sm{font-size:17px;line-height:1.55}
+.xs{font-size:15px;line-height:1.5}
+.v4{font-size:21px;line-height:1.66}
+.read{max-width:62ch}
+.read p{margin:0 0 1.25em}
+/* Kalam: never the light weight below 26px */
+.tn{font-family:'Kalam',cursive;font-weight:400;font-size:21px;color:#555}
+.hand{font-family:'Kalam',cursive;font-weight:400;font-size:20px;color:#3A3A3A}
+.tt.no{font-weight:400;color:#5E5E5E}
+.tm{font-size:16px;color:#5A5A5A;white-space:nowrap;display:inline-flex;align-items:center;gap:8px}
+.tcr{font-size:15.5px;color:#5A5A5A;margin-top:4px}
+.rv{font-family:'Alegreya Sans',sans-serif;font-size:16px;color:#3A3A3A;font-variant-numeric:tabular-nums}
+.nav a{padding:10px 2px}
+/* artwork: one container for covers and photos. Real image sits on top of the fallback, so nothing shifts while it loads. */
+.art{position:relative;display:block;aspect-ratio:1;background:#F4F4F2;overflow:hidden}
+.art.pt{aspect-ratio:4/5}
+.art img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.artfb{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:14%;text-align:center;background:#FFFFFF;color:#222}
+.artfb .kt{font-family:'Kalam',cursive;font-weight:700;line-height:1.15}
+.artfb .ka{font-size:15px;color:#5A5A5A;line-height:1.35}
+.artfb .kn{position:absolute;left:0;right:0;bottom:10px;font-size:13.5px;color:#6A6A6A}
+.artfb .o{z-index:0}
+.artfb .o path{stroke:#BDBDBD;stroke-width:1}
+.artfb>span{position:relative}
+/* home: a notebook margin + one writing column */
+.nb{display:grid;grid-template-columns:220px minmax(0,1fr);column-gap:64px}
+.nb>.mh{padding-top:4px}
+.mh h2{margin:0;font-family:'Kalam',cursive;font-weight:700;font-size:27px;line-height:1.2}
+.hi{margin:0;max-width:34em;font-size:23px;line-height:1.6}
+.since{margin:22px 0 0;font-size:17px;color:#3A3A3A;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px}
+.rec3{display:grid;grid-template-columns:118px minmax(0,1fr) 52px;gap:4px 22px;align-items:center;padding:15px 2px;text-decoration:none}
+.v4 a.rec3,.v4 a.alb,.v4 a.arj{text-decoration:none}
+.rec3 .dt{font-size:16px;color:#4A4A4A;font-variant-numeric:tabular-nums}
+.rec3 .ti{font-family:'Kalam',cursive;font-size:22px;line-height:1.3}
+.rec3 .ki{font-size:16px;color:#5A5A5A}
+.rec3:hover .ti,.alb:hover .ti,.arj:hover .ti,.mem a:hover{text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:5px}
+.albs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:40px 28px}
+.alb{display:flex;flex-direction:column;gap:12px}
+.alb .ti{font-family:'Kalam',cursive;font-size:22px;line-height:1.25}
+.arjs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px 36px}
+.arj{display:grid;grid-template-columns:96px minmax(0,1fr);gap:18px;align-items:start}
+.arj .ti{font-family:'Kalam',cursive;font-size:22px;line-height:1.25}
+.arj .ex{margin:6px 0 0;font-size:17px;line-height:1.5;color:#333}
+.mem{max-width:62ch;padding:6px 0 30px}
+.mem+.mem{padding-top:26px;border-top:0}
+.mem .wh{font-family:'Kalam',cursive;font-size:19px;color:#4A4A4A}
+.mem a{font-family:'Kalam',cursive;font-size:25px;line-height:1.3;text-decoration:none}
+.mem p{margin:8px 0 0;font-size:20px;line-height:1.65;color:#262626}
+.mem .mu{margin-top:8px;font-size:16px;color:#5A5A5A;display:flex;align-items:center;gap:8px}
+/* footer: the last line of the page, aligned to the margins */
+.ft3{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 24px;padding:18px 0 40px;font-size:16px;color:#4A4A4A}
+.ft3 .sig{display:inline-flex;align-items:center;gap:10px}
+.ft3 .lb{padding:10px 4px;font-family:'Alegreya Sans',sans-serif;font-size:17px}
+.ft3 .lmenu{left:auto;right:0;transform:none}
+.lopt{font-family:'Alegreya Sans',sans-serif;font-size:17.5px}
+.lopt:focus-visible{outline:2px solid #111;outline-offset:-4px}
+.gmeta{margin:6px 0 0;font-size:18px;color:#4A4A4A;font-variant-numeric:tabular-nums}
+@media (max-width:720px){
+ .v4{font-size:19.5px}
+ .sm{font-size:16.5px}
+ .nb{grid-template-columns:minmax(0,1fr);row-gap:14px}
+ .hi{font-size:20.5px}
+ .rec3{grid-template-columns:minmax(0,1fr) 48px;gap:2px 14px;padding:14px 0}
+ .rec3 .dt{grid-column:1;grid-row:1;font-size:15px}
+ .rec3 .tx{grid-column:1;grid-row:2}
+ .rec3 .th{grid-column:2;grid-row:1 / span 2}
+ .albs{grid-template-columns:repeat(2,minmax(0,1fr));gap:30px 16px}
+ .alb .ti{font-size:20px}
+ .arjs{grid-template-columns:minmax(0,1fr);gap:22px}
+ .arj{grid-template-columns:76px minmax(0,1fr);gap:14px}
+ .mem a{font-size:23px}
+ .mem p{font-size:18.5px}
+ .ft3{flex-direction:column;align-items:flex-start;gap:2px;padding-bottom:32px}
+ .ft3 .lmenu{right:auto;left:0}
+ .trow{grid-template-columns:30px minmax(0,1fr) 22px}
+ .tpanel{padding:0 2px 24px 40px}
+ .tm{font-size:15px}
+ .gmeta{font-size:16.5px}
+ .h1g{font-size:62px}
+}
+@media (max-width:370px){
+ .v4{padding:0 16px}
+ .h1g{font-size:54px}
+ .albs{gap:26px 12px}
+ .alb .ti{font-size:18.5px}
+}
+
+/* ── V4.3 system: listings + studio ─────────────────────── */
+.ph1{margin:0;font-family:'Kalam',cursive;font-weight:700;font-size:58px;line-height:1.05;letter-spacing:-.005em}
+.lead2{margin:12px 0 0;max-width:46ch;font-size:19px;line-height:1.55;color:#3A3A3A}
+.seg3{display:flex;flex-wrap:wrap;gap:4px 22px;font-size:17px}
+.seg3 button{background:none;border:0;margin:0;padding:10px 0 8px;min-height:44px;font-family:'Alegreya Sans',sans-serif;font-size:17px;color:#4A4A4A;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%2010%22%20preserveAspectRatio%3D%22none%22%3E%3Cpath%20d%3D%22M2.3%206.6%20C12.3%206.3%2C39.3%202.8%2C60.7%202.8%20C82.1%202.8%2C108.2%206.5%2C130.9%206.6%20C153.5%206.7%2C185.5%204%2C196.7%203.4%20M0.6%205.7%20C10.7%205.7%2C38.3%204.2%2C59.9%204.5%20C81.5%204.9%2C107.6%208%2C130.4%208%20C153.1%208%2C185.3%205.4%2C196.3%204.5%22%20fill%3D%22none%22%20stroke%3D%22%23111%22%20stroke-width%3D%221.6%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E");background-repeat:no-repeat;background-position:0 100%;background-size:0% 7px;transition:background-size .3s ease}
+.seg3 button:hover{color:#111}
+.seg3 button[aria-pressed="true"]{color:#111;background-size:100% 7px}
+.prog{font-size:16px;color:#4A4A4A}
+.albs.a3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.arjs.a2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.arj.big{grid-template-columns:120px minmax(0,1fr)}
+.v4 a.plain{text-decoration:none}
+/* status: published = filled ink dot, private = drawn circle, draft = dotted circle. Always with a word. */
+.chip{display:inline-flex;align-items:center;gap:7px;font-size:15.5px;line-height:1.3;color:#2E2E2E;white-space:nowrap}
+.chip svg{flex:0 0 auto;overflow:visible}
+.chip svg circle,.chip svg path{fill:none;stroke:#111;stroke-width:1.3;vector-effect:non-scaling-stroke}
+.chip.pub svg circle{fill:#111;stroke:none}
+.chip.drf svg circle{stroke-dasharray:2 2.4}
+/* private header */
+.pvt{display:inline-flex;align-items:center;gap:8px;font-size:15px;color:#3A3A3A}
+/* editor bar */
+.ebar{position:sticky;top:0;z-index:6;background:rgba(255,255,255,.97);display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 20px;padding:12px 0 10px}
+.crumb{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;font-size:16.5px}
+.acts{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.hb:not(.pri) .o .fl{display:none}
+.fld.wa .o path{stroke:#ABABAB}
+.fld.wa:focus-within .o path{stroke:#111}
+.st-grid.g3{grid-template-columns:repeat(3,minmax(0,1fr));gap:28px}
+.hb.sm2{min-height:42px;padding:0 16px;font-size:16.5px}
+.hb.q{padding:0 10px}
+.hb.q .o{display:none}
+.hb.q:hover{text-decoration:underline;text-underline-offset:5px}
+.saved{font-size:15.5px;color:#4A4A4A}
+/* studio layout: one writing column + a margin of settings */
+.studio{display:grid;grid-template-columns:minmax(0,1fr) 300px;column-gap:80px;row-gap:44px;align-items:start;padding:44px 0 96px}
+.wcol{min-width:0;max-width:760px;display:flex;flex-direction:column;gap:34px}
+.side{display:flex;flex-direction:column;gap:30px;font-size:16.5px;line-height:1.5}
+.side .blk{display:flex;flex-direction:column;gap:10px}
+.lbl3{display:block;font-family:'Kalam',cursive;font-weight:400;font-size:20px;line-height:1.3;color:#111;margin:0 0 8px}
+.hint3{display:block;margin-top:8px;font-size:15.5px;line-height:1.5;color:#4F4F4F}
+.ti-in{width:100%;background:none;border:0;margin:0;padding:4px 0 10px;font-family:'Kalam',cursive;font-weight:700;font-size:52px;line-height:1.15;color:#111;outline:none}
+.ti-in::placeholder{color:#9A9A9A}
+.ti-wrap{position:relative}
+.ti-wrap .rule{position:absolute;left:0;right:0;bottom:0}
+.ti-wrap:focus-within .rule path{stroke:#111;stroke-width:1.6}
+.le-in{width:100%;background:none;border:0;margin:0;padding:4px 0 12px;font-family:'Kalam',cursive;font-weight:300;font-size:30px;line-height:1.35;color:#111;outline:none;resize:none}
+.fld textarea.wr{font-family:'Alegreya Sans',sans-serif;font-size:21px;line-height:1.7;padding:26px 30px;min-height:420px}
+.fld textarea.wr.s{min-height:150px;font-size:19px;padding:18px 20px}
+.fld select{cursor:pointer}
+.wc{font-size:15.5px;color:#4F4F4F;font-variant-numeric:tabular-nums}
+.dlg3{position:relative;isolation:isolate;background:#FFFFFF;padding:26px 28px 24px;max-width:540px}
+.dlg3 h3{margin:0;font-family:'Kalam',cursive;font-weight:700;font-size:25px;line-height:1.25}
+.dlg3 p{margin:8px 0 18px;font-size:17.5px;line-height:1.55;color:#2E2E2E}
+.note3{position:relative;isolation:isolate;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 18px;padding:14px 18px;background:#FFFFFF;font-size:17px}
+.trw{display:grid;grid-template-columns:44px minmax(0,1fr) auto 24px;gap:6px 14px;align-items:center;width:100%;background:none;border:0;margin:0;padding:14px 4px;text-align:left;font-family:inherit;color:#111;cursor:pointer}
+.trw:hover{background:#F7F7F5}
+.trw .tn{font-size:20px}
+.trw .tt{font-size:21px}
+.tred{padding:4px 4px 26px 58px;display:flex;flex-direction:column;gap:14px}
+.rate{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px}
+.lrow{display:grid;grid-template-columns:56px minmax(0,1fr) auto;gap:4px 18px;align-items:center;padding:14px 2px}
+.v4 a.lrow{text-decoration:none}
+a.lrow:hover .ti{text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:5px}
+.lrow .ti{font-family:'Kalam',cursive;font-size:22px;line-height:1.3}
+.lrow .mt{font-size:16px;color:#4A4A4A}
+.skel{display:block;height:12px;background:#EFEFED;border-radius:6px}
+.panel{background:#F6F6F4;padding:28px;display:flex;flex-direction:column;gap:16px;align-items:flex-start}
+.st-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:56px 56px}
+.st-grid h2{margin:0 0 14px;font-family:'Kalam',cursive;font-weight:400;font-size:21px;color:#3A3A3A}
+.ddrop{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:7;background:#FFFFFF;padding:8px 0;isolation:isolate}
+.ddrop .opt{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:12px;align-items:center;width:100%;background:none;border:0;margin:0;padding:8px 16px;min-height:52px;text-align:left;font-family:inherit;font-size:17px;color:#111;cursor:pointer}
+.ddrop .opt:hover,.ddrop .opt:focus-visible{background:#F7F7F5}
+.ddrop .grp{display:block;padding:8px 16px 4px;font-size:15px;color:#4F4F4F}
+@media (max-width:720px){
+ .ph1{font-size:42px}
+ .studio{grid-template-columns:minmax(0,1fr);padding:28px 0 72px}
+ .ti-in{font-size:30px}
+ .le-in{font-size:24px}
+ .fld textarea.wr{font-size:19px;padding:18px;min-height:320px}
+ .ebar{padding:10px 0}
+ .crumb{font-size:16px}
+ .trw{grid-template-columns:30px minmax(0,1fr) 22px}
+ .trw .tm{grid-column:2;grid-row:2}
+ .trw .tc{grid-column:3;grid-row:1}
+ .tred{padding:0 2px 22px 40px}
+ .lrow{grid-template-columns:48px minmax(0,1fr);gap:2px 14px}
+ .lrow .rgt{grid-column:2}
+ .st-grid,.st-grid.g3{grid-template-columns:minmax(0,1fr);gap:40px}
+ .panel{padding:20px}
+ .dlg3{padding:22px 20px}
+ .ofirst{order:-1}
+ .albs.a3{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .arjs.a2{grid-template-columns:minmax(0,1fr)}
+ .arj.big{grid-template-columns:84px minmax(0,1fr)}
+}
+
+/* ── V4.4 ─────────────────────────────────────── */
+.hdr4{display:flex;justify-content:center;padding:22px 0 0}
+.hdr4 .nav{flex-wrap:wrap;justify-content:center;gap:4px 34px}
+.opening{display:flex;flex-direction:column;align-items:center;padding-top:44px}
+.char{display:block;width:380px;max-width:100%;height:auto;aspect-ratio:1536/1024}
+.opening .hi{margin:16px auto 0;max-width:33em;text-align:center}
+.opening .since{justify-content:center}
+.ft4{display:flex;flex-direction:column;align-items:center;gap:4px;padding:30px 0 44px;text-align:center}
+.ft4 .tag{margin:0;font-family:'Kalam',cursive;font-weight:400;font-size:21px;line-height:1.4;color:#2A2A2A}
+.ft4 .lb{font-family:'Alegreya Sans',sans-serif;font-size:17px;padding:10px 6px}
+.ft4 .lmenu{left:50%;right:auto;transform:translateX(-50%)}
+@media (max-width:720px){
+ .hdr4{padding-top:16px}
+ .hdr4 .nav{gap:2px 22px}
+ .opening{padding-top:30px}
+ .char{width:300px}
+ .opening .hi{margin-top:10px}
+ .ft4 .tag{font-size:19.5px}
+}
+@media (max-width:370px){
+ .hdr4 .nav{gap:2px 16px;font-size:18px}
+ .char{width:280px}
+}
+@media (max-width:720px){.hdr>a.ink{justify-self:center!important}}</style>
+</helmet>
+<div class="v4" lang="{{langTag}}">
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><clipPath id="v4-half" clipPathUnits="userSpaceOnUse"><rect x="0" y="0" width="12" height="24"></rect></clipPath></defs></svg>
+  <div class="wrap">
+    <header class="hdr4"><nav aria-label="refrain" class="nav"><a class="ink" href="refrainV44-Home.dc.html">{{t.home}}</a><a class="ink" href="refrainV44-Albums.dc.html">{{t.albums}}</a><a class="ink" href="refrainV44-Artists.dc.html">{{t.artists}}</a><a class="ink" href="refrainV44-Memories.dc.html">{{t.memories}}</a></nav></header>
+    <main style="padding-bottom: 96px">
+      <section class="nb" style="padding-top: 64px"><div class="mh dsk"></div><div><p class="hand" style="margin: 0; color: #4A4A4A">refrain · v4.4</p><h1 class="ph1">Design handoff</h1>
+        <p class="lead2" style="max-width: 62ch">How the approved V4.4 language is built: typography, colour, spacing, components, responsive rules and interaction patterns, for the public journal and the private writing studio.</p></div></section>
+      <section class="nb" style="padding-top: 72px"><div class="mh"><span class="hand" style="color: #4A4A4A">01</span><h2>Principles</h2></div><div><ul style="margin: 0; padding-left: 22px; max-width: 70ch; font-size: 18px; line-height: 1.6"><li style="margin: 0 0 8px">Black ink on white paper. The only colour on any page comes from album artwork and artist photographs, shown as they are: no filters, tints or overlays.</li><li style="margin: 0 0 8px">Kalam carries identity: titles, track names, notes and the closing line. There is no logo or wordmark in the header. Alegreya Sans carries everything you read for more than a line, plus metadata and controls.</li><li style="margin: 0 0 8px">Rough.js outlines mark things you can act on (buttons, fields, dialogs) and a few meaningful annotations. Dividers are a single light ink stroke. Text itself is never drawn.</li><li style="margin: 0 0 8px">Annotations are data: a circled track is a recorded favourite, “still writing” is a real draft flag, a margin note exists only if it was written.</li><li style="margin: 0 0 8px">Private stays private. Drafts and private entries never render on public pages; preview is visible only to the author.</li><li style="margin: 0 0 8px">English and Português (Brasil). The interface switches; writing stays in the language it was written in unless an author translation exists.</li></ul></div></section>
+      <div class="nb"><span></span><svg class="rule lt" viewBox="0 0 1200 8" preserveAspectRatio="none" aria-hidden="true"><path d="M2.3 3.7 C240.9 7.6,481.2 7.7,1198.2 3.5"></path></svg></div>
+      <section class="nb" style="padding-top: 72px"><div class="mh"><span class="hand" style="color: #4A4A4A">02</span><h2>Typography</h2></div><div><table style="border-collapse: collapse; width: 100%; max-width: 980px"><thead><tr><th style="text-align: left; font-weight: 700; padding: 8px 18px 8px 0; font-size: 16px">Role</th><th style="text-align: left; font-weight: 700; padding: 8px 18px 8px 0; font-size: 16px">Font</th><th style="text-align: left; font-weight: 700; padding: 8px 18px 8px 0; font-size: 16px">Weight</th><th style="text-align: left; font-weight: 700; padding: 8px 18px 8px 0; font-size: 16px">Desktop</th><th style="text-align: left; font-weight: 700; padding: 8px 18px 8px 0; font-size: 16px">Mobile</th></tr></thead><tbody><tr><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px"><span style="font-family: 'Kalam', cursive; font-weight: 700; font-size: 22px">refrain</span> Site name</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">Kalam</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">700</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">20px</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">20px</td></tr><tr><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px"><span style="font-family: 'Kalam', cursive; font-weight: 700; font-size: 30px">Grace</span> Page title</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">Kalam</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">700</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">104px (album/artist) · 58px (listings) · 52px (editors)</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">62px · 42px · 30px</td></tr><tr><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px"><span style="font-family: 'Kalam', cursive; font-weight: 700; font-size: 22px">Track by track</span> Section title</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">Kalam</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">700</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">27–31px</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">24–25px</td></tr><tr><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px"><span style="font-family: 'Kalam', cursive; font-weight: 300; font-size: 22px">[Your opening sentence.]</span> Opening sentence</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">Kalam</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">300 (only ≥ 26px)</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">31px</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">26px</td></tr><tr><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px"><span style="font-family: 'Kalam', cursive; font-weight: 400; font-size: 22px">Lilac Wine</span> Track, entry and album names</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">Kalam</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">400</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">21–22px</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">19.5–20px</td></tr><tr><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px"><span style="font-family: 'Kalam', cursive; font-weight: 400; font-size: 20px">04</span> Track numbers · notes</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">Kalam</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">400</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">19–21px</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">19–20px</td></tr><tr><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">Long-form reading</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">Alegreya Sans</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">400</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">21px / 1.66, max 62ch</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">19.5px</td></tr><tr><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">Metadata, dates, credits, hints</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">Alegreya Sans</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">400</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">15.5–18px (never below 15)</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">15–16.5px</td></tr><tr><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">Buttons</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">Kalam</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">400</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">16.5–18px</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">same</td></tr><tr><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">Rating values</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">Alegreya Sans, tabular</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">400</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">16–18px</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">15–16px</td></tr></tbody></table></div></section>
+      <div class="nb"><span></span><svg class="rule lt" viewBox="0 0 1200 8" preserveAspectRatio="none" aria-hidden="true"><path d="M1.9 3.3 C241.6 -1,480.3 -0.5,1198.6 4.4"></path></svg></div>
+      <section class="nb" style="padding-top: 72px"><div class="mh"><span class="hand" style="color: #4A4A4A">03</span><h2>Colour</h2></div><div><table style="border-collapse: collapse; width: 100%; max-width: 980px"><thead><tr><th style="text-align: left; font-weight: 700; padding: 8px 18px 8px 0; font-size: 16px">Token</th><th style="text-align: left; font-weight: 700; padding: 8px 18px 8px 0; font-size: 16px">Value</th><th style="text-align: left; font-weight: 700; padding: 8px 18px 8px 0; font-size: 16px">Use</th></tr></thead><tbody><tr><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">ink</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">#111111</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">Text, strokes, primary buttons, filled stars, published dot</td></tr><tr><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">text-2</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">#3A3A3A / #4A4A4A</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">Secondary text and metadata (≥ 7:1 on white)</td></tr><tr><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">text-3</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">#5A5A5A</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">Hints, “not written yet”, credits (≈ 6.9:1)</td></tr><tr><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">rule</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">#CFCFCF</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">Light ink dividers</td></tr><tr><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">frame-quiet</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">#ABABAB → #111 on focus</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">Writing-surface outline</td></tr><tr><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">paper</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">#FFFFFF</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">Page background</td></tr><tr><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">paper-2</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">#F4F4F2 · #F6F6F4 · #F7F7F5</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">Image loading background · state panels · row hover</td></tr><tr><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">artwork</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">original</td><td style="padding: 9px 18px 9px 0; border-top: 1px solid #E2E2E2; vertical-align: top; font-size: 16.5px">Covers and photos only. No other colour anywhere.</td></tr></tbody></table></div></section>
+      <div class="nb"><span></span><svg class="rule lt" viewBox="0 0 1200 8" preserveAspectRatio="none" aria-hidden="true"><path d="M1.3 4.1 C241.8 2.4,480.7 2.1,1197.8 4.1"></path></svg></div>
+      <section class="nb" style="padding-top: 72px"><div class="mh"><span class="hand" style="color: #4A4A4A">04</span><h2>Layout and spacing</h2></div><div><ul style="margin: 0; padding-left: 22px; max-width: 70ch; font-size: 18px; line-height: 1.6"><li style="margin: 0 0 8px">Page padding 64px (desktop) · 20px (mobile) · 16px (≤ 370px). Content max width 1312px.</li><li style="margin: 0 0 8px">Notebook layout for listings, home and studio overview: a 220px margin column for section titles + one writing column, 64px apart.</li><li style="margin: 0 0 8px">Album and artist journals: two columns 5fr / 7fr with an 88px gap; artwork left, title and writing right. The tracklist sits in the right column.</li><li style="margin: 0 0 8px">Studio editors: writing column (max 760px) + a 300px margin of settings, 80px apart. On mobile the settings follow the writing.</li><li style="margin: 0 0 8px">Reading width 62ch. Paragraph spacing 1.25em. Section spacing 96–104px desktop, 72px mobile. Rows 14–16px vertical padding, 44px minimum touch height.</li></ul></div></section>
+      <div class="nb"><span></span><svg class="rule lt" viewBox="0 0 1200 8" preserveAspectRatio="none" aria-hidden="true"><path d="M2.3 3.7 C240.9 7.6,481.2 7.7,1198.2 3.5"></path></svg></div>
+      <section class="nb" style="padding-top: 72px"><div class="mh"><span class="hand" style="color: #4A4A4A">05</span><h2>Components</h2></div><div>
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 36px 48px; max-width: 1000px">
+    <div><span class="lbl3">Buttons</span><span class="acts"><button type="button" class="hb pri sm2"><svg class="o" viewBox="0 0 160 44" preserveAspectRatio="none" aria-hidden="true"><path class="fl" d="M1.3 0.4 L157.2 3.3 L158.7 40.8 L0.9 42.5"></path><path class="a" d="M-0.2 0.6 C35.1 3.4,64.5 3.1,156.3 0.6 M1.4 1.8 C55.5 3.7,111.7 3.7,157.9 1.2 M156.6 1.7 C158.1 15.6,159 28.4,159.9 44.1 M158.1 2.4 C157.8 13.1,159.1 24.5,158.9 42.5 M157.3 40.4 C108.8 42.4,61.6 42.6,2.9 43.3 M157.3 43.1 C121.2 43.5,85.3 43.6,2.6 42.3 M0.9 39.8 C3.4 35.1,3.3 26.8,2.2 1.5 M1.5 43.1 C2.5 27.5,2 14,1 3"></path><path class="b" d="M-0.2 1.4 C34.9 0.4,62.4 4.3,156.8 1.4 M1.9 2.8 C47.7 4.4,95.5 4.4,159 1.5 M157.5 3.7 C159.8 10.9,157.3 20.5,159.6 44 M157.1 1.8 C158.1 17.4,158.5 29.9,158.8 41.9 M158.8 40.9 C124.2 43,87.8 43.4,1.7 42.4 M157.8 43.1 C116.8 44,76.2 44.2,2.2 41.5 M1.9 39.9 C2.1 34,1.8 25.3,0.1 3.2 M2.1 43.1 C2.4 30.1,1.4 19,1.1 2.9"></path></svg>Publish</button><button type="button" class="hb sm2"><svg class="o" viewBox="0 0 160 44" preserveAspectRatio="none" aria-hidden="true"><path class="a" d="M-0.2 0.6 C35.1 3.4,64.5 3.1,156.3 0.6 M1.4 1.8 C55.5 3.7,111.7 3.7,157.9 1.2 M156.6 1.7 C158.1 15.6,159 28.4,159.9 44.1 M158.1 2.4 C157.8 13.1,159.1 24.5,158.9 42.5 M157.3 40.4 C108.8 42.4,61.6 42.6,2.9 43.3 M157.3 43.1 C121.2 43.5,85.3 43.6,2.6 42.3 M0.9 39.8 C3.4 35.1,3.3 26.8,2.2 1.5 M1.5 43.1 C2.5 27.5,2 14,1 3"></path><path class="b" d="M-0.2 1.4 C34.9 0.4,62.4 4.3,156.8 1.4 M1.9 2.8 C47.7 4.4,95.5 4.4,159 1.5 M157.5 3.7 C159.8 10.9,157.3 20.5,159.6 44 M157.1 1.8 C158.1 17.4,158.5 29.9,158.8 41.9 M158.8 40.9 C124.2 43,87.8 43.4,1.7 42.4 M157.8 43.1 C116.8 44,76.2 44.2,2.2 41.5 M1.9 39.9 C2.1 34,1.8 25.3,0.1 3.2 M2.1 43.1 C2.4 30.1,1.4 19,1.1 2.9"></path></svg>Save</button><button type="button" class="hb q">Preview</button></span><span class="hint3">Outline redraws on hover; focus traces it twice. Destructive actions are ink too, with a trash icon and a confirmation.</span></div>
+    <div><span class="lbl3">Status</span><span class="acts" style="gap: 20px"><span class="chip pub"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4.6"></circle></svg><span>Published</span></span><span class="chip prv"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4.6"></circle></svg><span>Private</span></span><span class="chip drf"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4.6"></circle></svg><span>Draft</span></span></span><span class="hint3">Filled dot, drawn circle, dotted circle. Always with the word.</span></div>
+    <div><span class="lbl3">Field</span><label style="display: block"><span class="lbl3">When</span><span class="fld" style="display: block"><svg class="o" viewBox="0 0 600 48" preserveAspectRatio="none" aria-hidden="true"><path class="a" d="M1.1 1.4 C122 3.9,240.5 3.8,597.3 1.4 M1.8 1.9 C209.9 4.9,418.8 4.9,598 1.7 M596.6 1.7 C598.1 16.9,599 30.9,599.9 48.1 M598.1 2.4 C597.8 14.2,599.1 26.7,598.9 46.5 M597.7 45.3 C413.1 48.3,228.9 48.4,2.4 46.5 M597.7 46.4 C459.8 48.5,322 48.5,2.3 46.1 M0.9 43.8 C3.4 38.3,3.3 29.1,2.2 1.5 M1.5 47.1 C2.4 30.1,1.9 15.2,1 3"></path><path class="b" d="M1.1 1.8 C121.9 1.8,239.7 3.3,597.5 1.8 M2 2.3 C179.8 5.2,358.4 5.2,598.4 1.8 M597.5 3.7 C599.8 11.9,597.3 22.5,599.6 48 M597.1 1.8 C598.1 18.8,598.4 32.8,598.8 45.9 M598.3 45.6 C467.4 48.4,335.8 48.5,1.9 46.2 M597.9 46.4 C441.3 48.2,284.8 48.3,2.1 45.8 M1.9 43.9 C2.1 37.2,1.8 27.6,0.1 3.2 M2.1 47.1 C2.4 32.9,1.4 20.7,1.1 2.9"></path></svg><input placeholder="a date, a season, a year"></span></label></div>
+    <div><span class="lbl3">Rating</span><span class="rate"><span class="stars" role="img" aria-label="3.5 / 5"><svg class="st" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path class="f" d="M12 2.1L14.7 8.9L22 9.4L16.4 14L18.2 21.1L12 17.2L5.8 21.1L7.6 14L2 9.4L9.3 8.9Z"></path><path class="s" d="M12.2 2.3 C12.4 3.8,12.9 4.4,14.5 9 M11.8 2.2 C12.7 3.8,13.2 5.2,14.6 9.1 M15.1 8.4 C16.6 9.3,18.3 8.7,22.3 9.1 M14.8 8.7 C16.7 8.8,18.4 9.2,22.1 9.4 M22.3 9.3 C21 10.3,19.1 11.2,16.8 13.9 M21.7 9.3 C19.8 11.2,18 12.9,16.6 14 M16.2 13.9 C17.2 15.7,17.3 18.1,18.3 20.8 M16.4 14.3 C16.8 16.4,17.6 18.9,18.3 21.3 M18.6 21.2 C16.4 20.5,15.9 19,12.1 17.7 M18.1 21.1 C16 20,14 18.8,12.2 17.1 M12.1 17.3 C10.3 18.4,7.4 19.4,5.9 21.4 M11.8 17 C10.6 18.4,9.1 19,5.8 21.1 M5.5 20.7 C6.6 19.7,6.7 18.5,7.9 14.2 M6.1 20.9 C6.4 18.7,7 16.8,7.7 13.8 M8 14.3 C5.8 11.9,4.1 10.9,1.7 8.9 M7.5 13.9 C5.7 12.5,4.2 11,2.2 9.3 M2.2 9.7 C4.2 9.1,6.1 9.2,9.7 8.6 M1.8 9.5 C3.4 9.1,5.6 9.4,9.1 8.8 M9 8.9 C10 6.3,10.7 4,11.7 2.5 M9.2 8.7 C10.1 6.5,11.2 4.5,12.1 2.1"></path></svg><svg class="st" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path class="f" d="M12 2.1L14.7 8.9L22 9.4L16.4 14L18.2 21.1L12 17.2L5.8 21.1L7.6 14L2 9.4L9.3 8.9Z"></path><path class="s" d="M12.2 2.3 C12.4 3.8,12.9 4.4,14.5 9 M11.8 2.2 C12.7 3.8,13.2 5.2,14.6 9.1 M15.1 8.4 C16.6 9.3,18.3 8.7,22.3 9.1 M14.8 8.7 C16.7 8.8,18.4 9.2,22.1 9.4 M22.3 9.3 C21 10.3,19.1 11.2,16.8 13.9 M21.7 9.3 C19.8 11.2,18 12.9,16.6 14 M16.2 13.9 C17.2 15.7,17.3 18.1,18.3 20.8 M16.4 14.3 C16.8 16.4,17.6 18.9,18.3 21.3 M18.6 21.2 C16.4 20.5,15.9 19,12.1 17.7 M18.1 21.1 C16 20,14 18.8,12.2 17.1 M12.1 17.3 C10.3 18.4,7.4 19.4,5.9 21.4 M11.8 17 C10.6 18.4,9.1 19,5.8 21.1 M5.5 20.7 C6.6 19.7,6.7 18.5,7.9 14.2 M6.1 20.9 C6.4 18.7,7 16.8,7.7 13.8 M8 14.3 C5.8 11.9,4.1 10.9,1.7 8.9 M7.5 13.9 C5.7 12.5,4.2 11,2.2 9.3 M2.2 9.7 C4.2 9.1,6.1 9.2,9.7 8.6 M1.8 9.5 C3.4 9.1,5.6 9.4,9.1 8.8 M9 8.9 C10 6.3,10.7 4,11.7 2.5 M9.2 8.7 C10.1 6.5,11.2 4.5,12.1 2.1"></path></svg><svg class="st" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path class="f" d="M12 2.1L14.7 8.9L22 9.4L16.4 14L18.2 21.1L12 17.2L5.8 21.1L7.6 14L2 9.4L9.3 8.9Z"></path><path class="s" d="M12.2 2.3 C12.4 3.8,12.9 4.4,14.5 9 M11.8 2.2 C12.7 3.8,13.2 5.2,14.6 9.1 M15.1 8.4 C16.6 9.3,18.3 8.7,22.3 9.1 M14.8 8.7 C16.7 8.8,18.4 9.2,22.1 9.4 M22.3 9.3 C21 10.3,19.1 11.2,16.8 13.9 M21.7 9.3 C19.8 11.2,18 12.9,16.6 14 M16.2 13.9 C17.2 15.7,17.3 18.1,18.3 20.8 M16.4 14.3 C16.8 16.4,17.6 18.9,18.3 21.3 M18.6 21.2 C16.4 20.5,15.9 19,12.1 17.7 M18.1 21.1 C16 20,14 18.8,12.2 17.1 M12.1 17.3 C10.3 18.4,7.4 19.4,5.9 21.4 M11.8 17 C10.6 18.4,9.1 19,5.8 21.1 M5.5 20.7 C6.6 19.7,6.7 18.5,7.9 14.2 M6.1 20.9 C6.4 18.7,7 16.8,7.7 13.8 M8 14.3 C5.8 11.9,4.1 10.9,1.7 8.9 M7.5 13.9 C5.7 12.5,4.2 11,2.2 9.3 M2.2 9.7 C4.2 9.1,6.1 9.2,9.7 8.6 M1.8 9.5 C3.4 9.1,5.6 9.4,9.1 8.8 M9 8.9 C10 6.3,10.7 4,11.7 2.5 M9.2 8.7 C10.1 6.5,11.2 4.5,12.1 2.1"></path></svg><svg class="st" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path class="f" d="M12 2.1L14.7 8.9L22 9.4L16.4 14L18.2 21.1L12 17.2L5.8 21.1L7.6 14L2 9.4L9.3 8.9Z" clip-path="url(#v4-half)"></path><path class="s" d="M12.2 2.3 C12.4 3.8,12.9 4.4,14.5 9 M11.8 2.2 C12.7 3.8,13.2 5.2,14.6 9.1 M15.1 8.4 C16.6 9.3,18.3 8.7,22.3 9.1 M14.8 8.7 C16.7 8.8,18.4 9.2,22.1 9.4 M22.3 9.3 C21 10.3,19.1 11.2,16.8 13.9 M21.7 9.3 C19.8 11.2,18 12.9,16.6 14 M16.2 13.9 C17.2 15.7,17.3 18.1,18.3 20.8 M16.4 14.3 C16.8 16.4,17.6 18.9,18.3 21.3 M18.6 21.2 C16.4 20.5,15.9 19,12.1 17.7 M18.1 21.1 C16 20,14 18.8,12.2 17.1 M12.1 17.3 C10.3 18.4,7.4 19.4,5.9 21.4 M11.8 17 C10.6 18.4,9.1 19,5.8 21.1 M5.5 20.7 C6.6 19.7,6.7 18.5,7.9 14.2 M6.1 20.9 C6.4 18.7,7 16.8,7.7 13.8 M8 14.3 C5.8 11.9,4.1 10.9,1.7 8.9 M7.5 13.9 C5.7 12.5,4.2 11,2.2 9.3 M2.2 9.7 C4.2 9.1,6.1 9.2,9.7 8.6 M1.8 9.5 C3.4 9.1,5.6 9.4,9.1 8.8 M9 8.9 C10 6.3,10.7 4,11.7 2.5 M9.2 8.7 C10.1 6.5,11.2 4.5,12.1 2.1"></path></svg><svg class="st" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path class="s" d="M12.2 2.3 C12.4 3.8,12.9 4.4,14.5 9 M11.8 2.2 C12.7 3.8,13.2 5.2,14.6 9.1 M15.1 8.4 C16.6 9.3,18.3 8.7,22.3 9.1 M14.8 8.7 C16.7 8.8,18.4 9.2,22.1 9.4 M22.3 9.3 C21 10.3,19.1 11.2,16.8 13.9 M21.7 9.3 C19.8 11.2,18 12.9,16.6 14 M16.2 13.9 C17.2 15.7,17.3 18.1,18.3 20.8 M16.4 14.3 C16.8 16.4,17.6 18.9,18.3 21.3 M18.6 21.2 C16.4 20.5,15.9 19,12.1 17.7 M18.1 21.1 C16 20,14 18.8,12.2 17.1 M12.1 17.3 C10.3 18.4,7.4 19.4,5.9 21.4 M11.8 17 C10.6 18.4,9.1 19,5.8 21.1 M5.5 20.7 C6.6 19.7,6.7 18.5,7.9 14.2 M6.1 20.9 C6.4 18.7,7 16.8,7.7 13.8 M8 14.3 C5.8 11.9,4.1 10.9,1.7 8.9 M7.5 13.9 C5.7 12.5,4.2 11,2.2 9.3 M2.2 9.7 C4.2 9.1,6.1 9.2,9.7 8.6 M1.8 9.5 C3.4 9.1,5.6 9.4,9.1 8.8 M9 8.9 C10 6.3,10.7 4,11.7 2.5 M9.2 8.7 C10.1 6.5,11.2 4.5,12.1 2.1"></path></svg></span><span class="rv">3.5 / 5</span></span><span class="hint3">Half steps, optional, “No rating” by default. Album and track ratings are independent.</span></div>
+    <div><span class="lbl3">Artwork</span><span style="display: grid; grid-template-columns: 120px 120px; gap: 16px"><span class="art "><span class="artfb"><svg class="o" viewBox="0 0 400 400" preserveAspectRatio="none" aria-hidden="true"><path class="a" d="M0.7 1.2 C82.3 3.8,160.5 3.7,397 1.2 M1.7 1.9 C139.8 4.7,279.2 4.7,398 1.5 M397.2 1.8 C400.1 130.1,400.6 257.8,399.1 399.2 M398.1 2.3 C398.4 112.4,399.2 222.9,398.5 398.3 M397.6 397.1 C274.9 399.9,152.8 400,2.5 398.7 M397.6 398.6 C306 400.3,214.5 400.4,2.4 398.2 M1.3 396.8 C5.3 316.6,5.2 234.3,2.1 1.7 M1.7 398.6 C1.4 260.5,1.2 123.5,1.4 2.6"></path><path class="b" d="M0.7 1.7 C82.2 1.4,159.3 3.6,397.3 1.7 M1.9 2.4 C119.8 5.1,238.9 5.1,398.6 1.7 M397.7 3 C400.5 98.5,399 195.5,398.9 399.2 M397.5 1.9 C396.5 144.2,396.7 284.8,398.4 398 M398.5 397.4 C311.4 400.1,223.2 400.3,1.8 398.2 M397.9 398.6 C293.8 400.2,190 400.4,2.1 397.7 M1.9 396.8 C4.3 313.1,4.1 227.8,0.9 2.7 M2 398.6 C3.2 282,2.7 166.4,1.5 2.5"></path></svg><svg class="ic " width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.1 3.4 C5.8 3.9,10.8 2.7,21 4 M3.4 2.7 C8.6 3,14.3 2.6,20.6 2.9 M20.8 2.6 C21.7 7.3,21.5 13.2,20.5 20.8 M20.7 3 C20.6 9,21.1 15.4,21 20.9 M21.6 20.5 C16.6 20.6,10.8 21.2,3.6 22 M20.6 20.6 C15.8 20.7,10.9 21,3.3 21.1 M3.2 20.3 C2.2 17,3.8 13,2.5 4 M2.5 21.5 C3.1 17.4,3.4 12.9,3.1 3.5 M11.5 6.9 C12.5 6.8,14.4 7.5,15.4 8.2 C16.3 8.8,16.8 9.8,16.9 10.8 C17 11.7,16.5 12.9,16.1 13.9 C15.6 14.8,15.1 16,14.1 16.4 C13.2 16.9,11.4 16.8,10.4 16.5 C9.4 16.1,8.7 15.2,8.1 14.4 C7.5 13.5,6.8 12.3,6.9 11.3 C7.1 10.3,8.1 9.2,8.9 8.5 C9.7 7.7,11.2 7,11.8 6.9 C12.4 6.7,12.3 7.4,12.4 7.5 M11.6 6.7 C12.6 6.5,14 7.2,14.9 7.7 C15.7 8.2,16.5 9.1,16.8 9.9 C17.2 10.8,17.6 11.8,17.1 12.8 C16.7 13.7,15.2 14.7,14.2 15.5 C13.2 16.2,12.2 17.4,11.4 17.4 C10.5 17.4,9.9 16.4,9.2 15.5 C8.6 14.7,7.6 13.4,7.4 12.3 C7.3 11.2,7.8 9.8,8.5 9 C9.1 8.2,11.2 7.9,11.6 7.5 C11.9 7.2,10.9 6.9,10.8 6.9 M11.9 11 C11.9 10.9,11.8 10.6,12.1 10.8 C12.3 10.9,13.1 11.7,13.2 11.9 C13.2 12.1,12.5 12,12.4 12 C12.2 12.1,12.5 12.2,12.4 12.4 C12.3 12.6,11.9 13.3,11.7 13.3 C11.4 13.4,11.3 12.8,11.1 12.6 C10.9 12.4,10.5 12.4,10.6 12.1 C10.7 11.9,11.5 11.3,11.7 11.1 C11.8 10.9,11.5 10.9,11.5 10.9 C11.5 10.9,11.7 11.1,11.8 11.2 M12.4 10.9 C12.5 11,12.8 11.5,12.9 11.7 C12.9 11.9,12.6 11.9,12.7 12 C12.8 12.2,13.4 12.6,13.4 12.9 C13.4 13.1,13.1 13.4,12.8 13.4 C12.5 13.4,11.7 12.9,11.5 12.7 C11.4 12.5,12 12.3,11.8 12 C11.7 11.8,10.6 11.4,10.5 11.3 C10.4 11.1,10.8 11.2,11 11.2 C11.2 11.2,11.5 11.5,11.8 11.4 C12 11.3,12.6 10.4,12.7 10.5"></path></svg><span class="ka" style="margin-top: 8px">no artwork yet</span></span></span><span class="art" style="background: #F4F4F2"></span></span><span class="hint3"><code style="font-family: ui-monospace, monospace; font-size: 14.5px; background: #F4F4F2; padding: 1px 5px">&lt;span class="art"&gt;</code> keeps a fixed ratio (1:1 covers, 4:5 photos). The fallback sits underneath; the <code style="font-family: ui-monospace, monospace; font-size: 14.5px; background: #F4F4F2; padding: 1px 5px">&lt;img&gt;</code> covers it with object-fit: cover once loaded. No layout shift.</span></div>
+    <div><span class="lbl3">Divider</span><svg class="rule lt" viewBox="0 0 1200 8" preserveAspectRatio="none" aria-hidden="true"><path d="M1.3 4.1 C241.8 2.4,480.7 2.1,1197.8 4.1"></path></svg><span class="hint3">One stroke, seeded so it never changes between renders.</span></div>
+  </div></div></section>
+      <div class="nb"><span></span><svg class="rule lt" viewBox="0 0 1200 8" preserveAspectRatio="none" aria-hidden="true"><path d="M1.9 3.3 C241.6 -1,480.3 -0.5,1198.6 4.4"></path></svg></div>
+      <section class="nb" style="padding-top: 72px"><div class="mh"><span class="hand" style="color: #4A4A4A">06</span><h2>Responsive</h2></div><div><ul style="margin: 0; padding-left: 22px; max-width: 70ch; font-size: 18px; line-height: 1.6"><li style="margin: 0 0 8px">≤ 720px: one column everywhere; header stacks name over navigation; footer stacks signature over language; tracklist status moves under the title; album grids drop to two columns; artist journals become a list.</li><li style="margin: 0 0 8px">≤ 370px: page padding 16px; album title 54px; album grid gap tightens. Verified at 390px and 360px with no horizontal overflow.</li><li style="margin: 0 0 8px">Touch targets ≥ 44px: navigation links, buttons, language selector, track rows. Exception: star halves are 14 × 28px; give the rating row 44px of height in production, and keep it keyboard-operable as a radio group.</li></ul></div></section>
+      <div class="nb"><span></span><svg class="rule lt" viewBox="0 0 1200 8" preserveAspectRatio="none" aria-hidden="true"><path d="M1.3 4.1 C241.8 2.4,480.7 2.1,1197.8 4.1"></path></svg></div>
+      <section class="nb" style="padding-top: 72px"><div class="mh"><span class="hand" style="color: #4A4A4A">07</span><h2>Interaction patterns</h2></div><div><ul style="margin: 0; padding-left: 22px; max-width: 70ch; font-size: 18px; line-height: 1.6"><li style="margin: 0 0 8px"><b>Save</b>: “Unsaved changes” → Save becomes primary → “Saving…” → “Saved just now”. A failed save keeps text locally and offers “Try again”.</li><li style="margin: 0 0 8px"><b>Publish / Unpublish</b>: always a confirmation that says what will happen. Unpublishing never deletes.</li><li style="margin: 0 0 8px"><b>Delete</b>: confirmation, then Recently deleted for 30 days with Restore. Removing a catalog record keeps every piece of writing; links become plain text.</li><li style="margin: 0 0 8px"><b>Preview</b>: opens the public page with a private banner and “Back to editing”.</li><li style="margin: 0 0 8px"><b>Language selector</b>: footer only; opens upward; arrow keys move through options; Escape closes and returns focus.</li><li style="margin: 0 0 8px"><b>Motion</b>: underline draws in on hover, outline swaps on hover, chevron changes shape. All transitions stop under prefers-reduced-motion.</li></ul></div></section>
+      <div class="nb"><span></span><svg class="rule lt" viewBox="0 0 1200 8" preserveAspectRatio="none" aria-hidden="true"><path d="M2.3 3.7 C240.9 7.6,481.2 7.7,1198.2 3.5"></path></svg></div>
+      <section class="nb" style="padding-top: 72px"><div class="mh"><span class="hand" style="color: #4A4A4A">08</span><h2>Implementation notes</h2></div><div><ul style="margin: 0; padding-left: 22px; max-width: 70ch; font-size: 18px; line-height: 1.6"><li style="margin: 0 0 8px">Generate Rough.js paths once with fixed seeds and ship them as inline SVG; never re-randomise on render.</li><li style="margin: 0 0 8px">Outlines use <code style="font-family: ui-monospace, monospace; font-size: 14.5px; background: #F4F4F2; padding: 1px 5px">preserveAspectRatio=none</code> with <code style="font-family: ui-monospace, monospace; font-size: 14.5px; background: #F4F4F2; padding: 1px 5px">vector-effect: non-scaling-stroke</code> so one path fits any button width.</li><li style="margin: 0 0 8px">The SVG sits behind the label (<code style="font-family: ui-monospace, monospace; font-size: 14.5px; background: #F4F4F2; padding: 1px 5px">z-index: -1</code> inside an <code style="font-family: ui-monospace, monospace; font-size: 14.5px; background: #F4F4F2; padding: 1px 5px">isolation: isolate</code> parent); labels stay real, selectable text.</li><li style="margin: 0 0 8px">Favourite and draft annotations render from data (track.favourite, track.status). Empty tracks are plain text, not disabled buttons.</li><li style="margin: 0 0 8px">Placeholders in brackets mark the author’s own words. They are never machine-translated.</li></ul></div></section>
+      <div class="nb"><span></span><svg class="rule lt" viewBox="0 0 1200 8" preserveAspectRatio="none" aria-hidden="true"><path d="M1.9 3.3 C241.6 -1,480.3 -0.5,1198.6 4.4"></path></svg></div>
+    </main>
+    <footer>
+      <svg class="rule lt" viewBox="0 0 1200 8" preserveAspectRatio="none" aria-hidden="true"><path d="M2.3 3.7 C240.9 7.6,481.2 7.7,1198.2 3.5"></path></svg>
+      <div class="ft4">
+        <p class="tag">{{t.tagline}}</p>
+        <div class="lsel" style="position: relative" onKeyDown="{{langKey}}">
+          <button type="button" class="lb" aria-haspopup="true" aria-expanded="{{langOpen}}" aria-controls="v44-lang" onClick="{{toggleLang}}"><svg class="ic " width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3.1 C14.7 3.1,17 4.3,18.2 5.7 C19.4 7.1,20 9.4,20.2 11.3 C20.3 13.3,20.2 15.8,19.1 17.3 C18 18.7,15.5 19.5,13.6 19.9 C11.7 20.2,9.2 20.3,7.8 19.6 C6.3 18.9,5.6 17.3,4.9 15.6 C4.2 14,3.1 11.6,3.6 9.9 C4 8.1,6 6.1,7.6 5 C9.2 3.8,12.1 3.1,13.2 3 C14.2 2.8,14.1 3.8,14.1 4.1 M9.5 3.7 C11.4 3,14.5 3.2,16.3 3.9 C18.1 4.7,19.8 6.6,20.3 8.4 C20.8 10.1,20.1 12.7,19.4 14.6 C18.8 16.4,17.8 18.6,16.4 19.5 C14.9 20.4,12.5 20.3,10.8 20 C9.2 19.7,7.6 19,6.4 17.6 C5.1 16.3,3.6 13.7,3.4 11.9 C3.2 10,4.4 8.1,5.4 6.7 C6.5 5.4,8.8 4.5,9.7 3.9 C10.6 3.3,10.7 3,10.8 3.2 M12.3 3.1 C13 3,14.1 4.2,14.6 5.5 C15.1 6.7,15.3 8.7,15.4 10.5 C15.4 12.4,15.4 14.8,15.1 16.4 C14.8 18.1,14.3 19.6,13.7 20.3 C13 21,12.1 21.2,11.4 20.7 C10.6 20.1,9.5 18.6,9.1 17 C8.7 15.4,8.9 13.1,9.1 11.2 C9.3 9.2,9.7 6.6,10.2 5.3 C10.6 3.9,11.4 3.1,11.8 2.9 C12.1 2.6,12.4 3.4,12.4 3.7 M13.2 4.1 C13.9 4.4,14.3 5.3,14.6 6.7 C15 8.1,15.5 10.4,15.4 12.4 C15.3 14.4,14.8 17.5,14.2 18.8 C13.6 20.2,12.5 20.2,11.8 20.3 C11.2 20.4,10.6 20.7,10.2 19.6 C9.8 18.5,9.4 15.7,9.2 13.7 C9.1 11.7,9 9.1,9.3 7.5 C9.6 6,10.7 5,11.2 4.4 C11.8 3.7,12.6 4.1,12.7 3.9 C12.9 3.7,12.3 3,12.3 3 M3.1 11.4 C6.5 12.7,9.8 11.6,20 11.7 M3.9 12 C9 12.3,14.6 11.7,20.2 12.3"></path></svg><span class="sr">{{t.langAria}}: </span><span lang="{{langTag}}">{{curName}}</span><svg class="ic up" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M5.7 15.5 C6.7 13.7,8.1 12,11.9 8.5 M6 15 C7.5 13.1,9.3 11.5,12 8.3 M11.9 8.9 C13.6 10.3,16 13.2,17.8 15.3 M11.8 8.3 C13.8 10.4,15.7 12.9,18.1 15.2"></path></svg></button>
+          <sc-if value="{{menuOpen}}" hint-placeholder-val="{{false}}">
+            <div id="v44-lang" class="lmenu"><svg class="o" viewBox="0 0 240 120" preserveAspectRatio="none" aria-hidden="true"><path class="a" d="M0.2 0.8 C50.8 3.7,96.5 3.4,236.6 0.8 M1.5 1.9 C83.6 4.3,167.5 4.3,237.9 1.3 M236.6 1.7 C238.8 40.1,239.8 77.4,239.9 120.1 M238.1 2.4 C238 34.3,239.3 66.9,238.9 118.5 M237.4 116.6 C164.2 119.2,92 119.4,2.8 119.1 M237.4 118.9 C182.8 120,128.4 120,2.5 118.3 M0.9 115.8 C4.3 95.3,4.2 71.2,2.2 1.5 M1.5 119.1 C2.2 77.2,1.7 37.3,1 3"></path><path class="b" d="M0.2 1.5 C50.6 0.8,94.7 4.1,237 1.5 M1.9 2.7 C71.8 4.9,143.3 4.9,238.8 1.6 M237.5 3.7 C240.3 29.6,237.8 57.8,239.6 120 M237.1 1.8 C237.5 44.5,237.9 84.3,238.8 117.9 M238.7 117.1 C186.6 119.6,133 119.9,1.7 118.3 M237.8 118.9 C175.8 120.2,114.1 120.4,2.1 117.6 M1.9 115.9 C2.9 93.7,2.6 68.6,0.1 3.2 M2.1 119.1 C2.7 83.9,1.7 50.5,1.1 2.9"></path></svg>
+              <ul aria-label="{{t.langAria}}" style="position: relative; list-style: none; margin: 0; padding: 0">
+                <sc-for list="{{langs}}" as="l" hint-placeholder-count="2"><li><button type="button" class="lopt" lang="{{l.tag}}" aria-current="{{l.cur}}" onClick="{{l.pick}}"><span>{{l.name}}</span><span style="opacity: {{l.op}}"><svg class="ic " width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.9 12.2 C5.2 13.9,6.5 14.2,9 18.5 M3.9 12.8 C5.4 13.7,6.5 15.2,9.4 17.9 M9.6 18.9 C12.4 13.3,16.2 10.3,19.8 5.5 M9.5 17.4 C12.3 14.4,15.3 11.6,19.5 5.3"></path></svg></span></button></li></sc-for>
+              </ul>
+              <p class="xs mut" style="position: relative; margin: 6px 22px 0">{{t.langNote}}</p>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </footer>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":4600}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { lang: 'en', menu: false }; }
+  renderVals() {
+    const lang = this.state.lang || 'en'; const pt = lang === 'pt';
+    const t = {"en": {"albums": "Albums", "artists": "Artists", "memories": "Memories", "kept": "kept by hand", "langAria": "Language", "langNote": "Changes the interface only. Writing stays in the language it was written in.", "dec": ".", "home": "Home", "tagline": "some songs take you back.", "studio": "Writing studio", "viewPublic": "Public pages", "desk": "Desk", "catalog": "Catalog", "pub": "Published", "prv": "Private", "drf": "Draft", "albumJ": "Album journal", "artistJ": "Artist journal", "memory": "Memory", "tracks": "tracks", "by": "by", "notYet": "not written yet"}, "pt": {"albums": "Álbuns", "artists": "Artistas", "memories": "Memórias", "kept": "feito à mão", "langAria": "Idioma", "langNote": "Muda só a interface. O que foi escrito fica no idioma original.", "dec": ",", "home": "Início", "tagline": "algumas músicas levam a gente de volta.", "studio": "Estúdio de escrita", "viewPublic": "Páginas públicas", "desk": "Mesa", "catalog": "Catálogo", "pub": "Publicado", "prv": "Privado", "drf": "Rascunho", "albumJ": "Diário de álbum", "artistJ": "Diário de artista", "memory": "Memória", "tracks": "faixas", "by": "de", "notYet": "ainda não escrita"}}[lang];
+    const dec = (r) => String(r).replace('.', t.dec);
+    const L = { t, pt, langTag: pt ? 'pt-BR' : 'en', curName: pt ? 'Português' : 'English',
+      menuOpen: !!this.state.menu, langOpen: this.state.menu ? 'true' : 'false',
+      toggleLang: () => this.setState({ menu: !this.state.menu }),
+      langKey: (ev) => { if (ev.key === 'Escape' && this.state.menu) this.setState({ menu: false }); },
+      langs: [['en', 'English', 'en'], ['pt', 'Português (Brasil)', 'pt-BR']].map(([code, name, tag]) => ({ name, tag, cur: code === lang ? 'true' : 'false', op: code === lang ? '1' : '0', pick: () => this.setState({ lang: code, menu: false }) }))
+    };
+    L.langKey = (ev) => {
+      const root = (ev.currentTarget && ev.currentTarget.querySelector) ? ev.currentTarget : (ev.target.closest ? ev.target.closest('.lsel') : null);
+      if (ev.key === 'Escape' && this.state.menu) { this.setState({ menu: false }); const b = root && root.querySelector('.lb'); if (b) b.focus(); return; }
+      if ((ev.key === 'ArrowDown' || ev.key === 'ArrowUp') && root) {
+        const opts = Array.prototype.slice.call(root.querySelectorAll('.lopt'));
+        if (!opts.length) { if (ev.key === 'ArrowUp') { ev.preventDefault(); this.setState({ menu: true }); } return; }
+        ev.preventDefault(); const i = opts.indexOf(document.activeElement);
+        opts[ev.key === 'ArrowDown' ? (i + 1) % opts.length : (i <= 0 ? opts.length - 1 : i - 1)].focus();
+      }
+    };
+    const starList = (v) => [1, 2, 3, 4, 5].map(i => ({ op: v >= i - 0.5 ? '1' : '0', clip: (v >= i - 0.5 && v < i) ? 'url(#v4-half)' : 'none' }));
+    return L;
+  }
+}
+</script>
+</body>
+</html>

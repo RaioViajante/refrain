@@ -1,0 +1,13 @@
+# Operating system files
+.DS_Store
+
+# Local environment and secrets. Commit only .env.example (variable names, no values).
+.env
+.env.*
+!.env.example
+
+# Local agent settings
+.claude/settings.local.json
+
+# Tool-specific entries (node_modules, build output, coverage, test reports)
+# are added when the application is scaffolded.
