@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import { afterAll, describe, expect, it } from "vitest";
 
 import { closeDb, getDb } from "./client";
-import { checkDatabaseConnection } from "./health";
+import { checkDatabaseConnection, describeFailure } from "./health";
 
 // Runs against a real PostgreSQL server (local: `pnpm db:up`; CI: a service
 // container). Database behavior is never mocked.
@@ -27,5 +27,16 @@ describe("PostgreSQL connection", () => {
 
   it("reports the connection as healthy", async () => {
     await expect(checkDatabaseConnection()).resolves.toBe(true);
+  });
+
+  it("finds the SQLSTATE of a real failed query wrapped by Drizzle", async () => {
+    const error = await getDb()
+      .execute(sql`select * from m1_1_table_that_does_not_exist`)
+      .then(
+        () => undefined,
+        (rejection: unknown) => rejection,
+      );
+    // 42P01: undefined_table.
+    expect(describeFailure(error)).toEqual({ code: "42P01" });
   });
 });
