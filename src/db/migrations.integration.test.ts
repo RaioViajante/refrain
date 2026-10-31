@@ -61,6 +61,7 @@ describe("enumerated values", () => {
   it.each([
     ["artists_kind_check", artistKinds],
     ["entries_kind_check", entryKinds],
+    ["entry_slugs_kind_check", entryKinds],
     ["entry_texts_locale_check", locales],
     ["track_reflection_texts_locale_check", locales],
     ["entry_texts_status_check", visibilityStatuses],

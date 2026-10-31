@@ -16,6 +16,7 @@ import {
   changeEntrySlug,
   PublicationError,
   publishLanguageVersion,
+  retireEntrySlugs,
   unpublishLanguageVersion,
 } from "./commands";
 import { resolvePublicSlug } from "./queries";
@@ -193,6 +194,7 @@ describe("publication history per language version (ADR 0003)", () => {
     await inRollbackTransaction(async (tx) => {
       const memoryId = await createTestMemory(tx, {
         versions: [{ locale: "en", status: "published", publishedAt: longAgo }],
+        slug: "test-memory",
       });
       const before = await version(tx, memoryId, "en");
       await publishLanguageVersion(tx, memoryId, "en");
@@ -236,6 +238,23 @@ describe("publication history per language version (ADR 0003)", () => {
         status: "draft",
         firstPublishedAt: null,
       });
+    });
+  });
+
+  it("refuses to publish an entry without a current slug, changing nothing", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const memoryId = await createTestMemory(tx, {
+        versions: [{ locale: "en" }],
+      });
+      await expect(
+        publishLanguageVersion(tx, memoryId, "en"),
+      ).rejects.toMatchObject({ failure: "no_current_slug" });
+      expect(await version(tx, memoryId, "en")).toEqual({
+        status: "draft",
+        publishedAt: null,
+        firstPublishedAt: null,
+      });
+      expect(await entryFirstPublishedAt(tx, memoryId)).toBeNull();
     });
   });
 
@@ -388,6 +407,96 @@ describe("slug retention after permanent deletion (ADR 0003)", () => {
         ]);
       }
       expect(await slugRows(tx, "test-third")).toEqual([]);
+    });
+  });
+
+  it("never serves or reserves a previous slug that was never public", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const memoryId = await draftMemory(tx, "test-a");
+      await publishLanguageVersion(tx, memoryId, "en");
+      await unpublishLanguageVersion(tx, memoryId, "en", "private");
+      await changeEntrySlug(tx, memoryId, "test-b"); // chosen while private
+      await changeEntrySlug(tx, memoryId, "test-c");
+      await publishLanguageVersion(tx, memoryId, "en");
+
+      // test-b was never a public address, so it does not become one.
+      expect(await resolvePublicSlug(tx, "memory", "test-b")).toEqual({
+        outcome: "not_found",
+      });
+      expect(await resolvePublicSlug(tx, "memory", "test-a")).toEqual({
+        outcome: "redirect",
+        currentSlug: "test-c",
+      });
+
+      await softDelete(tx, memoryId);
+      await permanentlyDeleteEntry(tx, memoryId);
+      for (const slug of ["test-a", "test-c"]) {
+        expect(await slugRows(tx, slug), slug).toEqual([
+          { entryId: null, isCurrent: false, wasPublished: true },
+        ]);
+      }
+      // test-b is released and may identify other writing.
+      expect(await slugRows(tx, "test-b")).toEqual([]);
+      await createTestMemory(tx, { slug: "test-b" });
+    });
+  });
+
+  it("serves only slugs marked as published", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const memoryId = await createTestMemory(tx, {
+        versions: [{ locale: "en", status: "published" }],
+        slug: "test-unmarked",
+      });
+      await tx
+        .update(schema.entrySlugs)
+        .set({ wasPublished: false })
+        .where(eq(schema.entrySlugs.entryId, memoryId));
+      expect(await resolvePublicSlug(tx, "memory", "test-unmarked")).toEqual({
+        outcome: "not_found",
+      });
+
+      // A redirect would reveal the current slug, so a marked previous slug
+      // does not redirect to an unmarked current one either.
+      await tx
+        .update(schema.entrySlugs)
+        .set({ isCurrent: false, wasPublished: true })
+        .where(eq(schema.entrySlugs.entryId, memoryId));
+      await tx.insert(schema.entrySlugs).values({
+        kind: "memory",
+        slug: "test-unmarked-current",
+        entryId: memoryId,
+        isCurrent: true,
+      });
+      expect(await resolvePublicSlug(tx, "memory", "test-unmarked")).toEqual({
+        outcome: "not_found",
+      });
+    });
+  });
+
+  it("refuses to retire the slugs of an entry that is not in Recently deleted", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const memoryId = await draftMemory(tx, "test-live");
+      await publishLanguageVersion(tx, memoryId, "en");
+      await expect(retireEntrySlugs(tx, memoryId)).rejects.toMatchObject({
+        failure: "entry_not_deleted",
+      });
+      expect(await slugRows(tx, "test-live")).toEqual([
+        { entryId: memoryId, isCurrent: true, wasPublished: true },
+      ]);
+    });
+  });
+
+  it("checks the kind of retired slugs", async () => {
+    await inRollbackTransaction(async (tx) => {
+      await expectRejected(
+        tx,
+        { code: checkViolation, constraint: "entry_slugs_kind_check" },
+        (sp) =>
+          sp.execute(
+            sql`insert into entry_slugs (kind, slug, entry_id, is_current, was_published)
+                values ('bogus', 'test-retired', null, false, true)`,
+          ),
+      );
     });
   });
 

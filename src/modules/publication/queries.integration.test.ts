@@ -512,6 +512,12 @@ describe("track reflections through the publication predicate (D5; INV-2, INV-3)
         { locale: "en", status: "private" },
       ]);
       await reflect(0, { texts: { en: "[Test] Written" } });
+      await tx.insert(schema.entrySlugs).values({
+        kind: "album_journal",
+        slug: "test-journal",
+        entryId: journalId,
+        isCurrent: true,
+      });
       await publishLanguageVersion(tx, journalId, "en");
       expect(await listPublicTrackReflections(tx, journalId, "en")).toEqual([]);
     });
@@ -555,11 +561,20 @@ describe("track reflections through the publication predicate (D5; INV-2, INV-3)
 });
 
 describe("slug resolution (ADR 0002, D7.5; INV-5)", () => {
-  async function memoryWithRenamedSlug(tx: Transaction, options = {}) {
+  // A memory renamed from test-old to test-new. When it has ever been
+  // published, both slugs are marked as published, as the publication
+  // commands would leave them.
+  async function memoryWithRenamedSlug(
+    tx: Transaction,
+    options: Parameters<typeof createTestMemory>[1] = {},
+  ) {
     const memoryId = await createTestMemory(tx, {
       slug: "test-old",
       ...options,
     });
+    const wasPublished = (options.versions ?? []).some(
+      (version) => version.status === "published",
+    );
     await tx
       .update(schema.entrySlugs)
       .set({ isCurrent: false })
@@ -568,6 +583,7 @@ describe("slug resolution (ADR 0002, D7.5; INV-5)", () => {
       kind: "memory",
       slug: "test-new",
       entryId: memoryId,
+      wasPublished,
       isCurrent: true,
     });
     return memoryId;

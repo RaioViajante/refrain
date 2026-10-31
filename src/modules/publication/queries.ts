@@ -237,11 +237,17 @@ export type SlugResolution =
 const notFound: SlugResolution = { outcome: "not_found" };
 
 /**
- * Resolves a public slug (ADR 0002, D7.5 and INV-5). A current slug of a
- * publicly visible entry is found; a previous slug of a publicly visible
- * entry redirects (308) to the current slug. Every other case, including the
- * slugs of draft, private, and deleted entries, returns exactly the same
- * `not_found` result as an unknown slug, so nothing about the entry leaks.
+ * Resolves a public slug (ADR 0002, D7.5 and INV-5; ADR 0003). A current slug
+ * of a publicly visible entry is found; a previous slug of a publicly visible
+ * entry redirects (308) to the current slug.
+ *
+ * Only slugs marked `was_published` are ever served. A previous slug that was
+ * chosen while the entry was unpublished was never public, so it does not
+ * redirect, and a slug is public only if it is marked: the mark therefore
+ * covers every slug that has ever been served, and retirement keeps them all
+ * reserved. Every other case, including the slugs of draft, private, deleted,
+ * and permanently deleted entries, returns exactly the same `not_found`
+ * result as an unknown slug, so nothing about the entry leaks.
  */
 export async function resolvePublicSlug(
   db: DatabaseExecutor,
@@ -261,6 +267,8 @@ export async function resolvePublicSlug(
        and current_slug.is_current
      where requested.kind = ${kind}
        and requested.slug = ${slug}
+       and requested.was_published
+       and current_slug.was_published
        and exists (select 1
                      from (${publicLanguageVersions}) pv
                     where pv.entry_id = requested.entry_id)`);

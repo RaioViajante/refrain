@@ -21,7 +21,9 @@ import { isNormalizedSlug } from "./slug";
 export type PublicationFailure =
   | "entry_not_found"
   | "entry_deleted"
+  | "entry_not_deleted"
   | "version_not_found"
+  | "no_current_slug"
   | "invalid_status"
   | "invalid_slug"
   | "slug_taken";
@@ -86,7 +88,9 @@ async function lockLiveEntry(tx: Transaction, entryId: string) {
  * - The entry's current slug is marked as published, so it stays reserved
  *   even after a permanent deletion (ADR 0003).
  *
- * Refused for a deleted entry. Track reflections are not affected (D5.2).
+ * Refused for a deleted entry, and for an entry without a current slug
+ * (D7.1): published writing always has an address. Track reflections are not
+ * affected (D5.2).
  */
 export async function publishLanguageVersion(
   db: DatabaseExecutor,
@@ -119,10 +123,14 @@ export async function publishLanguageVersion(
              updated_at = now()
        where id = ${entryId}`);
 
-    await tx.execute(sql`
+    const marked = await tx.execute(sql`
       update entry_slugs
          set was_published = true
-       where entry_id = ${entryId} and is_current`);
+       where entry_id = ${entryId} and is_current
+      returning slug`);
+    if (marked.rows.length === 0) {
+      throw new PublicationError("no_current_slug");
+    }
   });
 }
 
@@ -160,9 +168,12 @@ export async function unpublishLanguageVersion(
  *
  * - Before the entry's first publication, the slug changes freely: the old,
  *   never-published slug is released.
- * - After it, the old slug stays as a previous slug, which redirects while
- *   the entry is publicly visible. The new slug is marked as published when
- *   the entry is publicly visible now; otherwise when it is next published.
+ * - After it, the old slug stays as a previous slug (D7.5). It redirects
+ *   while the entry is publicly visible only if it was itself ever public
+ *   (`was_published`); a slug chosen while the entry was unpublished never
+ *   becomes a public address once replaced. The new slug is marked as
+ *   published when the entry is publicly visible now; otherwise when it is
+ *   next published.
  * - Returning to one of the entry's own previous slugs makes it current again.
  * - A slug held by another entry, or retired after a permanent deletion, is
  *   refused with `slug_taken`.
@@ -217,16 +228,26 @@ export async function changeEntrySlug(
                was_published = was_published or ${publiclyVisible}
          where kind = ${entry.kind} and slug = ${newSlug}`);
     } else {
-      await tx.execute(sql`
+      // A concurrent transaction may claim the same slug after the check
+      // above. ON CONFLICT waits for it and then reports the slug as taken,
+      // instead of failing with a raw unique violation.
+      const inserted = await tx.execute(sql`
         insert into entry_slugs (kind, slug, entry_id, is_current, was_published)
-        values (${entry.kind}, ${newSlug}, ${entryId}, true, ${publiclyVisible})`);
+        values (${entry.kind}, ${newSlug}, ${entryId}, true, ${publiclyVisible})
+        on conflict (kind, slug) do nothing
+        returning slug`);
+      if (inserted.rows.length === 0) {
+        throw new PublicationError("slug_taken");
+      }
     }
   });
 }
 
 /**
  * Prepares an entry's slugs for its permanent deletion (ADR 0003). Must run
- * inside the deletion transaction, before the entry row is deleted:
+ * inside the deletion transaction, before the entry row is deleted. Refused
+ * unless the entry is in Recently deleted, so it can never detach the slugs
+ * of a live entry:
  *
  * - slugs that never identified published writing are deleted, so they can
  *   be used again and no trace of them remains;
@@ -239,6 +260,10 @@ export async function retireEntrySlugs(
   tx: Transaction,
   entryId: string,
 ): Promise<void> {
+  const entry = await lockEntry(tx, entryId);
+  if (!entry.deleted) {
+    throw new PublicationError("entry_not_deleted");
+  }
   await tx.execute(sql`
     delete from entry_slugs where entry_id = ${entryId} and not was_published`);
   await tx.execute(sql`

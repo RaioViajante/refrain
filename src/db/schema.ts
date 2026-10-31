@@ -693,6 +693,9 @@ export const entrySlugs = pgTable(
     uniqueIndex("entry_slugs_one_current_idx")
       .on(t.entryId)
       .where(sql`is_current`),
+    // Retired rows have no entry, so the composite foreign key no longer
+    // checks their kind; this constraint does.
+    check("entry_slugs_kind_check", inList("kind", entryKinds)),
     check(
       "entry_slugs_retired_check",
       sql`entry_id is not null or (was_published and not is_current)`,
