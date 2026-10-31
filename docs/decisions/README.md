@@ -5,6 +5,7 @@ Significant architectural, data, and workflow decisions are recorded here as sho
 | ADR | Title | Status |
 | --- | --- | --- |
 | [0001](0001-modular-monolith.md) | Modular Monolith | Accepted |
+| [0002](0002-domain-model-decisions.md) | Domain Model Decisions | Proposed: awaiting owner approval |
 
 ## Format
 
@@ -21,7 +22,7 @@ File name: `NNNN-short-title.md`. Sections:
 
 These come from the open questions in [Data Model](../data-model.md#open-questions):
 
-- Catalog removal: archive vs. detach.
-- One journal per album and per artist.
-- Rich-text storage and export format.
 - Enum representation in PostgreSQL.
+- Restore behavior for published language versions.
+- Slug release after permanent deletion, and the featured-journal fallback order.
+- The mechanism for automatic purge, once its preconditions are met.

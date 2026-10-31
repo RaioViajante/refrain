@@ -1,6 +1,16 @@
 # Design System
 
-**Status:** visual identity approved (design V4.4, October 31, 2026). Not yet implemented. This document summarizes the approved design for implementation. It does not redesign anything. The source of truth is `reference/`; if this document and the references disagree, the references win and this document must be corrected.
+**Status:** visual identity approved (design V4.4, October 31, 2026). Not yet implemented. This document summarizes the approved design for implementation. It does not redesign anything.
+
+## Authority
+
+In order of precedence:
+
+1. **The approved screens:** the rendered V4.4 pages in `reference/refrain/pages/` and their captures in `reference/refrain/previews/`.
+2. **The handoff's written rules** (`refrainV44-Handoff.dc.html`), where they agree with the screens. When the handoff text and the screens disagree, the screens win.
+3. **Exported CSS and markup are not authoritative.** The `.dc.html` files contain legacy rules from earlier design iterations, such as unused font families and header brand classes. Do not port legacy rules into the implementation.
+
+This document summarizes items 1 and 2. If it disagrees with them, correct this document.
 
 ## Reference inventory
 
@@ -11,7 +21,7 @@
 | `reference/refrain/previews/` | Full-page PNG captures of every screen: `1-site-desktop`, `2-site-mobile`, `3-admin-desktop`, `4-admin-mobile` |
 | `reference/refrain/LEIA-ME.txt` | The original export notes (in Portuguese), preserved as delivered |
 | `reference/refrain-home-character.png` | The original character illustration (1536×1024). Byte-identical to `reference/refrain/pages/refrain-character.png`, which the mockups load. |
-| `reference/refrain-cursor/` | Pencil cursor: PNG, SVG master, Windows `.cur`, usage notes |
+| `reference/refrain-cursor/` | Pencil cursor: `refrain-pencil-48.png`, `refrain-pencil-32.png`, `refrain-pencil.svg` (master), `refrain-pencil.cur`, `preview.png`, `README.md` |
 | `reference/refrain-favicon-kit/` | Favicons (16–512 px), `apple-touch-icon.png`, `favicon.ico`, preview. Drawn from the character's face. |
 
 Reference files are not edited, renamed, recompressed, or deleted. Implementation copies the assets it needs into the application's public assets.
@@ -41,7 +51,7 @@ From the handoff:
 | Metadata, dates, credits, hints | Alegreya Sans | 400 | 15.5–18px, never below 15px | 15–16.5px |
 | Rating values | Alegreya Sans, tabular numerals | 400 | 16–18px | 15–16px |
 
-Only Kalam (300, 400, 700) and Alegreya Sans (400, 500, 700, italic 400) are loaded. The exported CSS still contains early declarations for *Atkinson Hyperlegible Next* and *Caveat*. Later rules override them and those fonts are never loaded, so they must not be carried into the implementation.
+Kalam and Alegreya Sans are the only approved typefaces. The pages load Kalam (300, 400, 700) and Alegreya Sans (400, 500, 700, italic 400). The exported CSS also declares *Atkinson Hyperlegible Next* and *Caveat*. Those are legacy rules: later rules override them and the fonts are never loaded, so they are not part of the design ([Authority](#authority)).
 
 ## Color tokens
 
@@ -68,7 +78,7 @@ There is no other color anywhere, including status, error, and success states, w
 
 ## Page furniture
 
-- **Header (public):** centered navigation: Home, Albums, Artists, Memories. No logo or wordmark. The current page has a drawn underline.
+- **Header (public):** minimal, centered navigation: Home, Albums, Artists, Memories. The Home link is the way back to the homepage. There is no logo, wordmark, or site name in the header. The current page has a drawn underline.
 - **Header (studio):** "Writing studio" label, centered Desk and Catalog navigation, and a "Public pages" link.
 - **Character:** appears only on the public homepage, between the navigation and the introduction. Static, using the original asset, with the approved alt text ("Ink drawing of a person with curly hair and headphones, sitting cross-legged on the floor and writing in a notebook while looking up, next to a stack of records, a mug, a cassette and a few crumpled pages."). It never appears on internal pages or as a header logo. The favicon kit is the only derived use.
 - **Footer:** centered and understated. A single rule, then the closing line *some songs take you back.* in Kalam, then the language selector. The language selector exists **only** in the footer, opens upward, and offers English and Português (Brasil). Its note reads: "Changes the interface only. Writing stays in the language it was written in."
@@ -105,7 +115,7 @@ There is no other color anywhere, including status, error, and success states, w
 | Save | "Unsaved changes" → Save becomes primary → "Saving…" → "Saved just now". A failed save keeps the text on the device and offers "Try again". |
 | Leaving with unsaved changes | Dialog: Save and leave / Stay here / Leave without saving |
 | Publish / Unpublish | Always a confirmation that says what will happen. Unpublishing never deletes. |
-| Delete | Confirmation, then Recently deleted for 30 days with Restore |
+| Delete | Confirmation, then Recently deleted with Restore. While automatic purge is disabled, the V4.4 copy "gone in 30 days" is inaccurate (see [Design gaps](#design-gaps-from-adr-0002)). |
 | Remove catalog record | Confirmation stating that writing stays and how many entries will show the link as plain text |
 | Preview | Public layout with a private banner and "Back to editing" |
 | Language selector | Footer only; arrow keys move through options; Escape closes and returns focus |
@@ -113,7 +123,18 @@ There is no other color anywhere, including status, error, and success states, w
 
 ## Pencil cursor
 
-Optional. If used, it is applied only under `@media (hover: hover) and (pointer: fine)` with `refrain-pencil-48.png` and hotspot `7 43`, as specified in `reference/refrain-cursor/README.md`. Links, buttons, and selects keep `pointer`; inputs, text areas, and the editor keep `text`. It must never replace the text cursor while editing. The approved page mockups do not use it.
+Optional. The approved page mockups do not use it. If it is used, only these existing assets may be referenced:
+
+| Asset | Size | Hotspot | Use |
+| --- | --- | --- | --- |
+| `reference/refrain-cursor/refrain-pencil-48.png` | 48×48 | `7 43` | Recommended web cursor |
+| `reference/refrain-cursor/refrain-pencil-32.png` | 32×32 | `5 28` | Compact alternative |
+| `reference/refrain-cursor/refrain-pencil.cur` | 32×32 | `5 28` | Windows cursor format |
+| `reference/refrain-cursor/refrain-pencil.svg` | 64×64 viewBox | tip at about `9 56` | Editable master, not served directly |
+
+The cursor applies only under `@media (hover: hover) and (pointer: fine)`. Links, buttons, and selects keep `pointer`; inputs, text areas, and the editor keep `text`. It never replaces the text cursor while editing, and a standard cursor is always declared as the fallback.
+
+`reference/refrain-cursor/README.md` also lists a `refrain-pencil-64.png` that does not exist. Do not reference it. The reference README is preserved unedited.
 
 ## Accessibility baseline
 
@@ -127,8 +148,20 @@ Optional. If used, it is applied only under `@media (hover: hover) and (pointer:
 
 ## Known reference inconsistencies
 
-Each of these is resolved in favor of the approved screens. Confirm with the author.
+Each of these is resolved by the [Authority](#authority) rules. The reference files themselves are left unchanged.
 
-1. The handoff typography table lists a "Site name" (Kalam 700, 20px), and its responsive notes say the header "stacks name over navigation". Every approved public screen has navigation only, with no name. **Resolution:** no site name in the public header.
-2. `reference/refrain-cursor/README.md` lists `refrain-pencil-64.png`, but the file is not in the folder. Use the 48px PNG or regenerate the 64px size from `refrain-pencil.svg` if needed.
-3. Early font declarations (Atkinson Hyperlegible Next, Caveat) remain in the exported CSS. **Resolution:** ignore them, as described in [Typography](#typography).
+1. The handoff typography table lists a "Site name" (Kalam 700, 20px), and its responsive notes say the header "stacks name over navigation". The handoff CSS also defines `.brand` and `.mark` header classes. Every approved public screen shows navigation only. **Resolution:** no logo, wordmark, or site name in the public header.
+2. `reference/refrain-cursor/README.md` lists `refrain-pencil-64.png`, which does not exist. **Resolution:** reference only the assets listed in [Pencil cursor](#pencil-cursor).
+3. Legacy font declarations (Atkinson Hyperlegible Next, Caveat) remain in the exported CSS. **Resolution:** not part of the design; see [Typography](#typography).
+
+## Design gaps from ADR 0002
+
+[ADR 0002](decisions/0002-domain-model-decisions.md) (Proposed) introduces behavior that the approved V4.4 screens do not show. These gaps need the owner's design approval before the affected screens are built. M0 does not redesign them.
+
+| Gap | Affected screens | What is missing |
+| --- | --- | --- |
+| Per-track publication | AlbumEditor, Grace | A control to publish an individual track reflection. The V4.4 editor offers only "Mark as favourite" and "Still writing". |
+| Per-language visibility | AlbumEditor, ArtistEditor, MemoryEditor, Desk | Visibility shown and changed per language version. V4.4 shows one visibility per entry. |
+| Several journals per album or artist | AlbumEditor, ArtistEditor, Grace, Artist, Albums, Artists | Featuring a journal, and how non-featured journals are reached publicly |
+| Automatic purge disabled | States, Desk (Recently deleted), delete dialogs | V4.4 copy promises "then it's gone" and "gone in 30 days". It must match actual behavior until purge is enabled. |
+| Explicit slug change | Editors | Where a published URL is changed deliberately, and how the redirect is communicated |

@@ -55,7 +55,7 @@ Planned for CI (GitHub Actions) as soon as the scaffold exists:
 | Lint | Code rules, including import boundaries between modules |
 | Type check | TypeScript strict mode |
 | Unit tests | Domain rules (ratings, state transitions, slug rules) |
-| Integration tests | Against a real PostgreSQL service container: constraints, transactions, the published-only filter, academic queries |
+| Integration tests | Against a real PostgreSQL service container: constraints, transactions, the publication predicate, academic queries |
 | Build | Production build succeeds |
 | End-to-end smoke | Playwright: critical studio and public flows |
 

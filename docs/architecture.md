@@ -1,6 +1,6 @@
 # Architecture
 
-**Status:** approved direction ([ADR 0001](decisions/0001-modular-monolith.md)). No code exists yet. The technologies below are the target stack. None has been installed, and exact versions are chosen and recorded only after compatibility has been checked during scaffolding.
+**Status:** the modular monolith is an accepted decision ([ADR 0001](decisions/0001-modular-monolith.md)). The module responsibilities below also reflect the domain decisions in [ADR 0002](decisions/0002-domain-model-decisions.md), which is Proposed. No code exists yet. The technologies below are the target stack. None has been installed, and exact versions are chosen and recorded only after compatibility has been checked during scaffolding.
 
 ## Shape
 
@@ -51,9 +51,9 @@ Before a technology is adopted, its compatibility with the chosen Next.js and Re
 | --- | --- | --- | --- |
 | **Public journal** (presentation) | Home, listings, album, artist, and memory pages; footer language selector | Public routes and components | Query tables directly; receive anything but public projections |
 | **Writing Studio** (presentation) | Desk, editors, Catalog, Add music, preview, Recently deleted | Studio routes and components | Run without an authenticated session; hold business rules |
-| **Music Catalog** | Artists, albums, tracks, credits, track order, artwork and photo provenance; archive and hard-delete rules | Catalog tables | Delete or modify authored content |
-| **Journals and Reflections** | Album journals, track reflections and ratings, artist journals, memories, language versions, saving with conflict detection, deletion and restore | Authored tables | Change visibility; call external providers |
-| **Publication and Visibility** | Draft, private, and published transitions; the published-only filter; public projections; preview | `status` and `published_at` transitions | Be bypassed by any public read |
+| **Music Catalog** | Artists, albums (release groups), reference editions and track order, tracks, credits, artwork and photo provenance; archiving and hard-delete rules | Catalog tables | Delete or modify authored content |
+| **Journals and Reflections** | Album journals, track reflections, ratings and favourites, artist journals, memories, author translations, revisions, saving with conflict detection, deletion and restore | Authored tables, except visibility columns | Change visibility; call external providers |
+| **Publication and Visibility** | Per-language visibility transitions, per-track publication, featured journals, slugs and redirects, the [publication predicate](security.md#publication-predicate), public projections, preview | Visibility columns, `entry_slugs` | Be bypassed by any public read |
 | **Identity and Access** | The single author account, sessions, and the authorization check used by every studio operation | Authentication tables | Offer public sign-up or more than one author |
 | **Persistence** | Drizzle schema, migrations, database client, transaction helper | Schema and migration files | Contain business rules |
 | **Integrations** | MusicBrainz search and lookup, Cover Art Archive covers, Wikimedia Commons photos | Provider adapters, rate limiting, response mapping | Write to the database directly; block catalog or writing when unavailable |
@@ -64,7 +64,7 @@ Before a technology is adopted, its compatibility with the chosen Next.js and Re
 2. Modules depend on each other only through a module's public entry point (`index.ts`), never through its internal files.
 3. Journals may read catalog data through the Catalog module's public functions. The catalog does not depend on Journals; the catalog usage counts it shows are computed with SQL against the schema, not by calling Journals.
 4. Every studio server action and route handler checks authorization on its first line, through Identity and Access. Route-level middleware alone is not sufficient.
-5. Public pages read only through Publication's public query functions, which apply the published-only filter in SQL and return shaped projections with no private fields.
+5. Public pages read only through Publication's public query functions. These apply the publication predicate in SQL and return shaped projections with no private fields.
 6. Integrations return plain data. The calling module decides what to persist, inside its own transaction, after the external call completes.
 7. Server-only modules import `server-only`, so they cannot be bundled into client code.
 
@@ -96,7 +96,7 @@ Inside a module, prefer plain functions over repository classes and dependency-i
 
 ## Rendering and caching
 
-- Public pages are Server Components. Caching them is allowed only for published content, and publishing, unpublishing, deletion, or an edit to a published entry must revalidate the affected pages.
+- Public pages are Server Components. They may be cached only for publicly visible content. Any change that affects public visibility must revalidate the affected pages; the list of such changes is in [Security § Caching](security.md#caching).
 - Studio routes are dynamic and never cached. Responses are `no-store`.
 - Preview renders the public layout inside the authenticated studio route. It never uses a public, cacheable URL.
 

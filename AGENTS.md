@@ -9,6 +9,7 @@ Refrain is a **single-author personal music journal**: memories, artist journals
 - **Out of scope:** reader accounts, social features, streaming, recommendations, multiple authors, multi-tenancy, and machine translation. Do not add these without an ADR and the author's approval.
 - **Academic deadline:** the presentation is on **2026-11-16**. Work that the requirements in [Requirements](docs/requirements.md) depend on takes priority over polish.
 - **Current state:** documentation only. No application code exists until M1 is authorized. → [Roadmap](docs/roadmap.md)
+- **Decision status:** [ADR 0001](docs/decisions/0001-modular-monolith.md) (modular monolith) is accepted. [ADR 0002](docs/decisions/0002-domain-model-decisions.md) (domain model) is **Proposed**. Do not encode it in migrations until the owner accepts it.
 
 ## 2. Before you change anything
 
@@ -34,8 +35,8 @@ Refrain is a **single-author personal music journal**: memories, artist journals
 → [Data Model](docs/data-model.md)
 
 - Declare integrity in PostgreSQL: PKs, FKs, `NOT NULL`, `UNIQUE`, and `CHECK` constraints. ORM relations and TypeScript types do not count.
-- **Never cascade from catalog tables to authored content.** FKs from writing to the catalog are `ON DELETE RESTRICT`.
-- Deleting an entry is recoverable (`deleted_at`, 30 days). A hard `DELETE` of writing happens only on purge.
+- **Never cascade from catalog tables to authored content.** FKs from writing to the catalog are `ON DELETE RESTRICT`. Catalog records that writing references are archived, not deleted.
+- Deleting an entry sets `deleted_at` and is recoverable. Writing is permanently deleted only by the author's explicit "Delete now". **Do not implement or enable automatic purge** until backups, a tested restore, and a tested purge exist.
 - Wrap multi-row writes in one transaction, using the boundaries listed in the data model.
 - Read every generated migration's SQL. Test migrations against a database with data in it. Never apply them automatically to production.
 - The data model is preliminary. Resolve its open questions, and record the resolutions as ADRs, before or during the first migration.
@@ -45,7 +46,7 @@ Refrain is a **single-author personal music journal**: memories, artist journals
 → [Security](docs/security.md)
 
 - Every studio action and route checks authorization itself. Middleware alone is not enough.
-- All public reads go through the published-only path (`status = 'published' AND deleted_at IS NULL`). This covers metadata, sitemaps, and caches too.
+- All public reads use the [publication predicate](docs/security.md#publication-predicate), implemented once in the Publication module. It covers metadata, sitemaps, and caches too. Visibility is per language version, and track reflections need their own explicit publication. "Still writing" never affects visibility.
 - No public sign-up. Exactly one author.
 - Never commit secrets, `.env` files, database dumps, or real journal writing.
 - **Never fabricate personal data:** no invented memories, reflections, ratings, favourites, dates, or biographical claims about the author. Use synthetic fixtures labeled as tests (`[Test] …`). Bracketed placeholders in the mockups are not content.
@@ -55,7 +56,7 @@ Refrain is a **single-author personal music journal**: memories, artist journals
 
 → [Design System](docs/design-system.md)
 
-- Implement the approved V4.4 design. Do not redesign it, restyle it, or add components it does not show without the author's approval.
+- Implement the approved V4.4 design. Do not redesign it, restyle it, or add components it does not show without the author's approval. The rendered screens outrank the exported CSS ([authority](docs/design-system.md#authority)). The listed [design gaps](docs/design-system.md#design-gaps-from-adr-0002) need the owner's design approval before they are built.
 - Monochrome interface: color comes only from artwork and photographs. Typefaces are Kalam and Alegreya Sans, nothing else.
 - The original character illustration appears only on the public homepage, never as a header logo. Use the original file; never generate, trace, or alter it.
 - The public header has no logo or wordmark. The language selector (`en`, `pt-BR` only) lives only in the footer.
