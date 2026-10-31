@@ -149,6 +149,13 @@ describe("sign-in, the studio, and sign-out", () => {
     expect(setCookie).toMatch(/; SameSite=Strict/i);
     expect(setCookie).toMatch(/; Path=\//);
     const cookie = (setCookie ?? "").split(";", 1)[0] ?? "";
+    // The raw token is only in the HttpOnly cookie, never in JSON.
+    const token = decodeURIComponent(cookie.split("=")[1] ?? "").split(".")[0];
+    expect(token).toBeTruthy();
+    expect(await signIn.text()).not.toContain(token);
+    const current = await get("/api/auth/get-session", cookie);
+    expect(current.status).toBe(200);
+    expect(await current.text()).not.toContain(token);
 
     const studio = await get("/studio", cookie);
     expect(studio.status).toBe(200);

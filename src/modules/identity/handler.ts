@@ -82,14 +82,45 @@ async function readLimitedBody(
 }
 
 // Authentication state must never be stored by a browser or shared cache.
-function withNoStore(response: Response): Response {
+function withNoStore(response: Response, body: BodyInit | null): Response {
   const headers = new Headers(response.headers);
   headers.set("Cache-Control", "no-store");
-  return new Response(response.body, {
+  headers.delete("Content-Length");
+  return new Response(body, {
     status: response.status,
     statusText: response.statusText,
     headers,
   });
+}
+
+// Better Auth returns the raw session token in the JSON of sign-in
+// (`token`) and get-session (`session.token`). The browser never needs it:
+// the session travels in the HttpOnly cookie. Removing it keeps the token
+// out of reach of page scripts, so an injected script cannot read it.
+async function withoutSessionToken(
+  response: Response,
+): Promise<BodyInit | null> {
+  const type = response.headers.get("content-type") ?? "";
+  if (!response.body || !type.includes("application/json")) {
+    return response.body;
+  }
+  const text = await response.text();
+  let payload: unknown;
+  try {
+    payload = JSON.parse(text);
+  } catch {
+    return text;
+  }
+  if (typeof payload !== "object" || payload === null) {
+    return text;
+  }
+  const record = payload as Record<string, unknown>;
+  delete record.token;
+  const session = record.session;
+  if (typeof session === "object" && session !== null) {
+    delete (session as Record<string, unknown>).token;
+  }
+  return JSON.stringify(record);
 }
 
 /**
@@ -131,7 +162,8 @@ export function createAuthRequestHandler(resolve: () => ConfiguredAuth) {
     }
 
     try {
-      return withNoStore(await configured.auth.handler(forwarded));
+      const response = await configured.auth.handler(forwarded);
+      return withNoStore(response, await withoutSessionToken(response));
     } catch (error) {
       logAuthApiError(error);
       return jsonResponse(500, "AUTH_FAILED");

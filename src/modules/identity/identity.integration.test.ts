@@ -361,6 +361,32 @@ describe("sign-in", () => {
       const sessions = await tx.select().from(schema.authSessions);
       expect(sessions).toHaveLength(1);
       expect(sessions[0]?.userId).toBe(setup.author.userId);
+      // The token travels only in the HttpOnly cookie, never to scripts.
+      expect(sessions[0]?.token).toBeTruthy();
+      expect(text).not.toContain(sessions[0]?.token);
+      expect(JSON.parse(text)).not.toHaveProperty("token");
+    });
+  });
+
+  it("never returns the session token to scripts from get-session", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const setup = await withAuthor(tx);
+      const cookie = await signedInCookie(setup);
+      const [session] = await tx.select().from(schema.authSessions);
+
+      const response = await setup.handle(
+        authRequest(setup.config, "/get-session", { method: "GET", cookie }),
+      );
+      expect(response.status).toBe(200);
+      const text = await response.text();
+      const body = JSON.parse(text) as {
+        session: Record<string, unknown>;
+        user: Record<string, unknown>;
+      };
+      expect(body.user.email).toBe(TEST_AUTHOR_EMAIL);
+      expect(body.session).not.toHaveProperty("token");
+      expect(session?.token).toBeTruthy();
+      expect(text).not.toContain(session?.token);
     });
   });
 
