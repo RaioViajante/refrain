@@ -43,8 +43,10 @@ Refrain is a **single-author personal music journal**: memories, artist journals
 
 ## 5. Privacy and security
 
-→ [Security](docs/security.md)
+→ [Security](docs/security.md), [`SECURITY.md`](SECURITY.md)
 
+- **Security never depends on the source code being secret.** The repository is intended to become public. Assume that an attacker has read all the code, the schema, the routes, the validation, and the history. Unlinked URLs, hidden UI, and client-side checks are not controls ([Security § Public code, private writing](docs/security.md#public-code-private-writing)).
+- Report suspected vulnerabilities privately, as described in [`SECURITY.md`](SECURITY.md), never in a public issue or pull request. Never change the repository's visibility; only the owner does, after the [public-release gate](docs/security.md#public-release-gate).
 - Every studio action and route checks authorization itself. Middleware alone is not enough.
 - All public reads use the [publication predicate](docs/security.md#publication-predicate), implemented once in the Publication module. It covers metadata, sitemaps, and caches too. Visibility is per language version, and track reflections need their own explicit publication. "Still writing" never affects visibility.
 - No public sign-up. Exactly one author.
