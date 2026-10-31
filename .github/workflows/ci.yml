@@ -72,6 +72,21 @@ jobs:
       - name: Unit tests
         run: pnpm test
 
+      # The committed migrations must match the Drizzle schema, and their
+      # snapshots must be consistent. Neither command connects to a database;
+      # the Drizzle Kit config only requires DATABASE_URL to be well formed.
+      - name: Schema consistency
+        run: |
+          pnpm db:check
+          pnpm db:generate
+          if [ -n "$(git status --porcelain -- src/db/migrations)" ]; then
+            git status --porcelain -- src/db/migrations
+            echo "::error::src/db/schema.ts has changes without a committed migration. Run pnpm db:generate and commit the result."
+            exit 1
+          fi
+        env:
+          DATABASE_URL: postgres://unused:unused@127.0.0.1:5432/unused
+
       # DATABASE_URL is deliberately absent here: the build must not depend on
       # a database connection.
       - name: Production build
@@ -86,6 +101,8 @@ jobs:
           psql -v ON_ERROR_STOP=1 -U refrain_test -d refrain_test
           < docker/postgres-test/01-mark-disposable.sql
 
+      # Global setup refuses to run unless the database is marked, then applies
+      # the versioned migrations to it before the tests.
       - name: Integration tests (PostgreSQL 17)
         run: pnpm test:integration
         env:
