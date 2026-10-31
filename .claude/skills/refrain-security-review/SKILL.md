@@ -222,8 +222,8 @@ Reproduce each suspected vulnerability **only** in one of these places:
   2. `pnpm test:integration <file>`. The safety checks must pass unmodified.
 - **A local server on loopback, backed by the disposable test database**, never the development database:
   1. `pnpm db:test:down && pnpm db:test:up`.
-  2. Apply the migrations and add synthetic `[Test]` rows to the `postgres-test` container. Use the upgrade-path commands in the [`refrain-db-change`](../refrain-db-change/SKILL.md) skill, step 10.
-  3. Start the server with the test URL set in the shell, which takes precedence over `.env`: `DATABASE_URL=postgres://refrain_test:refrain-test-local-only@127.0.0.1:5433/refrain_test pnpm exec next dev --port 3100`.
+  2. Apply the migrations and add synthetic `[Test]` rows to the `postgres-test` container. Use the upgrade-path commands in the [`refrain-db-change`](../refrain-db-change/SKILL.md) skill, step 10, one at a time, and **skip its final reset**, which would erase the rows.
+  3. Start the server bound to loopback, with the test URL set in the shell, which takes precedence over `.env`: `DATABASE_URL=postgres://refrain_test:refrain-test-local-only@127.0.0.1:5433/refrain_test pnpm exec next dev --hostname 127.0.0.1 --port 3100`. Without `--hostname`, `next dev` listens on `0.0.0.0`, which includes the local network.
   4. Send requests with `curl` to `http://127.0.0.1:3100`.
   5. Afterwards, stop the server and run `pnpm db:test:down && pnpm db:test:up`.
 

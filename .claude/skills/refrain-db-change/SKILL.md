@@ -142,7 +142,7 @@ Global setup applies every migration to the empty test database before the tests
 
 ### 10. Test the upgrade path from existing data, where relevant
 
-Do this for anything that is not purely additive. Use the disposable test container only: it is identified by its service name and its fixed credentials.
+Do this for anything that is not purely additive. Use the disposable test container only: it is identified by its service name and its fixed credentials. Run the block below **one command at a time**, and check each result before running the next. Pasted as a whole, it would still apply the new migration after a failed base migration.
 
 ```sh
 pnpm db:test:down && pnpm db:test:up
