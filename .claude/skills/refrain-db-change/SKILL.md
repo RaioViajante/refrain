@@ -77,10 +77,10 @@ If authored data could be lost, stop and get the author's approval.
 
 ### 5. Verify the target database before any write
 
-`pnpm db:generate` and `pnpm db:check` do not connect. `pnpm db:migrate` **writes** to `DATABASE_URL`. Variables already set in the shell take precedence over `.env`, both for Drizzle Kit and for Node's `--env-file`. Before migrating, print the effective target. The command never prints credentials:
+`pnpm db:generate` and `pnpm db:check` do not connect. `pnpm db:migrate` **writes** to `DATABASE_URL`. Variables already set in the shell take precedence over `.env`, both for Drizzle Kit and for Node's `--env-file`. Before migrating, print the effective target. The command prints only the host, port, database name, and query-parameter names. If the URL is missing or malformed, it prints a fixed message rather than the error, because Node's `ERR_INVALID_URL` echoes the whole input, password included:
 
 ```sh
-node --env-file=.env -e 'const u = new URL(process.env.DATABASE_URL); console.log({ host: u.hostname, port: u.port || "5432", database: u.pathname.slice(1), queryParameters: [...u.searchParams.keys()] })'
+node --env-file=.env -e 'try { const u = new URL(process.env.DATABASE_URL); console.log({ host: u.hostname, port: u.port || "5432", database: u.pathname.slice(1), queryParameters: [...u.searchParams.keys()] }) } catch { console.log("DATABASE_URL is missing or not a valid URL") }'
 docker compose ps
 ```
 
@@ -98,8 +98,10 @@ Before migrating a development database that holds writing you care about, take 
 ### 6. Confirm test-database isolation
 
 ```sh
-pnpm db:test:up      # a fresh, marked, in-memory test database on 127.0.0.1:5433
+pnpm db:test:up      # a marked, in-memory test database on 127.0.0.1:5433
 ```
+
+`pnpm db:test:up` does not recreate a container that is already running. For a fresh, empty database, run `pnpm db:test:down` first.
 
 Integration tests connect only to `TEST_DATABASE_URL`. Global setup refuses to run unless the five safety checks pass, the last being the server-side `refrain:disposable-test-database` marker. Never point `TEST_DATABASE_URL` at another database. If your `.env` predates M1.2, copy the test variables from `.env.example` (Development § Troubleshooting).
 
@@ -147,17 +149,18 @@ pnpm db:test:down && pnpm db:test:up
 docker compose exec -T postgres-test psql -At -U refrain_test -d refrain_test \
   -c "select shobj_description(oid, 'pg_database') from pg_database where datname = current_database()"
 #   must print: refrain:disposable-test-database
-for f in <every migration before yours, in journal order>; do
-  docker compose exec -T postgres-test psql -q -v ON_ERROR_STOP=1 -U refrain_test -d refrain_test < "src/db/migrations/$f.sql" || break
-done
-# Insert synthetic [Test] rows that exercise the change, for example rows the
-# new constraint must accept, or rows the backfill must fix.
-docker compose exec -T postgres-test psql -q -v ON_ERROR_STOP=1 -U refrain_test -d refrain_test < src/db/migrations/<new>.sql
+ok=1; for f in <every migration before yours, in journal order>; do
+  docker compose exec -T postgres-test psql -q -1 -v ON_ERROR_STOP=1 -U refrain_test -d refrain_test < "src/db/migrations/$f.sql" || { ok=0; break; }
+done; [ "$ok" = 1 ] && echo "base migrations applied" || echo "base migration $f FAILED: stop here"
+# Continue only after "base migrations applied". Insert synthetic [Test] rows
+# that exercise the change, for example rows the new constraint must accept,
+# or rows the backfill must fix.
+docker compose exec -T postgres-test psql -q -1 -v ON_ERROR_STOP=1 -U refrain_test -d refrain_test < src/db/migrations/<new>.sql
 # Query the result to confirm that the rows survived and were transformed as intended.
 pnpm db:test:down && pnpm db:test:up      # reset before running the integration tests
 ```
 
-These files are applied with `psql`, which bypasses Drizzle's bookkeeping. That is why the container is reset afterwards. Use synthetic data only.
+`-1` applies each file in a single transaction, so a failing migration leaves nothing half-applied. These files are applied with `psql`, which bypasses Drizzle's bookkeeping. That is why the container is reset afterwards. Use synthetic data only.
 
 ### 11. Verify foreign keys, constraints, uniqueness, and transactions
 
