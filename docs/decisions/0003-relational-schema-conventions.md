@@ -51,12 +51,14 @@ Entry kind, locale, visibility status, and artist kind are `text` columns with a
    - `entry_slugs.was_published` marks such slugs. It is set on the current slug when a language version is published, and on a new slug chosen while the entry is publicly visible.
    - The foreign key from `entry_slugs` to `entries` is `ON DELETE RESTRICT`, so an entry that owns slugs cannot be deleted by accident.
    - "Delete now" runs one transaction. It deletes the entry's never-published slugs, then retires its published ones by clearing `entry_id` and `is_current`, then deletes the entry.
-   - A `CHECK` allows only published, non-current slugs to be retired.
+   - A `CHECK` allows only published, non-current slugs to be retired, and another keeps the kind of retired rows valid.
    - The existing primary key `(kind, slug)` then keeps a retired slug reserved, with no extra table or trigger.
+   - **Only marked slugs are served.** The public slug resolution serves a slug only if it, and the current slug a redirect would reveal, are marked. A slug therefore becomes a public address only once it is marked, so every URL that was ever served is reserved after deletion. A missing mark makes an address unreachable, never releasable.
+   - Publishing requires a current slug (ADR 0002, D7.1), so published writing always has a marked address.
 3. **Minimal retention.** A retired row keeps the entry kind, the slug text, the flag, and its creation time: nothing else. None of the entry's text, translations, ratings, reflections, or links is retained to reserve the URL. The retained slug text was already public, as part of a published URL.
 4. **Never-public slugs are released.** Slugs that never identified published writing are deleted with the entry and may be used again.
 5. **No disclosure.** A retired slug resolves exactly like an unknown slug (404). It never redirects and reveals nothing about the deleted entry.
-6. **Redirects keep respecting visibility.** A previous slug redirects (308) only while its entry is publicly visible (ADR 0002, INV-5). An explicit slug change keeps the old slug, so a previously published URL keeps working while its destination exists and is public.
+6. **Redirects keep respecting visibility.** A previous slug redirects (308) only while its entry is publicly visible (ADR 0002, INV-5), and only if it was itself public. A slug chosen while the entry was unpublished stays reserved while the entry exists (D7.5) but never becomes a public address once replaced. An explicit slug change keeps the old slug, so a previously published URL keeps working while its destination exists and is public.
 
 *Privacy review:*
 
@@ -102,8 +104,9 @@ Entry kind, locale, visibility status, and artist kind are `text` columns with a
 - Permanent deletion must go through `permanentlyDeleteEntry`; a raw `DELETE FROM entries` is refused for an entry that owns slugs.
 - Some rules depend on the commands rather than on constraints, because constraints cannot see previous values or other tables:
   - the publication history is never overwritten;
-  - the entry-level history equals the earliest version's;
-  - `was_published` is set whenever a slug becomes public.
+  - the entry-level history equals the earliest version's (rows written before migration 0002 may keep an earlier entry-level value with no recorded version history);
+  - `was_published` is set before a slug is served; serving only marked slugs makes a missing mark fail closed;
+  - retired rows are never deleted, re-attached to an entry, or unmarked. Raw SQL could do any of these; no command does.
 - A published slug of a deleted entry can never be reused, even by the author.
 - `updated_at` is maintained by Drizzle and the commands, not by a trigger, so a raw SQL `UPDATE` must set it explicitly.
 

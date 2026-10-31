@@ -160,7 +160,9 @@ The displayed state is derived:
 | `was_published boolean NOT NULL DEFAULT false` | The slug has identified publicly visible writing: set on the current slug when a version is published, and on a new slug chosen while the entry is publicly visible |
 | `created_at` | |
 
-`CHECK (entry_id IS NOT NULL OR (was_published AND NOT is_current))`: only a published, non-current slug can be retired.
+`CHECK (entry_id IS NOT NULL OR (was_published AND NOT is_current))`: only a published, non-current slug can be retired. `CHECK (kind IN (…))` keeps the kind of retired rows valid, since the composite foreign key does not apply once `entry_id` is `NULL`.
+
+**Only marked slugs are served.** `resolvePublicSlug` serves a slug only if it, and the current slug a redirect would reveal, are marked `was_published`. A slug therefore becomes a public address only once it is marked, which is what keeps every URL that was ever served reserved after deletion. A previous slug chosen while the entry was unpublished never redirects.
 
 **Retention after permanent deletion** ([ADR 0003](decisions/0003-relational-schema-conventions.md)). "Delete now" ([`permanentlyDeleteEntry`](../src/modules/journals/commands.ts)) runs one transaction:
 
@@ -170,7 +172,7 @@ The displayed state is derived:
 
 Because the foreign key restricts, deleting an entry that still owns slugs fails, so a deletion that skips step 1 or 2 cannot release a published slug by accident. A retired slug stays reserved by the primary key, so it is never reassigned to other writing, and it resolves exactly like an unknown slug.
 
-**Slug changes** ([`changeEntrySlug`](../src/modules/publication/commands.ts)): before the entry's first publication, the old, never-published slug is released. After it, the old slug stays as a previous slug and redirects while the entry is publicly visible. Returning to one of the entry's own previous slugs makes it current again. A slug held by another entry, or retired, is refused.
+**Slug changes** ([`changeEntrySlug`](../src/modules/publication/commands.ts)): before the entry's first publication, the old, never-published slug is released. After it, the old slug stays as a previous slug (D7.5) and redirects while the entry is publicly visible, if it was itself public. Publishing requires a current slug (D7.1). Returning to one of the entry's own previous slugs makes it current again. A slug held by another entry, or retired, is refused.
 
 `CHECK (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$' AND char_length(slug) <= 80)` accepts only the normalized form of ADR 0002, D7.2. Normalization and collision suffixes (`grace`, `grace-2`) are implemented in [`src/modules/publication/slug.ts`](../src/modules/publication/slug.ts); a title with nothing usable (for example, written entirely in a non-Latin script) normalizes to an empty string, and the author must then supply a slug. Previous slugs remain as rows with `is_current = false` and redirect (308) to the current slug only while the entry is publicly visible (INV-5). Retired slugs have no entry, so they never redirect.
 
@@ -227,10 +229,11 @@ These rules hold through transactions, module functions, and tests, not through 
 | Every entry has exactly one subtype row and one original version | The entry-creation transaction (M2) |
 | Every entry has exactly one current slug (D7.1); "at most one" is a constraint | The entry-creation transaction (M2) and `changeEntrySlug` |
 | Previous-slug rows stay while their entry exists (D7.5): they are only added, marked non-current, or retired, never deleted or re-pointed to another entry | `changeEntrySlug` and `permanentlyDeleteEntry`. The primary key prevents two rows holding one slug; it does not prevent a raw `DELETE` of a row. |
-| `was_published` is set whenever a slug identifies publicly visible writing, and never cleared | `publishLanguageVersion` and `changeEntrySlug` |
+| `was_published` is set on a slug before it is served, and never cleared | `publishLanguageVersion` and `changeEntrySlug` set it. `resolvePublicSlug` serves only marked slugs, so a missing mark makes an address unreachable rather than releasable. |
+| A retired row is never deleted, re-attached to an entry, or unmarked | No command does so. The constraints cannot see previous values, so a raw `UPDATE` or `DELETE` could; the database role is not restricted (single author, no direct SQL access in production). |
 | Every album has a reference edition | The catalog import or creation transaction (M1.3) |
 | `entry_texts.first_published_at` is set by the first publication and never cleared or overwritten (the constraints require it while published, but cannot see the previous value) | `publishLanguageVersion` and `unpublishLanguageVersion` |
-| `entries.first_published_at` equals the earliest `entry_texts.first_published_at` | `publishLanguageVersion` |
+| `entries.first_published_at` equals the earliest `entry_texts.first_published_at` | `publishLanguageVersion`. Rows written before migration 0002 may keep an earlier entry-level value with no recorded version history; migrations 0002 and 0003 backfill what can be derived. |
 | A slug is frozen after the first publication; later changes keep the old slug | `changeEntrySlug` |
 | A deleted entry's visibility and slug are not changed | The publication commands refuse deleted entries |
 | Saves do not overwrite newer writing | The save command checks `entries.version` (M2) |
