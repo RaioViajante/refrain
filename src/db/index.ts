@@ -8,4 +8,14 @@ export {
 } from "./client";
 export { checkDatabaseConnection } from "./health";
 export * as schema from "./schema";
-export type { EntryKind, Locale, VisibilityStatus } from "./schema";
+export {
+  artistKinds,
+  entryKinds,
+  isOneOf,
+  locales,
+  visibilityStatuses,
+  type ArtistKind,
+  type EntryKind,
+  type Locale,
+  type VisibilityStatus,
+} from "./schema";

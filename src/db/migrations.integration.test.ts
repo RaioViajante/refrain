@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import { getDb } from "./client";
+import { artistKinds, entryKinds, locales, visibilityStatuses } from "./schema";
 
 const catalogTables = [
   "artists",
@@ -51,6 +52,28 @@ describe("migrations", () => {
     expect(result.rows.map((row) => row.table_name)).toEqual(
       [...catalogTables, ...authoredTables].sort(),
     );
+  });
+});
+
+describe("enumerated values", () => {
+  // The CHECK constraints in the migrated database must list exactly the
+  // values of the TypeScript arrays they were generated from.
+  it.each([
+    ["artists_kind_check", artistKinds],
+    ["entries_kind_check", entryKinds],
+    ["entry_texts_locale_check", locales],
+    ["track_reflection_texts_locale_check", locales],
+    ["entry_texts_status_check", visibilityStatuses],
+  ] as const)("%s matches the TypeScript values", async (name, values) => {
+    const result = await getDb().execute<{ definition: string }>(
+      sql`select pg_get_constraintdef(oid) as definition
+            from pg_constraint where conname = ${name}`,
+    );
+    const definition = result.rows[0]?.definition ?? "";
+    const listed = [...definition.matchAll(/'([^']*)'::text/g)].map(
+      (match) => match[1],
+    );
+    expect(listed.sort()).toEqual([...values].sort());
   });
 });
 

@@ -35,7 +35,13 @@ import {
 } from "drizzle-orm/pg-core";
 
 // ---------------------------------------------------------------------------
-// Shared values
+// Enumerated values
+//
+// These arrays are the single source of every enumerated value. The TypeScript
+// types, the runtime guard `isOneOf`, and the CHECK constraints below are all
+// built from them, so adding a value here and running `pnpm db:generate`
+// produces the migration that widens the constraint (docs/development.md §
+// Database changes). Removing a value needs a data migration first.
 // ---------------------------------------------------------------------------
 
 /** Kinds of authored entry. */
@@ -55,6 +61,33 @@ export const visibilityStatuses = ["draft", "private", "published"] as const;
 export type VisibilityStatus = (typeof visibilityStatuses)[number];
 
 export const artistKinds = ["person", "group"] as const;
+export type ArtistKind = (typeof artistKinds)[number];
+
+/** Whether `value` is one of `values`: runtime validation for the lists above. */
+export function isOneOf<const Value extends string>(
+  values: readonly Value[],
+  value: unknown,
+): value is Value {
+  return (
+    typeof value === "string" && (values as readonly string[]).includes(value)
+  );
+}
+
+// `column in ('a', 'b')` for a CHECK constraint, built from a value list. The
+// values are compile-time constants without quotes, so inlining them is safe.
+function inList(column: string, values: readonly string[]) {
+  if (values.some((value) => !/^[A-Za-z0-9_-]+$/.test(value))) {
+    throw new Error(`Unsafe enumerated value for ${column}`);
+  }
+  return sql.raw(
+    `${column} in (${values.map((value) => `'${value}'`).join(", ")})`,
+  );
+}
+
+// `kind = 'memory'`: the constant kind of a subtype table.
+function isKind(kind: EntryKind) {
+  return sql.raw(`kind = '${kind}'`);
+}
 
 const createdAt = () =>
   timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -98,7 +131,7 @@ const ratingCheck = (table: string) =>
   );
 
 const localeCheck = (table: string) =>
-  check(`${table}_locale_check`, sql`locale in ('en', 'pt-BR')`);
+  check(`${table}_locale_check`, inList("locale", locales));
 
 // ---------------------------------------------------------------------------
 // Music catalog: factual, replaceable metadata. Cascades stay inside it.
@@ -123,7 +156,7 @@ export const artists = pgTable(
   (t) => [
     unique("artists_mb_artist_id_unique").on(t.mbArtistId),
     check("artists_name_check", sql`btrim(name) <> ''`),
-    check("artists_kind_check", sql`kind in ('person', 'group')`),
+    check("artists_kind_check", inList("kind", artistKinds)),
     check(
       "artists_photo_attribution_check",
       sql`photo_url is null or (photo_credit is not null and photo_license is not null)`,
@@ -357,10 +390,7 @@ export const entries = pgTable(
     // Target of the subtype and slug composite keys, which pin each row to an
     // entry of the right kind.
     unique("entries_id_kind_unique").on(t.id, t.kind),
-    check(
-      "entries_kind_check",
-      sql`kind in ('album_journal', 'artist_journal', 'memory')`,
-    ),
+    check("entries_kind_check", inList("kind", entryKinds)),
     check("entries_version_check", sql`version >= 1`),
   ],
 );
@@ -402,10 +432,7 @@ export const entryTexts = pgTable(
       .on(t.entryId)
       .where(sql`is_original`),
     localeCheck("entry_texts"),
-    check(
-      "entry_texts_status_check",
-      sql`status in ('draft', 'private', 'published')`,
-    ),
+    check("entry_texts_status_check", inList("status", visibilityStatuses)),
     check(
       "entry_texts_published_at_check",
       sql`(status = 'published') = (published_at is not null)`,
@@ -449,7 +476,7 @@ export const albumJournals = pgTable(
     // Target of the track-reflection key, which keeps reflections on the
     // journal's own album.
     unique("album_journals_entry_album_unique").on(t.entryId, t.albumId),
-    check("album_journals_kind_check", sql`kind = 'album_journal'`),
+    check("album_journals_kind_check", isKind("album_journal")),
     ratingCheck("album_journals"),
     index("album_journals_album_id_idx").on(t.albumId),
   ],
@@ -481,7 +508,7 @@ export const artistJournals = pgTable(
     uniqueIndex("artist_journals_one_featured_idx")
       .on(t.artistId)
       .where(sql`is_featured`),
-    check("artist_journals_kind_check", sql`kind = 'artist_journal'`),
+    check("artist_journals_kind_check", isKind("artist_journal")),
     index("artist_journals_artist_id_idx").on(t.artistId),
   ],
 );
@@ -504,7 +531,7 @@ export const memories = pgTable(
       columns: [t.entryId, t.kind],
       foreignColumns: [entries.id, entries.kind],
     }).onDelete("cascade"),
-    check("memories_kind_check", sql`kind = 'memory'`),
+    check("memories_kind_check", isKind("memory")),
   ],
 );
 
