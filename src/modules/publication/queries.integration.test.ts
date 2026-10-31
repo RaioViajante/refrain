@@ -13,6 +13,7 @@ import {
   type TestVersion,
 } from "@/testing";
 
+import { publishLanguageVersion } from "./commands";
 import {
   getPublicLanguageVersion,
   listPublicLanguageVersions,
@@ -511,10 +512,7 @@ describe("track reflections through the publication predicate (D5; INV-2, INV-3)
         { locale: "en", status: "private" },
       ]);
       await reflect(0, { texts: { en: "[Test] Written" } });
-      await tx
-        .update(schema.entryTexts)
-        .set({ status: "published", publishedAt: sql`now()` })
-        .where(eq(schema.entryTexts.entryId, journalId));
+      await publishLanguageVersion(tx, journalId, "en");
       expect(await listPublicTrackReflections(tx, journalId, "en")).toEqual([]);
     });
   });

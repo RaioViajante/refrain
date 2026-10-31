@@ -378,8 +378,9 @@ export const entries = pgTable(
     kind: text("kind", { enum: entryKinds }).notNull(),
     // Moves the entry to Recently deleted. Not a visibility state (D4.2).
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
-    // Set once, when any language version is first published. It freezes the
-    // slug (D7.4) and is never cleared by unpublishing.
+    // Set once, when any language version is first published: always the
+    // earliest entry_texts.first_published_at. It freezes the slug (D7.4) and
+    // is never cleared by unpublishing.
     firstPublishedAt: timestamp("first_published_at", { withTimezone: true }),
     // Optimistic concurrency for saves.
     version: integer("version").notNull().default(1),
@@ -407,7 +408,12 @@ export const entryTexts = pgTable(
     status: text("status", { enum: visibilityStatuses })
       .notNull()
       .default("draft"),
+    // Current publication: set while the version is published, cleared when
+    // it is unpublished, reset when it is published again.
     publishedAt: timestamp("published_at", { withTimezone: true }),
+    // Publication history: when this version was first published. Set once by
+    // the first publication, never cleared or overwritten (ADR 0003).
+    firstPublishedAt: timestamp("first_published_at", { withTimezone: true }),
     // Memory title. Journals take their title from the catalog.
     title: text("title"),
     // Opening sentence (journals).
@@ -436,6 +442,16 @@ export const entryTexts = pgTable(
     check(
       "entry_texts_published_at_check",
       sql`(status = 'published') = (published_at is not null)`,
+    ),
+    // A published version always has a first publication, no later than its
+    // current one. An unpublished version may keep its history.
+    check(
+      "entry_texts_first_published_at_check",
+      sql`status <> 'published' or first_published_at is not null`,
+    ),
+    check(
+      "entry_texts_first_published_order_check",
+      sql`published_at is null or first_published_at <= published_at`,
     ),
     check("entry_texts_title_check", sql`title is null or btrim(title) <> ''`),
     ...richTextChecks("entry_texts"),
@@ -640,20 +656,31 @@ export const memoryMusic = pgTable(
   ],
 );
 
-// Current and previous public slugs. The primary key makes a slug unique per
-// entry kind across current and previous slugs, so no two rows can hold the
-// same slug (D7.3). Keeping previous-slug rows while their entry exists
-// (D7.5), and giving every entry a current slug (D7.1), are rules of the
-// Publication commands: rows are only ever added or marked non-current, never
-// deleted or re-pointed. Rows cascade with their entry, so a permanent
-// deletion releases them (ADR 0003).
+// Current, previous, and retired public slugs (ADR 0002, D7; ADR 0003).
+//
+// The primary key makes a slug unique per entry kind across every row, so no
+// two rows can hold the same slug (D7.3) and a retired slug can never be
+// reassigned. `was_published` records that the slug has identified publicly
+// visible writing.
+//
+// A permanent deletion does not cascade here: the foreign key restricts, so
+// an entry that still owns slugs cannot be deleted by accident. The deletion
+// transaction first deletes the entry's never-published slugs and retires the
+// published ones by clearing `entry_id`. A retired row keeps only the kind,
+// the slug, and the flag: nothing of the writing itself. The CHECK allows only
+// published, non-current slugs to be retired.
+//
+// Keeping previous-slug rows while their entry exists (D7.5), and giving every
+// entry a current slug (D7.1), are rules of the Publication commands.
 export const entrySlugs = pgTable(
   "entry_slugs",
   {
     kind: text("kind", { enum: entryKinds }).notNull(),
     slug: text("slug").notNull(),
-    entryId: uuid("entry_id").notNull(),
+    // NULL once retired: the entry was permanently deleted.
+    entryId: uuid("entry_id"),
     isCurrent: boolean("is_current").notNull(),
+    wasPublished: boolean("was_published").notNull().default(false),
     createdAt: createdAt(),
   },
   (t) => [
@@ -662,10 +689,14 @@ export const entrySlugs = pgTable(
       name: "entry_slugs_entry_fk",
       columns: [t.entryId, t.kind],
       foreignColumns: [entries.id, entries.kind],
-    }).onDelete("cascade"),
+    }).onDelete("restrict"),
     uniqueIndex("entry_slugs_one_current_idx")
       .on(t.entryId)
       .where(sql`is_current`),
+    check(
+      "entry_slugs_retired_check",
+      sql`entry_id is not null or (was_published and not is_current)`,
+    ),
     // The normalized form of D7.2: lowercase ASCII letters and digits in
     // hyphen-separated runs, at most 80 characters.
     check(

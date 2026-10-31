@@ -1,4 +1,9 @@
 // Journals and Reflections module: public entry point. Server-only.
+export {
+  JournalError,
+  permanentlyDeleteEntry,
+  type JournalFailure,
+} from "./commands";
 export { listAlbumJournalProgress, type AlbumJournalProgress } from "./queries";
 export {
   halfStepsToStars,

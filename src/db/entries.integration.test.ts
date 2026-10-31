@@ -14,10 +14,21 @@ import {
   testDocument,
 } from "@/testing";
 
+import { permanentlyDeleteEntry } from "@/modules/journals";
+
 import type { Transaction } from "./client";
 import * as schema from "./schema";
 
 const { checkViolation, foreignKeyViolation, uniqueViolation } = SqlState;
+
+/** Moves an entry to Recently deleted, then deletes it with "Delete now". */
+async function deleteNow(tx: Transaction, entryId: string) {
+  await tx
+    .update(schema.entries)
+    .set({ deletedAt: sql`now()` })
+    .where(eq(schema.entries.id, entryId));
+  await permanentlyDeleteEntry(tx, entryId);
+}
 
 async function countRows(tx: Transaction, table: string, entryId: string) {
   const column =
@@ -218,7 +229,7 @@ describe("language versions (ADR 0002, D3)", () => {
         (sp) =>
           sp
             .update(schema.entryTexts)
-            .set({ status: "published" })
+            .set({ status: "published", firstPublishedAt: sql`now()` })
             .where(version),
       );
       await expectRejected(
@@ -241,7 +252,11 @@ describe("language versions (ADR 0002, D3)", () => {
       // A valid publish and unpublish.
       await tx
         .update(schema.entryTexts)
-        .set({ status: "published", publishedAt: sql`now()` })
+        .set({
+          status: "published",
+          publishedAt: sql`now()`,
+          firstPublishedAt: sql`now()`,
+        })
         .where(version);
       await tx
         .update(schema.entryTexts)
@@ -856,7 +871,7 @@ describe("deletion and recovery (ADR 0002, D4; INV-4)", () => {
         texts: { en: "[Test] Reflection", "pt-BR": "[Test] Reflexão" },
       });
 
-      await tx.delete(schema.entries).where(eq(schema.entries.id, journalId));
+      await deleteNow(tx, journalId);
 
       for (const table of [
         "entry_texts",
@@ -883,11 +898,16 @@ describe("deletion and recovery (ADR 0002, D4; INV-4)", () => {
         .where(eq(schema.albumTracks.albumId, album.albumId));
       expect(memberships).toHaveLength(album.trackIds.length);
 
-      // ADR 0003: the slug is released by the permanent deletion.
-      await createTestAlbumJournal(tx, {
-        albumId: album.albumId,
-        slug: "test-to-delete",
-      });
+      // ADR 0003: the journal was published, so its slug stays reserved.
+      await expectRejected(
+        tx,
+        { code: uniqueViolation, constraint: "entry_slugs_pkey" },
+        (sp) =>
+          createTestAlbumJournal(sp, {
+            albumId: album.albumId,
+            slug: "test-to-delete",
+          }),
+      );
     });
   });
 });
@@ -902,7 +922,7 @@ describe("permanent deletion of memories and artist journals", () => {
         music: [{ trackId: trackIds[0]! }, { albumId }],
       });
 
-      await tx.delete(schema.entries).where(eq(schema.entries.id, memoryId));
+      await deleteNow(tx, memoryId);
 
       for (const table of ["entry_texts", "memories", "entry_slugs"]) {
         expect(await countRows(tx, table, memoryId), table).toBe(0);
@@ -919,6 +939,8 @@ describe("permanent deletion of memories and artist journals", () => {
       expect(
         await tx.$count(schema.albums, eq(schema.albums.id, albumId)),
       ).toBe(1);
+      // The memory was never published, so its slug is released.
+      await createTestMemory(tx, { slug: "test-memory-to-delete" });
     });
   });
 
@@ -932,7 +954,7 @@ describe("permanent deletion of memories and artist journals", () => {
         slug: "test-artist-journal-to-delete",
       });
 
-      await tx.delete(schema.entries).where(eq(schema.entries.id, journalId));
+      await deleteNow(tx, journalId);
 
       for (const table of ["entry_texts", "artist_journals", "entry_slugs"]) {
         expect(await countRows(tx, table, journalId), table).toBe(0);
@@ -940,6 +962,16 @@ describe("permanent deletion of memories and artist journals", () => {
       expect(
         await tx.$count(schema.artists, eq(schema.artists.id, artistId)),
       ).toBe(1);
+      // It was published, so its slug stays reserved.
+      await expectRejected(
+        tx,
+        { code: uniqueViolation, constraint: "entry_slugs_pkey" },
+        (sp) =>
+          createTestArtistJournal(sp, {
+            artistId,
+            slug: "test-artist-journal-to-delete",
+          }),
+      );
     });
   });
 });

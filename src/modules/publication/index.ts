@@ -1,4 +1,12 @@
 // Publication and Visibility module: public entry point. Server-only.
+export {
+  changeEntrySlug,
+  publishLanguageVersion,
+  PublicationError,
+  retireEntrySlugs,
+  unpublishLanguageVersion,
+  type PublicationFailure,
+} from "./commands";
 // The publication predicate itself (./predicate) is internal: other modules
 // read public data only through these functions.
 export {

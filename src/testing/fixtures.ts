@@ -121,35 +121,51 @@ async function createTestEntry(
     .returning({ id: schema.entries.id });
   const entryId = entry!.id;
 
+  const firstPublications: Date[] = [];
   for (const [index, version] of versions.entries()) {
     const status = version.status ?? "draft";
     const text = version.text ?? "[Test] Body";
+    const publishedAt =
+      status === "published"
+        ? (version.publishedAt ?? defaultPublishedAt)
+        : null;
+    if (publishedAt) {
+      firstPublications.push(publishedAt);
+    }
     await tx.insert(schema.entryTexts).values({
       entryId,
       locale: version.locale,
       isOriginal: version.isOriginal ?? index === 0,
       status,
-      publishedAt:
-        status === "published"
-          ? (version.publishedAt ?? defaultPublishedAt)
-          : null,
+      publishedAt,
+      // A fixture's published version was first published when it was
+      // published; tests of publication history set their own values.
+      firstPublishedAt: publishedAt,
       title: version.title ?? (kind === "memory" ? "[Test] Memory" : null),
       body: testDocument(text),
       bodyText: text,
     });
   }
 
-  if (versions.some((version) => version.status === "published")) {
+  const firstPublishedAt =
+    firstPublications.length > 0
+      ? new Date(Math.min(...firstPublications.map((date) => date.getTime())))
+      : null;
+  if (firstPublishedAt) {
     await tx
       .update(schema.entries)
-      .set({ firstPublishedAt: defaultPublishedAt })
+      .set({ firstPublishedAt })
       .where(eq(schema.entries.id, entryId));
   }
 
   if (slug) {
-    await tx
-      .insert(schema.entrySlugs)
-      .values({ kind, slug, entryId, isCurrent: true });
+    await tx.insert(schema.entrySlugs).values({
+      kind,
+      slug,
+      entryId,
+      isCurrent: true,
+      wasPublished: firstPublishedAt !== null,
+    });
   }
 
   return entryId;
