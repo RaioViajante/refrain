@@ -107,3 +107,12 @@ jobs:
         run: pnpm test:integration
         env:
           TEST_DATABASE_URL: postgres://refrain_test:refrain-test-ci-only@127.0.0.1:5432/refrain_test
+
+      # The production build from the build step, served by `next start` and
+      # tested over real HTTP. Global setup applies the same safety checks to
+      # the same throwaway database, gives the server only that database, and
+      # deletes the synthetic account it creates.
+      - name: HTTP tests (production build)
+        run: pnpm test:http
+        env:
+          TEST_DATABASE_URL: postgres://refrain_test:refrain-test-ci-only@127.0.0.1:5432/refrain_test
