@@ -7,8 +7,8 @@ Refrain is a single-author personal music journal. Its security goal is that the
 Refrain is in early development and has not been released.
 
 - **No deployment.** There is no hosted instance, public endpoint, or production database. Everything runs locally.
-- **Implemented:** the database layer (M1.2). It has integrity constraints, the publication rules in SQL, transactional publication and deletion commands, and an isolated test database.
-- **Not implemented yet:** authentication, the Writing Studio, any route or server action that writes data, and the public journal pages.
+- **Implemented:** the database layer (M1.2). It has integrity constraints, the publication rules in SQL, transactional publication and deletion commands, and an isolated test database. Single-author authentication and the studio's authorization boundary (M1.3A): one account created by a local command, no public sign-up, database sessions, and a sign-in page with a placeholder studio.
+- **Not implemented yet:** the Writing Studio's editing features, any route or server action that reads or writes writing, and the public journal pages.
 - **Repository:** private for now, with a planned move to public.
 
 The protections that exist today, and the ones that are still planned, are listed in [docs/security.md](docs/security.md#implemented-and-planned-protections).

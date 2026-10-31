@@ -75,6 +75,6 @@ then open `http://localhost:3000`. checks: `pnpm lint`, `pnpm typecheck`, `pnpm 
 
 #### current status
 
-m1.2, the relational domain: the schema for the catalog, journals, memories, and track reflections, with migrations and integration tests on postgresql 17. there is no writing studio or journal page yet. see [roadmap.md](docs/roadmap.md).
+m1.3a, identity: the schema for the catalog, journals, memories, and track reflections, with migrations and integration tests on postgresql 17, and a single-author sign-in for the writing studio. the studio itself is not built yet, and there is no journal page. see [roadmap.md](docs/roadmap.md).
 
 refrain is also a university project, presented on november 16, 2026. see [requirements.md](docs/requirements.md).

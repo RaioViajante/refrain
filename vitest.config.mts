@@ -31,7 +31,7 @@ export default defineConfig({
         test: {
           name: "unit",
           include: ["src/**/*.test.ts"],
-          exclude: ["src/**/*.integration.test.ts"],
+          exclude: ["src/**/*.integration.test.ts", "src/**/*.http.test.ts"],
           setupFiles: ["src/testing/unit-setup.ts"],
         },
       },
@@ -48,6 +48,21 @@ export default defineConfig({
           globalSetup: ["src/testing/global-setup.ts"],
           setupFiles: ["src/testing/worker-setup.ts"],
           fileParallelism: false,
+        },
+      },
+      {
+        // The production build (`pnpm build` first) served by `next start`,
+        // tested over real HTTP. Global setup applies the same safety checks
+        // to TEST_DATABASE_URL, and gives the server only that database
+        // (src/testing/http-global-setup.ts).
+        extends: true,
+        test: {
+          name: "http",
+          include: ["src/**/*.http.test.ts"],
+          globalSetup: ["src/testing/http-global-setup.ts"],
+          fileParallelism: false,
+          testTimeout: 30_000,
+          hookTimeout: 60_000,
         },
       },
     ],

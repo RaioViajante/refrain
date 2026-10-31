@@ -16,21 +16,26 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
+    "test:http": "vitest run --project http",
     "db:up": "docker compose up --detach --wait postgres",
     "db:down": "docker compose down",
     "db:test:up": "docker compose --profile test up --detach --wait postgres-test",
     "db:test:down": "docker compose --profile test rm --stop --force postgres-test",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:check": "drizzle-kit check"
+    "db:check": "drizzle-kit check",
+    "author:provision": "tsx --conditions=react-server src/modules/identity/cli-entry.ts provision",
+    "author:reset-password": "tsx --conditions=react-server src/modules/identity/cli-entry.ts reset-password"
   },
   "dependencies": {
+    "better-auth": "1.7.12",
     "drizzle-orm": "0.45.4",
     "next": "16.4.3",
     "pg": "8.23.1",
     "react": "19.3.1",
     "react-dom": "19.3.1",
-    "server-only": "0.0.1"
+    "server-only": "0.0.1",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.3.3",
@@ -43,6 +48,7 @@
     "eslint-config-next": "16.4.3",
     "prettier": "3.9.10",
     "tailwindcss": "4.3.3",
+    "tsx": "4.23.15",
     "typescript": "6.0.3",
     "vite": "8.3.5",
     "vitest": "5.0.5"

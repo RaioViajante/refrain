@@ -35,6 +35,29 @@ describe("module boundaries", () => {
     expect(violations).toEqual([]);
   });
 
+  it("allows presentation code to use the Identity entry point", async () => {
+    const violations = await boundaryViolations(
+      'import { requireAuthor } from "@/modules/identity";\nexport { requireAuthor };\n',
+      "src/app/studio/page.tsx",
+    );
+    expect(violations).toEqual([]);
+  });
+
+  it.each([
+    'import { provisionAuthor } from "@/modules/identity/provisioning";',
+    'import { createAuth } from "@/modules/identity/auth";',
+    'import { main } from "@/modules/identity/cli";',
+  ])(
+    "keeps account provisioning and the auth instance out of presentation code: %s",
+    async (code) => {
+      const violations = await boundaryViolations(
+        `${code}\nexport {};\n`,
+        "src/app/studio/page.tsx",
+      );
+      expect(violations).toHaveLength(1);
+    },
+  );
+
   it.each([
     [
       'import { x } from "@/modules/catalog/queries";',

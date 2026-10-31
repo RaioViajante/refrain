@@ -6,6 +6,7 @@ export {
   type DatabaseExecutor,
   type Transaction,
 } from "./client";
+export { DatabaseConfigError, readDatabaseUrl } from "./env";
 export { checkDatabaseConnection } from "./health";
 export * as schema from "./schema";
 export {
