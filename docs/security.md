@@ -187,7 +187,10 @@ This matrix records what exists on `main` today and what is still a requirement.
 | --- | --- | --- |
 | Authorization in every administrative action and route, following the [Authorization contract](#authorization-contract) | M1.3B and later | The contract and `requireAuthor` exist; no server action or route reads or changes writing yet |
 | Zod validation at every administrative server boundary | M1.3B and later | Zod is installed and validates the authentication configuration. Better Auth validates its own endpoints. No other boundary exists yet. |
-| Per-client sign-in rate limits behind a trusted proxy | The deployment target | All clients share one bucket ([Authentication and sessions](#authentication-and-sessions)) |
+| Client-aware sign-in abuse protection from a trustworthy network identity | Before any public deployment ([Deployment gate](#deployment-gate), issue #11) | All clients share one bucket ([Authentication and sessions](#authentication-and-sessions)). Accepted for local development only. |
+| Redirect status and indexing of the unauthorized studio response | Before any public deployment ([Deployment gate](#deployment-gate), issue #11) | HTTP 200 with a streamed redirect and a `noindex` meta tag; no studio content is sent |
+| Browser end-to-end authentication tests; behavior over real HTTPS | Before any public deployment (issue #11) | Not verified. HTTP tests use `fetch`, and the HTTPS cookies are covered by integration tests only. |
+| Brazilian Portuguese strings for the sign-in page and the studio | With next-intl (issue #11) | English only. The interface has no locale routing yet. |
 | A second factor (passkey or TOTP) | Not decided | Password only ([ADR 0004](decisions/0004-single-author-identity.md)) |
 | Allow-listed rich-text rendering | M2, M3 (Tiptap) | No editor or renderer exists; the database checks only the outer document shape |
 | Public caching only from predicate data; revalidation on every visibility change; `no-store` studio responses | M2, M3 | Nothing is cached; Cache Components makes data dynamic by default |
@@ -229,6 +232,13 @@ INV-4 (truthful recovery copy) has a database-level test that deleted entries ar
 
 The application must not be reachable from the public internet until authentication and the tests above are in place. Until then, academic demonstrations run locally.
 
+Authentication exists since M1.3A, but these conditions also hold before any public deployment. Each one is tracked in issue #11.
+
+1. **Client-aware sign-in abuse protection.** Today all clients share one bucket of five sign-in attempts a minute, so anyone can keep sign-in throttled. That is accepted only for local development ([ADR 0004 § 6](decisions/0004-single-author-identity.md#6-rate-limiting)). Before deployment, abuse protection must recognize clients through a trustworthy network identity, and that must be tested. Examples are the connection's address, or a header set only by a proxy that the application can be reached through exclusively. A client-controlled forwarding header such as `X-Forwarded-For` never counts. The mechanism is chosen with the deployment target, and no provider is assumed.
+2. **Redirect status and indexing reviewed.** Without the author's session, `/studio` answers **HTTP 200**: an empty static shell, then a streamed redirect to `/studio/sign-in` (Cache Components). It is not a 307. The private studio content is never sent, and the HTTP tests assert that. The shells of `/studio` and `/studio/sign-in` carry `<meta name="robots" content="noindex, nofollow">`, and no `X-Robots-Tag` header is sent. Before deployment, review the status code, crawler behavior, and whether a header-level `noindex` or a 307 is needed. A 307 would be a convenience, never the authorization control.
+3. **Real HTTPS verified.** `Secure` and `__Secure-` session cookies, and the HTTPS-only `BETTER_AUTH_URL` rule, are covered by integration tests only. They have not been verified in a browser over real HTTPS.
+4. **Browser end-to-end tests** of sign-in, sign-out, and studio access (Playwright), at desktop width and at 390px. The HTTP tests use `fetch`, not a browser.
+
 ## Public-release gate
 
 Making the **repository** public is a separate decision from deploying the application, and only the repository owner makes it. Agents and contributors never change the repository's visibility. Before visibility changes, every item below must be checked and its result recorded in the issue or pull request that prepares the release:
@@ -246,6 +256,15 @@ Making the **repository** public is a separate decision from deploying the appli
 11. **Independent review.** A security review of the whole repository by someone who did not write the code. A review agent run in a separate context counts.
 
 The design references that were tracked before M1.1 (`reference/`, removed from tracking in #3) remain in the Git history **by the owner's decision**. They contain bracketed placeholders, not personal writing, so rewriting history to remove them is not required. Rewriting history is reserved for actual secrets or personal data.
+
+**Known history finding (M1.3A).** `gitleaks` reports one `generic-api-key` hit in commit `63889a5`, at `src/modules/identity/config.test.ts:5`. Its fingerprint is `63889a5181b6570cecf3952f79194007d71ab3cc:src/modules/identity/config.test.ts:generic-api-key:5`.
+
+- **What it is.** It was audited before the merge of #10 and is synthetic test data: a base64 placeholder phrase that was only ever an input to the configuration validator's unit test.
+- **Where it was never used.** No environment, server, database, CI run, or deployment ever used it.
+- **Removed.** Commit `1326517` replaced it with a value generated at runtime. The tree contains no secret-like literal.
+- **Merge.** By the owner's one-time exception, #10 is to be squash-merged, so that the commit never enters `main`'s ancestry.
+- **What squashing does not do.** It does not delete the commit. The commit stays reachable from the pull request's references (`refs/pull/10/head`), from the branch until someone deletes it, and from existing clones. GitHub may also keep it internally.
+- **At the gate.** The full-history scan will still report it. Record it as reviewed, for example with that fingerprint in a `.gitleaksignore`, rather than rewriting history: history is rewritten only for real secrets ([Secrets](#secrets)).
 
 ## Security reviews
 
