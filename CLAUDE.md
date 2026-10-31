@@ -21,7 +21,12 @@
 
 ## Skills
 
-The repository has no project-specific skills, and none are needed yet. Add one under `.claude/skills/` only for a specialized, recurring workflow that the documents cannot cover. A future example would be a migration review procedure, once real migrations exist.
+The repository has two project skills in `.claude/skills/`. Both apply the documents and never override them.
+
+- **`/refrain-security-review [PR | branch | path]`** is a read-only security review. Use it on any change that touches a trust boundary ([Security § Security reviews](docs/security.md#security-reviews)). It reports findings with evidence and changes nothing. A passing test suite is not an approval.
+- **`/refrain-db-change [description]`** is the procedure for any change to `src/db/schema.ts` or `src/db/migrations/` ([Development § Database changes](docs/development.md#database-changes)).
+
+For an independent review, run the security review in a context separate from the one that wrote the change, such as a fresh session or a review agent. Add a skill only for a specialized, recurring workflow that the documents cannot cover.
 
 ## Reporting
 

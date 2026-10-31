@@ -1,8 +1,44 @@
 # Security and Privacy
 
-**Status:** requirements for implementation. The application foundation (M1.1) implements the baseline: the database client is server-only and its configuration is server-side, logs carry no connection details, and the build needs no database. M1.2 implements the data-protection constraints and the publication predicate in SQL, with database-level tests; no public route or studio action exists yet. The remaining controls arrive with the features they protect. The publication rules implement [ADR 0002](decisions/0002-domain-model-decisions.md) and its implementation invariants (INV-1 to INV-5).
+**Status:** this document is mostly requirements for implementation. Only part of it is implemented, and [Implemented and planned protections](#implemented-and-planned-protections) says which parts.
+
+- **M1.1 and M1.2 implement the database layer's protections.** They are tested against real PostgreSQL.
+- **Nothing that serves or accepts HTTP requests exists yet.** There are no public routes, no studio actions, no authentication, and no sessions.
+- **Passing tests do not make the application secure.** They show that the database rules hold, and nothing about an HTTP surface that does not exist yet.
+- **The remaining controls arrive with the features they protect.**
+
+The publication rules implement [ADR 0002](decisions/0002-domain-model-decisions.md) and its implementation invariants (INV-1 to INV-5). How to report a vulnerability is in [`SECURITY.md`](../SECURITY.md).
 
 Refrain's most valuable asset is the author's writing: personal, unpublished, and irreplaceable. The two failures that matter most are **private writing becoming public** and **writing being lost**. Every control below protects against one of them.
+
+## Public code, private writing
+
+The repository is private today and is intended to become public. **Security never depends on the source code being secret.** Assume that an attacker has read all of it:
+
+- the code;
+- the SQL schema and the migrations;
+- the route structure and the validation rules;
+- the Git history;
+- the review procedures.
+
+Access to the repository must never grant access to:
+
+- personal memories or unpublished writing;
+- unpublished translations or unpublished track reflections;
+- administrator sessions;
+- database credentials or authentication secrets;
+- production configuration;
+- private backups.
+
+Protection comes from:
+
+- **authorization**, verified on the server for every request;
+- **sessions** that are handled securely;
+- **isolation** of private data, behind the [publication predicate](#publication-predicate);
+- **least privilege**;
+- **tested behavior.**
+
+Unguessable or unlinked URLs, hidden interface elements, client-side checks, and the secrecy of identifiers are not controls. Code, schema, and configuration in the repository hold no secrets. Real values exist only in the environment of the system that uses them.
 
 ## Trust model
 
@@ -10,6 +46,7 @@ Refrain's most valuable asset is the author's writing: personal, unpublished, an
 | --- | --- | --- |
 | Author | Authenticated, single account | Full Writing Studio |
 | Reader | Anonymous | Publicly visible content only, read-only |
+| Anyone who can read the repository (everyone, once it is public) | Untrusted | Source code, schema, and history. No data, sessions, or secrets. |
 | External providers | Untrusted input | Responses are validated before use |
 | Coding agents and contributors | Repository access only | No access to production data or secrets |
 
@@ -65,6 +102,7 @@ Catalog metadata (albums, artists, tracks) is not personal, but public pages sho
 - Secrets never reach client bundles. Only intentionally public variables use the framework's public prefix.
 - CI uses scoped GitHub secrets and minimal workflow `permissions`.
 - If a secret is committed, rotate it first and then remove it from history. Deleting the file is not enough.
+- The Next.js build output (`.next/`) contains keys generated for each build, such as the preview and server-action encryption keys. It is ignored by Git and is never committed, published, or shared.
 
 ## Data protection
 
@@ -86,6 +124,44 @@ Logs record events and identifiers. They never contain entry titles or bodies, s
 - Never commit real journal writing, personal ratings, database dumps, `.env` files, or screenshots that contain private entries.
 - Test fixtures and seed data are synthetic and labeled as such (for example `[Test] Album`). Public catalog metadata, such as Grace by Jeff Buckley, may be used, but the author's opinions about it may not be invented.
 - The local `reference/` mockups contain only bracketed placeholders, not personal writing. `reference/` is ignored by Git. Local mockups, screenshots, and design experiments are never committed without the author's explicit authorization.
+
+## Implemented and planned protections
+
+This matrix records what exists on `main` today and what is still a requirement. *Implemented* means the control is in the code and verified as shown. *Planned* means it is a requirement in this document with no implementation yet. Carry-forward requirements for the coming milestones are tracked in issue #6.
+
+### Implemented (M1.1, M1.2)
+
+| Control | Where | Verified by |
+| --- | --- | --- |
+| Integrity in PostgreSQL: keys, `NOT NULL`, `CHECK`, `UNIQUE`; authored-to-catalog foreign keys `ON DELETE RESTRICT` | [`src/db/schema.ts`](../src/db/schema.ts), [`src/db/migrations/`](../src/db/migrations/) | Integration tests that assert rejections by SQLSTATE and constraint name, with the exceptions listed in [Data Model § Validation](data-model.md#validation); delete rules read from `pg_constraint` |
+| Publication predicate, defined once in SQL; public read queries return projections without private fields | [`src/modules/publication/predicate.ts`](../src/modules/publication/predicate.ts), [`queries.ts`](../src/modules/publication/queries.ts) | Database-level tests for INV-1, INV-2, INV-3, and INV-5 ([Required tests](#required-tests)) |
+| Transactional publication, slug, and "Delete now" commands, which lock the entry and refuse deleted entries | [`src/modules/publication/commands.ts`](../src/modules/publication/commands.ts), [`src/modules/journals/commands.ts`](../src/modules/journals/commands.ts) | Integration tests, including rollback of failed multi-row writes |
+| Published slugs reserved after permanent deletion; only marked slugs served ([ADR 0003](decisions/0003-relational-schema-conventions.md)) | Same | Integration tests of `resolvePublicSlug`, `changeEntrySlug`, and `permanentlyDeleteEntry` |
+| No automatic purge (ADR 0002, D4.4; INV-4, database part) | No trigger, rule, or job exists | An integration test asserts that the database has no trigger or rule that removes entries |
+| Test-database isolation: tests read only `TEST_DATABASE_URL`; five fail-closed checks, including the server-side disposable marker | [`src/testing/test-database.ts`](../src/testing/test-database.ts), [`global-setup.ts`](../src/testing/global-setup.ts) | Unit tests of each check; an integration test that the client under test reaches only the test database ([Development § Test database](development.md#test-database)) |
+| Server-only database access: the client imports `server-only`, configuration stays server-side, and the build needs no database | [`src/db/client.ts`](../src/db/client.ts), [`src/db/env.ts`](../src/db/env.ts) | `next build` without `DATABASE_URL` in CI proves that the build needs no database. `next build` also fails if a Client Component reaches a `server-only` module, which was checked once when the foundation was built ([Architecture § Enforcement](architecture.md#enforcement)); no automated test covers it. |
+| Connection details never appear in errors or logs | `src/db/env.ts`, `src/db/health.ts`, `src/db/client.ts` | Unit tests that the configuration and health-check errors exclude connection strings. The pool's idle-error log, which records only the error code, is checked by review and has no test. |
+| Module boundaries: presentation code cannot import the database client, schema, or driver | [`eslint.config.mjs`](../eslint.config.mjs) | `pnpm lint`; [`src/module-boundaries.test.ts`](../src/module-boundaries.test.ts) proves that the rules fire. Static imports only. |
+| Repository hygiene: `.env*` (except `.env.example`), `*.pem`, `*.dump`, `.next/`, and `reference/` are ignored | [`.gitignore`](../.gitignore) | `git check-ignore`; secret scanning ([Public-release gate](#public-release-gate)) |
+| CI least privilege: `contents: read`, no secrets, actions pinned to commit SHAs, checkout without persisted credentials | [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) | Review of the workflow |
+| Supply chain: exact versions, a frozen lockfile, a seven-day minimum release age, and install scripts blocked unless allowed | `package.json`, [`pnpm-workspace.yaml`](../pnpm-workspace.yaml) | `pnpm install --frozen-lockfile` in CI proves that the lockfile matches `package.json`. Exact versions, the release age, and `allowBuilds` are checked by review. |
+
+### Planned (not implemented)
+
+| Control | Arrives with | State today |
+| --- | --- | --- |
+| Single author account; no public sign-up; secure sessions and cookies; sign-in rate limiting | M2 (Better Auth) | No authentication library, account, or session exists |
+| Server-side authorization in every studio action and route handler | M2 | No server action or route handler exists, so nothing can mutate data over HTTP |
+| Zod validation at every server boundary; request size limits | The first route or action (M1.3, M2) | Zod is not installed; there is no server boundary yet |
+| Allow-listed rich-text rendering | M2, M3 (Tiptap) | No editor or renderer exists; the database checks only the outer document shape |
+| Public caching only from predicate data; revalidation on every visibility change; `no-store` studio responses | M2, M3 | Nothing is cached; Cache Components makes data dynamic by default |
+| Predicate applied to metadata, sitemaps, feeds, and search | M3 | None of these exists; the only metadata is the static site title and description |
+| HTTP-level privacy tests (404 versus 308, metadata, caches) | M2, M3 | Only the database-level parts exist ([Required tests](#required-tests)) |
+| Optimistic concurrency on saves | M2 | `entries.version` exists; no save command uses it yet |
+| Backups and a tested restore | Before any hosted database holds real writing | Local `pg_dump` commands only ([Development](development.md#local-database)) |
+| Private vulnerability reporting channel | Before the repository becomes public | Not available while the repository is private ([`SECURITY.md`](../SECURITY.md)) |
+| Branch protection | When the plan allows it, or when the repository becomes public | Followed by convention ([Development § Repository protection](development.md#repository-protection)) |
+| Automated dependency advisory alerts | Not decided | Advisories are checked manually with `pnpm audit` |
 
 ## Required tests
 
@@ -116,3 +192,30 @@ INV-4 (truthful recovery copy) has a database-level test that deleted entries ar
 ## Deployment gate
 
 The application must not be reachable from the public internet until authentication and the tests above are in place. Until then, academic demonstrations run locally.
+
+## Public-release gate
+
+Making the **repository** public is a separate decision from deploying the application, and only the repository owner makes it. Agents and contributors never change the repository's visibility. Before visibility changes, every item below must be checked and its result recorded in the issue or pull request that prepares the release:
+
+1. **No committed credentials.** No real secret is present in any tracked file: tokens, passwords, keys, or connection strings. The placeholder values for disposable local and CI databases are not secrets.
+2. **History reviewed for secrets.** The full Git history of every branch is scanned, for example with `gitleaks git --redact --log-opts="--all"`, and every finding is resolved. If a real secret is found, it is rotated first, and only then removed from history (see [Secrets](#secrets)).
+3. **No private journal data.** No real writing, ratings, personal dates, database dumps, or screenshots of private entries in the working tree or the history.
+4. **Authorization verified.** Every studio action and route handler is covered by the unauthenticated-request test (Required test 1).
+5. **Authentication and sessions tested.** Sign-in, sign-out, session expiry, cookie flags, and the unavailable sign-up endpoint (Required test 7).
+6. **Production secrets isolated.** Production credentials exist only in the deployment environment. None is shared with development, CI, or the repository.
+7. **Public metadata and caching reviewed.** Metadata, sitemaps, feeds, search, and cached pages apply the publication predicate (Required tests 2 to 5).
+8. **Dependency advisories evaluated.** `pnpm audit` is run and each advisory is either fixed or recorded as not applicable, with the reason.
+9. **A working private reporting channel.** GitHub private vulnerability reporting is enabled once the repository is public, and [`SECURITY.md`](../SECURITY.md) describes how to use it.
+10. **Licenses decided.** Licenses for the source code and for the original artwork are chosen separately and recorded. The artwork includes the homepage character illustration. No license is added without the owner's decision.
+11. **Independent review.** A security review of the whole repository by someone who did not write the code. A review agent run in a separate context counts.
+
+The design references that were tracked before M1.1 (`reference/`, removed from tracking in #3) remain in the Git history **by the owner's decision**. They contain bracketed placeholders, not personal writing, so rewriting history to remove them is not required. Rewriting history is reserved for actual secrets or personal data.
+
+## Security reviews
+
+Changes that touch a trust boundary get a security review before they are merged. Trust boundaries include routes, server actions, authentication, the publication predicate and public queries, caching, metadata, slugs and redirects, secrets, dependencies, and CI. Two procedures are written down as Claude Code skills, and human reviewers can follow them as checklists too:
+
+- [`refrain-security-review`](../.claude/skills/refrain-security-review/SKILL.md): a read-only review.
+- [`refrain-db-change`](../.claude/skills/refrain-db-change/SKILL.md): schema and migration changes.
+
+These procedures apply this document and the accepted ADRs, and do not replace them. A passing test suite is evidence, not approval.
