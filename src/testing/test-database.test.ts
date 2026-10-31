@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   assertDisposableTestDatabase,
+  effectiveTarget,
   readTestDatabaseUrl,
   TEST_DATABASE_MARKER,
   TestDatabaseSafetyError,
@@ -142,5 +143,123 @@ describe("assertDisposableTestDatabase", () => {
         serverReporting({ name: "refrain", marker: TEST_DATABASE_MARKER }),
       ),
     ).rejects.toThrow("not named like a test database");
+  });
+});
+
+describe("readTestDatabaseUrl compares effective targets with DATABASE_URL", () => {
+  const test = "postgres://refrain_test:pw@127.0.0.1:5433/refrain_test";
+
+  it.each([
+    [
+      "the same target with a harmless query parameter",
+      "postgres://a:b@localhost:5433/refrain_test?sslmode=disable",
+    ],
+    [
+      "query parameters that redirect a remote URL to the test target",
+      "postgres://a:b@db.example.com:5432/refrain_test?host=127.0.0.1&port=5433",
+    ],
+    [
+      "a Unix socket on this machine with the same port and database",
+      "postgres:///refrain_test?host=/var/run/postgresql&port=5433",
+    ],
+    ["an IPv6 loopback spelling", "postgres://a:b@[::1]:5433/refrain_test"],
+    [
+      "an upper-case loopback name",
+      "postgres://a:b@LOCALHOST:5433/refrain_test",
+    ],
+    [
+      "a percent-encoded database name",
+      "postgres://a:b@127.0.0.1:5433/refrain%5Ftest",
+    ],
+  ])("refuses %s", (_label, developmentUrl) => {
+    expectRefusal(
+      { TEST_DATABASE_URL: test, DATABASE_URL: developmentUrl },
+      "point to the same database",
+    );
+  });
+
+  it.each([
+    ["not a URL", "refrain-db"],
+    ["another scheme", "mysql://a:b@127.0.0.1:5433/refrain_test"],
+    [
+      "several hosts",
+      "postgres://a:b@127.0.0.1:5432/refrain?host=127.0.0.1,db.example.com",
+    ],
+  ])(
+    "refuses instead of skipping when DATABASE_URL is %s",
+    (_label, developmentUrl) => {
+      expectRefusal(
+        { TEST_DATABASE_URL: test, DATABASE_URL: developmentUrl },
+        "cannot be proven distinct",
+      );
+    },
+  );
+
+  it.each([
+    [
+      "the development database",
+      "postgres://refrain:pw@127.0.0.1:5432/refrain",
+    ],
+    [
+      "the development database with query parameters",
+      "postgres://refrain:pw@127.0.0.1:5432/refrain?sslmode=disable&application_name=x",
+    ],
+    [
+      "a remote database with the same name and port",
+      "postgres://a:b@db.example.com:5433/refrain_test",
+    ],
+  ])("accepts a distinct DATABASE_URL: %s", (_label, developmentUrl) => {
+    expect(
+      readTestDatabaseUrl({
+        TEST_DATABASE_URL: test,
+        DATABASE_URL: developmentUrl,
+      }),
+    ).toBe(test);
+  });
+
+  it("uses the port node-postgres would use when the URL omits it", () => {
+    // Without a port, both resolve to the default port 5432.
+    expectRefusal(
+      {
+        TEST_DATABASE_URL: "postgres://u:p@127.0.0.1/refrain_test",
+        DATABASE_URL: "postgres://a:b@localhost:5432/refrain_test",
+      },
+      "point to the same database",
+    );
+  });
+
+  it("never includes credentials from either URL in its errors", () => {
+    const secret = "do-not-leak-this-password";
+    for (const env of [
+      {
+        TEST_DATABASE_URL: test,
+        DATABASE_URL: `postgres://admin:${secret}@localhost:5433/refrain_test?sslmode=require`,
+      },
+      {
+        TEST_DATABASE_URL: test,
+        DATABASE_URL: `postgres://admin:${secret}@h1,h2/refrain`,
+      },
+      { TEST_DATABASE_URL: test, DATABASE_URL: `${secret}` },
+    ]) {
+      try {
+        readTestDatabaseUrl(env);
+        expect.unreachable("readTestDatabaseUrl should have thrown");
+      } catch (error) {
+        expect(error).toBeInstanceOf(TestDatabaseSafetyError);
+        expect((error as Error).message).not.toContain(secret);
+        expect((error as Error).message).not.toContain("admin");
+      }
+    }
+  });
+});
+
+describe("effectiveTarget", () => {
+  it("resolves query-parameter overrides the way node-postgres connects", () => {
+    expect(
+      effectiveTarget(
+        "postgres://u:p@127.0.0.1:5433/x_test?host=db.example.com&port=6000",
+        "URL",
+      ),
+    ).toEqual({ host: "db.example.com", port: 6000, database: "x_test" });
   });
 });

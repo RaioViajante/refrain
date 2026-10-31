@@ -107,9 +107,9 @@ Integration tests write data, so they run against their own PostgreSQL server, n
 **Safety checks.** The integration tests never read `DATABASE_URL`. Before any test file runs, [`src/testing/global-setup.ts`](../src/testing/global-setup.ts) applies the checks in [`src/testing/test-database.ts`](../src/testing/test-database.ts) and refuses to continue unless all of them pass:
 
 1. `TEST_DATABASE_URL` is set. There is no fallback.
-2. Its host is loopback (`localhost`, `127.0.0.1`, or `[::1]`), and it has no query parameters, which node-postgres would let override the host or port.
-3. Its database name ends in `_test`.
-4. It does not point at the same database as `DATABASE_URL`.
+2. It is a `postgres://` URL **without query parameters**, which node-postgres would let override the host or port.
+3. Its *effective* target, meaning the host, port, and database node-postgres resolves and would connect to, has a loopback host (`localhost`, `127.0.0.1`, or `::1`) and a database name ending in `_test`.
+4. If `DATABASE_URL` is set, its effective target is resolved the same way, query parameters such as `?host=` and `?port=` included, and must be a different database. Loopback names and Unix sockets count as the same host. If `DATABASE_URL` cannot be resolved to exactly one host and database, the tests refuse to run rather than skip the comparison.
 5. On the server, the connected database carries the disposable-test marker: a database comment written only by [`docker/postgres-test/01-mark-disposable.sql`](../docker/postgres-test/01-mark-disposable.sql). The local `postgres-test` service applies it when it initializes, and CI applies it to its own service container. A database name can be mistyped; the marker has to be placed on purpose.
 
 Each test worker then points the application's database client at the validated test URL, so code under test cannot reach the development database, and [`src/testing/isolation.integration.test.ts`](../src/testing/isolation.integration.test.ts) asserts it.

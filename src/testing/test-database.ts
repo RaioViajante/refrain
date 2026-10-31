@@ -5,21 +5,26 @@
 // TEST_DATABASE_URL, never to DATABASE_URL, and refuse to run unless the
 // target passes two independent checks:
 //
-// 1. Client side, before connecting: the URL is a PostgreSQL URL on this
-//    machine (loopback host), its database name ends in `_test`, it has no
-//    query parameters (node-postgres lets `?host=` and `?port=` override the
-//    host and port the other checks validated), and it does not point at the
-//    same database as DATABASE_URL.
+// 1. Client side, before connecting. The checks compare *effective* targets:
+//    the host, port, and database that node-postgres would actually connect
+//    to, after query parameters such as `?host=` and `?port=` and its
+//    defaults are applied. TEST_DATABASE_URL must be a PostgreSQL URL without
+//    query parameters whose effective host is loopback and whose effective
+//    database ends in `_test`. If DATABASE_URL is set, it must be parseable
+//    and must not resolve to the same database; anything that cannot be
+//    compared unambiguously is refused, never skipped.
 // 2. Server side, after connecting: the database itself carries the
 //    disposable-test marker, a database comment written only by
 //    docker/postgres-test/01-mark-disposable.sql. Names can be mistyped; the
 //    marker has to be placed on purpose.
 //
-// Error messages never contain a connection string, which can hold a password.
+// Error messages never contain a connection string, user, or password.
+
+import { Client } from "pg";
 
 export const TEST_DATABASE_MARKER = "refrain:disposable-test-database";
 
-const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 const TEST_DATABASE_NAME = /^[a-z0-9_]+_test$/;
 
 export class TestDatabaseSafetyError extends Error {
@@ -28,13 +33,15 @@ export class TestDatabaseSafetyError extends Error {
 
 type Env = Readonly<Record<string, string | undefined>>;
 
-interface DatabaseTarget {
+/** Where node-postgres would connect: host, port, and database. */
+export interface EffectiveTarget {
+  /** Lowercase host without brackets, or a Unix-socket directory path. */
   host: string;
-  port: string;
+  port: number;
   database: string;
 }
 
-function parseTarget(value: string, variable: string): DatabaseTarget {
+function assertPostgresUrl(value: string, variable: string): URL {
   let url: URL;
   try {
     url = new URL(value);
@@ -46,22 +53,54 @@ function parseTarget(value: string, variable: string): DatabaseTarget {
       `${variable} must use the postgres:// or postgresql:// scheme.`,
     );
   }
-  if (url.search !== "") {
+  return url;
+}
+
+/**
+ * The effective target of a connection string, resolved by node-postgres
+ * itself (constructing a Client parses the string; it does not connect).
+ * Throws TestDatabaseSafetyError when the target is ambiguous.
+ */
+export function effectiveTarget(
+  connectionString: string,
+  variable: string,
+): EffectiveTarget {
+  let client: Client;
+  try {
+    client = new Client({ connectionString });
+  } catch {
+    throw new TestDatabaseSafetyError(`${variable} cannot be parsed.`);
+  }
+  const host = String(client.host ?? "")
+    .toLowerCase()
+    .replace(/^\[(.*)\]$/, "$1");
+  const database = String(client.database ?? "");
+  if (host === "" || host.includes(",") || database === "") {
     throw new TestDatabaseSafetyError(
-      `${variable} must not have query parameters, which can override its host or port.`,
+      `${variable} does not name exactly one host and one database.`,
     );
   }
-  return {
-    host: url.hostname.toLowerCase(),
-    port: url.port || "5432",
-    database: decodeURIComponent(url.pathname.replace(/^\//, "")),
-  };
+  return { host, port: Number(client.port), database };
+}
+
+// Loopback names and Unix sockets all reach a server on this machine, so
+// they are treated as the same host when comparing targets.
+function isLocal(host: string): boolean {
+  return LOOPBACK_HOSTS.has(host) || host.startsWith("/");
+}
+
+function sameDatabase(a: EffectiveTarget, b: EffectiveTarget): boolean {
+  return (
+    a.database === b.database &&
+    a.port === b.port &&
+    (a.host === b.host || (isLocal(a.host) && isLocal(b.host)))
+  );
 }
 
 /**
  * Returns TEST_DATABASE_URL after the client-side checks. Throws
- * TestDatabaseSafetyError when it is missing or suspicious. It never falls
- * back to DATABASE_URL.
+ * TestDatabaseSafetyError when it is missing, suspicious, or cannot be
+ * proven distinct from DATABASE_URL. It never falls back to DATABASE_URL.
  */
 export function readTestDatabaseUrl(env: Env): string {
   const value = env.TEST_DATABASE_URL?.trim();
@@ -73,7 +112,13 @@ export function readTestDatabaseUrl(env: Env): string {
     );
   }
 
-  const target = parseTarget(value, "TEST_DATABASE_URL");
+  const url = assertPostgresUrl(value, "TEST_DATABASE_URL");
+  if (url.search !== "") {
+    throw new TestDatabaseSafetyError(
+      "TEST_DATABASE_URL must not have query parameters, which can override its host or port.",
+    );
+  }
+  const target = effectiveTarget(value, "TEST_DATABASE_URL");
 
   if (!LOOPBACK_HOSTS.has(target.host)) {
     throw new TestDatabaseSafetyError(
@@ -91,22 +136,21 @@ export function readTestDatabaseUrl(env: Env): string {
 
   const developmentValue = env.DATABASE_URL?.trim();
   if (developmentValue) {
-    let development: DatabaseTarget | undefined;
+    // Refused rather than skipped: if DATABASE_URL cannot be resolved, the
+    // test database cannot be proven to be a different database.
+    let development: EffectiveTarget;
     try {
-      development = parseTarget(developmentValue, "DATABASE_URL");
-    } catch {
-      // A malformed DATABASE_URL, or one with query parameters, cannot be
-      // compared reliably. TEST_DATABASE_URL has already passed its own
-      // checks, and the server-side marker check still applies.
+      assertPostgresUrl(developmentValue, "DATABASE_URL");
+      development = effectiveTarget(developmentValue, "DATABASE_URL");
+    } catch (error) {
+      const reason =
+        error instanceof TestDatabaseSafetyError ? ` (${error.message})` : "";
+      throw new TestDatabaseSafetyError(
+        `DATABASE_URL is set but its target cannot be determined${reason}, ` +
+          "so the test database cannot be proven distinct. Fix or unset DATABASE_URL.",
+      );
     }
-    if (
-      development &&
-      development.database === target.database &&
-      development.port === target.port &&
-      (development.host === target.host ||
-        (LOOPBACK_HOSTS.has(development.host) &&
-          LOOPBACK_HOSTS.has(target.host)))
-    ) {
+    if (sameDatabase(development, target)) {
       throw new TestDatabaseSafetyError(
         "TEST_DATABASE_URL and DATABASE_URL point to the same database. " +
           "Integration tests need their own disposable database.",
