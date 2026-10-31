@@ -21,7 +21,8 @@
     "db:test:up": "docker compose --profile test up --detach --wait postgres-test",
     "db:test:down": "docker compose --profile test rm --stop --force postgres-test",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "db:check": "drizzle-kit check"
   },
   "dependencies": {
     "drizzle-orm": "0.45.4",
