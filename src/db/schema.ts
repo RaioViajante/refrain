@@ -614,9 +614,12 @@ export const memoryMusic = pgTable(
 );
 
 // Current and previous public slugs. The primary key makes a slug unique per
-// entry kind across current and previous slugs, so an old slug is never
-// reassigned while its entry exists (D7.3, D7.5). Rows cascade with their
-// entry, so a permanent deletion releases them (ADR 0003).
+// entry kind across current and previous slugs, so no two rows can hold the
+// same slug (D7.3). Keeping previous-slug rows while their entry exists
+// (D7.5), and giving every entry a current slug (D7.1), are rules of the
+// Publication commands: rows are only ever added or marked non-current, never
+// deleted or re-pointed. Rows cascade with their entry, so a permanent
+// deletion releases them (ADR 0003).
 export const entrySlugs = pgTable(
   "entry_slugs",
   {

@@ -1,6 +1,6 @@
 # ADR 0003: Relational Schema Conventions
 
-- **Status:** Proposed. Implemented in M1.2 (#4) and awaiting the author's acceptance in that pull request's review.
+- **Status:** Proposed. Implemented in M1.2 (issue #4, pull request #5) and awaiting the author's acceptance in that pull request's review.
 - **Date:** 2026-10-31
 - **Scope:** How the first migration represents ADR 0002, and the open questions from [ADR 0002](0002-domain-model-decisions.md#still-open-after-this-adr) and [Data Model](../data-model.md#open-questions) that the schema depends on. It does not change any decision in ADR 0002.
 

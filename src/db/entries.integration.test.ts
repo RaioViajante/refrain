@@ -52,6 +52,101 @@ describe("entries and subtypes", () => {
   });
 });
 
+describe("remaining authored-content checks", () => {
+  it("pins every subtype to its own kind", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const { albumId } = await createTestAlbum(tx);
+      const artistId = await createTestArtist(tx);
+      const albumJournalId = await createTestAlbumJournal(tx, { albumId });
+
+      await expectRejected(
+        tx,
+        { code: foreignKeyViolation, constraint: "artist_journals_entry_fk" },
+        (sp) =>
+          sp
+            .insert(schema.artistJournals)
+            .values({ entryId: albumJournalId, artistId }),
+      );
+      await expectRejected(
+        tx,
+        { code: foreignKeyViolation, constraint: "memories_entry_fk" },
+        (sp) => sp.insert(schema.memories).values({ entryId: albumJournalId }),
+      );
+      const artistJournalId = await createTestArtistJournal(tx, { artistId });
+      const memoryId = await createTestMemory(tx);
+      for (const [table, constraint, entryId] of [
+        ["album_journals", "album_journals_kind_check", albumJournalId],
+        ["artist_journals", "artist_journals_kind_check", artistJournalId],
+        ["memories", "memories_kind_check", memoryId],
+      ] as const) {
+        await expectRejected(tx, { code: checkViolation, constraint }, (sp) =>
+          sp.execute(
+            sql`update ${sql.identifier(table)} set kind = 'other' where entry_id = ${entryId}`,
+          ),
+        );
+      }
+      // An entry's kind cannot change under its subtype row.
+      await expectRejected(
+        tx,
+        { code: foreignKeyViolation, constraint: "album_journals_entry_fk" },
+        (sp) =>
+          sp
+            .update(schema.entries)
+            .set({ kind: "memory" })
+            .where(eq(schema.entries.id, albumJournalId)),
+      );
+      await expectRejected(
+        tx,
+        { code: checkViolation, constraint: "entries_version_check" },
+        (sp) =>
+          sp
+            .update(schema.entries)
+            .set({ version: 0 })
+            .where(eq(schema.entries.id, albumJournalId)),
+      );
+    });
+  });
+
+  it("applies the locale and rich-text checks to track reflection texts", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const { albumId, trackIds } = await createTestAlbum(tx);
+      const journalId = await createTestAlbumJournal(tx, { albumId });
+      const reflectionId = await createTestTrackReflection(tx, {
+        albumJournalId: journalId,
+        albumId,
+        trackId: trackIds[0]!,
+      });
+      const cases = [
+        [
+          "track_reflection_texts_locale_check",
+          sql`insert into track_reflection_texts (track_reflection_id, locale) values (${reflectionId}, 'es')`,
+        ],
+        [
+          "track_reflection_texts_body_is_document_check",
+          sql`insert into track_reflection_texts (track_reflection_id, locale, body) values (${reflectionId}, 'en', '"text"')`,
+        ],
+        [
+          "track_reflection_texts_body_text_requires_body_check",
+          sql`insert into track_reflection_texts (track_reflection_id, locale, body_text) values (${reflectionId}, 'en', '[Test] orphan')`,
+        ],
+        [
+          "track_reflection_texts_body_format_version_check",
+          sql`insert into track_reflection_texts (track_reflection_id, locale, body_format_version) values (${reflectionId}, 'en', 0)`,
+        ],
+        [
+          "entry_texts_body_format_version_check",
+          sql`update entry_texts set body_format_version = 0 where entry_id = ${journalId}`,
+        ],
+      ] as const;
+      for (const [constraint, statement] of cases) {
+        await expectRejected(tx, { code: checkViolation, constraint }, (sp) =>
+          sp.execute(statement),
+        );
+      }
+    });
+  });
+});
+
 describe("language versions (ADR 0002, D3)", () => {
   it("keeps independent visibility per language version", async () => {
     await inRollbackTransaction(async (tx) => {
@@ -496,6 +591,25 @@ describe("memory music", () => {
             .insert(schema.memoryMusic)
             .values({ memoryId, position: 2, trackId: trackIds[0]! }),
       );
+      await tx
+        .insert(schema.memoryMusic)
+        .values({ memoryId, position: 2, albumId });
+      await expectRejected(
+        tx,
+        { code: uniqueViolation, constraint: "memory_music_album_unique" },
+        (sp) =>
+          sp
+            .insert(schema.memoryMusic)
+            .values({ memoryId, position: 3, albumId }),
+      );
+      await expectRejected(
+        tx,
+        { code: checkViolation, constraint: "memory_music_position_check" },
+        (sp) =>
+          sp
+            .insert(schema.memoryMusic)
+            .values({ memoryId, position: 0, trackId: trackIds[1]! }),
+      );
     });
   });
 
@@ -707,11 +821,16 @@ describe("deletion and recovery (ADR 0002, D4; INV-4)", () => {
         .where(eq(schema.entries.id, memoryId));
       expect(entry).toBeDefined();
 
-      // No trigger or rule in the database can remove deleted writing.
+      // No trigger, event trigger, or rule in the database could remove
+      // deleted writing. (No purge job exists in the codebase either.)
       const triggers = await tx.execute<{ n: number }>(
         sql`select count(*)::int as n from pg_trigger where not tgisinternal`,
       );
       expect(triggers.rows[0]!.n).toBe(0);
+      const eventTriggers = await tx.execute<{ n: number }>(
+        sql`select count(*)::int as n from pg_event_trigger`,
+      );
+      expect(eventTriggers.rows[0]!.n).toBe(0);
       const rules = await tx.execute<{ n: number }>(
         sql`select count(*)::int as n from pg_rules where schemaname = 'public'`,
       );
@@ -781,9 +900,9 @@ describe("transactions (data model, transaction boundaries)", () => {
       const entriesBefore = await tx.$count(schema.entries);
       const textsBefore = await tx.$count(schema.entryTexts);
 
-      // Transaction boundary 2: entry, original version, subtype, and slug.
-      // The last insert fails because the slug is taken, so none of the
-      // earlier rows may remain.
+      // Transaction boundary 2: entry, original version, slug, and subtype.
+      // The slug insert fails because the slug is taken, so the entry and
+      // version inserted before it may not remain.
       await expectRejected(
         tx,
         { code: uniqueViolation, constraint: "entry_slugs_pkey" },

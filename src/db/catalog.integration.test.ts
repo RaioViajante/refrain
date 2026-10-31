@@ -5,6 +5,7 @@ import {
   createTestAlbum,
   createTestAlbumJournal,
   createTestArtist,
+  createTestArtistJournal,
   createTestMemory,
   createTestTrackReflection,
   expectRejected,
@@ -215,6 +216,169 @@ describe("catalog constraints", () => {
   });
 });
 
+describe("remaining catalog checks", () => {
+  // Each statement violates exactly one named constraint.
+  it.each([
+    ["albums_title_check", sql`insert into albums (title) values (' ')`],
+    ["tracks_title_check", sql`insert into tracks (title) values ('')`],
+    [
+      "tracks_length_ms_check",
+      sql`insert into tracks (title, length_ms) values ('[Test] Track', 0)`,
+    ],
+  ])("rejects a write that violates %s", async (constraint, statement) => {
+    await inRollbackTransaction(async (tx) => {
+      await expectRejected(tx, { code: checkViolation, constraint }, (sp) =>
+        sp.execute(statement),
+      );
+    });
+  });
+
+  it("checks edition country, positions, and disc numbers", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const album = await createTestAlbum(tx);
+      const artistId = await createTestArtist(tx);
+      await expectRejected(
+        tx,
+        { code: checkViolation, constraint: "album_editions_country_check" },
+        (sp) =>
+          sp
+            .insert(schema.albumEditions)
+            .values({ albumId: album.albumId, country: "bra" }),
+      );
+      await expectRejected(
+        tx,
+        { code: checkViolation, constraint: "album_artists_position_check" },
+        (sp) =>
+          sp
+            .insert(schema.albumArtists)
+            .values({ albumId: album.albumId, artistId, position: 0 }),
+      );
+      await expectRejected(
+        tx,
+        { code: checkViolation, constraint: "track_artists_position_check" },
+        (sp) =>
+          sp
+            .insert(schema.trackArtists)
+            .values({ trackId: album.trackIds[0]!, artistId, position: 0 }),
+      );
+      await expectRejected(
+        tx,
+        { code: checkViolation, constraint: "edition_tracks_position_check" },
+        (sp) =>
+          sp
+            .update(schema.editionTracks)
+            .set({ position: 0 })
+            .where(eq(schema.editionTracks.trackId, album.trackIds[0]!)),
+      );
+      await expectRejected(
+        tx,
+        {
+          code: checkViolation,
+          constraint: "edition_tracks_disc_number_check",
+        },
+        (sp) =>
+          sp
+            .update(schema.editionTracks)
+            .set({ discNumber: 0 })
+            .where(eq(schema.editionTracks.trackId, album.trackIds[0]!)),
+      );
+    });
+  });
+
+  it("keeps credits unique and ordered, and protects credited artists", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const first = await createTestArtist(tx, "[Test] First");
+      const second = await createTestArtist(tx, "[Test] Second");
+      const album = await createTestAlbum(tx, { artistIds: [first] });
+      const trackId = album.trackIds[0]!;
+      await tx
+        .insert(schema.trackArtists)
+        .values({ trackId, artistId: first, position: 1 });
+
+      await expectRejected(
+        tx,
+        { code: uniqueViolation, constraint: "album_artists_pkey" },
+        (sp) =>
+          sp
+            .insert(schema.albumArtists)
+            .values({ albumId: album.albumId, artistId: first, position: 2 }),
+      );
+      await expectRejected(
+        tx,
+        { code: uniqueViolation, constraint: "album_artists_position_unique" },
+        (sp) =>
+          sp
+            .insert(schema.albumArtists)
+            .values({ albumId: album.albumId, artistId: second, position: 1 }),
+      );
+      await expectRejected(
+        tx,
+        { code: uniqueViolation, constraint: "track_artists_position_unique" },
+        (sp) =>
+          sp
+            .insert(schema.trackArtists)
+            .values({ trackId, artistId: second, position: 1 }),
+      );
+      await expectRejected(
+        tx,
+        { code: foreignKeyViolation, constraint: "track_artists_artist_fk" },
+        (sp) =>
+          sp
+            .delete(schema.albumArtists)
+            .where(eq(schema.albumArtists.artistId, first))
+            .then(() =>
+              sp.delete(schema.artists).where(eq(schema.artists.id, first)),
+            ),
+      );
+
+      const mbReleaseId = "33333333-3333-4333-8333-333333333333";
+      await tx
+        .update(schema.albumEditions)
+        .set({ mbReleaseId })
+        .where(eq(schema.albumEditions.id, album.editionId));
+      await expectRejected(
+        tx,
+        {
+          code: uniqueViolation,
+          constraint: "album_editions_mb_release_id_unique",
+        },
+        (sp) =>
+          sp
+            .insert(schema.albumEditions)
+            .values({ albumId: album.albumId, mbReleaseId }),
+      );
+    });
+  });
+
+  it("keeps artist and recording provider identifiers unique", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const mbId = "22222222-2222-4222-8222-222222222222";
+      await tx
+        .insert(schema.artists)
+        .values({ name: "[Test] Artist", kind: "person", mbArtistId: mbId });
+      await tx
+        .insert(schema.tracks)
+        .values({ title: "[Test] Track", mbRecordingId: mbId });
+      await expectRejected(
+        tx,
+        { code: uniqueViolation, constraint: "artists_mb_artist_id_unique" },
+        (sp) =>
+          sp
+            .insert(schema.artists)
+            .values({ name: "[Test] Other", kind: "group", mbArtistId: mbId }),
+      );
+      await expectRejected(
+        tx,
+        { code: uniqueViolation, constraint: "tracks_mb_recording_id_unique" },
+        (sp) =>
+          sp
+            .insert(schema.tracks)
+            .values({ title: "[Test] Other", mbRecordingId: mbId }),
+      );
+    });
+  });
+});
+
 describe("archive versus delete (ADR 0002, D4.5)", () => {
   it("refuses to delete catalog records that writing references", async () => {
     await inRollbackTransaction(async (tx) => {
@@ -269,6 +433,31 @@ describe("archive versus delete (ADR 0002, D4.5)", () => {
                 eq(schema.albumTracks.trackId, album.trackIds[0]!),
               ),
             ),
+      );
+    });
+  });
+
+  it("refuses to delete an artist that only an artist journal references", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const artistId = await createTestArtist(tx);
+      await createTestArtistJournal(tx, { artistId });
+      await expectRejected(
+        tx,
+        { code: foreignKeyViolation, constraint: "artist_journals_artist_fk" },
+        (sp) =>
+          sp.delete(schema.artists).where(eq(schema.artists.id, artistId)),
+      );
+    });
+  });
+
+  it("refuses to delete an album that only a memory references", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const { albumId } = await createTestAlbum(tx);
+      await createTestMemory(tx, { music: [{ albumId }] });
+      await expectRejected(
+        tx,
+        { code: foreignKeyViolation, constraint: "memory_music_album_fk" },
+        (sp) => sp.delete(schema.albums).where(eq(schema.albums.id, albumId)),
       );
     });
   });

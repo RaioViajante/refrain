@@ -3,7 +3,7 @@
 **Status:** implemented in M1.2. The schema is [`src/db/schema.ts`](../src/db/schema.ts); the applied SQL is in [`src/db/migrations/`](../src/db/migrations/). No feature writes to it yet: catalog and journal CRUD arrive in later increments ([Roadmap](roadmap.md)).
 
 - The domain rules come from [ADR 0002](decisions/0002-domain-model-decisions.md), which is accepted. The schema conventions and the answers to its open questions are in [ADR 0003](decisions/0003-relational-schema-conventions.md), which is **proposed** and awaiting the author's acceptance.
-- Every constraint below is declared in PostgreSQL and exercised by integration tests against a real PostgreSQL 17 database ([Validation](#validation)).
+- Every constraint below is declared in PostgreSQL. Integration tests against a real PostgreSQL 17 database exercise them as described under [Validation](#validation).
 
 The model implements the rules in [Product](product.md). All SQL is PostgreSQL.
 
@@ -211,6 +211,8 @@ These rules hold through transactions, module functions, and tests, not through 
 | Rule | Where it is enforced |
 | --- | --- |
 | Every entry has exactly one subtype row and one original version | The entry-creation transaction (M2) |
+| Every entry has exactly one current slug (D7.1); "at most one" is a constraint | The entry-creation and slug-change transactions (M2) |
+| Previous-slug rows stay while their entry exists (D7.5): they are only added or marked non-current, never deleted or re-pointed to another entry | The Publication slug commands (M2). The primary key prevents two rows holding one slug, not the deletion of a row. |
 | Every album has a reference edition | The catalog import or creation transaction (M1.3) |
 | `first_published_at` is set on the first publish and never cleared | The visibility-change command (M2) |
 | A slug is frozen after the first publication; later changes keep the old slug | The slug-change command (M2) |
@@ -252,7 +254,7 @@ External HTTP calls (MusicBrainz, artwork) happen **before** a transaction opens
 
 These queries satisfy academic requirements AC-04 and AC-05 ([Requirements](requirements.md)) and back real interface features. Each is quoted exactly from its module, runs against the implemented schema, and is covered by an integration test.
 
-**JOIN: albums with their credited artists** (Catalog, public Albums listing; [`listAlbumsWithArtists`](../src/modules/catalog/queries.ts)):
+**JOIN: albums with their credited artists** (Writing Studio Catalog; [`listAlbumsWithArtists`](../src/modules/catalog/queries.ts)):
 
 ```sql
 select al.id, al.title, al.first_release_year,
@@ -278,6 +280,11 @@ select e.id as entry_id, al.title as album_title,
   join albums al      on al.id = aj.album_id
   join entry_texts o  on o.entry_id = e.id and o.is_original
   left join track_reflections tr       on tr.album_journal_id = aj.entry_id
+                                      and tr.track_id in (
+                                            select et.track_id
+                                              from edition_tracks et
+                                              join album_editions ed on ed.id = et.edition_id
+                                             where ed.album_id = aj.album_id and ed.is_reference)
   left join track_reflection_texts trt on trt.track_reflection_id = tr.id
                                       and trt.locale = o.locale
                                       and trt.body_text <> ''
@@ -287,9 +294,11 @@ select e.id as entry_id, al.title as album_title,
  order by al.title, e.id;
 ```
 
-A track counts as written when its reflection has non-empty text in the original language and is not flagged "still writing", which matches the derived states above. Reflections that are empty, still in progress, or written only in a translation are not counted.
+A track counts as written when its reflection has non-empty text in the original language and is not flagged "still writing", which matches the derived states above. Reflections that are empty, still in progress, or written only in a translation are not counted. Only tracks of the reference edition are counted, so the result never exceeds `track_count` (a reflection on a recording outside the reference edition stays valid but is not part of "4 of 10").
 
-**Subquery: catalog usage** (Catalog, "used in 2 entries"; [`listAlbumUsage`](../src/modules/catalog/queries.ts)):
+The JOIN and the usage subquery list every catalog album, including albums whose only writing is a draft or private. They are **Writing Studio queries** and must never back a public page: a public Albums listing selects albums through the [publication predicate](security.md#publication-predicate), in the Publication module (M3).
+
+**Subquery: catalog usage** (Writing Studio Catalog, "used in 2 entries"; [`listAlbumUsage`](../src/modules/catalog/queries.ts)):
 
 ```sql
 select al.id, al.title,
@@ -340,6 +349,12 @@ Artist journals use the same query with `artist_journals` and `artist_id`.
 ## Validation
 
 M1.2 integration tests run against a disposable PostgreSQL 17 database after applying the committed migrations ([Development § Test database](development.md#test-database)). Each rejection test checks the SQLSTATE and the name of the constraint that fired.
+
+Coverage, measured against the migrated database (92 named constraints and unique indexes): every `CHECK` constraint, every `RESTRICT` foreign key, every partial unique index, and every `UNIQUE` constraint that states a rule is triggered by a test and asserted by name. Not asserted by name:
+
+- the cascading foreign keys, which have no violation to assert; the album hard-delete and entry permanent-delete tests check their effect row by row, except `track_artists_track_fk`, which no test exercises yet;
+- the single-column `uuid` primary keys, and the composite primary keys of `album_tracks`, `edition_tracks`, `track_artists`, and `track_reflection_texts`;
+- `entries_id_kind_unique`, `album_editions_id_album_unique`, and `album_journals_entry_album_unique`, which exist as targets of composite foreign keys that are tested.
 
 The constraints reject:
 

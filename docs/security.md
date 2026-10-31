@@ -108,7 +108,7 @@ These must exist before the public journal ships (M3). The *Database level (M1.2
 | 5. Previous slugs redirect only for visible entries (INV-5) | `resolvePublicSlug` returns the same `not_found` for unknown, draft, private, and deleted entries' slugs | HTTP 308 and 404 responses (M3) |
 | 6. Featured resolution identical in every interface language, with the D1.2 fallbacks (INV-1) | All fallback cases, tie-break, and version choice, checked in both languages; at most one featured journal enforced by the database | Rendered album and artist pages (M3) |
 | 7. Sign-up endpoint unavailable | — | All of it (M2) |
-| 8. Referenced catalog records cannot be hard-deleted | Done: albums, artists, tracks, and reflected recordings; delete rules read from `pg_constraint` | — |
+| 8. Referenced catalog records cannot be hard-deleted | Done. Runtime refusals by each writing-side rule: `album_journals_album_fk`, `artist_journals_artist_fk`, `memory_music_track_fk`, `memory_music_album_fk`, `track_reflections_album_track_fk`. All writing-to-catalog delete rules are also read from `pg_constraint`. | — |
 
 INV-4 (truthful recovery copy) has a database-level test that deleted entries are never purged: a long-deleted entry remains, and the database has no trigger or rule that could remove it. The codebase has no purge job. Its interface-copy part is checked when the Recently deleted screens exist (M2).
 

@@ -133,6 +133,31 @@ describe("featured-journal resolution (ADR 0002, D1.2; INV-1)", () => {
     });
   });
 
+  it("presents a featured journal that is visible only through its translation", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const { albumId } = await createTestAlbum(tx);
+      const featured = await createTestAlbumJournal(tx, {
+        albumId,
+        isFeatured: true,
+        versions: [
+          { locale: "en", status: "private" },
+          published("pt-BR", january, false),
+        ],
+      });
+      await createTestAlbumJournal(tx, {
+        albumId,
+        versions: [published("en", june)],
+      });
+      expect(await presentedJournalId(tx, { kind: "album", albumId })).toBe(
+        featured,
+      );
+      expect(
+        (await resolvePresentedJournal(tx, { kind: "album", albumId }, "en"))
+          ?.locale,
+      ).toBe("pt-BR");
+    });
+  });
+
   it("breaks a published_at tie by the lowest entry id", async () => {
     await inRollbackTransaction(async (tx) => {
       const { albumId } = await createTestAlbum(tx);
@@ -372,6 +397,33 @@ describe("track reflections through the publication predicate (D5; INV-2, INV-3)
       expect(await listPublicTrackReflections(tx, journalId, "pt-BR")).toEqual(
         [],
       );
+    });
+  });
+
+  it("shows a reflection in each language whose journal version is published", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const { album, journalId, reflect } = await journalWithTracks(tx, [
+        published("en"),
+        published("pt-BR", january, false),
+      ]);
+      await reflect(0, {
+        isPublished: true,
+        texts: { en: "[Test] English", "pt-BR": "[Test] Português" },
+      });
+      await reflect(1, {
+        isPublished: true,
+        texts: { "pt-BR": "[Test] Só PT" },
+      });
+
+      const ids = async (locale: "en" | "pt-BR") =>
+        (await listPublicTrackReflections(tx, journalId, locale)).map(
+          (row) => row.trackId,
+        );
+      expect(await ids("en")).toEqual([album.trackIds[0]]);
+      expect(await ids("pt-BR")).toEqual([
+        album.trackIds[0],
+        album.trackIds[1],
+      ]);
     });
   });
 
