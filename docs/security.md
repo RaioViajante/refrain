@@ -109,6 +109,8 @@ This contract applies to every administrative operation from M1.3B on: every stu
 
 Each new action or route gets a test that an unauthenticated request, a forged cookie, and a non-author session are refused (Required test 1).
 
+A static test ([`studio-entry-points.test.ts`](../src/modules/identity/studio-entry-points.test.ts)) checks today, per file, that each studio page and each server-action file calls the authorization. The first server action or administrative route handler extends it to check each exported action, each inline (function-level) action, `generateMetadata`, and each route handler under `src/app`, each starting with an awaited `requireAuthor` or `authorizeAuthor`. The authentication handler is explicitly allowed.
+
 ## Caching
 
 - Studio responses use `Cache-Control: no-store` and are never statically generated.
@@ -263,7 +265,7 @@ The design references that were tracked before M1.1 (`reference/`, removed from 
 - **Where it was never used.** No environment, server, database, CI run, or deployment ever used it.
 - **Removed.** Commit `1326517` replaced it with a value generated at runtime. The tree contains no secret-like literal.
 - **Merge.** By the owner's one-time exception, #10 is to be squash-merged, so that the commit never enters `main`'s ancestry.
-- **What squashing does not do.** It does not delete the commit. The commit stays reachable from the pull request's references (`refs/pull/10/head`), from the branch until someone deletes it, and from existing clones. GitHub may also keep it internally.
+- **What squashing does not do.** It does not delete the commit. The commit stays reachable from the pull request's references (`refs/pull/10/head`, `refs/pull/10/merge`), from the branch until someone deletes it, and from existing clones. GitHub may also keep it internally. The repository allows merge commits, rebase merges, and squash merges, so squash has to be chosen explicitly for #10.
 - **At the gate.** The full-history scan will still report it. Record it as reviewed, for example with that fingerprint in a `.gitleaksignore`, rather than rewriting history: history is rewritten only for real secrets ([Secrets](#secrets)).
 
 ## Security reviews

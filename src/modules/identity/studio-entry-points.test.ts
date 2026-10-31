@@ -8,9 +8,19 @@ import { describe, expect, it } from "vitest";
 // Authorization contract). A layout or proxy is never the check, so this
 // test looks at each studio page, route handler, and file-based metadata
 // route, and at every server-action file anywhere in src/ (a server action
-// is a public POST endpoint wherever it lives). It is static: a new entry
-// point that forgets the check fails here before any HTTP test exists for
-// it. The HTTP tests remain the proof that the check works.
+// is a public POST endpoint wherever it lives). The HTTP tests remain the
+// proof that the check works.
+//
+// Limits: the check is per file, not per entry point. It passes a file in
+// which any function calls the authorization, so it does not yet catch:
+// - a "use server" file with one exported action that skips the check;
+// - an inline action (a function-level "use server" directive);
+// - a generateMetadata that skips the check;
+// - a route handler outside src/app/studio.
+// No server action or studio route handler exists in M1.3A. With the first
+// one, M1.3B extends this test to check every exported action, every
+// function-level action, and every route handler, each starting with an
+// awaited requireAuthor (issue #6).
 //
 // Layouts are not entry points that can be authorized on their own (they do
 // not re-run on every navigation); they must never render private data.
