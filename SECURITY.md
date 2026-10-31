@@ -15,11 +15,11 @@ The protections that exist today, and the ones that are still planned, are liste
 
 ## Supported versions
 
-There are no releases, so no version is supported. Fixes are made on `main`. This section will name the supported versions once a deployed or released version exists.
+There are no releases, so no version is supported. Fixes reach `main` through pull requests. This section will name the supported versions once a deployed or released version exists.
 
 | Version | Supported |
 | --- | --- |
-| `main` (unreleased) | Fixes land here; it is not a supported release |
+| `main` (unreleased) | Fixes land here through pull requests; it is not a supported release |
 
 ## Reporting a vulnerability
 
@@ -27,7 +27,7 @@ There are no releases, so no version is supported. Fixes are made on `main`. Thi
 
 ### Current status of private reporting
 
-**No public reporting channel is available yet.**
+**No private reporting channel for people outside the project exists yet.**
 
 - GitHub's private vulnerability reporting is offered only for public repositories, and this repository is still private. On 2026-10-31 the repository's private-vulnerability-reporting API returned *Not Found*, so the feature is not enabled.
 - There is no dedicated security email address.
