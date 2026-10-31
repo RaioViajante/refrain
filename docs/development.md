@@ -73,7 +73,7 @@ pnpm install --frozen-lockfile
 
 If Node is older, switch to the version in `.nvmrc` with your Node version manager first.
 
-**2. Add the missing configuration, without overwriting anything.** This lists the variables that `.env.example` has and `.env` lacks, by name only:
+**2. Add the missing configuration, without overwriting anything.** These commands need zsh or bash. This one lists the variables that `.env.example` has and `.env` lacks, by name only:
 
 ```sh
 comm -13 <(grep -oE '^[A-Z_]+=' .env | sort) <(grep -oE '^[A-Z_]+=' .env.example | sort)
@@ -82,11 +82,13 @@ comm -13 <(grep -oE '^[A-Z_]+=' .env | sort) <(grep -oE '^[A-Z_]+=' .env.example
 - For every listed name except `BETTER_AUTH_SECRET`, copy its line from `.env.example` into `.env` with an editor. Change nothing that is already there.
 - Set `BETTER_AUTH_URL=http://localhost:3000`.
 - Set `REFRAIN_AUTHOR_EMAIL` to the email address you will sign in with.
-- Generate the secret straight into `.env`. It appears in no command and no output, and an existing secret is kept:
+- Generate the secret straight into `.env`. It appears in no command and no output.
 
 ```sh
-grep -q '^BETTER_AUTH_SECRET=' .env && echo "BETTER_AUTH_SECRET is already in the file: keep it." || { printf 'BETTER_AUTH_SECRET='; openssl rand -base64 32; } >> .env
+if grep -q '^BETTER_AUTH_SECRET=.' .env; then echo "BETTER_AUTH_SECRET already has a value: keep it."; elif grep -q '^BETTER_AUTH_SECRET=' .env; then echo "BETTER_AUTH_SECRET is empty: delete that line in an editor, then run this again."; else [ -n "$(tail -c1 .env)" ] && echo >> .env; { printf 'BETTER_AUTH_SECRET='; openssl rand -base64 32; } >> .env; echo "BETTER_AUTH_SECRET added."; fi
 ```
+
+It keeps an existing value. It refuses an empty `BETTER_AUTH_SECRET=` line, such as the one in `.env.example`, so that line has to be deleted first. It adds a line break first if the file's last line lacks one, so the secret never joins the previous line.
 
 Then check that the three authentication variables have values. It prints `set` or `MISSING`, never a value:
 
