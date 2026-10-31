@@ -45,7 +45,7 @@ Variables already set in the environment take precedence over `.env`, which is h
 | `pnpm build` | Production build. Needs no database and no `DATABASE_URL`. |
 | `pnpm start` | Serves the production build |
 | `pnpm lint` | ESLint, including the module-boundary rules |
-| `pnpm format` / `pnpm format:check` | Prettier: write, or check only. Markdown and `reference/` are excluded. |
+| `pnpm format` / `pnpm format:check` | Prettier: write, or check only. Markdown and the local `reference/` are excluded. |
 | `pnpm typecheck` | Generates Next.js route types, then runs `tsc --noEmit` (strict) |
 | `pnpm test` | Unit tests (Vitest). No database needed. |
 | `pnpm test:integration` | Integration tests against the real PostgreSQL in `DATABASE_URL`. Fails if it is not reachable; it never skips. |
@@ -91,6 +91,12 @@ pnpm db:up
 | An engine warning about the Node.js version | Use the version in `.nvmrc`. 24.x releases earlier than 24.22.1 lack a security fix. |
 | `ERR_PNPM_IGNORED_BUILDS` after adding a dependency | pnpm blocks install scripts by default. Review the package, then allow or deny it under `allowBuilds` in `pnpm-workspace.yaml`. |
 | A version published in the last seven days does not install | Intentional: `minimumReleaseAge` in `pnpm-workspace.yaml` blocks very new versions. |
+
+### Local design references
+
+`reference/` holds the author's local design references and is ignored by Git. A clean clone does not have it, and nothing needs it: the application, tests, CI, and documentation use only tracked assets ([Design System § Assets](design-system.md#assets)).
+
+`reference/` was tracked until the M1.1 pull request (#3) stopped tracking it. In a clone that has it checked out from an earlier commit, moving to a commit without it (for example `git pull` after the change is merged) **deletes those files from the working tree**, because Git removes files it stops tracking. Copy `reference/` outside the repository first. To recover the files afterwards, restore them from an older commit into the working tree only: `git restore --source=172ab8b --worktree -- reference/`.
 
 Next.js ships documentation that matches the installed version in `node_modules/next/dist/docs/`. Prefer it over memory when the framework's behavior is in doubt.
 

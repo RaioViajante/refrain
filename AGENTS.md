@@ -15,7 +15,7 @@ Refrain is a **single-author personal music journal**: memories, artist journals
 
 1. Run `git status` and `git branch`, and read the files you are about to touch. Do not assume a file, script, command, dependency, or asset exists. Check first.
 2. Read the documents relevant to the task and every accepted ADR in [`docs/decisions/`](docs/decisions/).
-3. For visual work, open the matching screen in `reference/refrain/pages/` or its PNG in `reference/refrain/previews/`.
+3. For visual work, read [Design System](docs/design-system.md), the tracked specification. If you have the author's local design references, also open the matching screen in `reference/refrain/pages/` or its capture in `reference/refrain/previews/`. They are not in the repository.
 4. For anything beyond a trivial change, state the scope and the acceptance criteria before starting.
 5. If the task conflicts with a documented decision, stop and raise it. Do not resolve it silently.
 
@@ -58,11 +58,17 @@ Refrain is a **single-author personal music journal**: memories, artist journals
 
 - Implement the approved V4.4 design. Do not redesign it, restyle it, or add components it does not show without the author's approval. The rendered screens outrank the exported CSS ([authority](docs/design-system.md#authority)). Studio controls required by ADR 0002 follow the [Writing Studio controls](docs/design-system.md#writing-studio-controls-for-adr-0002) specification. Administrative controls never appear on public pages.
 - Monochrome interface: color comes only from artwork and photographs. Typefaces are Kalam and Alegreya Sans, nothing else.
-- The original character illustration appears only on the public homepage, never as a header logo. Use the original file; never generate, trace, or alter it.
+- The original character illustration appears only on the public homepage, never as a header logo. Use the original file, `public/artwork/refrain-home-character.png`; never generate, trace, or alter it.
 - The public header has no logo or wordmark. The language selector (`en`, `pt-BR` only) lives only in the footer.
 - Rough.js strokes are pre-generated with fixed seeds, `aria-hidden`, and drawn behind real semantic elements.
 - Accessibility is required: keyboard operation, visible focus, 44px targets, `prefers-reduced-motion`, and correct `lang` attributes.
-- **`reference/` is read-only.** Do not edit, move, rename, recompress, or delete anything in it.
+- **`reference/` is a local-only workspace** for the author's design references: mockups, screenshots, explorations, and working files. Git ignores it, and anything in it is read-only. Do not edit, move, rename, recompress, or delete it. → [Design System § Assets](docs/design-system.md#assets)
+  1. Files in `reference/` are not production assets.
+  2. Application code, tests, CI, the README, and committed documentation never import, load, or link to files in `reference/`. The repository must build, test, and run without it.
+  3. Committed documentation uses tracked assets only.
+  4. An approved asset is promoted deliberately: copied byte-for-byte into `public/` when the application uses it, or into `docs/assets/` when only documentation uses it.
+  5. Never copy an entire reference directory into the application.
+  6. Never commit local mockups, screenshots, or design experiments without the author's explicit authorization.
 
 ## 7. Engineering conventions
 

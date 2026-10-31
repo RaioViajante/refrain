@@ -1,6 +1,10 @@
 # Operating system files
 .DS_Store
 
+# Local-only design references (mockups, screenshots, working files).
+# Never tracked; approved assets are promoted into public/ or docs/assets/.
+/reference/
+
 # Local environment and secrets. Commit only .env.example, which holds
 # non-secret placeholder values for local development.
 .env

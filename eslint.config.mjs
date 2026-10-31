@@ -29,7 +29,7 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
-    // Approved design references are read-only and are not application code.
+    // Local-only design references (ignored by Git), not application code.
     "reference/**",
   ]),
   {

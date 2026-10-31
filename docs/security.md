@@ -84,7 +84,7 @@ Logs record events and identifiers. They never contain entry titles or bodies, s
 
 - Never commit real journal writing, personal ratings, database dumps, `.env` files, or screenshots that contain private entries.
 - Test fixtures and seed data are synthetic and labeled as such (for example `[Test] Album`). Public catalog metadata, such as Grace by Jeff Buckley, may be used, but the author's opinions about it may not be invented.
-- The `reference/` mockups contain only bracketed placeholders, not personal writing.
+- The local `reference/` mockups contain only bracketed placeholders, not personal writing. `reference/` is ignored by Git. Local mockups, screenshots, and design experiments are never committed without the author's explicit authorization.
 
 ## Required tests
 

@@ -6,13 +6,30 @@
 
 In order of precedence:
 
-1. **The approved screens:** the rendered V4.4 pages in `reference/refrain/pages/` and their captures in `reference/refrain/previews/`.
+1. **The approved screens:** the rendered V4.4 pages in `reference/refrain/pages/` and their captures in `reference/refrain/previews/`. These are the author's local design references and are not in the repository ([Assets](#assets)).
 2. **The handoff's written rules** (`refrainV44-Handoff.dc.html`), where they agree with the screens. When the handoff text and the screens disagree, the screens win.
 3. **Exported CSS and markup are not authoritative.** The `.dc.html` files contain legacy rules from earlier design iterations, such as unused font families and header brand classes. Do not port legacy rules into the implementation.
 
-This document summarizes items 1 and 2. If it disagrees with them, correct this document.
+This document summarizes items 1 and 2. If it disagrees with them, correct this document. It is the tracked design specification: the implementation must be possible from this document and the tracked assets alone.
 
-## Reference inventory
+## Assets
+
+| Location | Tracked | Contents |
+| --- | --- | --- |
+| `reference/` | No: local only, ignored by Git | The author's design references: mockups, screenshots, explorations, original working files. Inputs to the design process, never dependencies of the product. |
+| `public/` | Yes | Production assets that the application serves. An asset is added only when the application uses it. |
+| `docs/assets/` | Yes | Assets used only by documentation, such as the README |
+
+| Tracked asset | Origin | Use |
+| --- | --- | --- |
+| `public/artwork/refrain-home-character.png` | Byte-identical copy of the local `reference/refrain-home-character.png` (SHA-256 `ad58315e79980337147ef11f30a0ed418a5c3bf509a0a77da81bce59290ba63c`) | The original character illustration (1536×1024): the public homepage, and the README in light theme |
+| `docs/assets/refrain-home-character-dark.png` | Derived from the original, approved by the author | The README in dark theme only. Same dimensions and transparency as the original, with tones remapped so the dark ink masses stay visible on GitHub's dark theme. |
+
+The rules for `reference/` and for promoting assets are in [`AGENTS.md` § 6](../AGENTS.md#6-design-system-boundaries). The favicons and the pencil cursor are promoted into `public/` when the application first uses them.
+
+## Local reference inventory
+
+The author's local `reference/` directory holds the following. It is not in the repository, so these paths are descriptions, not links.
 
 | Path | Contents |
 | --- | --- |
@@ -23,9 +40,8 @@ This document summarizes items 1 and 2. If it disagrees with them, correct this 
 | `reference/refrain-home-character.png` | The original character illustration (1536×1024). Byte-identical to `reference/refrain/pages/refrain-character.png`, which the mockups load. |
 | `reference/refrain-cursor/` | Pencil cursor: `refrain-pencil-48.png`, `refrain-pencil-32.png`, `refrain-pencil.svg` (master), `refrain-pencil.cur`, `preview.png`, `README.md` |
 | `reference/refrain-favicon-kit/` | Favicons (16–512 px), `apple-touch-icon.png`, `favicon.ico`, preview. Drawn from the character's face. |
-| `docs/assets/refrain-home-character-dark.png` | Not a reference: a dark-theme derivative of the character for the repository README only, approved by the author. Same dimensions and transparency as the original, with tones remapped so the dark ink masses stay visible on GitHub's dark theme. |
 
-Reference files are not edited, renamed, recompressed, or deleted. Implementation copies the assets it needs into the application's public assets.
+Reference files are not edited, renamed, recompressed, or deleted. Implementation promotes only the assets it uses, byte-for-byte, into `public/`.
 
 ## Principles
 
@@ -81,7 +97,7 @@ There is no other color anywhere, including status, error, and success states, w
 
 - **Header (public):** minimal, centered navigation: Home, Albums, Artists, Memories. The Home link is the way back to the homepage. There is no logo, wordmark, or site name in the header. The current page has a drawn underline.
 - **Header (studio):** "Writing studio" label, centered Desk and Catalog navigation, and a "Public pages" link.
-- **Character:** appears only on the public homepage, between the navigation and the introduction. Static, using the original asset, with the approved alt text ("Ink drawing of a person with curly hair and headphones, sitting cross-legged on the floor and writing in a notebook while looking up, next to a stack of records, a mug, a cassette and a few crumpled pages."). It never appears on internal pages or as a header logo. The favicon kit and the README's dark-theme derivative are the only derived uses. The application uses only the original.
+- **Character:** appears only on the public homepage, between the navigation and the introduction. Static, using the original asset (`public/artwork/refrain-home-character.png`), with the approved alt text ("Ink drawing of a person with curly hair and headphones, sitting cross-legged on the floor and writing in a notebook while looking up, next to a stack of records, a mug, a cassette and a few crumpled pages."). It never appears on internal pages or as a header logo. The favicon kit and the README's dark-theme derivative are the only derived uses. The application uses only the original.
 - **Footer:** centered and understated. A single rule, then the closing line *some songs take you back.* in Kalam, then the language selector. The language selector exists **only** in the footer, opens upward, and offers English and Português (Brasil). Its note reads: "Changes the interface only. Writing stays in the language it was written in."
 
 ## Components
@@ -124,7 +140,7 @@ There is no other color anywhere, including status, error, and success states, w
 
 ## Pencil cursor
 
-Optional. The approved page mockups do not use it. If it is used, only these existing assets may be referenced:
+Optional. The approved page mockups do not use it. If it is used, only these assets from the local references may be promoted into `public/`:
 
 | Asset | Size | Hotspot | Use |
 | --- | --- | --- | --- |

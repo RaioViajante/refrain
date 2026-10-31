@@ -1,5 +1,5 @@
 # Prettier checks application code and configuration.
-# Approved design references are read-only.
+# Local-only design references (also ignored by Git).
 reference/
 # Documentation is formatted by hand; do not reformat it.
 *.md

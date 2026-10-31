@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/assets/refrain-home-character-dark.png">
-    <img src="reference/refrain-home-character.png" width="320" alt="Ink drawing of a person with curly hair and headphones, sitting cross-legged on the floor and writing in a notebook while looking up, next to a stack of records, a mug, a cassette and a few crumpled pages." />
+    <img src="public/artwork/refrain-home-character.png" width="320" alt="Ink drawing of a person with curly hair and headphones, sitting cross-legged on the floor and writing in a notebook while looking up, next to a stack of records, a mug, a cassette and a few crumpled pages." />
   </picture>
 </p>
 
@@ -32,7 +32,7 @@ each track can have its own reflection, rating, and favourite mark. ratings are 
 
 black ink on white paper; the only color comes from album art and photographs. the interface speaks english and brazilian portuguese, and writing stays in the language it was written in.
 
-none of this is built yet. the approved screens are in [`reference/`](reference/).
+none of this is built yet. the approved design is written down in [design-system](docs/design-system.md).
 
 #### what's inside
 
@@ -40,7 +40,7 @@ none of this is built yet. the approved screens are in [`reference/`](reference/
 src/app/      routes · a dev page for now
 src/db/       database client and schema
 docs/         the long version
-reference/    approved designs · read-only
+public/       app assets · the illustration
 compose.yaml  local postgresql 17
 .github/      ci on every pull request
 ```
