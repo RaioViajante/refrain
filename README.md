@@ -2,73 +2,76 @@
   <img src="reference/refrain-home-character.png" width="320" alt="Ink drawing of a person with curly hair and headphones, sitting cross-legged on the floor and writing in a notebook while looking up, next to a stack of records, a mug, a cassette and a few crumpled pages." />
 </p>
 
-<h1 align="center">refrain</h1>
+<h3 align="center">refrain</h3>
 
-<p align="center"><em>Some songs take you back.</em></p>
+<p align="center"><em>some songs take you back.</em></p>
 
-A personal music journal for the songs, albums, artists, and memories that stay with me.
+a place to remember what music felt like.<br>
+songs, albums, artists, and the moments they stayed with me.
 
-Refrain is where I write about what music means to me over time: a memory tied to a song, a long reflection on an artist, an album considered as a whole and then track by track. It is written by one person and read by anyone I choose to share it with.
+<pre>
+00. <a href="#the-journal">journal</a> ···· songs, records, people, memories
+01. <a href="#whats-inside">inside</a> ····· where everything lives
+02. <a href="#run-it">run</a> ········ start it locally
+03. <a href="#read-next">docs</a> ······· the longer version
+04. <a href="#current-status">status</a> ····· a work in progress
+</pre>
 
-## Index
+#### the journal
 
-- [01 — The Journal](#01--the-journal)
-- [02 — The Experience](#02--the-experience)
-- [03 — Technical Direction](#03--technical-direction)
-- [04 — Academic Requirements](#04--academic-requirements)
-- [05 — Documentation](#05--documentation)
-- [06 — Current Status](#06--current-status)
+<pre>
+memories ··········· a moment and its music
+artist journals ···· a musician or band
+album journals ····· the record, track by track
+</pre>
 
-## 01 — The Journal
+each track can have its own reflection, rating, and favourite mark. ratings are optional. every entry starts as a draft and stays private until it is published on purpose. one author, no reader accounts.
 
-Refrain holds three kinds of writing:
+black ink on white paper; the only color comes from album art and photographs. the interface speaks english and brazilian portuguese, and writing stays in the language it was written in.
 
-- **Memories** connected to one or more songs or albums.
-- **Artist journals** about a musician or band.
-- **Album journals** about a whole record, with an optional reflection, rating, and favourite mark for each track.
+none of this is built yet. the approved screens are in [`reference/`](reference/).
 
-Album and track ratings are optional and independent of each other. Every entry starts as a draft, can stay private, and becomes public only when it is deliberately published. There is one author and no accounts for readers. It is not a streaming service, a social network, or a rating platform.
+#### what's inside
 
-See [Product](docs/product.md).
+```
+src/app/       routes · one development page
+src/db/        database client and schema
+docs/          the long version of everything
+reference/     approved designs · read-only
+compose.yaml   local postgresql 17
+.github/       ci checks on every pull request
+```
 
-## 02 — The Experience
+#### run it
 
-The interface is black ink on white paper. Album artwork and artist photographs are the only color, shown as they are. Kalam carries the handwritten voice; Alegreya Sans carries the reading. A few hand-drawn strokes mark what can be acted on. The character above appears once, on the homepage.
+needs node 24.22.2 (`.nvmrc`), pnpm 12, and docker.
 
-The interface is available in English and Brazilian Portuguese. Writing stays in the language it was written in, unless I write a translation myself.
+```
+pnpm install
+cp .env.example .env
+pnpm db:up
+pnpm dev
+```
 
-The approved designs are in [`reference/`](reference/). See [Design System](docs/design-system.md).
+then open `http://localhost:3000`. checks: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:integration`. the rest is in [development.md](docs/development.md).
 
-## 03 — Technical Direction
+#### read next
 
-A modular monolith: one Next.js and TypeScript application backed by PostgreSQL through Drizzle ORM, with a public journal and a private writing studio in the same codebase. The application foundation is in place. The journal, the studio, and the rest of the planned stack arrive with the features that need them.
+<pre>
+<a href="docs/product.md">product.md</a> ········· what it is, what it isn't
+<a href="docs/requirements.md">requirements.md</a> ···· the academic requirements
+<a href="docs/architecture.md">architecture.md</a> ···· modules and boundaries
+<a href="docs/data-model.md">data-model.md</a> ······ tables and constraints
+<a href="docs/design-system.md">design-system.md</a> ··· ink, paper, two typefaces
+<a href="docs/security.md">security.md</a> ········ privacy and access
+<a href="docs/development.md">development.md</a> ····· setup, checks, workflow
+<a href="docs/roadmap.md">roadmap.md</a> ········· what comes next
+<a href="docs/decisions/">decisions/</a> ········· why it is built this way
+<a href="AGENTS.md">AGENTS.md</a> ·········· rules for changing the code
+</pre>
 
-See [Architecture](docs/architecture.md), [Data Model](docs/data-model.md), and [ADR 0001](docs/decisions/0001-modular-monolith.md). To run it locally, see [Development](docs/development.md#local-setup).
+#### current status
 
-## 04 — Academic Requirements
+m1.1, the application foundation: the app runs locally against postgresql 17, with tests and ci. there is no schema, writing studio, or journal page yet. see [roadmap.md](docs/roadmap.md).
 
-Refrain is also a university project, presented on **November 16, 2026**. The presentation must show a working application on a real database: related tables with primary and foreign keys, complete CRUD, a SQL `JOIN`, a subquery or aggregate, and real integration between frontend, backend, and database.
-
-See [Requirements](docs/requirements.md) for how each requirement will be met and demonstrated.
-
-## 05 — Documentation
-
-| Document | Contents |
-| --- | --- |
-| [Product](docs/product.md) | Purpose, content types, rules, and exclusions |
-| [Requirements](docs/requirements.md) | Academic requirements, traceability, and evidence |
-| [Architecture](docs/architecture.md) | Modules, boundaries, and planned technologies |
-| [Data Model](docs/data-model.md) | Preliminary relational model and SQL |
-| [Design System](docs/design-system.md) | Visual language, tokens, components, and accessibility |
-| [Security](docs/security.md) | Privacy, access control, and data protection |
-| [Development](docs/development.md) | Workflow, conventions, and quality gates |
-| [Roadmap](docs/roadmap.md) | Milestones toward the presentation and beyond |
-| [Decisions](docs/decisions/) | Architecture decision records |
-
-Contributors and coding agents start with [`AGENTS.md`](AGENTS.md).
-
-## 06 — Current Status
-
-**Milestone M1.1: application foundation.** M0 is complete: the product, architecture, data model, and design direction are documented, the approved visual references are in `reference/`, and the architecture ([ADR 0001](docs/decisions/0001-modular-monolith.md)) and domain model ([ADR 0002](docs/decisions/0002-domain-model-decisions.md)) are accepted. M1.1 adds the running application foundation: Next.js, a local PostgreSQL database, a server-only database client, automated checks, and CI. There is no journal content, schema, or writing studio yet. Setup: [Development](docs/development.md#local-setup).
-
-See [Roadmap](docs/roadmap.md).
+refrain is also a university project, presented on november 16, 2026. see [requirements.md](docs/requirements.md).

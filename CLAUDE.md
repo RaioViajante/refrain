@@ -7,7 +7,7 @@
 ## Starting a task
 
 1. Inspect before acting: `git status`, the current branch, and the actual files involved. Recalled context or earlier conversations are not evidence of the repository's current state.
-2. Read the documents and ADRs relevant to the task (index in [`README.md`](README.md#05--documentation)). For UI work, also read the matching screen in `reference/`.
+2. Read the documents and ADRs relevant to the task (index in [`README.md`](README.md#read-next)). For UI work, also read the matching screen in `reference/`.
 3. For multi-step work, give a brief plan with the acceptance criteria, then work in small, reviewable increments: one concern per commit, one milestone per branch.
 4. Do not start a milestone the author has not authorized ([Roadmap](docs/roadmap.md)).
 
