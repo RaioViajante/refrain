@@ -1,0 +1,122 @@
+# AGENTS.md
+
+Canonical instructions for anyone, human or agent, changing this repository. Tool-specific files such as [`CLAUDE.md`](CLAUDE.md) add to these instructions and never override them. Details live in [`docs/`](docs/); this file states the rules and points to them.
+
+## 1. Project
+
+Refrain is a **single-author personal music journal**: memories, artist journals, and album journals with per-track reflections, plus optional independent album and track ratings. There is one administrator, and the public can read only explicitly published entries. → [Product](docs/product.md)
+
+- **Out of scope:** reader accounts, social features, streaming, recommendations, multiple authors, multi-tenancy, and machine translation. Do not add these without an ADR and the author's approval.
+- **Academic deadline:** the presentation is on **2026-11-16**. Work that the requirements in [Requirements](docs/requirements.md) depend on takes priority over polish.
+- **Current state:** documentation only. No application code exists until M1 is authorized. → [Roadmap](docs/roadmap.md)
+- **Accepted decisions:** [ADR 0001](docs/decisions/0001-modular-monolith.md) (modular monolith) and [ADR 0002](docs/decisions/0002-domain-model-decisions.md) (domain model). ADR 0002's implementation invariants (INV-1 to INV-5) are binding and each needs a test.
+
+## 2. Before you change anything
+
+1. Run `git status` and `git branch`, and read the files you are about to touch. Do not assume a file, script, command, dependency, or asset exists. Check first.
+2. Read the documents relevant to the task and every accepted ADR in [`docs/decisions/`](docs/decisions/).
+3. For visual work, open the matching screen in `reference/refrain/pages/` or its PNG in `reference/refrain/previews/`.
+4. For anything beyond a trivial change, state the scope and the acceptance criteria before starting.
+5. If the task conflicts with a documented decision, stop and raise it. Do not resolve it silently.
+
+## 3. Architecture constraints
+
+→ [Architecture](docs/architecture.md), [ADR 0001](docs/decisions/0001-modular-monolith.md)
+
+- One Next.js and TypeScript application, one PostgreSQL database, organized as a modular monolith. No extra services, queues, or caches without an ADR.
+- Modules: Catalog, Journals, Publication, Identity, Integrations, and Persistence. Import other modules only through their `index.ts`. Presentation code never imports the database client.
+- Business rules belong in server-only modules, not in React components, server actions, or route handlers. Those stay thin.
+- Prefer plain functions. Do not add repository layers, DI containers, or generic abstractions without a concrete second use.
+- The planned stack (Tailwind CSS, Drizzle, Zod, Tiptap, Better Auth, next-intl, Rough.js, Vitest, Playwright, pnpm, Docker Compose, GitHub Actions) is a target. Check compatibility before installing, record the versions you chose, and replace a technology only through an ADR. Never write a version number you have not verified.
+- External providers (MusicBrainz, Cover Art Archive, Wikimedia Commons) are optional. Their failure must never block catalog edits or writing. Never call them inside a database transaction.
+
+## 4. Database integrity
+
+→ [Data Model](docs/data-model.md)
+
+- Declare integrity in PostgreSQL: PKs, FKs, `NOT NULL`, `UNIQUE`, and `CHECK` constraints. ORM relations and TypeScript types do not count.
+- **Never cascade from catalog tables to authored content.** FKs from writing to the catalog are `ON DELETE RESTRICT`. Catalog records that writing references are archived, not deleted.
+- Deleting an entry sets `deleted_at` and is recoverable. Writing is permanently deleted only by the author's explicit "Delete now". **Do not implement or enable automatic purge** until backups, a tested restore, and a tested purge exist.
+- Wrap multi-row writes in one transaction, using the boundaries listed in the data model.
+- Read every generated migration's SQL. Test migrations against a database with data in it. Never apply them automatically to production.
+- The data model is preliminary. Resolve its open questions, and record the resolutions as ADRs, before or during the first migration.
+
+## 5. Privacy and security
+
+→ [Security](docs/security.md)
+
+- Every studio action and route checks authorization itself. Middleware alone is not enough.
+- All public reads use the [publication predicate](docs/security.md#publication-predicate), implemented once in the Publication module. It covers metadata, sitemaps, and caches too. Visibility is per language version, and track reflections need their own explicit publication. "Still writing" never affects visibility.
+- No public sign-up. Exactly one author.
+- Never commit secrets, `.env` files, database dumps, or real journal writing.
+- **Never fabricate personal data:** no invented memories, reflections, ratings, favourites, dates, or biographical claims about the author. Use synthetic fixtures labeled as tests (`[Test] …`). Bracketed placeholders in the mockups are not content.
+- Do not deploy anything publicly before authentication and the privacy tests exist.
+
+## 6. Design-system boundaries
+
+→ [Design System](docs/design-system.md)
+
+- Implement the approved V4.4 design. Do not redesign it, restyle it, or add components it does not show without the author's approval. The rendered screens outrank the exported CSS ([authority](docs/design-system.md#authority)). Studio controls required by ADR 0002 follow the [Writing Studio controls](docs/design-system.md#writing-studio-controls-for-adr-0002) specification. Administrative controls never appear on public pages.
+- Monochrome interface: color comes only from artwork and photographs. Typefaces are Kalam and Alegreya Sans, nothing else.
+- The original character illustration appears only on the public homepage, never as a header logo. Use the original file; never generate, trace, or alter it.
+- The public header has no logo or wordmark. The language selector (`en`, `pt-BR` only) lives only in the footer.
+- Rough.js strokes are pre-generated with fixed seeds, `aria-hidden`, and drawn behind real semantic elements.
+- Accessibility is required: keyboard operation, visible focus, 44px targets, `prefers-reduced-motion`, and correct `lang` attributes.
+- **`reference/` is read-only.** Do not edit, move, rename, recompress, or delete anything in it.
+
+## 7. Engineering conventions
+
+- TypeScript strict mode. Validate input with Zod at every server boundary.
+- Use pnpm with the committed lockfile, once one exists.
+- Name things after the domain: `albumJournal`, `trackReflection`, `publish`. Avoid generic names such as `item` or `data`.
+- Repository text is in English: docs, comments, commits, issues, PRs. Interface strings exist in English and Brazilian Portuguese.
+- Keep changes focused. Do not reformat or refactor unrelated code in the same change.
+
+## 8. Testing
+
+→ [Development § Testing approach](docs/development.md#testing-approach)
+
+- Unit-test domain rules. Integration-test persistence against **real PostgreSQL**; never mock the database to prove constraints, transactions, or SQL.
+- Every privacy rule has a test, as listed in [Security § Required tests](docs/security.md#required-tests).
+- Use Playwright for critical flows at desktop width and at 390px.
+- **Never report a check as passing unless you ran it and saw the output.** If you could not run it, say so.
+
+## 9. Documentation
+
+- Update the affected documents in the same change as the behavior.
+- Distinguish implemented from planned functionality, and never describe planned work as done.
+- Record significant decisions as ADRs ([format](docs/decisions/README.md)).
+- Add commands to [Development](docs/development.md) only after they have run successfully.
+- Every relative link must resolve.
+
+## 10. Git and pull requests
+
+→ [Development § Branches and commits](docs/development.md#branches-and-commits)
+
+- Work on a focused branch (`<type>/<topic>`). Never commit directly to `main`.
+- Use Conventional Commits.
+- Open a PR describing its scope, decisions, verification, risks, and follow-ups.
+- Merge only after the checks pass and, where available, an independent review. Never merge your own work automatically. Never bypass branch protection or force-push `main`.
+- Destructive operations (deleting files or branches, rewriting history, dropping data, rewriting migrations) require explicit approval first.
+
+## 11. Definition of Done
+
+A change is done when:
+
+1. its stated acceptance criteria are met;
+2. the relevant checks were **run** and pass: format, lint, types, tests, build, once those exist;
+3. privacy, data-integrity, and accessibility implications have been considered and, where applicable, tested;
+4. the documentation and requirements evidence reflect the new state;
+5. it is on a branch with a PR, and nothing unrelated is included.
+
+## 12. Handoff
+
+End every work session with a short handoff covering:
+
+- **State:** branch, last commit, PR, and whether the working tree is clean.
+- **Done:** files changed and why.
+- **Verified:** the commands run and their actual results.
+- **Not verified / risks:** what remains uncertain, and any assumptions made.
+- **Next:** the next concrete step, and anything waiting on the author.
+
+If work stops midway, commit or record enough that someone else can continue without the conversation history.
