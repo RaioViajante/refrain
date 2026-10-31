@@ -30,6 +30,16 @@ describe("authentication logging", () => {
     });
   });
 
+  it("keeps only the fixed text before the first colon", () => {
+    expect(redactLogMessage("Invalid origin: https://attacker.example")).toBe(
+      "Invalid origin",
+    );
+    expect(redactLogMessage("Invalid callbackURL: javascript:alert(1)")).toBe(
+      "Invalid callbackURL",
+    );
+    expect(redactLogMessage(failedQuery().message)).toBe("Failed query");
+  });
+
   it("drops query parameters and everything after the first line", () => {
     expect(redactLogMessage(failedQuery().message)).not.toContain(
       "SESSION-TOKEN-123",

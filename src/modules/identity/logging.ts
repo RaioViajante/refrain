@@ -3,9 +3,9 @@
 // Better Auth logs whole error objects by default. A failed Drizzle query
 // carries its SQL parameters in the error message, and for authentication
 // queries those parameters are session tokens and password hashes. Everything
-// Better Auth logs therefore passes through here, and only fixed text, error
-// names, HTTP statuses, and error codes are written (docs/security.md §
-// Logging).
+// Better Auth logs therefore passes through here, and only the fixed part of
+// each message, error names, HTTP statuses, and error codes are written
+// (docs/security.md § Logging).
 
 type LogLevel = "debug" | "info" | "success" | "warn" | "error";
 
@@ -37,19 +37,21 @@ export function describeAuthError(error: unknown): Record<string, string> {
 }
 
 /**
- * Keeps the first line of a library message, without anything after
- * "params", and shortened. A Drizzle query message has the form
- * "Failed query: <sql>\nparams: <values>".
+ * Keeps only the fixed part of a library message: the first line, up to the
+ * first colon, shortened. Better Auth and Drizzle put values after a colon:
+ * "Failed query: <sql>\nparams: <values>", "Invalid origin: <origin>",
+ * "Invalid callbackURL: <url>". Those values can be secret (query
+ * parameters) or chosen by an attacker (an origin), so none is written.
  */
 export function redactLogMessage(message: unknown): string {
   if (typeof message !== "string") {
     return "";
   }
   const [firstLine = ""] = message.split(/\r?\n/, 1);
-  const withoutParams = firstLine.split(/params:/i, 1)[0] ?? "";
-  return withoutParams.length > MAX_MESSAGE_LENGTH
-    ? `${withoutParams.slice(0, MAX_MESSAGE_LENGTH)}…`
-    : withoutParams;
+  const template = (firstLine.split(":", 1)[0] ?? "").trim();
+  return template.length > MAX_MESSAGE_LENGTH
+    ? `${template.slice(0, MAX_MESSAGE_LENGTH)}…`
+    : template;
 }
 
 /** Better Auth's `logger.log`: writes redacted entries only. */
