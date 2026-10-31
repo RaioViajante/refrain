@@ -20,7 +20,9 @@ export interface AlbumJournalProgress {
  * journal's original language and is not flagged "still writing". Empty
  * reflections, reflections written only in a translation, and reflections
  * still in progress do not count. `trackCount` is the length of the album's
- * reference edition. Deleted journals are excluded.
+ * reference edition, and only reflections on its tracks are counted, so the
+ * result never reads "11 of 10" when a reflection is on a recording outside
+ * the reference edition. Deleted journals are excluded.
  */
 export async function listAlbumJournalProgress(
   db: DatabaseExecutor,
@@ -42,6 +44,11 @@ export async function listAlbumJournalProgress(
       join albums al      on al.id = aj.album_id
       join entry_texts o  on o.entry_id = e.id and o.is_original
       left join track_reflections tr       on tr.album_journal_id = aj.entry_id
+                                          and tr.track_id in (
+                                                select et.track_id
+                                                  from edition_tracks et
+                                                  join album_editions ed on ed.id = et.edition_id
+                                                 where ed.album_id = aj.album_id and ed.is_reference)
       left join track_reflection_texts trt on trt.track_reflection_id = tr.id
                                           and trt.locale = o.locale
                                           and trt.body_text <> ''

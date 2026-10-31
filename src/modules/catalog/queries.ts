@@ -13,9 +13,14 @@ export interface AlbumCredit {
 }
 
 /**
- * Albums with their credited artists, one row per credit, for the Catalog
- * and the Albums listing. Academic requirement AC-04 (JOIN); the SQL is
- * quoted in docs/data-model.md. Archived albums are excluded.
+ * Albums with their credited artists, one row per credit, for the Writing
+ * Studio's Catalog. Academic requirement AC-04 (JOIN); the SQL is quoted in
+ * docs/data-model.md. Archived albums are excluded.
+ *
+ * Studio only: it lists every album in the catalog, including albums whose
+ * only journals are drafts or private, so it must never back a public page.
+ * A public Albums listing selects albums through the publication predicate
+ * in the Publication module (M3).
  */
 export async function listAlbumsWithArtists(
   db: DatabaseExecutor,
@@ -51,8 +56,9 @@ export interface AlbumUsage {
 }
 
 /**
- * How many entries use each album ("used in 2 entries"): album journals about
- * it and memories that link it. Deleted entries are not counted. Academic
+ * How many entries use each album ("used in 2 entries"), for the Writing
+ * Studio's Catalog: album journals about it and memories that link it. Studio
+ * only; it counts private and draft writing. Deleted entries are not counted. Academic
  * requirement AC-05 (subquery); the SQL is quoted in docs/data-model.md.
  * It reads the authored tables with SQL rather than through the Journals
  * module (docs/architecture.md, dependency rule 3).

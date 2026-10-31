@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { schema } from "@/db";
 import {
   createTestAlbum,
   createTestAlbumJournal,
@@ -64,6 +65,34 @@ describe("listAlbumJournalProgress (AC-05, COUNT of written tracks)", () => {
           tracksWritten: 4,
           trackCount: 10,
         },
+      ]);
+    });
+  });
+
+  it("counts only tracks of the reference edition, so it never exceeds the track count", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const album = await createTestAlbum(tx, { trackTitles: ["[Test] Only"] });
+      const [outside] = await tx
+        .insert(schema.tracks)
+        .values({ title: "[Test] Outside the reference edition" })
+        .returning();
+      await tx
+        .insert(schema.albumTracks)
+        .values({ albumId: album.albumId, trackId: outside!.id });
+      const journalId = await createTestAlbumJournal(tx, {
+        albumId: album.albumId,
+      });
+      for (const trackId of [album.trackIds[0]!, outside!.id]) {
+        await createTestTrackReflection(tx, {
+          albumJournalId: journalId,
+          albumId: album.albumId,
+          trackId,
+          texts: { en: "[Test] Written" },
+        });
+      }
+
+      expect(await listAlbumJournalProgress(tx)).toEqual([
+        expect.objectContaining({ tracksWritten: 1, trackCount: 1 }),
       ]);
     });
   });
