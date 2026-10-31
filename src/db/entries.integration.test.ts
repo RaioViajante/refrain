@@ -892,6 +892,58 @@ describe("deletion and recovery (ADR 0002, D4; INV-4)", () => {
   });
 });
 
+describe("permanent deletion of memories and artist journals", () => {
+  it("removes a memory with its links and versions, leaving the music", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const { albumId, trackIds } = await createTestAlbum(tx);
+      const memoryId = await createTestMemory(tx, {
+        versions: [{ locale: "en" }, { locale: "pt-BR", isOriginal: false }],
+        slug: "test-memory-to-delete",
+        music: [{ trackId: trackIds[0]! }, { albumId }],
+      });
+
+      await tx.delete(schema.entries).where(eq(schema.entries.id, memoryId));
+
+      for (const table of ["entry_texts", "memories", "entry_slugs"]) {
+        expect(await countRows(tx, table, memoryId), table).toBe(0);
+      }
+      expect(
+        await tx.$count(
+          schema.memoryMusic,
+          eq(schema.memoryMusic.memoryId, memoryId),
+        ),
+      ).toBe(0);
+      expect(
+        await tx.$count(schema.tracks, eq(schema.tracks.id, trackIds[0]!)),
+      ).toBe(1);
+      expect(
+        await tx.$count(schema.albums, eq(schema.albums.id, albumId)),
+      ).toBe(1);
+    });
+  });
+
+  it("removes an artist journal with its versions, leaving the artist", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const artistId = await createTestArtist(tx);
+      const journalId = await createTestArtistJournal(tx, {
+        artistId,
+        isFeatured: true,
+        versions: [{ locale: "pt-BR", status: "published" }],
+        slug: "test-artist-journal-to-delete",
+      });
+
+      await tx.delete(schema.entries).where(eq(schema.entries.id, journalId));
+
+      for (const table of ["entry_texts", "artist_journals", "entry_slugs"]) {
+        expect(await countRows(tx, table, journalId), table).toBe(0);
+      }
+      expect(
+        await tx.$count(schema.artists, eq(schema.artists.id, artistId)),
+      ).toBe(1);
+    });
+  });
+});
+
 describe("transactions (data model, transaction boundaries)", () => {
   it("rolls back a whole entry creation when one row is invalid", async () => {
     await inRollbackTransaction(async (tx) => {

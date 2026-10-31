@@ -523,6 +523,33 @@ describe("archive versus delete (ADR 0002, D4.5)", () => {
   });
 });
 
+describe("catalog cascades", () => {
+  it("deletes an unreferenced recording with its own credits, leaving the artist", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const artistId = await createTestArtist(tx);
+      const [single] = await tx
+        .insert(schema.tracks)
+        .values({ title: "[Test] Single" })
+        .returning();
+      await tx
+        .insert(schema.trackArtists)
+        .values({ trackId: single!.id, artistId, position: 1 });
+
+      await tx.delete(schema.tracks).where(eq(schema.tracks.id, single!.id));
+
+      expect(
+        await tx.$count(
+          schema.trackArtists,
+          eq(schema.trackArtists.trackId, single!.id),
+        ),
+      ).toBe(0);
+      expect(
+        await tx.$count(schema.artists, eq(schema.artists.id, artistId)),
+      ).toBe(1);
+    });
+  });
+});
+
 describe("editions (ADR 0002, D2)", () => {
   it("adds an edition and changes the reference edition without touching reflections", async () => {
     await inRollbackTransaction(async (tx) => {

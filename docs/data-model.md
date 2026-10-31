@@ -352,7 +352,7 @@ M1.2 integration tests run against a disposable PostgreSQL 17 database after app
 
 Coverage, measured against the migrated database (92 named constraints and unique indexes): every `CHECK` constraint, every `RESTRICT` foreign key, every partial unique index, and every `UNIQUE` constraint that states a rule is triggered by a test and asserted by name. Not asserted by name:
 
-- the cascading foreign keys, which have no violation to assert; the album hard-delete and entry permanent-delete tests check their effect row by row, except `track_artists_track_fk`, which no test exercises yet;
+- the cascading foreign keys, which have no violation to assert; deletion tests check the effect of every one row by row (an album and a recording hard-deleted from the catalog; an album journal with reflections, a memory with music links, and an artist journal permanently deleted);
 - the single-column `uuid` primary keys, and the composite primary keys of `album_tracks`, `edition_tracks`, `track_artists`, and `track_reflection_texts`;
 - `entries_id_kind_unique`, `album_editions_id_album_unique`, and `album_journals_entry_album_unique`, which exist as targets of composite foreign keys that are tested.
 
