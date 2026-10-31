@@ -407,6 +407,71 @@ describe("sign-in", () => {
     });
   });
 
+  it("keeps every cookie Better Auth sets when the handler rewrites the response", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const setup = await withAuthor(tx);
+      const signIn = await setup.handle(
+        authRequest(setup.config, "/sign-in/email", {
+          body: {
+            email: TEST_AUTHOR_EMAIL,
+            password: TEST_PASSWORD,
+            rememberMe: false,
+          },
+        }),
+      );
+      expect(signIn.status).toBe(200);
+      const names = signIn.headers
+        .getSetCookie()
+        .map((cookie) => cookie.split("=", 1)[0]);
+      expect(names).toEqual(
+        expect.arrayContaining([
+          "refrain.session_token",
+          "refrain.dont_remember",
+        ]),
+      );
+      const cookie = signIn.headers
+        .getSetCookie()
+        .map((c) => c.split(";", 1)[0])
+        .join("; ");
+
+      const signOut = await setup.handle(
+        authRequest(setup.config, "/sign-out", { body: {}, cookie }),
+      );
+      const cleared = signOut.headers
+        .getSetCookie()
+        .filter((c) => /Max-Age=0/.test(c))
+        .map((c) => c.split("=", 1)[0]);
+      expect(cleared).toEqual(
+        expect.arrayContaining([
+          "refrain.session_token",
+          "refrain.dont_remember",
+        ]),
+      );
+    });
+  });
+
+  it.each([
+    "https://attacker.example/studio",
+    "//attacker.example",
+    "/\\attacker.example",
+  ])("refuses an untrusted callbackURL (%s)", async (callbackURL) => {
+    await inRollbackTransaction(async (tx) => {
+      const setup = await withAuthor(tx);
+      const response = await setup.handle(
+        authRequest(setup.config, "/sign-in/email", {
+          body: {
+            email: TEST_AUTHOR_EMAIL,
+            password: TEST_PASSWORD,
+            callbackURL,
+          },
+        }),
+      );
+      expect(response.status).toBe(403);
+      expect(sessionCookieFrom(response)).toBeUndefined();
+      expect(await rows(tx, schema.authSessions)).toBe(0);
+    });
+  });
+
   it("rejects a wrong password and an unknown email identically", async () => {
     await inRollbackTransaction(async (tx) => {
       const setup = await withAuthor(tx);
