@@ -18,7 +18,7 @@ The review is **read-only by default**.
 
 - **Do not change the repository or its settings.** Do not edit tracked files, commit, push, or comment on the pull request, and do not change GitHub or local settings. Fix something only if the user asks after the review.
 - **Write only temporary reproduction files**, such as a temporary test file or a script in the session scratchpad. Delete them afterwards, and list them in the report.
-- **Never run destructive or production operations.** No `db:migrate` against anything but a verified local database, no `docker compose down --volumes`, no deletes or resets.
+- **Never write to the development database, and never run destructive or production operations.** The development database may hold the author's real writing. During a review, do not run `db:migrate`, resets, deletes, or inserts against it, and do not run `docker compose down --volumes`. Synthetic data goes only into the disposable test database (step 9).
 - **Never read, print, or exfiltrate secret values.** Check that a variable *exists*, never what it holds. Use `--redact` with scanners. Never print `.env`.
 - **Never attack external systems.** That includes MusicBrainz, the Cover Art Archive, Wikimedia Commons, GitHub, and any deployment. Reproduce locally only.
 - **Do not change configuration or history.** Never change GitHub repository visibility, branch protection, or production configuration. Never rewrite Git history.
@@ -88,6 +88,14 @@ For a pull request, use `gh pr view <number> --json number,title,headRefName,hea
 | Build → output | `use cache`, `generateStaticParams`, static metadata | `grep -rn --include='*.ts' --include='*.tsx' -e 'use cache' -e 'generateStaticParams' -e 'revalidate' -e 'cacheTag' src` |
 | Server → external providers | Planned: `src/integrations/` | `ls src` |
 | Repository and CI → environment | `process.env`, `.github/workflows/`, `package.json`, `pnpm-workspace.yaml` | `grep -rn --include='*.ts' --include='*.tsx' -e 'process.env' -e 'NEXT_PUBLIC_' src` |
+
+Also find the metadata, redirect, and response-shaping surfaces, which are leak channels in their own right:
+
+```sh
+grep -rn --include='*.ts' --include='*.tsx' -e 'generateMetadata' -e 'redirect(' -e 'permanentRedirect(' -e 'notFound(' -e 'forbidden(' -e 'unauthorized(' src
+git ls-files src/app | grep -E '(sitemap|robots|manifest|opengraph-image|twitter-image|icon|rss|feed)'
+cat next.config.ts        # headers, redirects, rewrites, images.remotePatterns
+```
 
 List each boundary that the change touches, adds, or weakens.
 
@@ -212,7 +220,14 @@ Reproduce each suspected vulnerability **only** in one of these places:
 - **The disposable test database:**
   1. `pnpm db:test:up`.
   2. `pnpm test:integration <file>`. The safety checks must pass unmodified.
-- **A local server on loopback:** `pnpm dev`, or `pnpm build` then `pnpm start`, against the local development database. Use only synthetic `[Test]` data, and send requests with `curl` to `http://localhost:3000`.
+- **A local server on loopback, backed by the disposable test database**, never the development database:
+  1. `pnpm db:test:down && pnpm db:test:up`.
+  2. Apply the migrations and add synthetic `[Test]` rows to the `postgres-test` container. Use the upgrade-path commands in the [`refrain-db-change`](../refrain-db-change/SKILL.md) skill, step 10.
+  3. Start the server with the test URL set in the shell, which takes precedence over `.env`: `DATABASE_URL=postgres://refrain_test:refrain-test-local-only@127.0.0.1:5433/refrain_test pnpm exec next dev --port 3100`.
+  4. Send requests with `curl` to `http://127.0.0.1:3100`.
+  5. Afterwards, stop the server and run `pnpm db:test:down && pnpm db:test:up`.
+
+  If a reproduction needs anything else, ask the user first.
 
 Prefer a minimal temporary test that fails while the vulnerability exists. Record the command and its output, then delete the file unless the user wants it kept. Never use real writing, and never target a hosted system. If you cannot reproduce a suspicion, say why and classify it accordingly.
 
