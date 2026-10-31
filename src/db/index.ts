@@ -1,3 +1,9 @@
 // Persistence module: public entry point. Server-only.
-export { getDb, type Database } from "./client";
+export {
+  closeDb,
+  getDb,
+  type Database,
+  type DatabaseExecutor,
+  type Transaction,
+} from "./client";
 export { checkDatabaseConnection } from "./health";

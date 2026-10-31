@@ -18,6 +18,8 @@
     "test:integration": "vitest run --project integration",
     "db:up": "docker compose up --detach --wait postgres",
     "db:down": "docker compose down",
+    "db:test:up": "docker compose --profile test up --detach --wait postgres-test",
+    "db:test:down": "docker compose --profile test rm --stop --force postgres-test",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"
   },

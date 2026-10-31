@@ -1,4 +1,4 @@
-# Local development database only. Never use these settings in production.
+# Local databases only. Never use these settings in production.
 # Values come from .env (copy .env.example). See docs/development.md.
 name: refrain
 
@@ -28,6 +28,37 @@ services:
       start_period: 10s
     # Give PostgreSQL time to shut down cleanly before Docker kills it.
     stop_grace_period: 1m
+
+  # Disposable database for integration tests. It is a separate server with
+  # its own credentials and no volume: its data lives in memory (tmpfs) and is
+  # discarded whenever the container stops. It starts only on request
+  # (`pnpm db:test:up`), never with `pnpm db:up`.
+  postgres-test:
+    image: postgres:17.11-trixie
+    profiles: [test]
+    environment:
+      POSTGRES_USER: refrain_test
+      POSTGRES_PASSWORD: refrain-test-local-only
+      POSTGRES_DB: refrain_test
+    ports:
+      - "127.0.0.1:${POSTGRES_TEST_PORT:-5433}:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    volumes:
+      # Marks the database as disposable; the tests refuse unmarked databases.
+      - ./docker/postgres-test:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # TCP check: reported healthy only after initialization, including the
+      # marker script, has finished.
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -h 127.0.0.1 -p 5432 -U refrain_test -d refrain_test",
+        ]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
 
 volumes:
   postgres-data:

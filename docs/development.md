@@ -33,9 +33,11 @@ All local configuration lives in one file, `.env`, which Git ignores. Docker Com
 | --- | --- | --- |
 | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | Docker Compose | Credentials used when the database volume is first created |
 | `POSTGRES_PORT` | Docker Compose | Host port, bound to `127.0.0.1` only (default `5432`) |
-| `DATABASE_URL` | Server code, Drizzle Kit, integration tests | PostgreSQL connection string. Server-side only. Never give it a `NEXT_PUBLIC_` prefix. |
+| `DATABASE_URL` | Server code, Drizzle Kit | Development connection string. Server-side only. Never give it a `NEXT_PUBLIC_` prefix. Integration tests never use it. |
+| `POSTGRES_TEST_PORT` | Docker Compose | Host port of the [test database](#test-database), bound to `127.0.0.1` only (default `5433`) |
+| `TEST_DATABASE_URL` | Integration tests | Connection string of the disposable [test database](#test-database). The only database the integration tests connect to. |
 
-Variables already set in the environment take precedence over `.env`, which is how CI supplies its own `DATABASE_URL`.
+Variables already set in the environment take precedence over `.env`, which is how CI supplies its own `TEST_DATABASE_URL`. A `.env` created before M1.2 lacks the two test variables; copy them from `.env.example`.
 
 ### Commands
 
@@ -48,8 +50,9 @@ Variables already set in the environment take precedence over `.env`, which is h
 | `pnpm format` / `pnpm format:check` | Prettier: write, or check only. Markdown and the local `reference/` are excluded. |
 | `pnpm typecheck` | Generates Next.js route types, then runs `tsc --noEmit` (strict) |
 | `pnpm test` | Unit tests (Vitest). No database needed. |
-| `pnpm test:integration` | Integration tests against the real PostgreSQL in `DATABASE_URL`. Fails if it is not reachable; it never skips. |
-| `pnpm db:up` / `pnpm db:down` | Start PostgreSQL and wait for health / stop it. Data is kept in the `refrain_postgres-data` volume. |
+| `pnpm test:integration` | Integration tests against the disposable [test database](#test-database) in `TEST_DATABASE_URL`. Refuses to run if the safety checks fail, and fails if the database is not reachable; it never skips. |
+| `pnpm db:up` / `pnpm db:down` | Start the development PostgreSQL and wait for health / stop it. Data is kept in the `refrain_postgres-data` volume. |
+| `pnpm db:test:up` / `pnpm db:test:down` | Start the test database and wait for health / stop and remove it, discarding its data. They touch only the `postgres-test` container. |
 | `pnpm db:generate` | Generate a SQL migration from the Drizzle schema. Like every Drizzle Kit command, it needs `DATABASE_URL`. |
 | `pnpm db:migrate` | Apply pending migrations to the database in `DATABASE_URL` |
 
@@ -79,13 +82,49 @@ docker compose down --volumes
 pnpm db:up
 ```
 
+### Test database
+
+Integration tests write data, so they run against their own PostgreSQL server, never the development database.
+
+| | Development database | Test database |
+| --- | --- | --- |
+| Compose service | `postgres` | `postgres-test` (profile `test`; `pnpm db:up` does not start it) |
+| Host port | `127.0.0.1:5432` | `127.0.0.1:5433` |
+| User / database | `refrain` / `refrain` | `refrain_test` / `refrain_test` |
+| Storage | Named volume `refrain_postgres-data` | In memory (`tmpfs`). Discarded whenever the container stops. |
+| Read through | `DATABASE_URL` | `TEST_DATABASE_URL` |
+
+**Safety checks.** The integration tests never read `DATABASE_URL`. Before any test file runs, [`src/testing/global-setup.ts`](../src/testing/global-setup.ts) applies the checks in [`src/testing/test-database.ts`](../src/testing/test-database.ts) and refuses to continue unless all of them pass:
+
+1. `TEST_DATABASE_URL` is set. There is no fallback.
+2. Its host is loopback (`localhost`, `127.0.0.1`, or `[::1]`).
+3. Its database name ends in `_test`.
+4. It does not point at the same database as `DATABASE_URL`.
+5. On the server, the connected database carries the disposable-test marker: a database comment written only by [`docker/postgres-test/01-mark-disposable.sql`](../docker/postgres-test/01-mark-disposable.sql). The local `postgres-test` service applies it when it initializes, and CI applies it to its own service container. A database name can be mistyped; the marker has to be placed on purpose.
+
+Each test worker then points the application's database client at the validated test URL, so code under test cannot reach the development database, and [`src/testing/isolation.integration.test.ts`](../src/testing/isolation.integration.test.ts) asserts it.
+
+**Clean state without resets.** Each test runs inside a transaction that is always rolled back ([`src/testing/database.ts`](../src/testing/database.ts)), so tests leave no rows behind and are repeatable. There is no reset or truncate command. Test files run one at a time.
+
+**Lifecycle.**
+
+```sh
+pnpm db:test:up          # start a fresh, marked test database and wait until it is healthy
+pnpm test:integration    # safety checks, then the integration tests
+pnpm db:test:down        # stop it and discard its data
+```
+
+**Recovery.** If the test database is in a bad state, run `pnpm db:test:down` and `pnpm db:test:up`: the new container starts empty and marked. This never affects the development database or its volume.
+
 ### Troubleshooting
 
 | Symptom | Cause and fix |
 | --- | --- |
 | `Set POSTGRES_PASSWORD in .env` from Docker Compose | `.env` is missing. Run `cp .env.example .env`. |
-| `Database: not reachable`, or integration tests fail with `ECONNREFUSED` | PostgreSQL is not running. Run `pnpm db:up` and check `docker compose ps`. The server log records only an error code, never connection details. |
+| `Database: not reachable` | PostgreSQL is not running. Run `pnpm db:up` and check `docker compose ps`. The server log records only an error code, never connection details. |
 | `DATABASE_URL is not set` | `.env` is missing, or it lacks `DATABASE_URL`. |
+| `Refusing to run integration tests: …` | A [test database](#test-database) safety check failed; the message names it. Usually `TEST_DATABASE_URL` is missing from an older `.env` (copy it from `.env.example`), or the test database is not running (`pnpm db:test:up`). Never point it at a database whose contents matter. |
+| Integration tests fail with `ECONNREFUSED` on port 5433 | The test database is not running. Run `pnpm db:test:up`. |
 | Port 5432 is already in use | Set `POSTGRES_PORT` in `.env`, change the port in `DATABASE_URL` to match, and run `pnpm db:up` again. |
 | A changed `POSTGRES_PASSWORD` has no effect, or authentication fails | The image applies the `POSTGRES_*` values only when it creates an empty volume. Restore the old values, or reset the database (this deletes local data). |
 | An engine warning about the Node.js version | Use the version in `.nvmrc`. 24.x releases earlier than 24.22.1 lack a security fix. |
@@ -167,7 +206,7 @@ If the plan changes or the repository becomes public, enable these as protection
 | Type check | `pnpm typecheck` | In CI. TypeScript strict mode. |
 | Unit tests | `pnpm test` | In CI. Today: configuration validation and module boundaries. Domain rules (ratings, state transitions, slug rules) are added with the domain. |
 | Build | `pnpm build` | In CI, run without `DATABASE_URL` to prove that the build does not need a database |
-| Integration tests | `pnpm test:integration` | In CI, against a PostgreSQL 17 service container. Today: connectivity and server version. Constraints, transactions, the publication predicate, and the academic queries are added from M1.2. |
+| Integration tests | `pnpm test:integration` | In CI, against a disposable PostgreSQL 17 service container with test credentials, marked as disposable by the same script as the local test database. Covers connectivity, server version, and test-database isolation. |
 | End-to-end smoke | Playwright | Planned. Critical studio and public flows. |
 
 The workflow has read-only `permissions` (`contents: read`), a concurrency group per pull request or branch, a 20-minute timeout, and no secrets. Its PostgreSQL credentials belong to a disposable service container and are not secrets. Actions are pinned to full commit SHAs. It does not publish artifacts or deploy.

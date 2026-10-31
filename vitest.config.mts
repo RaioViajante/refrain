@@ -35,11 +35,18 @@ export default defineConfig({
         },
       },
       {
-        // Requires a running PostgreSQL (`pnpm db:up`) and DATABASE_URL.
+        // Runs only against the disposable test database in TEST_DATABASE_URL
+        // (`pnpm db:test:up`), never against DATABASE_URL. Global setup refuses
+        // to start unless the target passes the safety checks in
+        // src/testing/test-database.ts. Test files run one at a time so their
+        // rolled-back transactions never wait on each other.
         extends: true,
         test: {
           name: "integration",
           include: ["src/**/*.integration.test.ts"],
+          globalSetup: ["src/testing/global-setup.ts"],
+          setupFiles: ["src/testing/worker-setup.ts"],
+          fileParallelism: false,
         },
       },
     ],
