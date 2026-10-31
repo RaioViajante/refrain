@@ -242,6 +242,10 @@ The schema lives in [`src/db/schema.ts`](../src/db/schema.ts), and Drizzle Kit w
 5. Run `pnpm db:migrate` against your local development database. Once it contains data, this also checks the migration against existing rows. Drizzle records applied migrations in `drizzle.__drizzle_migrations`.
 6. Commit the schema change and the migration together, and describe the migration in the PR.
 
+**Enumerated values.** Entry kinds, locales, visibility statuses, and artist kinds are defined once, as arrays in `src/db/schema.ts`, and their `CHECK` constraints are generated from them ([ADR 0003](decisions/0003-relational-schema-conventions.md)). To introduce a value, add it to the array and run `pnpm db:generate`: the migration drops the constraint and adds it again with the new list. To remove or rename a value, first migrate the rows that use it, then narrow the constraint.
+
+**Backfills.** When a migration adds a constraint that existing rows might violate, add the backfill `UPDATE` to the generated SQL before the constraint, with a comment, and apply the migration to a database that holds rows from the earlier migrations (as `0002` was).
+
 **Custom SQL.** For something Drizzle cannot declare (today: one deferrable constraint), run `pnpm db:generate --custom --name=<what>` and write the SQL into the empty file it creates. Comment the schema where the object lives, so readers of `schema.ts` know it exists.
 
 **Applied migrations are permanent.** Never edit or delete a migration that has been applied anywhere outside a disposable test database. Fix mistakes with a new migration.

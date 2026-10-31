@@ -42,7 +42,7 @@ Catalog metadata (albums, artists, tracks) is not personal, but public pages sho
 - **Authorization at every entry point.** Every studio server action and route handler verifies the session itself. Middleware or proxy redirects are a convenience, not the control.
 - **Hiding something in the UI is not authorization.** Only the publication predicate decides public visibility.
 - **Preview** renders inside the authenticated studio route and is never served from a cacheable public URL.
-- **URLs.** Entries are addressed publicly by slug (ADR 0002, D7). A slug, current or previous, that resolves to an entry that is not publicly visible returns **404**, not 403 and not a redirect, so its existence is not revealed. Previous slugs of a visible entry redirect (308) to the current slug.
+- **URLs.** Entries are addressed publicly by slug (ADR 0002, D7). A slug, current or previous, that resolves to an entry that is not publicly visible returns **404**, not 403 and not a redirect, so its existence is not revealed. Previous slugs of a visible entry redirect (308) to the current slug. A slug that once identified published writing stays reserved after the entry is permanently deleted, so it never leads to unrelated writing; it then returns the same 404 as an unknown slug ([ADR 0003](decisions/0003-relational-schema-conventions.md)).
 
 ## Caching
 
@@ -69,6 +69,7 @@ Catalog metadata (albums, artists, tracks) is not personal, but public pages sho
 ## Data protection
 
 - **No cascade from catalog to writing.** Catalog records referenced by writing are archived, never deleted ([Data Model](data-model.md#deletion-and-recovery)).
+- **Minimal retention after permanent deletion.** "Delete now" removes the entry and everything it owns. Only its published slugs remain, as reserved strings with no link to any writing; slugs that were never public are deleted ([ADR 0003](decisions/0003-relational-schema-conventions.md)).
 - **Recoverable deletion.** Deleted entries stay in Recently deleted for at least 30 days. **Automatic permanent deletion stays disabled** until backups exist, a restore has been performed successfully, and the purge job is designed and covered by tests (ADR 0002, D4.4).
 - **Optimistic concurrency** on saves, so a stale browser tab cannot silently overwrite newer writing.
 - **Unsaved text survives a failed save** on the author's device, as the design requires, and never in a shared or server-side log.
@@ -105,7 +106,7 @@ These must exist before the public journal ships (M3). The *Database level (M1.2
 | 2. Draft, private, deleted content hidden per language version (INV-3) | Public queries return nothing for draft, private, or deleted entries, and never a private translation | 404 from every public route, metadata, sitemaps, caches (M3) |
 | 3. Unpublished track reflections absent, with their ratings and favourites (INV-2, INV-3) | Absent whatever their "still writing" state; toggling the flag changes nothing public; publishing a journal publishes no reflection | Rendered public pages (M3) |
 | 4. Changes take effect immediately, revalidation verified | Queries reflect a visibility change at once | Cache revalidation (M3) |
-| 5. Previous slugs redirect only for visible entries (INV-5) | `resolvePublicSlug` returns the same `not_found` for unknown, draft, private, and deleted entries' slugs | HTTP 308 and 404 responses (M3) |
+| 5. Previous slugs redirect only for visible entries (INV-5) | `resolvePublicSlug` returns the same `not_found` for unknown, draft, private, deleted, and permanently deleted (retired) entries' slugs; redirects stop when the destination is unpublished and resume when it is republished | HTTP 308 and 404 responses (M3) |
 | 6. Featured resolution identical in every interface language, with the D1.2 fallbacks (INV-1) | All fallback cases, tie-break, and version choice, checked in both languages; at most one featured journal enforced by the database | Rendered album and artist pages (M3) |
 | 7. Sign-up endpoint unavailable | — | All of it (M2) |
 | 8. Referenced catalog records cannot be hard-deleted | Done. Runtime refusals by each writing-side rule: `album_journals_album_fk`, `artist_journals_artist_fk`, `memory_music_track_fk`, `memory_music_album_fk`, `track_reflections_album_track_fk`. All writing-to-catalog delete rules are also read from `pg_constraint`. | — |
