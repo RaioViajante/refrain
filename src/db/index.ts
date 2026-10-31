@@ -7,3 +7,5 @@ export {
   type Transaction,
 } from "./client";
 export { checkDatabaseConnection } from "./health";
+export * as schema from "./schema";
+export type { EntryKind, Locale, VisibilityStatus } from "./schema";
