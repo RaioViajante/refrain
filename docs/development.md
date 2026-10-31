@@ -50,7 +50,7 @@ Variables already set in the environment take precedence over `.env`, which is h
 | `pnpm test` | Unit tests (Vitest). No database needed. |
 | `pnpm test:integration` | Integration tests against the real PostgreSQL in `DATABASE_URL`. Fails if it is not reachable; it never skips. |
 | `pnpm db:up` / `pnpm db:down` | Start PostgreSQL and wait for health / stop it. Data is kept in the `refrain_postgres-data` volume. |
-| `pnpm db:generate` | Generate a SQL migration from the Drizzle schema |
+| `pnpm db:generate` | Generate a SQL migration from the Drizzle schema. Like every Drizzle Kit command, it needs `DATABASE_URL`. |
 | `pnpm db:migrate` | Apply pending migrations to the database in `DATABASE_URL` |
 
 ### Local database
@@ -62,6 +62,8 @@ docker compose ps                                   # status and health
 docker compose logs postgres                        # server log
 docker compose exec postgres psql -U refrain -d refrain
 ```
+
+These commands use the default `refrain` user and database. If you changed `POSTGRES_USER` or `POSTGRES_DB` in `.env`, substitute your values here and below.
 
 **Backup and restore of local data.** Dumps can contain writing, and `*.dump` is ignored by Git. Keep dumps outside the repository.
 
