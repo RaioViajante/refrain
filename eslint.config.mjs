@@ -9,6 +9,14 @@ const publicEntryPointsOnly = {
     "Import another module only through its public entry point (index.ts).",
 };
 
+// Relative imports may not leave the current directory. Anything else uses
+// the @/ alias, so the patterns above cannot be bypassed with a ../ path.
+const noParentRelativeImports = {
+  regex: "^\\.\\./",
+  message:
+    "Use the @/ alias for imports outside the current directory, so module boundaries can be checked.",
+};
+
 const presentationMessage =
   "Presentation code calls module functions. It never uses the database client, the schema, or a database driver.";
 
@@ -26,7 +34,10 @@ const eslintConfig = defineConfig([
   ]),
   {
     rules: {
-      "no-restricted-imports": ["error", { patterns: [publicEntryPointsOnly] }],
+      "no-restricted-imports": [
+        "error",
+        { patterns: [publicEntryPointsOnly, noParentRelativeImports] },
+      ],
     },
   },
   {
@@ -47,6 +58,7 @@ const eslintConfig = defineConfig([
           ],
           patterns: [
             publicEntryPointsOnly,
+            noParentRelativeImports,
             { group: ["drizzle-orm/*"], message: presentationMessage },
           ],
         },

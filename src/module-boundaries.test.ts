@@ -63,4 +63,27 @@ describe("module boundaries", () => {
     );
     expect(violations).toEqual([]);
   });
+
+  it.each([
+    ['import { getDb } from "../db/client";', "src/app/page.tsx"],
+    ['import { getDb } from "../../db";', "src/app/example/page.tsx"],
+    ['import { x } from "../catalog/queries";', "src/modules/journals/x.ts"],
+  ])(
+    "rejects a relative import that leaves its directory: %s",
+    async (code, filePath) => {
+      const violations = await boundaryViolations(
+        `${code}\nexport {};\n`,
+        filePath,
+      );
+      expect(violations).toHaveLength(1);
+    },
+  );
+
+  it("allows relative imports within the same directory", async () => {
+    const violations = await boundaryViolations(
+      'import { x } from "./queries";\nexport { x };\n',
+      "src/modules/catalog/index.ts",
+    );
+    expect(violations).toEqual([]);
+  });
 });

@@ -100,6 +100,9 @@ Inside a module, prefer plain functions over repository classes and dependency-i
 
 - No file may import another module's internals (`@/db/*`, `@/modules/*/*`, `@/integrations/*/*`). Imports go through `index.ts`.
 - Presentation code (`src/app/`) may not import `pg`, `drizzle-orm`, or the database client. From the Persistence module it may import only `checkDatabaseConnection`, which the development page uses.
+- Relative imports may not leave the current directory (`../`). Everything else uses the `@/` alias, so a relative path cannot bypass the rules above.
+
+These are static import rules. Dynamic `import()` expressions are not checked, so reviews must catch those.
 
 Rule 7 is enforced at build time. A Client Component that reaches a module importing `server-only` fails `next build`; this was checked when the foundation was built.
 
