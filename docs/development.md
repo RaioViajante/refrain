@@ -1,19 +1,130 @@
 # Development
 
-**Status:** there is no application code, `package.json`, Docker Compose file, or CI workflow yet. This document defines the workflow. The *Local setup* section is filled in when the application is scaffolded (M1), with commands that have actually been run.
+**Status:** the application foundation (M1.1) exists: a Next.js application, a local PostgreSQL 17 database through Docker Compose, a server-only Drizzle client, automated checks, and CI. There is no domain schema, migration, or seed data yet; those arrive in M1.2 ([Roadmap](roadmap.md)).
+
+Every command in this document has been run successfully. Add a command only after it has run.
 
 ## Local setup
 
-Not available yet. When it is written, it will cover:
+### Prerequisites
 
-- the required Node.js version, pinned in a version file;
-- installing dependencies with pnpm from the committed lockfile;
-- starting PostgreSQL with Docker Compose;
-- creating `.env` from `.env.example`;
-- applying migrations and loading synthetic seed data;
-- running the app, tests, and checks.
+| Tool | Version | Notes |
+| --- | --- | --- |
+| Node.js | **24.22.2** (pinned in [`.nvmrc`](../.nvmrc)) | `package.json` `engines` accepts `^24.22.1`, the latest 24.x security release |
+| pnpm | **12.15.0** (pinned in `package.json` `packageManager`) | pnpm switches to the pinned version automatically |
+| Docker, with Compose v2 | Any current release | Runs PostgreSQL only |
 
-Every command listed here must be one that has been run successfully on a clean checkout.
+### First run
+
+```sh
+pnpm install            # from the committed lockfile
+cp .env.example .env    # local, non-secret placeholder values
+pnpm db:up              # starts PostgreSQL 17 and waits until it is healthy
+pnpm dev                # http://localhost:3000
+```
+
+The development page shows `Database: connected` when the server reaches PostgreSQL, and `Database: not reachable` otherwise.
+
+### Configuration
+
+All local configuration lives in one file, `.env`, which Git ignores. Docker Compose, Next.js, Drizzle Kit, and the integration tests all read it. [`.env.example`](../.env.example) lists every variable:
+
+| Variable | Read by | Purpose |
+| --- | --- | --- |
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | Docker Compose | Credentials used when the database volume is first created |
+| `POSTGRES_PORT` | Docker Compose | Host port, bound to `127.0.0.1` only (default `5432`) |
+| `DATABASE_URL` | Server code, Drizzle Kit, integration tests | PostgreSQL connection string. Server-side only. Never give it a `NEXT_PUBLIC_` prefix. |
+
+Variables already set in the environment take precedence over `.env`, which is how CI supplies its own `DATABASE_URL`.
+
+### Commands
+
+| Command | What it does |
+| --- | --- |
+| `pnpm dev` | Development server |
+| `pnpm build` | Production build. Needs no database and no `DATABASE_URL`. |
+| `pnpm start` | Serves the production build |
+| `pnpm lint` | ESLint, including the module-boundary rules |
+| `pnpm format` / `pnpm format:check` | Prettier: write, or check only. Markdown and the local `reference/` are excluded. |
+| `pnpm typecheck` | Generates Next.js route types, then runs `tsc --noEmit` (strict) |
+| `pnpm test` | Unit tests (Vitest). No database needed. |
+| `pnpm test:integration` | Integration tests against the real PostgreSQL in `DATABASE_URL`. Fails if it is not reachable; it never skips. |
+| `pnpm db:up` / `pnpm db:down` | Start PostgreSQL and wait for health / stop it. Data is kept in the `refrain_postgres-data` volume. |
+| `pnpm db:generate` | Generate a SQL migration from the Drizzle schema. Like every Drizzle Kit command, it needs `DATABASE_URL`. |
+| `pnpm db:migrate` | Apply pending migrations to the database in `DATABASE_URL` |
+
+### Local database
+
+PostgreSQL runs from [`compose.yaml`](../compose.yaml) using the `postgres:17.11-trixie` image, with a health check and a named volume. It listens on `127.0.0.1` only. These credentials are for local development and never for production.
+
+```sh
+docker compose ps                                   # status and health
+docker compose logs postgres                        # server log
+docker compose exec postgres psql -U refrain -d refrain
+```
+
+These commands use the default `refrain` user and database. If you changed `POSTGRES_USER` or `POSTGRES_DB` in `.env`, substitute your values here and below.
+
+**Backup and restore of local data.** Dumps can contain writing, and `*.dump` is ignored by Git. Keep dumps outside the repository.
+
+```sh
+docker compose exec -T postgres pg_dump -U refrain -d refrain --format=custom > ~/refrain-local.dump
+docker compose exec -T postgres pg_restore -U refrain -d refrain --clean --if-exists < ~/refrain-local.dump
+```
+
+**Reset.** This permanently deletes all local data in the database volume:
+
+```sh
+docker compose down --volumes
+pnpm db:up
+```
+
+### Troubleshooting
+
+| Symptom | Cause and fix |
+| --- | --- |
+| `Set POSTGRES_PASSWORD in .env` from Docker Compose | `.env` is missing. Run `cp .env.example .env`. |
+| `Database: not reachable`, or integration tests fail with `ECONNREFUSED` | PostgreSQL is not running. Run `pnpm db:up` and check `docker compose ps`. The server log records only an error code, never connection details. |
+| `DATABASE_URL is not set` | `.env` is missing, or it lacks `DATABASE_URL`. |
+| Port 5432 is already in use | Set `POSTGRES_PORT` in `.env`, change the port in `DATABASE_URL` to match, and run `pnpm db:up` again. |
+| A changed `POSTGRES_PASSWORD` has no effect, or authentication fails | The image applies the `POSTGRES_*` values only when it creates an empty volume. Restore the old values, or reset the database (this deletes local data). |
+| An engine warning about the Node.js version | Use the version in `.nvmrc`. 24.x releases earlier than 24.22.1 lack a security fix. |
+| `ERR_PNPM_IGNORED_BUILDS` after adding a dependency | pnpm blocks install scripts by default. Review the package, then allow or deny it under `allowBuilds` in `pnpm-workspace.yaml`. |
+| A version published in the last seven days does not install | Intentional: `minimumReleaseAge` in `pnpm-workspace.yaml` blocks very new versions. |
+
+### Local design references
+
+`reference/` holds the author's local design references and is ignored by Git. A clean clone does not have it, and nothing needs it: the application, tests, CI, and documentation use only tracked assets ([Design System § Assets](design-system.md#assets)).
+
+`reference/` was tracked until the M1.1 pull request (#3) stopped tracking it. In a clone that has it checked out from an earlier commit, moving to a commit without it (for example `git pull` after the change is merged) **deletes those files from the working tree**, because Git removes files it stops tracking. Copy `reference/` outside the repository first. To recover the files afterwards, restore them from an older commit into the working tree only: `git restore --source=172ab8b --worktree -- reference/`.
+
+Next.js ships documentation that matches the installed version in `node_modules/next/dist/docs/`. Prefer it over memory when the framework's behavior is in doubt.
+
+## Toolchain
+
+Versions are exact in `package.json`, and the lockfile is committed. Each was checked against its dependents' declared peer and engine ranges before it was installed. As a supply-chain rule, pnpm installs only versions published at least seven days earlier (`minimumReleaseAge`). Selected on 2026-10-31:
+
+| Package | Version | Note |
+| --- | --- | --- |
+| Node.js | 24.22.2 | Node 24 is a maintenance LTS line, supported until 2028-04-30. Node 26 became LTS only on 2026-10-28; revisit after the presentation. |
+| pnpm | 12.15.0 | |
+| `next` | 16.4.3 | App Router, Turbopack, Cache Components |
+| `react`, `react-dom` | 19.3.1 | |
+| `typescript` | 6.0.3 | TypeScript 7 is excluded: `typescript-eslint` supports only `<6.1.0`. |
+| `tailwindcss`, `@tailwindcss/postcss` | 4.3.3 | The PostCSS plugin, as the Next.js documentation describes |
+| `drizzle-orm` | 0.45.4 | Drizzle 1.0 is a release candidate and is not used. |
+| `drizzle-kit` | 0.31.11 | |
+| `pg` (node-postgres), `@types/pg` | 8.23.1 | PostgreSQL driver: see [Architecture](architecture.md#persistence) |
+| `server-only` | 0.0.1 | |
+| `eslint` | 9.39.5 | ESLint 10 is excluded: plugins used by `eslint-config-next` declare support only up to ESLint 9. |
+| `eslint-config-next` | 16.4.3 | |
+| `prettier` | 3.9.10 | |
+| `vitest` | 5.0.5 | With `vite` 8.3.5, its peer dependency |
+| `@types/node` | 24.19.2 | Matches the Node.js major version |
+| `@types/react`, `@types/react-dom` | 19.3.0 | |
+| PostgreSQL image | `postgres:17.11-trixie` | Same image locally and in CI |
+
+Planned dependencies (Better Auth, Tiptap, next-intl, Rough.js, Zod, Playwright) are added with the features that need them, after the same compatibility check.
 
 ## Branches and commits
 
@@ -47,19 +158,19 @@ If the plan changes or the repository becomes public, enable these as protection
 
 ## Quality gates
 
-Planned for CI (GitHub Actions) as soon as the scaffold exists:
+[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs on every pull request and on every push to `main`. It installs from the frozen lockfile and then runs these gates in order. A failing gate fails the run.
 
-| Gate | Purpose |
-| --- | --- |
-| Format check | Consistent formatting |
-| Lint | Code rules, including import boundaries between modules |
-| Type check | TypeScript strict mode |
-| Unit tests | Domain rules (ratings, state transitions, slug rules) |
-| Integration tests | Against a real PostgreSQL service container: constraints, transactions, the publication predicate, academic queries |
-| Build | Production build succeeds |
-| End-to-end smoke | Playwright: critical studio and public flows |
+| Gate | Command | Status |
+| --- | --- | --- |
+| Lint | `pnpm lint` | In CI. Includes module-boundary rules, which a unit test proves. |
+| Format check | `pnpm format:check` | In CI |
+| Type check | `pnpm typecheck` | In CI. TypeScript strict mode. |
+| Unit tests | `pnpm test` | In CI. Today: configuration validation and module boundaries. Domain rules (ratings, state transitions, slug rules) are added with the domain. |
+| Build | `pnpm build` | In CI, run without `DATABASE_URL` to prove that the build does not need a database |
+| Integration tests | `pnpm test:integration` | In CI, against a PostgreSQL 17 service container. Today: connectivity and server version. Constraints, transactions, the publication predicate, and the academic queries are added from M1.2. |
+| End-to-end smoke | Playwright | Planned. Critical studio and public flows. |
 
-Workflows use minimal `permissions`, a concurrency group per branch, and no production secrets.
+The workflow has read-only `permissions` (`contents: read`), a concurrency group per pull request or branch, a 20-minute timeout, and no secrets. Its PostgreSQL credentials belong to a disposable service container and are not secrets. Actions are pinned to full commit SHAs. It does not publish artifacts or deploy.
 
 ## Testing approach
 
@@ -71,11 +182,15 @@ Workflows use minimal `permissions`, a concurrency group per branch, and no prod
 
 ## Database changes
 
+The schema lives in [`src/db/schema.ts`](../src/db/schema.ts). Drizzle Kit writes versioned SQL migrations to `src/db/migrations/`, a directory that is created by the first migration (M1.2). Configuration: [`drizzle.config.ts`](../drizzle.config.ts).
+
 1. Change the Drizzle schema.
-2. Generate a migration and **read the generated SQL**.
+2. Run `pnpm db:generate` and **read the generated SQL**.
 3. Check for data loss: dropped columns, changed types, removed constraints on authored tables.
-4. Apply it to a local database that contains data, not only to an empty one.
+4. Run `pnpm db:migrate` against a local database that contains data, not only against an empty one. Drizzle records applied migrations in `drizzle.__drizzle_migrations`.
 5. Commit the schema change and the migration together, and describe the migration in the PR.
+
+Never use `drizzle-kit push`: every schema change goes through a reviewed migration file. Migrations are never applied automatically to a production database; that procedure is written down when a deployment target exists.
 
 ## Documentation
 

@@ -1,7 +1,7 @@
 # Requirements
 
 **Presentation:** November 16, 2026.
-**Status:** planned. No requirement is satisfied yet, because no application code exists. The evidence column describes what must be captured. The *Verified* column is filled in only after the evidence exists.
+**Status:** planned. No requirement is satisfied yet. The application foundation (M1.1) runs against PostgreSQL, but the related tables, CRUD, and queries these requirements need arrive later in M1. The evidence column describes what must be captured. The *Verified* column is filled in only after the evidence exists.
 
 This document covers the **mandatory academic requirements** only. Product behavior is defined in [Product](product.md). Architectural qualities such as module boundaries, internationalization, and the hand-drawn interface are project goals, not academic requirements, and must not be presented as substitutes for them.
 

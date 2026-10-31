@@ -19,7 +19,7 @@ Readers have no accounts, comments, reactions, or follower relationships. There 
 
 ## Two experiences
 
-**Public journal.** Home, album journals, artist journals, memories, and a listing for each. Only published writing appears. Designs: `reference/refrain/pages/refrainV44-{Home,Albums,Grace,Artists,Artist,Memories,Memory}.dc.html`.
+**Public journal.** Home, album journals, artist journals, memories, and a listing for each. Only published writing appears. Designs (the author's local references, not in the repository; see [Design System](design-system.md)): `reference/refrain/pages/refrainV44-{Home,Albums,Grace,Artists,Artist,Memories,Memory}.dc.html`.
 
 **Writing Studio.** The author's private workspace:
 

@@ -1,0 +1,6 @@
+# Prettier checks application code and configuration.
+# Local-only design references (also ignored by Git).
+reference/
+# Documentation is formatted by hand; do not reformat it.
+*.md
+pnpm-lock.yaml

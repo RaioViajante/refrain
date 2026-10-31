@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Read-only: CI checks out and verifies code. It never writes, publishes, or deploys.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    services:
+      postgres:
+        # Keep in step with compose.yaml.
+        image: postgres:17.11-trixie
+        env:
+          # Disposable credentials for this job's throwaway database. Not a secret.
+          POSTGRES_USER: refrain
+          POSTGRES_PASSWORD: refrain-ci-only
+          POSTGRES_DB: refrain
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -p 5432 -U refrain -d refrain"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      # Actions are pinned to full commit SHAs; the comment names the release.
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up pnpm (version from package.json packageManager)
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Set up Node.js (version from .nvmrc)
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test
+
+      # DATABASE_URL is deliberately absent here: the build must not depend on
+      # a database connection.
+      - name: Production build
+        run: pnpm build
+
+      - name: Integration tests (PostgreSQL 17)
+        run: pnpm test:integration
+        env:
+          DATABASE_URL: postgres://refrain:refrain-ci-only@127.0.0.1:5432/refrain
