@@ -11,6 +11,14 @@
 | **M4 — Academic release** | Nov 15 | Evidence capture, demonstration script rehearsal on a clean database, documentation update | Every requirement row has evidence; rehearsal done |
 | **Later** | After Nov 16 | MusicBrainz search and import, Cover Art Archive, Wikimedia Commons photos, author translations, revisions, Markdown export, backups and a tested restore, then automatic purge (gated on those), deployment, additional editions when needed | Scoped individually |
 
+### M1 increments
+
+M1 is delivered in increments, each authorized separately by the author:
+
+- **M1.1 — Application foundation** (in review): the Next.js and TypeScript application with pnpm and compatibility-checked versions, Docker Compose PostgreSQL 17, a server-only Drizzle client with a connectivity check, Vitest unit and real-PostgreSQL integration tests, and GitHub Actions CI. See [Development](development.md#local-setup).
+- **M1.2 — Relational core** (not started; the author confirms its scope when authorizing it). Expected: resolve the [open data-model questions](data-model.md#open-questions) that affect the first migration, such as enum representation, and choose Drizzle's column-naming convention; write the Drizzle schema for the catalog and album journals, reviewed against ADR 0002, with its first migrations and constraint tests; add a dedicated test database for integration tests that write data.
+- **Remaining M1 scope** after M1.2: catalog and album-journal CRUD through simple studio pages, and the JOIN and aggregate queries surfaced in the UI.
+
 ## Critical path
 
 AC-01 to AC-06 depend only on **M1**. M2 and M3 deliver the product, but the academic presentation must not depend on them. If time runs short, cut in this order:

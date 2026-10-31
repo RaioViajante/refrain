@@ -1,6 +1,6 @@
 # Security and Privacy
 
-**Status:** requirements for implementation. No controls exist yet, because no application exists. The publication rules implement [ADR 0002](decisions/0002-domain-model-decisions.md) and its implementation invariants (INV-1 to INV-5).
+**Status:** requirements for implementation. The application foundation (M1.1) implements the baseline: the database client is server-only and its configuration is server-side, logs carry no connection details, and the build needs no database. The remaining controls arrive with the features they protect. The publication rules implement [ADR 0002](decisions/0002-domain-model-decisions.md) and its implementation invariants (INV-1 to INV-5).
 
 Refrain's most valuable asset is the author's writing: personal, unpublished, and irreplaceable. The two failures that matter most are **private writing becoming public** and **writing being lost**. Every control below protects against one of them.
 
@@ -61,7 +61,7 @@ Catalog metadata (albums, artists, tracks) is not personal, but public pages sho
 
 ## Secrets
 
-- Secrets live only in environment variables. `.env*` files are ignored by Git, except `.env.example`, which holds variable names without values.
+- Secrets live only in environment variables. `.env*` files are ignored by Git, except `.env.example`, which holds variable names with non-secret placeholder values for a local, disposable development database. Real or production credentials never appear in it.
 - Secrets never reach client bundles. Only intentionally public variables use the framework's public prefix.
 - CI uses scoped GitHub secrets and minimal workflow `permissions`.
 - If a secret is committed, rotate it first and then remove it from history. Deleting the file is not enough.

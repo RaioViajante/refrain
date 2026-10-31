@@ -8,7 +8,7 @@ Refrain is a **single-author personal music journal**: memories, artist journals
 
 - **Out of scope:** reader accounts, social features, streaming, recommendations, multiple authors, multi-tenancy, and machine translation. Do not add these without an ADR and the author's approval.
 - **Academic deadline:** the presentation is on **2026-11-16**. Work that the requirements in [Requirements](docs/requirements.md) depend on takes priority over polish.
-- **Current state:** documentation only. No application code exists until M1 is authorized. → [Roadmap](docs/roadmap.md)
+- **Current state:** M1.1, the application foundation: a Next.js application, local PostgreSQL through Docker Compose, a server-only Drizzle client, tests, and CI. No domain schema or feature exists yet. Each M1 increment needs the author's authorization. → [Roadmap](docs/roadmap.md), [Development](docs/development.md#local-setup)
 - **Accepted decisions:** [ADR 0001](docs/decisions/0001-modular-monolith.md) (modular monolith) and [ADR 0002](docs/decisions/0002-domain-model-decisions.md) (domain model). ADR 0002's implementation invariants (INV-1 to INV-5) are binding and each needs a test.
 
 ## 2. Before you change anything

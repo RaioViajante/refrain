@@ -1,6 +1,6 @@
 # Architecture
 
-**Status:** the modular monolith is an accepted decision ([ADR 0001](decisions/0001-modular-monolith.md)). The module responsibilities below reflect the accepted domain decisions in [ADR 0002](decisions/0002-domain-model-decisions.md). No code exists yet. The technologies below are the target stack. None has been installed, and exact versions are chosen and recorded only after compatibility has been checked during scaffolding.
+**Status:** the modular monolith is an accepted decision ([ADR 0001](decisions/0001-modular-monolith.md)). The module responsibilities below reflect the accepted domain decisions in [ADR 0002](decisions/0002-domain-model-decisions.md). The application foundation (M1.1) is implemented: the Next.js application, the Persistence module's database client, and lint-enforced module boundaries. No domain module exists yet. Installed technologies and their versions are recorded in [Development § Toolchain](development.md#toolchain); the others remain planned.
 
 ## Shape
 
@@ -26,22 +26,22 @@ Refrain is a **modular monolith**: one deployable Next.js application, one Postg
 
 ## Target technologies
 
-| Concern | Planned choice |
+| Concern | Choice (installed in M1.1 where marked) |
 | --- | --- |
-| Application framework | Next.js (App Router), React |
-| Language | TypeScript (strict) |
-| Styling | Tailwind CSS |
+| Application framework | Next.js (App Router), React (installed) |
+| Language | TypeScript, strict mode (installed) |
+| Styling | Tailwind CSS (installed) |
 | Hand-drawn strokes | Rough.js, pre-generated as inline SVG |
 | Rich-text editing | Tiptap |
 | Validation | Zod |
-| Database / ORM and migrations | PostgreSQL / Drizzle ORM and Drizzle Kit |
+| Database / ORM and migrations | PostgreSQL 17 / Drizzle ORM and Drizzle Kit, with the `pg` driver (installed) |
 | Authentication | Better Auth |
 | Interface localization | next-intl (`en`, `pt-BR`) |
-| Unit and integration tests | Vitest |
+| Unit and integration tests | Vitest (installed) |
 | End-to-end tests | Playwright |
-| Package manager | pnpm |
-| Local services | Docker Compose (PostgreSQL) |
-| CI | GitHub Actions |
+| Package manager | pnpm (installed) |
+| Local services | Docker Compose, PostgreSQL only (installed) |
+| CI | GitHub Actions (installed) |
 
 Before a technology is adopted, its compatibility with the chosen Next.js and React versions is checked. A planned choice that does not fit is replaced through an ADR, not silently swapped.
 
@@ -68,9 +68,9 @@ Before a technology is adopted, its compatibility with the chosen Next.js and Re
 6. Integrations return plain data. The calling module decides what to persist, inside its own transaction, after the external call completes.
 7. Server-only modules import `server-only`, so they cannot be bundled into client code.
 
-### Proposed source layout
+### Source layout
 
-The layout is fixed when the application is scaffolded in M1. It is shown here so that boundaries have a concrete shape.
+The layout below is the target. In M1.1, only `src/app/` (a single development page, without locale routing) and `src/db/` exist. The other directories are created by the first feature that needs them, never as empty placeholders.
 
 ```text
 src/
@@ -94,7 +94,26 @@ src/
 
 Inside a module, prefer plain functions over repository classes and dependency-injection containers. Introduce an abstraction only when a second real implementation or a test needs it.
 
+### Enforcement
+
+`eslint.config.mjs` turns dependency rules 1 and 2 into lint errors, and [`src/module-boundaries.test.ts`](../src/module-boundaries.test.ts) proves that the rules fire:
+
+- No file may import another module's internals (`@/db/*`, `@/modules/*/*`, `@/integrations/*/*`). Imports go through `index.ts`.
+- Presentation code (`src/app/`) may not import `pg`, `drizzle-orm`, or the database client. From the Persistence module it may import only `checkDatabaseConnection`, which the development page uses.
+
+Rule 7 is enforced at build time. A Client Component that reaches a module importing `server-only` fails `next build`; this was checked when the foundation was built.
+
+## Persistence
+
+- **Driver:** node-postgres (`pg`), through `drizzle-orm/node-postgres`. It is the most widely deployed PostgreSQL driver for Node.js, Drizzle and the planned authentication library both support it, and its `Pool` gives explicit control over connections and transactions. The alternative, `postgres` (postgres.js), had just released a new major version when the foundation was built.
+- **Client:** [`src/db/client.ts`](../src/db/client.ts) imports `server-only` and creates one connection pool on first use. Importing it never opens a connection, so `next build` needs no database. Configuration comes from `DATABASE_URL`, which is validated by [`src/db/env.ts`](../src/db/env.ts). Its error messages never echo the value.
+- **Public entry point:** [`src/db/index.ts`](../src/db/index.ts) exports `getDb` and `checkDatabaseConnection`.
+- **Logging:** connection failures log only an error code (a PostgreSQL SQLSTATE or a Node.js network code) or a fixed configuration message, never the connection string, host, or credentials.
+- **Schema and migrations:** `src/db/schema.ts` and `src/db/migrations/`. The workflow is in [Development § Database changes](development.md#database-changes). The domain schema arrives in M1.2.
+
 ## Rendering and caching
+
+Next.js **Cache Components** is enabled (`cacheComponents: true` in `next.config.ts`; it is stable in Next.js 16 and the default for new applications). Data is dynamic unless it is explicitly cached with `use cache`, so database content is never prerendered by accident. The rules below still apply to anything that is cached.
 
 - Public pages are Server Components. They may be cached only for publicly visible content. Any change that affects public visibility must revalidate the affected pages; the list of such changes is in [Security § Caching](security.md#caching).
 - Studio routes are dynamic and never cached. Responses are `no-store`.

@@ -41,9 +41,9 @@ The approved designs are in [`reference/`](reference/). See [Design System](docs
 
 ## 03 — Technical Direction
 
-Planned as a modular monolith: one Next.js and TypeScript application backed by PostgreSQL through Drizzle ORM, with a public journal and a private writing studio in the same codebase. The stack is a target architecture: nothing has been installed yet.
+A modular monolith: one Next.js and TypeScript application backed by PostgreSQL through Drizzle ORM, with a public journal and a private writing studio in the same codebase. The application foundation is in place. The journal, the studio, and the rest of the planned stack arrive with the features that need them.
 
-See [Architecture](docs/architecture.md), [Data Model](docs/data-model.md), and [ADR 0001](docs/decisions/0001-modular-monolith.md).
+See [Architecture](docs/architecture.md), [Data Model](docs/data-model.md), and [ADR 0001](docs/decisions/0001-modular-monolith.md). To run it locally, see [Development](docs/development.md#local-setup).
 
 ## 04 — Academic Requirements
 
@@ -69,6 +69,6 @@ Contributors and coding agents start with [`AGENTS.md`](AGENTS.md).
 
 ## 06 — Current Status
 
-**Milestone M0: documentation and repository foundations.** The product, architecture, data model, and design direction are documented, and the approved visual references are in `reference/`. The architecture ([ADR 0001](docs/decisions/0001-modular-monolith.md)) and the domain model ([ADR 0002](docs/decisions/0002-domain-model-decisions.md)) are accepted decisions. There is no application code yet, so there is nothing to install or run. Setup instructions will be added when they exist and have been verified.
+**Milestone M1.1: application foundation.** M0 is complete: the product, architecture, data model, and design direction are documented, the approved visual references are in `reference/`, and the architecture ([ADR 0001](docs/decisions/0001-modular-monolith.md)) and domain model ([ADR 0002](docs/decisions/0002-domain-model-decisions.md)) are accepted. M1.1 adds the running application foundation: Next.js, a local PostgreSQL database, a server-only database client, automated checks, and CI. There is no journal content, schema, or writing studio yet. Setup: [Development](docs/development.md#local-setup).
 
 See [Roadmap](docs/roadmap.md).
