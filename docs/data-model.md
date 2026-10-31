@@ -2,7 +2,7 @@
 
 **Status:** preliminary design. Not an applied schema and not a migration.
 
-- The domain rules come from [ADR 0002](decisions/0002-domain-model-decisions.md), which is **Proposed** and awaits owner approval. No migration may encode them until it is accepted.
+- The domain rules come from [ADR 0002](decisions/0002-domain-model-decisions.md), which is accepted. The table design below is how it is expected to be implemented, not a fixed schema.
 - Table and column names, types, and constraints must be validated again against the Drizzle implementation in M1.
 - In M0, a hand-written DDL sketch of this model was run on a disposable PostgreSQL 17 instance with synthetic data. The results are under [Validation](#validation).
 
@@ -228,7 +228,24 @@ FROM albums al
 WHERE al.archived_at IS NULL;
 ```
 
-The public read predicate is defined once, in [Security](security.md#publication-predicate).
+**Featured resolution: the journal presented for an album** (ADR 0002, D1.2 and INV-1). The visibility conditions apply the [publication predicate](security.md#publication-predicate). The `ORDER BY` makes the result deterministic.
+
+```sql
+SELECT aj.entry_id
+FROM album_journals aj
+JOIN entries e ON e.id = aj.entry_id
+WHERE aj.album_id = $1
+  AND e.deleted_at IS NULL
+  AND EXISTS (SELECT 1 FROM entry_texts t
+               WHERE t.entry_id = e.id AND t.status = 'published')
+ORDER BY aj.is_featured DESC,
+         (SELECT MAX(t.published_at) FROM entry_texts t
+           WHERE t.entry_id = e.id AND t.status = 'published') DESC,
+         e.id ASC
+LIMIT 1;
+```
+
+The reader's interface language does not appear in this query. It selects only which version of the resolved journal to show (D1.2). The public read predicate is defined once, in [Security](security.md#publication-predicate).
 
 ## Validation
 
@@ -252,11 +269,21 @@ They accepted:
 - a reordered memory list (deferred unique constraint);
 - a second edition added without touching existing reflections.
 
-Permanently deleting an entry removed only the rows it owns. The sketch is not a migration, and the Drizzle schema must be verified again in M1.
+Permanently deleting an entry removed only the rows it owns.
+
+The featured-resolution query returned the expected journal in five cases:
+
+- the featured journal is visible;
+- the featured journal is only a draft;
+- the featured journal is deleted;
+- two journals tie on `published_at`;
+- no journal is visible.
+
+The sketch is not a migration, and the Drizzle schema must be verified again in M1.
 
 ## Open questions
 
 1. Enum representation: `text` with `CHECK` constraints (shown here) or PostgreSQL enums through Drizzle `pgEnum`.
 2. Whether published language versions return as private when an entry is restored.
-3. Slug release after permanent deletion, and the featured-journal fallback order by interface language (ADR 0002, "Still open").
+3. Whether a slug is released after permanent deletion (ADR 0002, "Still open").
 4. How the automatic purge will run once enabled: a scheduled job or an on-access check.

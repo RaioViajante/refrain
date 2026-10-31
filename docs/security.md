@@ -1,6 +1,6 @@
 # Security and Privacy
 
-**Status:** requirements for implementation. No controls exist yet, because no application exists. The rules that depend on [ADR 0002](decisions/0002-domain-model-decisions.md) (Proposed) are marked as such.
+**Status:** requirements for implementation. No controls exist yet, because no application exists. The publication rules implement [ADR 0002](decisions/0002-domain-model-decisions.md) and its implementation invariants (INV-1 to INV-5).
 
 Refrain's most valuable asset is the author's writing: personal, unpublished, and irreplaceable. The two failures that matter most are **private writing becoming public** and **writing being lost**. Every control below protects against one of them.
 
@@ -30,7 +30,9 @@ A **track reflection** is publicly visible in a language when:
 - `track_reflections.is_published` is true (explicit per-track authorization, ADR 0002, D5), and
 - a reflection text exists in that language.
 
-The "still writing" flag plays no part in visibility. A published reflection that is still in progress is shown with the "still writing" label; an unpublished one is not shown at all. The same applies to its rating and favourite mark.
+A **link to an author's translation**, or any mention that one exists, appears only when that translation is itself publicly visible (ADR 0002, INV-3).
+
+The "still writing" flag plays no part in visibility (INV-2). A published reflection that is still in progress is shown with the "still writing" label; an unpublished one is not shown at all. The same applies to its rating and favourite mark.
 
 Catalog metadata (albums, artists, tracks) is not personal, but public pages show it only in the context of publicly visible entries.
 
@@ -89,12 +91,13 @@ Logs record events and identifiers. They never contain entry titles or bodies, s
 These must exist before the public journal ships (M3):
 
 1. Unauthenticated requests to every studio action and route are rejected.
-2. Draft, private, and deleted content returns 404 from every public route. This is checked per language version, including a published original with a private translation.
-3. Track reflections without `is_published` are absent from public pages, whatever their "still writing" state. Their ratings and favourite marks are absent too.
+2. Draft, private, and deleted content returns 404 from every public route. This is checked per language version, including a published original with a private translation: the translation is not served, not linked, and not mentioned (INV-3).
+3. Track reflections without `is_published` are absent from public pages, whatever their "still writing" state. Their ratings and favourite marks are absent too (INV-2, INV-3).
 4. Visibility changes, deletions, and per-track publication changes take effect on public pages immediately, and revalidation is verified.
-5. Previous slugs redirect only for publicly visible entries.
-6. The sign-up endpoint is unavailable.
-7. Hard-deleting a catalog record that writing references is refused by the database.
+5. Previous slugs redirect only for publicly visible entries. Otherwise the response is identical to an unknown slug's 404 (INV-5).
+6. Featured resolution returns the same journal for the same data in every interface language, and falls back as defined in ADR 0002, D1.2 (INV-1).
+7. The sign-up endpoint is unavailable.
+8. Hard-deleting a catalog record that writing references is refused by the database.
 
 ## Deployment gate
 

@@ -115,7 +115,7 @@ There is no other color anywhere, including status, error, and success states, w
 | Save | "Unsaved changes" → Save becomes primary → "Saving…" → "Saved just now". A failed save keeps the text on the device and offers "Try again". |
 | Leaving with unsaved changes | Dialog: Save and leave / Stay here / Leave without saving |
 | Publish / Unpublish | Always a confirmation that says what will happen. Unpublishing never deletes. |
-| Delete | Confirmation, then Recently deleted with Restore. While automatic purge is disabled, the V4.4 copy "gone in 30 days" is inaccurate (see [Design gaps](#design-gaps-from-adr-0002)). |
+| Delete | Confirmation, then Recently deleted with Restore. While automatic purge is disabled, interim copy replaces "gone in 30 days" (see [Recently deleted](#recently-deleted)). |
 | Remove catalog record | Confirmation stating that writing stays and how many entries will show the link as plain text |
 | Preview | Public layout with a private banner and "Back to editing" |
 | Language selector | Footer only; arrow keys move through options; Escape closes and returns focus |
@@ -154,14 +154,65 @@ Each of these is resolved by the [Authority](#authority) rules. The reference fi
 2. `reference/refrain-cursor/README.md` lists `refrain-pencil-64.png`, which does not exist. **Resolution:** reference only the assets listed in [Pencil cursor](#pencil-cursor).
 3. Legacy font declarations (Atkinson Hyperlegible Next, Caveat) remain in the exported CSS. **Resolution:** not part of the design; see [Typography](#typography).
 
-## Design gaps from ADR 0002
+## Writing Studio controls for ADR 0002
 
-[ADR 0002](decisions/0002-domain-model-decisions.md) (Proposed) introduces behavior that the approved V4.4 screens do not show. These gaps need the owner's design approval before the affected screens are built. M0 does not redesign them.
+[ADR 0002](decisions/0002-domain-model-decisions.md) requires administrative controls that the V4.4 studio screens do not show. This section specifies their placement and behavior.
 
-| Gap | Affected screens | What is missing |
-| --- | --- | --- |
-| Per-track publication | AlbumEditor, Grace | A control to publish an individual track reflection. The V4.4 editor offers only "Mark as favourite" and "Still writing". |
-| Per-language visibility | AlbumEditor, ArtistEditor, MemoryEditor, Desk | Visibility shown and changed per language version. V4.4 shows one visibility per entry. |
-| Several journals per album or artist | AlbumEditor, ArtistEditor, Grace, Artist, Albums, Artists | Featuring a journal, and how non-featured journals are reached publicly |
-| Automatic purge disabled | States, Desk (Recently deleted), delete dialogs | V4.4 copy promises "then it's gone" and "gone in 30 days". It must match actual behavior until purge is enabled. |
-| Explicit slug change | Editors | Where a published URL is changed deliberately, and how the redirect is communicated |
+**Boundaries:**
+
+- These controls exist **only in the Writing Studio**. No administrative control appears on public pages.
+- The public V4.4 screens (Home, Albums, Grace, Artists, Artist, Memories, Memory) are unchanged.
+- Each control reuses an existing V4.4 component: Rough.js button, checkbox, field, status mark (dot, circle, or dotted circle, always with the word), or confirmation dialog, in the existing layout regions. No new visual language is introduced.
+- English copy is given below. Brazilian Portuguese strings are added with the rest of the interface catalog.
+
+### Per-language publication
+
+*Editors (AlbumEditor, ArtistEditor, MemoryEditor) and Desk.*
+
+- The editor already has version tabs ("Original · English", "Author's translation · Português"). The **Visibility** panel in the settings margin applies to the **selected version**. Its heading names that version, for example "Visibility · English (original)".
+- "Publish…" and "Unpublish…" act on the selected version only. The confirmation names the language: "Publish the English version?" The other version's state is shown beneath, read-only, for example "Português: Draft".
+- The status beside the title in the editor's top bar shows the selected version.
+- Desk rows show one status mark per existing version, for example "Published · EN", "Draft · PT".
+- A translation tab exists only after the author creates the translation. Nothing is generated (ADR 0002, D3).
+
+### Per-track publication
+
+*AlbumEditor, Track by track.*
+
+- The expanded track panel gains a third checkbox, beside "Mark as favourite" and "Still writing": **"Show on the public page"**, with the hint "Shown only while this journal is published." It is off by default.
+- The track row's status area adds the visibility word after the writing state, for example "written · public" or "still writing · private". The two are never merged (INV-2).
+- The confirmation for publishing the journal states how many reflections will be shown, for example "4 of 10 track reflections are set to show." Publishing never changes any track's setting.
+- On the public page, nothing changes: published reflections render as in the Grace mockup, and any other track shows "not written yet".
+
+### Featured journal
+
+*AlbumEditor and ArtistEditor settings margin, under "From your catalog".*
+
+- A checkbox, **"Feature this journal"**, with the hint "This is the journal readers see for Grace."
+- When another journal about the same album or artist is already featured, checking the box opens a confirmation: "Feature this journal instead of the one from [DATE]?" Accepting moves the feature in one transaction (INV-1).
+- The Catalog shows how many journals an album or artist has, and which one is featured.
+- **Public pages show only the resolved journal** (ADR 0002, D1.2), exactly as in the V4.4 album and artist pages. Non-featured published journals are reachable through their own URLs and through existing entry lists such as "Recently written". A public element listing other journals about the same album would be a public design change, and is not part of this specification.
+
+### Slug changes and redirects
+
+*Editors, settings margin.*
+
+- An **Address** field shows the public path, for example `/albums/grace`.
+- **Before first publication:** the address follows the title automatically until the author edits it. It is normalized as the author types (ADR 0002, D7.2), and collisions are reported inline with the suggested suffix.
+- **After first publication:** the field is read-only, with a "Change address…" button. Its dialog takes the new address, shows the normalized result, and states: "The old address will keep working and will lead here." Confirming records the redirect (D7.4).
+- Previous addresses are listed beneath the field, read-only. They cannot be deleted or reassigned (D7.5).
+
+### Recently deleted
+
+*Desk.*
+
+- "Recently deleted (n)" on the Desk opens a list of deleted entries, newest first. Each row shows the title, kind, and "deleted [DATE]", with **Restore** and **"Delete now…"** actions.
+- "Delete now…" opens a second confirmation: "Delete permanently? This can't be undone." It is the only permanent deletion while automatic purge is disabled.
+- **Interim copy (INV-4).** Until a tested purge mechanism is enabled, the V4.4 strings are replaced:
+
+  | V4.4 string | Interim English | Interim Brazilian Portuguese |
+  | --- | --- | --- |
+  | Delete dialog: "The writing moves to Recently deleted for 30 days, then it's gone. …" | "The writing moves to Recently deleted. You can restore it until you delete it permanently. Albums, artists and tracks stay in your catalog." | "O texto vai para Excluídos recentemente. Você pode restaurá-lo até excluí-lo de vez. Álbuns, artistas e faixas continuam no catálogo." |
+  | Row meta: "deleted [DATE] · gone in 30 days" | "deleted [DATE] · can be restored" | "excluída em [DATE] · pode ser restaurada" |
+
+  The V4.4 wording returns when automatic purge is enabled.

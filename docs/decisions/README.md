@@ -5,7 +5,7 @@ Significant architectural, data, and workflow decisions are recorded here as sho
 | ADR | Title | Status |
 | --- | --- | --- |
 | [0001](0001-modular-monolith.md) | Modular Monolith | Accepted |
-| [0002](0002-domain-model-decisions.md) | Domain Model Decisions | Proposed: awaiting owner approval |
+| [0002](0002-domain-model-decisions.md) | Domain Model Decisions | Accepted |
 
 ## Format
 
@@ -24,5 +24,5 @@ These come from the open questions in [Data Model](../data-model.md#open-questio
 
 - Enum representation in PostgreSQL.
 - Restore behavior for published language versions.
-- Slug release after permanent deletion, and the featured-journal fallback order.
+- Slug release after permanent deletion.
 - The mechanism for automatic purge, once its preconditions are met.

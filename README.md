@@ -69,6 +69,6 @@ Contributors and coding agents start with [`AGENTS.md`](AGENTS.md).
 
 ## 06 — Current Status
 
-**Milestone M0: documentation and repository foundations.** The product, architecture, data model, and design direction are documented, and the approved visual references are in `reference/`. The domain decisions in [ADR 0002](docs/decisions/0002-domain-model-decisions.md) are proposed and await approval. There is no application code yet, so there is nothing to install or run. Setup instructions will be added when they exist and have been verified.
+**Milestone M0: documentation and repository foundations.** The product, architecture, data model, and design direction are documented, and the approved visual references are in `reference/`. The architecture ([ADR 0001](docs/decisions/0001-modular-monolith.md)) and the domain model ([ADR 0002](docs/decisions/0002-domain-model-decisions.md)) are accepted decisions. There is no application code yet, so there is nothing to install or run. Setup instructions will be added when they exist and have been verified.
 
 See [Roadmap](docs/roadmap.md).

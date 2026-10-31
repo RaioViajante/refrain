@@ -1,6 +1,6 @@
 # Product
 
-**Status:** the product definition is approved. Nothing described here is implemented yet; see [Roadmap](roadmap.md) for sequencing. Rules marked **(ADR 0002)** come from the domain decisions in [ADR 0002](decisions/0002-domain-model-decisions.md), which is **Proposed** and awaits the owner's approval.
+**Status:** the product definition is approved. Nothing described here is implemented yet; see [Roadmap](roadmap.md) for sequencing. Rules marked **(ADR 0002)** come from the accepted domain decisions in [ADR 0002](decisions/0002-domain-model-decisions.md).
 
 ## Purpose
 

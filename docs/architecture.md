@@ -1,6 +1,6 @@
 # Architecture
 
-**Status:** the modular monolith is an accepted decision ([ADR 0001](decisions/0001-modular-monolith.md)). The module responsibilities below also reflect the domain decisions in [ADR 0002](decisions/0002-domain-model-decisions.md), which is Proposed. No code exists yet. The technologies below are the target stack. None has been installed, and exact versions are chosen and recorded only after compatibility has been checked during scaffolding.
+**Status:** the modular monolith is an accepted decision ([ADR 0001](decisions/0001-modular-monolith.md)). The module responsibilities below reflect the accepted domain decisions in [ADR 0002](decisions/0002-domain-model-decisions.md). No code exists yet. The technologies below are the target stack. None has been installed, and exact versions are chosen and recorded only after compatibility has been checked during scaffolding.
 
 ## Shape
 

@@ -1,12 +1,10 @@
 # ADR 0002: Domain Model Decisions
 
-- **Status:** Proposed. Awaiting owner approval.
-- **Date:** 2026-10-31
+- **Status:** Accepted
+- **Date:** 2026-10-31 (proposed and accepted the same day, during the M0 review)
 - **Scope:** Journals, music catalog, translations, publication, deletion, track reflections, editor storage, and public URLs.
 
-This ADR records domain decisions proposed by the owner during the M0 review. [ADR 0001](0001-modular-monolith.md) (modular monolith) is an accepted architectural decision. This ADR is not accepted yet.
-
-[Data Model](../data-model.md), [Product](../product.md), and [Security](../security.md) are written to match this proposal and label it as pending. **No migration may encode these decisions until the status is Accepted.** Once the owner approves, change the status, the date, and the index in [`decisions/README.md`](README.md). If the owner changes a decision, record the change here before approval, or in a superseding ADR after it.
+This ADR records the domain decisions the owner approved during the M0 review. It complements [ADR 0001](0001-modular-monolith.md), the modular monolith. [Data Model](../data-model.md), [Product](../product.md), [Security](../security.md), and [Design System](../design-system.md) implement these decisions. Any later change to a decision requires a superseding ADR.
 
 ## Context
 
@@ -24,7 +22,12 @@ These must be settled before the first migration, because they shape keys, uniqu
 ### D1. Journals
 
 1. An album or artist may have **several independent journals** written over time. Each is its own entry with its own visibility, language versions, and deletion state.
-2. At most one journal per album and one per artist is **featured**. The featured journal is the one used for public presentation: listings and the album or artist page. If the featured journal is not publicly visible, public pages fall back to the most recently published journal for that album or artist.
+2. At most one journal per album and one per artist is **featured**, selected explicitly by the author. Featuring a journal never changes its visibility. For a given album or artist *X* and reader interface language *L*, the journal presented publicly (on listings and on the album or artist page) is resolved deterministically:
+   1. the featured journal, if it is publicly visible in any language;
+   2. otherwise, the publicly visible journal with the most recent `published_at` among its visible language versions, with ties broken by the lowest entry `id`;
+   3. otherwise, none: *X* has no public page content.
+
+   *L* never changes which journal is chosen. It decides only which version of that journal is shown: the version in *L* if it is publicly visible, otherwise the original if it is visible, otherwise the remaining visible version.
 3. **Revision history is separate from journals.** A revision is a recoverable earlier state of one entry. It is never presented as, or converted into, an independent journal. A new journal is always a new entry.
 
 ### D2. Music catalog
@@ -74,6 +77,19 @@ These must be settled before the first migration, because they shape keys, uniqu
 4. **Stability:** the slug may change freely until the entry is first published, and is fixed from then on. A later change is an explicit author action that keeps the old slug as a permanent redirect (HTTP 308) to the current one. Editing a title never changes a published URL implicitly.
 5. Old slugs stay reserved and are never reassigned to another entry while the entry exists. A slug that resolves to an entry that is not publicly visible (draft, private, or deleted) returns 404, for both current and old slugs.
 
+## Implementation invariants
+
+These are requirements on the implementation. Each one must be covered by an automated test before the feature it governs ships. Public visibility itself is defined once, by the [publication predicate](../security.md#publication-predicate).
+
+- **INV-1. Featured selection is unambiguous.** For every album or artist and every interface language, the resolution in D1.2 yields at most one journal, and the same inputs always give the same result. The database allows at most one featured journal per album and per artist.
+- **INV-2. "Still writing" grants nothing.** Setting or clearing `is_still_writing` never changes whether a track reflection, its rating, or its favourite mark is public.
+- **INV-3. No unpublished content through any public interface.** Public pages, route handlers, server actions reachable without a session, metadata, sitemaps, feeds, search, and caches never return or reveal:
+  - an entry, or a language version of an entry, that fails the publication predicate;
+  - an author's translation that is not itself published, including a link to it or a mention that it exists;
+  - a track reflection, its text, rating, or favourite mark, that is not published.
+- **INV-4. The recovery policy is described truthfully.** While automatic purge is disabled (D4.4), no interface text, documentation, or API response may say that deleted writing is permanently removed after 30 days. The V4.4 wording returns only once a tested purge mechanism is enabled.
+- **INV-5. Redirects respect visibility.** A previous slug redirects (308) only when the entry it belongs to is publicly visible. Otherwise it returns 404, exactly as an unknown slug does. A redirect never reveals a current slug, title, or the existence of an entry that is not publicly visible.
+
 ## Consequences
 
 **Positive**
@@ -86,11 +102,13 @@ These must be settled before the first migration, because they shape keys, uniqu
 **Negative and costs**
 
 - The public read path is more complex: the predicate covers both the language version and per-track authorization. It must be implemented once and covered by tests ([Security](../security.md#publication-predicate)).
-- The approved V4.4 screens do not show some controls these decisions require. These are listed as design gaps in [Design System](../design-system.md#design-gaps-from-adr-0002). They need the owner's design approval and are not redesigned in M0.
-- V4.4 copy ("gone in 30 days") overstates current behavior while automatic purge is disabled (D4.4).
+- The V4.4 studio screens lack some controls these decisions require. The intended controls are specified in [Design System § Writing Studio controls](../design-system.md#writing-studio-controls-for-adr-0002). They are studio-only and use existing V4.4 components. The public design is unchanged.
+- Until purge is enabled, the V4.4 delete copy is replaced with accurate interim wording (INV-4).
 
 ## Still open after this ADR
 
+These do not affect the accepted decisions. They are settled during M1 and M2.
+
 - Whether a slug is released when an entry is permanently deleted.
 - How enum values are represented in PostgreSQL: `text` with `CHECK` constraints, or native enums.
-- The exact fallback order when no journal for an album is publicly visible in the reader's interface language.
+- Whether published language versions return as private when a deleted entry is restored.

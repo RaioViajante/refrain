@@ -9,7 +9,7 @@ Refrain is a **single-author personal music journal**: memories, artist journals
 - **Out of scope:** reader accounts, social features, streaming, recommendations, multiple authors, multi-tenancy, and machine translation. Do not add these without an ADR and the author's approval.
 - **Academic deadline:** the presentation is on **2026-11-16**. Work that the requirements in [Requirements](docs/requirements.md) depend on takes priority over polish.
 - **Current state:** documentation only. No application code exists until M1 is authorized. → [Roadmap](docs/roadmap.md)
-- **Decision status:** [ADR 0001](docs/decisions/0001-modular-monolith.md) (modular monolith) is accepted. [ADR 0002](docs/decisions/0002-domain-model-decisions.md) (domain model) is **Proposed**. Do not encode it in migrations until the owner accepts it.
+- **Accepted decisions:** [ADR 0001](docs/decisions/0001-modular-monolith.md) (modular monolith) and [ADR 0002](docs/decisions/0002-domain-model-decisions.md) (domain model). ADR 0002's implementation invariants (INV-1 to INV-5) are binding and each needs a test.
 
 ## 2. Before you change anything
 
@@ -56,7 +56,7 @@ Refrain is a **single-author personal music journal**: memories, artist journals
 
 → [Design System](docs/design-system.md)
 
-- Implement the approved V4.4 design. Do not redesign it, restyle it, or add components it does not show without the author's approval. The rendered screens outrank the exported CSS ([authority](docs/design-system.md#authority)). The listed [design gaps](docs/design-system.md#design-gaps-from-adr-0002) need the owner's design approval before they are built.
+- Implement the approved V4.4 design. Do not redesign it, restyle it, or add components it does not show without the author's approval. The rendered screens outrank the exported CSS ([authority](docs/design-system.md#authority)). Studio controls required by ADR 0002 follow the [Writing Studio controls](docs/design-system.md#writing-studio-controls-for-adr-0002) specification. Administrative controls never appear on public pages.
 - Monochrome interface: color comes only from artwork and photographs. Typefaces are Kalam and Alegreya Sans, nothing else.
 - The original character illustration appears only on the public homepage, never as a header logo. Use the original file; never generate, trace, or alter it.
 - The public header has no logo or wordmark. The language selector (`en`, `pt-BR` only) lives only in the footer.
