@@ -37,11 +37,13 @@ Merge only after the required checks pass and the PR has had an independent revi
 
 ### Repository protection
 
-The GitHub repository is private. When M0 started, it was empty, with no branches and therefore no protection rules. Once `main` exists on GitHub, enable:
+The GitHub repository is private. On its current plan, GitHub refuses branch protection for private repositories (the API returned HTTP 403, "Upgrade to GitHub Pro or make this repository public", on 2026-10-31). Until protection is available, the rules above are enforced by convention and must be followed as if they were enforced:
 
-- required pull requests before merging;
-- no force pushes and no deletion on `main`;
-- required status checks, once CI exists (M1).
+- changes reach `main` only through pull requests;
+- no force pushes and no branch deletion on `main`;
+- required checks must pass before merging, once CI exists (M1).
+
+If the plan changes or the repository becomes public, enable these as protection rules.
 
 ## Quality gates
 
