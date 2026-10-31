@@ -3,9 +3,10 @@
 // Better Auth logs whole error objects by default. A failed Drizzle query
 // carries its SQL parameters in the error message, and for authentication
 // queries those parameters are session tokens and password hashes. Everything
-// Better Auth logs therefore passes through here, and only the fixed part of
-// each message, error names, HTTP statuses, and error codes are written
-// (docs/security.md § Logging).
+// Better Auth logs therefore passes through here, and only the first line of
+// each message up to its first colon, error names, HTTP statuses, and error
+// codes are written (docs/security.md § Logging). This relies on the library
+// putting values after a colon; re-check it when Better Auth is upgraded.
 
 type LogLevel = "debug" | "info" | "success" | "warn" | "error";
 

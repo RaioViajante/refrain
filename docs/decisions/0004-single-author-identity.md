@@ -106,7 +106,7 @@ An upgrade that changes the account format fails these tests.
 - **Required variables.** `BETTER_AUTH_SECRET` (at least 32 characters of random data), `BETTER_AUTH_URL` (an origin, HTTPS unless loopback), and `REFRAIN_AUTHOR_EMAIL` are required. There are no defaults.
 - **Refused variables.** The three implicit variables in the context are refused.
 - **When it is read.** Configuration is validated when the first authentication request or studio check runs, so `next build` needs no secret. A failure answers 503, or denies access, without details.
-- **Logging.** Everything Better Auth logs passes through a redacting logger. It writes only the fixed part of each message (the text before any interpolated value), error names, statuses, and codes: never error messages, query parameters, or values a client sent, such as an origin.
+- **Logging.** Everything Better Auth logs passes through a redacting logger. It writes only the first line of each message up to its first colon, error names, statuses, and codes. Better Auth and Drizzle put values after a colon (query parameters, a client's origin), so they are not written. This depends on the library's message format, which is re-checked on upgrade.
 
 ### 8. Recovery and rotation
 
@@ -143,5 +143,5 @@ An upgrade that changes the account format fails these tests.
 ## Revisit when
 
 - the deployment target is chosen, especially if a reverse proxy can name the client for rate limiting (§6);
-- Better Auth is upgraded (re-run the full test suite and re-read §3);
+- Better Auth is upgraded (re-run the full test suite, re-read §3, and re-check the log messages reachable through the allowed endpoints, §7);
 - the author wants a second factor (passkey or TOTP), which would be a new ADR.

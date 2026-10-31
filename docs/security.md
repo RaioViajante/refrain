@@ -145,7 +145,7 @@ Each new action or route gets a test that an unauthenticated request, a forged c
 
 ## Logging
 
-Logs record events and identifiers. They never contain entry titles or bodies, session tokens, passwords, or full request bodies. Error reports scrub the same fields. Everything the authentication library logs passes through a redacting logger that writes only the fixed part of each message (the text before any interpolated value), error names, HTTP statuses, and error codes ([`src/modules/identity/logging.ts`](../src/modules/identity/logging.ts)). A failed query's message contains its parameters, and other messages contain values a client sent, such as an origin.
+Logs record events and identifiers. They never contain entry titles or bodies, session tokens, passwords, or full request bodies. Error reports scrub the same fields. Everything the authentication library logs passes through a redacting logger that writes only the first line of each message up to its first colon (at most 160 characters), error names, HTTP statuses, and error codes ([`src/modules/identity/logging.ts`](../src/modules/identity/logging.ts)). Better Auth and Drizzle put values after a colon: a failed query's parameters, or values a client sent, such as an origin. This is a heuristic that depends on the library's message format; the messages reachable through the three allowed endpoints were checked, and a Better Auth upgrade re-checks them.
 
 ## Repository hygiene
 
