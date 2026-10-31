@@ -1,6 +1,6 @@
 # Architecture
 
-**Status:** the modular monolith is an accepted decision ([ADR 0001](decisions/0001-modular-monolith.md)). The module responsibilities below reflect the accepted domain decisions in [ADR 0002](decisions/0002-domain-model-decisions.md). The application foundation (M1.1) is implemented: the Next.js application, the Persistence module's database client, and lint-enforced module boundaries. M1.2 adds the relational schema, the read queries of the Catalog, Journals, and Publication modules, and the first transactional commands: publishing and unpublishing a language version and changing a slug (Publication), and "Delete now" (Journals). No route or screen calls them yet, and Identity and Integrations do not exist yet. Installed technologies and their versions are recorded in [Development § Toolchain](development.md#toolchain); the others remain planned.
+**Status:** the modular monolith is an accepted decision ([ADR 0001](decisions/0001-modular-monolith.md)). The module responsibilities below reflect the accepted domain decisions in [ADR 0002](decisions/0002-domain-model-decisions.md). The application foundation (M1.1) is implemented: the Next.js application, the Persistence module's database client, and lint-enforced module boundaries. M1.2 adds the relational schema, the read queries of the Catalog, Journals, and Publication modules, and the first transactional commands: publishing and unpublishing a language version and changing a slug (Publication), and "Delete now" (Journals). No route or screen calls them yet. M1.3A adds the Identity and Access module ([ADR 0004](decisions/0004-single-author-identity.md)): Better Auth on the same database, the single author account and its local provisioning command, sessions, and the authorization boundary used by the studio, with a sign-in page and a protected studio entry point. Integrations does not exist yet. Installed technologies and their versions are recorded in [Development § Toolchain](development.md#toolchain); the others remain planned.
 
 ## Shape
 
@@ -33,9 +33,9 @@ Refrain is a **modular monolith**: one deployable Next.js application, one Postg
 | Styling | Tailwind CSS (installed) |
 | Hand-drawn strokes | Rough.js, pre-generated as inline SVG |
 | Rich-text editing | Tiptap |
-| Validation | Zod |
+| Validation | Zod (installed) |
 | Database / ORM and migrations | PostgreSQL 17 / Drizzle ORM and Drizzle Kit, with the `pg` driver (installed) |
-| Authentication | Better Auth |
+| Authentication | Better Auth (installed; [ADR 0004](decisions/0004-single-author-identity.md)) |
 | Interface localization | next-intl (`en`, `pt-BR`) |
 | Unit and integration tests | Vitest (installed) |
 | End-to-end tests | Playwright |
@@ -54,7 +54,7 @@ Before a technology is adopted, its compatibility with the chosen Next.js and Re
 | **Music Catalog** | Artists, albums (release groups), reference editions and track order, tracks, credits, artwork and photo provenance; archiving and hard-delete rules | Catalog tables | Delete or modify authored content |
 | **Journals and Reflections** | Album journals, track reflections, ratings and favourites, artist journals, memories, author translations, revisions, saving with conflict detection, deletion and restore | Authored tables, except visibility columns | Change visibility; call external providers |
 | **Publication and Visibility** | Per-language visibility transitions, per-track publication, featured journals, slugs and redirects, the [publication predicate](security.md#publication-predicate), public projections, preview | Visibility columns, `entry_slugs` | Be bypassed by any public read |
-| **Identity and Access** | The single author account, sessions, and the authorization check used by every studio operation | Authentication tables | Offer public sign-up or more than one author |
+| **Identity and Access** | The single author account, sessions, the authentication endpoints, and the authorization check used by every studio operation (`authorizeAuthor`, `requireAuthor`) | Authentication tables (`auth_*`), the local author command | Offer public sign-up or more than one author; be reachable for provisioning over HTTP |
 | **Persistence** | Drizzle schema, migrations, database client, transaction helper | Schema and migration files | Contain business rules |
 | **Integrations** | MusicBrainz search and lookup, Cover Art Archive covers, Wikimedia Commons photos | Provider adapters, rate limiting, response mapping | Write to the database directly; block catalog or writing when unavailable |
 
@@ -63,14 +63,14 @@ Before a technology is adopted, its compatibility with the chosen Next.js and Re
 1. Presentation calls module functions. It never imports the database client or schema.
 2. Modules depend on each other only through a module's public entry point (`index.ts`), never through its internal files.
 3. Journals may read catalog data through the Catalog module's public functions. The catalog does not depend on Journals; the catalog usage counts it shows are computed with SQL against the schema, not by calling Journals.
-4. Every studio server action and route handler checks authorization on its first line, through Identity and Access. Route-level middleware alone is not sufficient.
+4. Every studio page, server action, and route handler checks authorization on its first line, through Identity and Access (`requireAuthor` or `authorizeAuthor`). Route-level middleware, a proxy, or a layout alone is not sufficient. The full rules are the [Authorization contract](security.md#authorization-contract).
 5. Public pages read only through Publication's public query functions. These apply the publication predicate in SQL and return shaped projections with no private fields.
 6. Integrations return plain data. The calling module decides what to persist, inside its own transaction, after the external call completes.
 7. Server-only modules import `server-only`, so they cannot be bundled into client code.
 
 ### Source layout
 
-The layout below is the target. Today `src/app/` (a single development page, without locale routing), `src/db/`, `src/modules/catalog/`, `src/modules/journals/`, `src/modules/publication/`, and `src/testing/` exist. The other directories are created by the first feature that needs them, never as empty placeholders.
+The layout below is the target. Today `src/app/` (the development page, the authentication route `api/auth/[...all]`, and `studio/` with its sign-in page, all without locale routing yet), `src/db/`, `src/modules/catalog/`, `src/modules/journals/`, `src/modules/publication/`, `src/modules/identity/`, and `src/testing/` exist. The other directories are created by the first feature that needs them, never as empty placeholders.
 
 ```text
 src/
@@ -102,6 +102,7 @@ Inside a module, prefer plain functions over repository classes and dependency-i
 - No file may import another module's internals (`@/db/*`, `@/modules/*/*`, `@/integrations/*/*`). Imports go through `index.ts`.
 - Presentation code (`src/app/`) may not import `pg`, `drizzle-orm`, or the database client. From the Persistence module it may import only `checkDatabaseConnection`, which the development page uses.
 - Relative imports may not leave the current directory (`../`). Everything else uses the `@/` alias, so a relative path cannot bypass the rules above.
+- Account provisioning and the Better Auth instance are internal to Identity: its `index.ts` exports only the authorization functions and the request handler, so presentation code cannot create an account or call the library directly. A unit test checks that only the local command imports provisioning.
 
 These are static import rules. Dynamic `import()` expressions are not checked, so reviews must catch those.
 
@@ -141,7 +142,7 @@ Provider policies must be read and confirmed before implementation. These notes 
 - Logs are structured. They never include entry text, session tokens, or credentials.
 - Migrations are versioned, reviewed, and applied deliberately, never automatically against production.
 - Before irreplaceable writing goes into a hosted database, scheduled backups and a **tested** restore procedure must exist ([Security](security.md)).
-- The deployment target has not been decided. The application must not be publicly deployed before authentication is in place (M2).
+- The deployment target has not been decided. The application must not be publicly deployed before the privacy tests in [Security § Required tests](security.md#required-tests) exist ([Deployment gate](security.md#deployment-gate)). Authentication exists since M1.3A.
 
 ## Related
 

@@ -200,7 +200,17 @@ Not created yet. When added, `entry_revisions (id, entry_id, locale, snapshot js
 
 ### Identity
 
-Authentication tables will be created and owned by the selected authentication library (planned: Better Auth, M2). No domain table references them. Single-author enforcement is described in [Security](security.md).
+Implemented in M1.3A (migration `0004_identity_authentication`, [ADR 0004](decisions/0004-single-author-identity.md)). The tables are Better Auth's core schema plus its rate-limit table, written in the conventions above. Better Auth reads and writes them; Refrain's provisioning command creates the one account through Better Auth's own adapter.
+
+| Table | Holds | Rules |
+| --- | --- | --- |
+| `auth_users` | The author account: email, display name | `auth_users_single_author_idx`: a unique index over a constant, so **at most one row**. Emails are unique and lowercase (`auth_users_email_lowercase_check`). |
+| `auth_accounts` | The password credential: Better Auth's scrypt hash, never the password | `auth_accounts_credential_only_check`: only `provider_id = 'credential'` with a password, so no social account can be stored. One credential per provider account. |
+| `auth_sessions` | Sessions: the token the signed cookie carries, `expires_at`, user agent | Tokens are unique. Deleting a row ends the session at once (no cookie cache). |
+| `auth_verifications` | Required by Better Auth's schema; Refrain enables nothing that writes it | — |
+| `auth_rate_limits` | Rate-limit counters (`key`, `count`, `last_request` in milliseconds) | One row per key |
+
+**Separation from the writing.** The only foreign keys are `auth_sessions_user_fk` and `auth_accounts_user_fk`, both `ON DELETE CASCADE` to `auth_users`: removing the account ends its sessions and its credential. No authored or catalog table references an identity table, and no identity table references one, so nothing in Identity can delete, block, or reveal writing. A migration test reads this from `pg_constraint`. Authored content records no author ID: with one author, every entry is the author's.
 
 ## Indexes and access patterns
 
@@ -369,11 +379,13 @@ Artist journals use the same query with `artist_journals` and `artist_id`.
 
 M1.2 integration tests run against a disposable PostgreSQL 17 database after applying the committed migrations ([Development § Test database](development.md#test-database)). Each rejection test checks the SQLSTATE and the name of the constraint that fired.
 
-Coverage, measured against the migrated database (96 named constraints and unique indexes): every `CHECK` constraint, every `RESTRICT` foreign key, every partial unique index, and every `UNIQUE` constraint that states a rule is triggered by a test and asserted by name. Not asserted by name:
+Coverage, measured against the migrated database (110 named constraints and unique indexes: 96 for the catalog and the writing, 14 for Identity): every `CHECK` constraint, every `RESTRICT` foreign key, every partial unique index, and every `UNIQUE` constraint that states a rule is triggered by a test and asserted by name. Not asserted by name:
 
 - the cascading foreign keys, which have no violation to assert; deletion tests check the effect of every one row by row (an album and a recording hard-deleted from the catalog; an album journal with reflections, a memory with music links, and an artist journal permanently deleted);
 - the single-column `uuid` primary keys, and the composite primary keys of `album_tracks`, `edition_tracks`, `track_artists`, and `track_reflection_texts`;
-- `entries_id_kind_unique`, `album_editions_id_album_unique`, and `album_journals_entry_album_unique`, which exist as targets of composite foreign keys that are tested.
+- `entries_id_kind_unique`, `album_editions_id_album_unique`, and `album_journals_entry_album_unique`, which exist as targets of composite foreign keys that are tested;
+- `auth_users_email_unique`, which cannot fire on its own: `auth_users_single_author_idx` rejects any second row first;
+- the identity cascades, whose effect is tested instead (deleting the account removes its sessions and credential, and nothing else).
 
 The constraints reject:
 

@@ -3,8 +3,9 @@
 **Status:** this document is mostly requirements for implementation. Only part of it is implemented, and [Implemented and planned protections](#implemented-and-planned-protections) says which parts.
 
 - **M1.1 and M1.2 implement the database layer's protections.** They are tested against real PostgreSQL.
-- **Nothing that serves or accepts HTTP requests exists yet.** There are no public routes, no studio actions, no authentication, and no sessions.
-- **Passing tests do not make the application secure.** They show that the database rules hold, and nothing about an HTTP surface that does not exist yet.
+- **M1.3A implements authentication and the studio's authorization boundary** ([ADR 0004](decisions/0004-single-author-identity.md)). One author account, created by a local command; sign-in, database sessions, and sign-out; a sign-in page and a protected studio placeholder. They are tested against real PostgreSQL and over HTTP against the production build.
+- **No route or server action reads or writes writing yet.** The only HTTP surface is the development page, the authentication endpoints, and the two studio pages. There are no public journal routes.
+- **Passing tests do not make the application secure.** They show that the rules they test hold, and nothing about surfaces that do not exist yet.
 - **The remaining controls arrive with the features they protect.**
 
 The publication rules implement [ADR 0002](decisions/0002-domain-model-decisions.md) and its implementation invariants (INV-1 to INV-5). How to report a vulnerability is in [`SECURITY.md`](../SECURITY.md).
@@ -75,11 +76,38 @@ Catalog metadata (albums, artists, tracks) is not personal, but public pages sho
 
 ## Access control
 
-- **Single author.** The author account is created by a one-off setup command that reads credentials from the environment, not through a web form. Public sign-up is disabled in the authentication configuration, and a test asserts the sign-up endpoint is unavailable.
-- **Authorization at every entry point.** Every studio server action and route handler verifies the session itself. Middleware or proxy redirects are a convenience, not the control.
+- **Single author.** The author account is created by a local command, `pnpm author:provision`, never through a web form or at startup ([Development § Authentication](development.md#authentication)). It reads the password from the terminal without echo, or from standard input, and never from arguments or environment variables, which can leak through shell history and process listings. Public sign-up is disabled in the authentication configuration at all times, and tests assert that the sign-up endpoint is unavailable. The database admits at most one account (`auth_users_single_author_idx`).
+- **Authorization at every entry point.** Every studio page, server action, and route handler verifies the session itself, through the Identity module ([Authorization contract](#authorization-contract)). Middleware or proxy redirects are a convenience, not the control.
 - **Hiding something in the UI is not authorization.** Only the publication predicate decides public visibility.
 - **Preview** renders inside the authenticated studio route and is never served from a cacheable public URL.
 - **URLs.** Entries are addressed publicly by slug (ADR 0002, D7). A slug, current or previous, that resolves to an entry that is not publicly visible returns **404**, not 403 and not a redirect, so its existence is not revealed. Previous slugs of a visible entry redirect (308) to the current slug. A slug that once identified published writing stays reserved after the entry is permanently deleted, so it never leads to unrelated writing; it then returns the same 404 as an unknown slug ([ADR 0003](decisions/0003-relational-schema-conventions.md)).
+
+## Authentication and sessions
+
+Implemented in M1.3A with Better Auth 1.7.12. The reasons for each choice are in [ADR 0004](decisions/0004-single-author-identity.md).
+
+- **Identity.** The single author is the account whose email is `REFRAIN_AUTHOR_EMAIL`. A valid session of any other account is not authorized (`not_author`). The database cannot hold a second account, and accounts can hold only a password credential, never a social login.
+- **Sessions.** Database rows. The cookie `refrain.session_token` carries an HMAC-signed token. It is `HttpOnly`, `SameSite=Strict`, and `Path=/`. Over HTTPS it is also `Secure`, with the `__Secure-` prefix. There is no cookie cache: every check reads PostgreSQL, so deleting a session row ends it at once. A session lasts seven days from sign-in, and checking it never extends it.
+- **Sign-out** deletes the session row and expires the cookie. A replayed cookie grants nothing afterwards.
+- **Sign-in endpoint.** The only authentication endpoints reachable over HTTP are `POST /api/auth/sign-in/email`, `POST /api/auth/sign-out`, and `GET /api/auth/get-session`. Everything else under `/api/auth/` returns a bare 404, including sign-up, password reset, user updates, and session listing.
+- **Origins.** Every `POST` must carry `Origin` equal to `BETTER_AUTH_URL`, or it is refused with 403 before Better Auth runs. Better Auth's own origin and CSRF checks are also on, explicitly, in every environment.
+- **Rate limiting.** Five sign-in attempts per 60 seconds, counted in PostgreSQL for **all clients together**: no client-IP header is trusted until a deployment has a known proxy, because a client can spoof `X-Forwarded-For`. Sign-out is never limited. This lets a stranger keep sign-in throttled. That is an accepted risk, and the alternative is unlimited guessing ([ADR 0004 § 6](decisions/0004-single-author-identity.md#6-rate-limiting)).
+- **Passwords** are hashed by Better Auth (scrypt). The policy is 15 to 128 characters, and the password must not contain the email. Refrain never stores, logs, or prints a password.
+- **Errors.** Wrong password and unknown email get the same 401. Malformed requests get generic error codes, never stack traces or SQL. Configuration failures answer 503 and deny every studio request.
+- **Recovery.** `pnpm author:reset-password` replaces the password and signs out every session. It needs direct database access and is never reachable over HTTP. There is no email reset. Replacing `BETTER_AUTH_SECRET` invalidates every session cookie.
+
+## Authorization contract
+
+This contract applies to every administrative operation from M1.3B on: every studio page, server action, and route handler that reads private data or changes anything.
+
+1. **Authenticate and authorize first.** The first statement is `const author = await requireAuthor(await headers())` (or `requireAuthor(request.headers)` in a route handler), from `@/modules/identity`. Pages may use `authorizeAuthor` and redirect to `/studio/sign-in`. A layout, a proxy, a hidden link, or the presence of a cookie is never the check. Server actions are public POST endpoints and check for themselves, like route handlers.
+2. **Trust only the server's answer.** The identity is the `AuthorizedAuthor` returned by the Identity module. A user ID, email, role, or flag sent by the client is never trusted, and is never needed.
+3. **Validate untrusted input** with Zod at the boundary: lengths, enums, rating range, locales, and slug format ([Input and output](#input-and-output)).
+4. **Call a domain command**, never the database. Presentation code cannot import the database client (lint-enforced). Commands take a `DatabaseExecutor` and, for administrative mutations, the `AuthorizedAuthor`. No database helper is exposed to browser code.
+5. **Preserve the transaction boundaries** in [Data Model § Transaction boundaries](data-model.md#transaction-boundaries) and the command-only invariants of ADR 0003.
+6. **Return a deliberately small response.** Return only what the studio needs. A failure is a fixed code, never a database error, stack trace, or the input echoed back. Responses that contain private data are `no-store`.
+
+Each new action or route gets a test that an unauthenticated request, a forged cookie, and a non-author session are refused (Required test 1).
 
 ## Caching
 
@@ -92,8 +120,8 @@ Catalog metadata (albums, artists, tracks) is not personal, but public pages sho
 
 - Validate all input with Zod at the server boundary: lengths, enums, rating range, locale values, and slug format.
 - Rich text is stored as Tiptap JSON and rendered through an allow-listed node and mark schema. Raw HTML from the editor is never rendered.
-- Limit request body sizes. Rate-limit sign-in attempts.
-- Use the CSRF and cookie protections of the authentication library and of Next.js server actions. Session cookies are `HttpOnly`, `Secure` in production, and `SameSite=Lax` or stricter.
+- Limit request body sizes. Rate-limit sign-in attempts. (Both done for the authentication endpoints: 4 KiB, five attempts a minute.)
+- Use the CSRF and cookie protections of the authentication library and of Next.js server actions. Session cookies are `HttpOnly`, `Secure` in production, and `SameSite=Lax` or stricter. (Implemented: `SameSite=Strict`, `Secure` over HTTPS.)
 - Image hosts are allow-listed: Cover Art Archive, Wikimedia Commons, and the application's own assets.
 
 ## Secrets
@@ -117,7 +145,7 @@ Catalog metadata (albums, artists, tracks) is not personal, but public pages sho
 
 ## Logging
 
-Logs record events and identifiers. They never contain entry titles or bodies, session tokens, passwords, or full request bodies. Error reports scrub the same fields.
+Logs record events and identifiers. They never contain entry titles or bodies, session tokens, passwords, or full request bodies. Error reports scrub the same fields. Everything the authentication library logs passes through a redacting logger that writes only fixed text, error names, HTTP statuses, and error codes ([`src/modules/identity/logging.ts`](../src/modules/identity/logging.ts)), because a failed query's message contains its parameters.
 
 ## Repository hygiene
 
@@ -129,7 +157,7 @@ Logs record events and identifiers. They never contain entry titles or bodies, s
 
 This matrix records what exists on `main` today and what is still a requirement. *Implemented* means the control is in the code and verified as shown. *Planned* means it is a requirement in this document with no implementation yet. Carry-forward requirements for the coming milestones are tracked in issue #6.
 
-### Implemented (M1.1, M1.2)
+### Implemented (M1.1, M1.2, M1.3A)
 
 | Control | Where | Verified by |
 | --- | --- | --- |
@@ -144,15 +172,23 @@ This matrix records what exists on `main` today and what is still a requirement.
 | Module boundaries: presentation code cannot import the database client, schema, or driver | [`eslint.config.mjs`](../eslint.config.mjs) | `pnpm lint`; [`src/module-boundaries.test.ts`](../src/module-boundaries.test.ts) proves that the rules fire. Static imports only. |
 | Repository hygiene: `.env*` (except `.env.example`), `*.pem`, `*.dump`, `.next/`, and `reference/` are ignored | [`.gitignore`](../.gitignore) | `git check-ignore`; secret scanning ([Public-release gate](#public-release-gate)) |
 | CI least privilege: `contents: read`, no secrets, actions pinned to commit SHAs, checkout without persisted credentials | [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) | Review of the workflow |
+| Single author account, created only by the local command; never at startup or over HTTP; repeated provisioning refused; at most one account in the database ([ADR 0004](decisions/0004-single-author-identity.md)) | [`src/modules/identity/provisioning.ts`](../src/modules/identity/provisioning.ts), [`cli.ts`](../src/modules/identity/cli.ts), `auth_users_single_author_idx` | Integration tests of provisioning, refusal, and the constraint; HTTP tests that run the real command, including refusals of a second run, a wrong target, and a password argument; a unit test that only the command imports provisioning |
+| No public sign-up: refused by route allow-list, `disabledPaths`, and `disableSignUp` | [`src/modules/identity/handler.ts`](../src/modules/identity/handler.ts), [`auth.ts`](../src/modules/identity/auth.ts) | Integration tests through the handler, through Better Auth directly, and by server call; an HTTP test against the production build |
+| Database sessions with protected cookies; sign-out and reset end sessions; expired, revoked, forged, and non-author sessions refused | `src/modules/identity/` | Integration tests (sign-in, cookie attributes over HTTP and HTTPS, persistence across instances, expiry, revocation, sign-out, forged and tampered cookies, rotated secret, non-author session); HTTP tests of the studio with and without a valid session |
+| Centralized, fail-closed studio authorization | [`src/modules/identity/authorization.ts`](../src/modules/identity/authorization.ts), [`src/app/studio/`](../src/app/studio/) | Integration tests of every outcome, including `unavailable` without configuration or when the database fails; HTTP tests that no studio content is sent without the author's session |
+| Origin checks on every state-changing request; request body limit; `no-store` and anti-framing headers on authentication responses and studio pages | `handler.ts`, [`next.config.ts`](../next.config.ts) | Integration tests of cross-origin, missing, and opaque origins, and of Better Auth's own check under `NODE_ENV=test`; HTTP tests of the headers |
+| Sign-in rate limiting that a spoofed `X-Forwarded-For` does not bypass | `auth.ts`, `auth_rate_limits` | Integration and HTTP tests with a different spoofed address on each attempt; sign-out stays available |
+| Validated authentication configuration that fails closed; no secret in errors or logs | [`src/modules/identity/config.ts`](../src/modules/identity/config.ts), [`logging.ts`](../src/modules/identity/logging.ts) | Unit tests of every refusal; an integration test that a failing query logs no token, hash, or parameter; an HTTP test that the server log contains no password, token, or secret |
 | Supply chain: exact versions, a frozen lockfile, a seven-day minimum release age, and install scripts blocked unless allowed | `package.json`, [`pnpm-workspace.yaml`](../pnpm-workspace.yaml) | `pnpm install --frozen-lockfile` in CI proves that the lockfile matches `package.json`. Exact versions, the release age, and `allowBuilds` are checked by review. |
 
 ### Planned (not implemented)
 
 | Control | Arrives with | State today |
 | --- | --- | --- |
-| Single author account; no public sign-up; secure sessions and cookies; sign-in rate limiting | M2 (Better Auth) | No authentication library, account, or session exists |
-| Server-side authorization in every studio action and route handler | M2 | No server action or route handler exists, so nothing can mutate data over HTTP |
-| Zod validation at every server boundary; request size limits | The first route or action (M1.3, M2) | Zod is not installed; there is no server boundary yet |
+| Authorization in every administrative action and route, following the [Authorization contract](#authorization-contract) | M1.3B and later | The contract and `requireAuthor` exist; no server action or route reads or changes writing yet |
+| Zod validation at every administrative server boundary | M1.3B and later | Zod is installed and validates the authentication configuration. Better Auth validates its own endpoints. No other boundary exists yet. |
+| Per-client sign-in rate limits behind a trusted proxy | The deployment target | All clients share one bucket ([Authentication and sessions](#authentication-and-sessions)) |
+| A second factor (passkey or TOTP) | Not decided | Password only ([ADR 0004](decisions/0004-single-author-identity.md)) |
 | Allow-listed rich-text rendering | M2, M3 (Tiptap) | No editor or renderer exists; the database checks only the outer document shape |
 | Public caching only from predicate data; revalidation on every visibility change; `no-store` studio responses | M2, M3 | Nothing is cached; Cache Components makes data dynamic by default |
 | Predicate applied to metadata, sitemaps, feeds, and search | M3 | None of these exists; the only metadata is the static site title and description |
@@ -165,7 +201,7 @@ This matrix records what exists on `main` today and what is still a requirement.
 
 ## Required tests
 
-These must exist before the public journal ships (M3). The *Database level (M1.2)* column records what is already tested against real PostgreSQL through the Publication queries and the schema; the HTTP-level part of each test needs the routes and arrives with them.
+These must exist before the public journal ships (M3). The *Done so far* column records what is already tested: the database-level parts against real PostgreSQL (M1.2), and the authentication parts in integration and over HTTP (M1.3A). The HTTP-level part of each privacy test needs its routes and arrives with them.
 
 1. Unauthenticated requests to every studio action and route are rejected.
 2. Draft, private, and deleted content returns 404 from every public route. This is checked per language version, including a published original with a private translation: the translation is not served, not linked, and not mentioned (INV-3).
@@ -176,15 +212,15 @@ These must exist before the public journal ships (M3). The *Database level (M1.2
 7. The sign-up endpoint is unavailable.
 8. Hard-deleting a catalog record that writing references is refused by the database.
 
-| Test | Database level (M1.2) | Remaining |
+| Test | Done so far | Remaining |
 | --- | --- | --- |
-| 1. Unauthenticated studio requests rejected | — | All of it (M2, with authentication) |
+| 1. Unauthenticated studio requests rejected | The studio page and the authentication endpoints: anonymous requests, forged and tampered cookies, expired, revoked, signed-out, and non-author sessions, tested in integration and over HTTP (M1.3A) | Every studio action and route added from M1.3B on |
 | 2. Draft, private, deleted content hidden per language version (INV-3) | Public queries return nothing for draft, private, or deleted entries, and never a private translation | 404 from every public route, metadata, sitemaps, caches (M3) |
 | 3. Unpublished track reflections absent, with their ratings and favourites (INV-2, INV-3) | Absent whatever their "still writing" state; toggling the flag changes nothing public; publishing a journal publishes no reflection | Rendered public pages (M3) |
 | 4. Changes take effect immediately, revalidation verified | Queries reflect a visibility change at once | Cache revalidation (M3) |
 | 5. Previous slugs redirect only for visible entries (INV-5) | `resolvePublicSlug` returns the same `not_found` for unknown, draft, private, deleted, and permanently deleted (retired) entries' slugs, and for previous slugs that were never public; redirects stop when the destination is unpublished and resume when it is republished | HTTP 308 and 404 responses (M3) |
 | 6. Featured resolution identical in every interface language, with the D1.2 fallbacks (INV-1) | All fallback cases, tie-break, and version choice, checked in both languages; at most one featured journal enforced by the database | Rendered album and artist pages (M3) |
-| 7. Sign-up endpoint unavailable | — | All of it (M2) |
+| 7. Sign-up endpoint unavailable | Done (M1.3A): 404 through the handler, through Better Auth directly, and over HTTP against the production build; refused by server call | — |
 | 8. Referenced catalog records cannot be hard-deleted | Done. Runtime refusals by each writing-side rule: `album_journals_album_fk`, `artist_journals_artist_fk`, `memory_music_track_fk`, `memory_music_album_fk`, `track_reflections_album_track_fk`. All writing-to-catalog delete rules are also read from `pg_constraint`. | — |
 
 INV-4 (truthful recovery copy) has a database-level test that deleted entries are never purged: a long-deleted entry remains, and the database has no trigger or rule that could remove it. The codebase has no purge job. Its interface-copy part is checked when the Recently deleted screens exist (M2).

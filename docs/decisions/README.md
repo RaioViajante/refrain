@@ -7,6 +7,7 @@ Significant architectural, data, and workflow decisions are recorded here as sho
 | [0001](0001-modular-monolith.md) | Modular Monolith | Accepted |
 | [0002](0002-domain-model-decisions.md) | Domain Model Decisions | Accepted |
 | [0003](0003-relational-schema-conventions.md) | Relational Schema Conventions | Accepted |
+| [0004](0004-single-author-identity.md) | Single-Author Identity and Access | Proposed |
 
 ## Format
 

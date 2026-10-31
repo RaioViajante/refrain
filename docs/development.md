@@ -1,6 +1,6 @@
 # Development
 
-**Status:** the application foundation (M1.1) and the relational domain (M1.2) exist: a Next.js application, a local PostgreSQL 17 database through Docker Compose, a separate disposable test database, the domain schema with versioned migrations, automated checks, and CI. There is no seed data: the development database holds only what you write into it ([Roadmap](roadmap.md)).
+**Status:** the application foundation (M1.1), the relational domain (M1.2), and identity and authorization (M1.3A) exist: a Next.js application, a local PostgreSQL 17 database through Docker Compose, a separate disposable test database, the domain schema with versioned migrations, single-author authentication with a minimal Writing Studio entry point, automated checks, and CI. There is no seed data: the development database holds only what you write into it ([Roadmap](roadmap.md)).
 
 Every command in this document has been run successfully. Add a command only after it has run.
 
@@ -44,9 +44,46 @@ All local configuration lives in one file, `.env`, which Git ignores. Docker Com
 | `POSTGRES_PORT` | Docker Compose | Host port, bound to `127.0.0.1` only (default `5432`) |
 | `DATABASE_URL` | Server code, Drizzle Kit | Development connection string. Server-side only. Never give it a `NEXT_PUBLIC_` prefix. Integration tests never use it. |
 | `POSTGRES_TEST_PORT` | Docker Compose | Host port of the [test database](#test-database), bound to `127.0.0.1` only (default `5433`) |
-| `TEST_DATABASE_URL` | Integration tests | Connection string of the disposable [test database](#test-database). The only database the integration tests connect to. |
+| `TEST_DATABASE_URL` | Integration and HTTP tests | Connection string of the disposable [test database](#test-database). The only database the integration and HTTP tests connect to. |
+| `BETTER_AUTH_SECRET` | Server code, the author command | Signs session cookies. At least 32 characters of random data; [generate it](#authentication). A secret: never commit it, never reuse it between environments. |
+| `BETTER_AUTH_URL` | Server code, the author command | The application's origin, for example `http://localhost:3000`. HTTPS is required unless the host is `localhost`, `127.0.0.1`, or `[::1]`. Only this origin may send state-changing requests. |
+| `REFRAIN_AUTHOR_EMAIL` | Server code, the author command | The single author's email address. Only the account with this email is authorized in the studio. |
 
-Variables already set in the environment take precedence over `.env`, which is how CI supplies its own `TEST_DATABASE_URL`. A `.env` created before M1.2 lacks the two test variables; copy them from `.env.example`.
+Variables already set in the environment take precedence over `.env`, which is how CI supplies its own `TEST_DATABASE_URL`. A `.env` created before M1.2 lacks the two test variables, and one created before M1.3A lacks the three authentication variables; copy them from `.env.example`.
+
+None of these uses a `NEXT_PUBLIC_` prefix, so none reaches the browser. The authentication configuration is validated before the first authentication request is served; a missing or unsafe value refuses every sign-in and studio request instead of falling back to a default. Better Auth would also read `BETTER_AUTH_TRUSTED_ORIGINS`, `BETTER_AUTH_SECRETS`, and `BETTER_AUTH_TELEMETRY` by itself; Refrain refuses to start authentication while any of them is set ([ADR 0004](decisions/0004-single-author-identity.md)).
+
+### Authentication
+
+The Writing Studio has one account: the author's. It is created by a local command, never by a web form; there is no sign-up ([Security § Authentication and sessions](security.md#authentication-and-sessions)).
+
+**1. Configure.** In `.env`, set the three authentication variables. Generate the secret with:
+
+```sh
+openssl rand -base64 32
+```
+
+Paste the output as `BETTER_AUTH_SECRET`. Use a different secret for every environment; replacing it signs out every session.
+
+**2. Migrate** the development database, so the authentication tables exist: `pnpm db:migrate` (after checking the target, as described in [Database changes](#database-changes)).
+
+**3. Create the account.** The command names the target database explicitly, as `host:port/database`, and refuses to run unless it matches `DATABASE_URL`:
+
+```sh
+pnpm author:provision --target=127.0.0.1:5432/refrain
+```
+
+It prints the target and the email (`REFRAIN_AUTHOR_EMAIL`), then asks for the password twice without showing it. The password must be 15 to 128 characters and must not contain the email; a passphrase from a password manager is a good choice. The command never accepts the password as an argument or an environment variable, so it does not reach shell history or the process list. It can also read the password from standard input, for example from a password manager's command-line tool. It refuses, and changes nothing, if any account already exists.
+
+**4. Sign in** with `pnpm dev` at `http://localhost:3000/studio/sign-in`. The studio entry point, `/studio`, shows a placeholder: the editor is not built yet. "Sign out" ends the session.
+
+**Change or recover the password.** With access to the database:
+
+```sh
+pnpm author:reset-password --target=127.0.0.1:5432/refrain
+```
+
+It replaces the password and signs out every session. There is no password reset by email, and no recovery over HTTP.
 
 ### Commands
 
@@ -60,6 +97,9 @@ Variables already set in the environment take precedence over `.env`, which is h
 | `pnpm typecheck` | Generates Next.js route types, then runs `tsc --noEmit` (strict) |
 | `pnpm test` | Unit tests (Vitest). No database needed. |
 | `pnpm test:integration` | Integration tests against the disposable [test database](#test-database) in `TEST_DATABASE_URL`. Refuses to run if the safety checks fail, and fails if the database is not reachable; it never skips. |
+| `pnpm test:http` | HTTP tests of the production build. Needs `pnpm build` first and the test database. Starts `next start` on `127.0.0.1` against `TEST_DATABASE_URL` only ([HTTP tests](#http-tests)). |
+| `pnpm author:provision --target=<host>:<port>/<database>` | Creates the single author account in the database in `DATABASE_URL` ([Authentication](#authentication)) |
+| `pnpm author:reset-password --target=<host>:<port>/<database>` | Replaces the author's password and signs out every session |
 | `pnpm db:up` / `pnpm db:down` | Start the development PostgreSQL and wait for health / stop it. Data is kept in the `refrain_postgres-data` volume. |
 | `pnpm db:test:up` / `pnpm db:test:down` | Start the test database and wait for health / stop and remove it, discarding its data. They touch only the `postgres-test` container. |
 | `pnpm db:generate` | Generate a SQL migration from the Drizzle schema. Like every Drizzle Kit command, it needs `DATABASE_URL` (well formed; generating does not connect). |
@@ -126,6 +166,17 @@ pnpm db:test:down        # stop it and discard its data
 
 **Recovery.** If the test database is in a bad state, run `pnpm db:test:down` and `pnpm db:test:up`: the new container starts empty and marked. This never affects the development database or its volume.
 
+### HTTP tests
+
+`pnpm test:http` tests the production build over real HTTP ([`src/modules/identity/studio.http.test.ts`](../src/modules/identity/studio.http.test.ts)). Its global setup ([`src/testing/http-global-setup.ts`](../src/testing/http-global-setup.ts)):
+
+1. applies the same five safety checks to `TEST_DATABASE_URL`, then the migrations;
+2. refuses to start unless the identity tables are empty, so it never touches identity rows it did not create;
+3. creates a synthetic author (`author@example.com`) with the real `pnpm author:provision` command, the password on standard input;
+4. starts `next start` on `127.0.0.1` and a free port, in production mode, with a random secret, and with `DATABASE_URL` set to the test database's URL.
+
+The server uses its own connections, so these rows are committed, unlike the integration tests' rolled-back transactions. Teardown stops the server and deletes the identity rows. If a run is interrupted, reset the test database with `pnpm db:test:down && pnpm db:test:up`. Run the HTTP and integration tests one after the other, not at the same time: the database holds at most one account.
+
 ### Troubleshooting
 
 | Symptom | Cause and fix |
@@ -135,6 +186,9 @@ pnpm db:test:down        # stop it and discard its data
 | `DATABASE_URL is not set` | `.env` is missing, or it lacks `DATABASE_URL`. |
 | `Refusing to run integration tests: …` | A [test database](#test-database) safety check failed; the message names it. Usually `TEST_DATABASE_URL` is missing from an older `.env` (copy it from `.env.example`), or the test database is not running (`pnpm db:test:up`). Never point it at a database whose contents matter. |
 | Integration tests fail with `ECONNREFUSED` on port 5433 | The test database is not running. Run `pnpm db:test:up`. |
+| `Authentication is not configured` in the server log; the studio says it isn't available | An authentication variable is missing or unsafe; the log names it, never its value. See [Authentication](#authentication). |
+| `Too many attempts` when signing in | Five sign-in attempts a minute are allowed, for all clients together. Wait a minute. |
+| `The HTTP tests could not start: … identity rows` | An earlier run was interrupted. Run `pnpm db:test:down && pnpm db:test:up`. |
 | Port 5432 is already in use | Set `POSTGRES_PORT` in `.env`, change the port in `DATABASE_URL` to match, and run `pnpm db:up` again. |
 | A changed `POSTGRES_PASSWORD` has no effect, or authentication fails | The image applies the `POSTGRES_*` values only when it creates an empty volume. Restore the old values, or reset the database (this deletes local data). |
 | An engine warning about the Node.js version | Use the version in `.nvmrc`. 24.x releases earlier than 24.22.1 lack a security fix. |
@@ -165,6 +219,9 @@ Versions are exact in `package.json`, and the lockfile is committed. Each was ch
 | `drizzle-kit` | 0.31.11 | |
 | `pg` (node-postgres), `@types/pg` | 8.23.1 | PostgreSQL driver: see [Architecture](architecture.md#persistence) |
 | `server-only` | 0.0.1 | |
+| `better-auth` | 1.7.12 | Authentication ([ADR 0004](decisions/0004-single-author-identity.md)). The newest stable release older than seven days on 2026-10-31; 1.7.13 and 1.7.14 were too new. Its peer ranges include the versions above. |
+| `zod` | 4.6.7 | Validation at server boundaries; also Better Auth's own dependency range (`^4.5.4`) |
+| `tsx` | 4.23.15 | Runs the local author command (`--conditions=react-server`, under which `server-only` permits server code) |
 | `eslint` | 9.39.5 | ESLint 10 is excluded: plugins used by `eslint-config-next` declare support only up to ESLint 9. |
 | `eslint-config-next` | 16.4.3 | |
 | `prettier` | 3.9.10 | |
@@ -173,7 +230,9 @@ Versions are exact in `package.json`, and the lockfile is committed. Each was ch
 | `@types/react`, `@types/react-dom` | 19.3.0 | |
 | PostgreSQL image | `postgres:17.11-trixie` | Same image locally and in CI |
 
-Planned dependencies (Better Auth, Tiptap, next-intl, Rough.js, Zod, Playwright) are added with the features that need them, after the same compatibility check.
+Planned dependencies (Tiptap, next-intl, Rough.js, Playwright) are added with the features that need them, after the same compatibility check.
+
+`pnpm audit` reports two moderate advisories, both in development tools and both present before M1.3A: esbuild in `drizzle-kit` (development-server CORS), and minimatch in `eslint-config-next` (pattern denial of service). Neither runs in the application or receives untrusted input.
 
 ## Branches and commits
 
@@ -218,7 +277,8 @@ If the plan changes or the repository becomes public, enable these as protection
 | Build | `pnpm build` | In CI, run without `DATABASE_URL` to prove that the build does not need a database |
 | Schema consistency | `pnpm db:check`, then `pnpm db:generate` must produce no new migration | In CI. Fails when `src/db/schema.ts` changes without a committed migration. |
 | Integration tests | `pnpm test:integration` | In CI, against a disposable PostgreSQL 17 service container with test credentials, marked as disposable by the same script as the local test database. Global setup applies the committed migrations first. Covers connectivity, test-database isolation, migrations and delete rules, the schema constraints ([coverage](data-model.md#validation)), transactions, the academic queries, and the database-level parts of INV-1 to INV-5. |
-| End-to-end smoke | Playwright | Planned. Critical studio and public flows. |
+| HTTP tests | `pnpm test:http` | In CI, after the build and the integration tests, against the same disposable service database. The production build over real HTTP: studio access with and without a valid session, sign-in, cookies, sign-out, sign-up, origins, rate limiting, the author command, and the server log. |
+| End-to-end smoke | Playwright | Planned. Critical studio and public flows in a browser. |
 
 The workflow has read-only `permissions` (`contents: read`), a concurrency group per pull request or branch, a 20-minute timeout, and no secrets. Its PostgreSQL credentials belong to a disposable service container and are not secrets. Actions are pinned to full commit SHAs. It does not publish artifacts or deploy.
 
@@ -228,6 +288,7 @@ The workflow has read-only `permissions` (`contents: read`), a concurrency group
 - **Persistence and SQL:** integration tests against real PostgreSQL, in the disposable [test database](#test-database). Database behavior is not mocked: foreign keys, `CHECK` constraints, and transactions are exactly what these tests must prove. A rejection test asserts the SQLSTATE and the name of the constraint that fired (helpers in [`src/testing/`](../src/testing/)), so it cannot pass because of an unrelated error.
 - **Invariants:** each of ADR 0002's INV-1 to INV-5 has database-level tests now; the HTTP-level parts are listed in [Security § Required tests](security.md#required-tests) and arrive with the routes.
 - **Privacy:** the tests listed in [Security § Required tests](security.md#required-tests).
+- **Authentication:** integration tests run the real Better Auth instance on the test transaction, through the real request handler, with real `Request` and `Response` objects ([`identity.integration.test.ts`](../src/modules/identity/identity.integration.test.ts)); the [HTTP tests](#http-tests) run the production server. Session checks are never mocked.
 - **UI:** Playwright for complete flows, including keyboard operation of the rating input, the language menu, and dialogs. Run at desktop width and at 390px.
 - **Fixtures:** synthetic and labeled `[Test]` ([`src/testing/fixtures.ts`](../src/testing/fixtures.ts)). They exist only inside rolled-back test transactions. Real writing never appears in tests, and nothing is seeded into the development database.
 
