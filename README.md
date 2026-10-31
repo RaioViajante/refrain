@@ -1,16 +1,11 @@
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/refrain-home-character-dark.png">
-    <img src="public/artwork/refrain-home-character.png" width="320" alt="Ink drawing of a person with curly hair and headphones, sitting cross-legged on the floor and writing in a notebook while looking up, next to a stack of records, a mug, a cassette and a few crumpled pages." />
-  </picture>
-</p>
+<img align="right" src="public/artwork/refrain-home-character.png" width="38%" alt="Ink drawing of a person with curly hair and headphones, sitting cross-legged on the floor and writing in a notebook while looking up, next to a stack of records, a mug, a cassette and a few crumpled pages." />
 
-<h3 align="center">refrain</h3>
-
-<p align="center"><em>some songs take you back.</em></p>
+<p><em>some songs take you back.</em></p>
 
 a place to remember what music felt like.<br>
 songs, albums, artists, and the moments they stayed with me.
+
+<br clear="right">
 
 <pre>
 00. <a href="#the-journal">journal</a> ·· songs, records, people, memories
