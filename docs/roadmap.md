@@ -15,9 +15,9 @@
 
 M1 is delivered in increments, each authorized separately by the author:
 
-- **M1.1 — Application foundation** (in review): the Next.js and TypeScript application with pnpm and compatibility-checked versions, Docker Compose PostgreSQL 17, a server-only Drizzle client with a connectivity check, Vitest unit and real-PostgreSQL integration tests, and GitHub Actions CI. See [Development](development.md#local-setup).
-- **M1.2 — Relational core** (not started; the author confirms its scope when authorizing it). Expected: resolve the [open data-model questions](data-model.md#open-questions) that affect the first migration, such as enum representation, and choose Drizzle's column-naming convention; write the Drizzle schema for the catalog and album journals, reviewed against ADR 0002, with its first migrations and constraint tests; add a dedicated test database for integration tests that write data.
-- **Remaining M1 scope** after M1.2: catalog and album-journal CRUD through simple studio pages, and the JOIN and aggregate queries surfaced in the UI.
+- **M1.1 — Application foundation** (merged, #3): the Next.js and TypeScript application with pnpm and compatibility-checked versions, Docker Compose PostgreSQL 17, a server-only Drizzle client with a connectivity check, Vitest unit and real-PostgreSQL integration tests, and GitHub Actions CI. See [Development](development.md#local-setup).
+- **M1.2 — Relational domain** (in review, #4): an isolated, disposable test database with fail-closed safety checks; the full relational schema for ADR 0002 (catalog with reference editions, entries with per-language visibility, album and artist journals, memories, track reflections, ratings, featured journals, slugs) with versioned migrations; the publication predicate and public read queries; the JOIN and aggregate queries; integration tests for the constraints, transactions, and the database-level parts of INV-1 to INV-5; [ADR 0003](decisions/0003-relational-schema-conventions.md) (proposed). See [Data Model](data-model.md).
+- **Remaining M1 scope** after M1.2 (M1.3, not authorized yet): catalog and album-journal CRUD through simple studio pages, and the JOIN and aggregate queries surfaced in the UI.
 
 ## Critical path
 

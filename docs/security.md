@@ -1,6 +1,6 @@
 # Security and Privacy
 
-**Status:** requirements for implementation. The application foundation (M1.1) implements the baseline: the database client is server-only and its configuration is server-side, logs carry no connection details, and the build needs no database. The remaining controls arrive with the features they protect. The publication rules implement [ADR 0002](decisions/0002-domain-model-decisions.md) and its implementation invariants (INV-1 to INV-5).
+**Status:** requirements for implementation. The application foundation (M1.1) implements the baseline: the database client is server-only and its configuration is server-side, logs carry no connection details, and the build needs no database. M1.2 implements the data-protection constraints and the publication predicate in SQL, with database-level tests; no public route or studio action exists yet. The remaining controls arrive with the features they protect. The publication rules implement [ADR 0002](decisions/0002-domain-model-decisions.md) and its implementation invariants (INV-1 to INV-5).
 
 Refrain's most valuable asset is the author's writing: personal, unpublished, and irreplaceable. The two failures that matter most are **private writing becoming public** and **writing being lost**. Every control below protects against one of them.
 
@@ -15,7 +15,7 @@ Refrain's most valuable asset is the author's writing: personal, unpublished, an
 
 ## Publication predicate
 
-This section is the **single authoritative definition** of what a reader may see. Every public read uses it: pages, listings, metadata (`<title>`, Open Graph), sitemaps, any future feeds or search, and cache population. It is implemented once, in the Publication module, and is never re-implemented elsewhere.
+This section is the **single authoritative definition** of what a reader may see. Every public read uses it: pages, listings, metadata (`<title>`, Open Graph), sitemaps, any future feeds or search, and cache population. It is implemented once, in the Publication module ([`src/modules/publication/predicate.ts`](../src/modules/publication/predicate.ts)), and is never re-implemented elsewhere. Other modules and presentation code read public data only through the Publication module's query functions.
 
 A **language version** of an entry is publicly visible when:
 
@@ -88,7 +88,7 @@ Logs record events and identifiers. They never contain entry titles or bodies, s
 
 ## Required tests
 
-These must exist before the public journal ships (M3):
+These must exist before the public journal ships (M3). The *Database level (M1.2)* column records what is already tested against real PostgreSQL through the Publication queries and the schema; the HTTP-level part of each test needs the routes and arrives with them.
 
 1. Unauthenticated requests to every studio action and route are rejected.
 2. Draft, private, and deleted content returns 404 from every public route. This is checked per language version, including a published original with a private translation: the translation is not served, not linked, and not mentioned (INV-3).
@@ -98,6 +98,19 @@ These must exist before the public journal ships (M3):
 6. Featured resolution returns the same journal for the same data in every interface language, and falls back as defined in ADR 0002, D1.2 (INV-1).
 7. The sign-up endpoint is unavailable.
 8. Hard-deleting a catalog record that writing references is refused by the database.
+
+| Test | Database level (M1.2) | Remaining |
+| --- | --- | --- |
+| 1. Unauthenticated studio requests rejected | — | All of it (M2, with authentication) |
+| 2. Draft, private, deleted content hidden per language version (INV-3) | Public queries return nothing for draft, private, or deleted entries, and never a private translation | 404 from every public route, metadata, sitemaps, caches (M3) |
+| 3. Unpublished track reflections absent, with their ratings and favourites (INV-2, INV-3) | Absent whatever their "still writing" state; toggling the flag changes nothing public; publishing a journal publishes no reflection | Rendered public pages (M3) |
+| 4. Changes take effect immediately, revalidation verified | Queries reflect a visibility change at once | Cache revalidation (M3) |
+| 5. Previous slugs redirect only for visible entries (INV-5) | `resolvePublicSlug` returns the same `not_found` for unknown, draft, private, and deleted entries' slugs | HTTP 308 and 404 responses (M3) |
+| 6. Featured resolution identical in every interface language, with the D1.2 fallbacks (INV-1) | All fallback cases, tie-break, and version choice, checked in both languages; at most one featured journal enforced by the database | Rendered album and artist pages (M3) |
+| 7. Sign-up endpoint unavailable | — | All of it (M2) |
+| 8. Referenced catalog records cannot be hard-deleted | Done: albums, artists, tracks, and reflected recordings; delete rules read from `pg_constraint` | — |
+
+INV-4 (truthful recovery copy) has a database-level test that deleted entries are never purged: a long-deleted entry remains, and the database has no trigger or rule that could remove it. The codebase has no purge job. Its interface-copy part is checked when the Recently deleted screens exist (M2).
 
 ## Deployment gate
 

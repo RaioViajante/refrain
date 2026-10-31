@@ -8,8 +8,8 @@ Refrain is a **single-author personal music journal**: memories, artist journals
 
 - **Out of scope:** reader accounts, social features, streaming, recommendations, multiple authors, multi-tenancy, and machine translation. Do not add these without an ADR and the author's approval.
 - **Academic deadline:** the presentation is on **2026-11-16**. Work that the requirements in [Requirements](docs/requirements.md) depend on takes priority over polish.
-- **Current state:** M1.1, the application foundation: a Next.js application, local PostgreSQL through Docker Compose, a server-only Drizzle client, tests, and CI. No domain schema or feature exists yet. Each M1 increment needs the author's authorization. → [Roadmap](docs/roadmap.md), [Development](docs/development.md#local-setup)
-- **Accepted decisions:** [ADR 0001](docs/decisions/0001-modular-monolith.md) (modular monolith) and [ADR 0002](docs/decisions/0002-domain-model-decisions.md) (domain model). ADR 0002's implementation invariants (INV-1 to INV-5) are binding and each needs a test.
+- **Current state:** M1.2, the relational domain: the Next.js application, the domain schema with versioned migrations, the publication predicate and read queries, a disposable test database, integration tests, and CI. No feature writes data and there is no UI beyond a development page. Each M1 increment needs the author's authorization. → [Roadmap](docs/roadmap.md), [Data Model](docs/data-model.md), [Development](docs/development.md#local-setup)
+- **Accepted decisions:** [ADR 0001](docs/decisions/0001-modular-monolith.md) (modular monolith) and [ADR 0002](docs/decisions/0002-domain-model-decisions.md) (domain model). ADR 0002's implementation invariants (INV-1 to INV-5) are binding and each needs a test. [ADR 0003](docs/decisions/0003-relational-schema-conventions.md) (schema conventions) is proposed.
 
 ## 2. Before you change anything
 
@@ -83,6 +83,7 @@ Refrain is a **single-author personal music journal**: memories, artist journals
 → [Development § Testing approach](docs/development.md#testing-approach)
 
 - Unit-test domain rules. Integration-test persistence against **real PostgreSQL**; never mock the database to prove constraints, transactions, or SQL.
+- Integration tests run only against the disposable test database (`TEST_DATABASE_URL`, `pnpm db:test:up`). Never weaken its safety checks, and never point tests, fixtures, or resets at a database whose contents matter. → [Development § Test database](docs/development.md#test-database)
 - Every privacy rule has a test, as listed in [Security § Required tests](docs/security.md#required-tests).
 - Use Playwright for critical flows at desktop width and at 390px.
 - **Never report a check as passing unless you ran it and saw the output.** If you could not run it, say so.

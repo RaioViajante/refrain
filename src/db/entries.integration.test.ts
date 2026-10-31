@@ -707,7 +707,7 @@ describe("deletion and recovery (ADR 0002, D4; INV-4)", () => {
         .where(eq(schema.entries.id, memoryId));
       expect(entry).toBeDefined();
 
-      // No trigger, rule, or scheduled job can remove deleted writing.
+      // No trigger or rule in the database can remove deleted writing.
       const triggers = await tx.execute<{ n: number }>(
         sql`select count(*)::int as n from pg_trigger where not tgisinternal`,
       );

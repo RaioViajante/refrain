@@ -1,7 +1,7 @@
 # Requirements
 
 **Presentation:** November 16, 2026.
-**Status:** planned. No requirement is satisfied yet. The application foundation (M1.1) runs against PostgreSQL, but the related tables, CRUD, and queries these requirements need arrive later in M1. The evidence column describes what must be captured. The *Verified* column is filled in only after the evidence exists.
+**Status:** planned. No requirement is verified yet. M1.2 implemented the related tables (with primary and foreign keys) and the JOIN and aggregate queries, tested against real PostgreSQL; CRUD and the user interface that shows them arrive in M1.3. The evidence column describes what must be captured. The *Verified* column is filled in only after the evidence exists.
 
 This document covers the **mandatory academic requirements** only. Product behavior is defined in [Product](product.md). Architectural qualities such as module boundaries, internationalization, and the hand-drawn interface are project goals, not academic requirements, and must not be presented as substitutes for them.
 
@@ -27,7 +27,7 @@ This document covers the **mandatory academic requirements** only. Product behav
 | AC-05 | Aggregate: `COUNT` of written track reflections per album journal (Desk). Subquery: catalog usage count per album (Catalog). | Query source, the rendered counts, and the SQL run in `psql` with results matching the UI | — |
 | AC-06 | Browser UI → server action or route handler → application module → Drizzle → PostgreSQL → rendered response | A live walkthrough: an edit in the UI appears in `psql`; a change made in `psql` appears in the UI after reload; plus an integration test against real PostgreSQL | — |
 
-The candidate SQL for AC-04 and AC-05 is in [Data Model § Representative SQL](data-model.md#representative-sql). It is final once it runs against the implemented schema.
+The SQL for AC-04 and AC-05 is in [Data Model § Representative SQL](data-model.md#representative-sql). It runs against the implemented schema and is covered by integration tests; the evidence still requires the rendered pages.
 
 ### Notes on interpretation
 

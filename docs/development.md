@@ -1,6 +1,6 @@
 # Development
 
-**Status:** the application foundation (M1.1) exists: a Next.js application, a local PostgreSQL 17 database through Docker Compose, a server-only Drizzle client, automated checks, and CI. There is no domain schema, migration, or seed data yet; those arrive in M1.2 ([Roadmap](roadmap.md)).
+**Status:** the application foundation (M1.1) and the relational domain (M1.2) exist: a Next.js application, a local PostgreSQL 17 database through Docker Compose, a separate disposable test database, the domain schema with versioned migrations, automated checks, and CI. There is no seed data: the development database holds only what you write into it ([Roadmap](roadmap.md)).
 
 Every command in this document has been run successfully. Add a command only after it has run.
 
@@ -24,6 +24,15 @@ pnpm dev                # http://localhost:3000
 ```
 
 The development page shows `Database: connected` when the server reaches PostgreSQL, and `Database: not reachable` otherwise.
+
+To create the domain tables in the development database, run `pnpm db:migrate` once (and again after pulling new migrations). It only adds what is pending and never seeds data.
+
+To run the integration tests, add the two test variables from `.env.example` to `.env` if it predates M1.2, then:
+
+```sh
+pnpm db:test:up         # disposable test database on port 5433
+pnpm test:integration
+```
 
 ### Configuration
 
@@ -53,8 +62,9 @@ Variables already set in the environment take precedence over `.env`, which is h
 | `pnpm test:integration` | Integration tests against the disposable [test database](#test-database) in `TEST_DATABASE_URL`. Refuses to run if the safety checks fail, and fails if the database is not reachable; it never skips. |
 | `pnpm db:up` / `pnpm db:down` | Start the development PostgreSQL and wait for health / stop it. Data is kept in the `refrain_postgres-data` volume. |
 | `pnpm db:test:up` / `pnpm db:test:down` | Start the test database and wait for health / stop and remove it, discarding its data. They touch only the `postgres-test` container. |
-| `pnpm db:generate` | Generate a SQL migration from the Drizzle schema. Like every Drizzle Kit command, it needs `DATABASE_URL`. |
+| `pnpm db:generate` | Generate a SQL migration from the Drizzle schema. Like every Drizzle Kit command, it needs `DATABASE_URL` (well formed; generating does not connect). |
 | `pnpm db:migrate` | Apply pending migrations to the database in `DATABASE_URL` |
+| `pnpm db:check` | Check that the committed migration snapshots are consistent. Does not connect. |
 
 ### Local database
 
@@ -204,9 +214,10 @@ If the plan changes or the repository becomes public, enable these as protection
 | Lint | `pnpm lint` | In CI. Includes module-boundary rules, which a unit test proves. |
 | Format check | `pnpm format:check` | In CI |
 | Type check | `pnpm typecheck` | In CI. TypeScript strict mode. |
-| Unit tests | `pnpm test` | In CI. Today: configuration validation and module boundaries. Domain rules (ratings, state transitions, slug rules) are added with the domain. |
+| Unit tests | `pnpm test` | In CI. Configuration validation, test-database safety checks, module boundaries, rating and slug rules. |
 | Build | `pnpm build` | In CI, run without `DATABASE_URL` to prove that the build does not need a database |
-| Integration tests | `pnpm test:integration` | In CI, against a disposable PostgreSQL 17 service container with test credentials, marked as disposable by the same script as the local test database. Covers connectivity, server version, and test-database isolation. |
+| Schema consistency | `pnpm db:check`, then `pnpm db:generate` must produce no new migration | In CI. Fails when `src/db/schema.ts` changes without a committed migration. |
+| Integration tests | `pnpm test:integration` | In CI, against a disposable PostgreSQL 17 service container with test credentials, marked as disposable by the same script as the local test database. Global setup applies the committed migrations first. Covers connectivity, test-database isolation, migrations and delete rules, every schema constraint, transactions, the academic queries, and the database-level parts of INV-1 to INV-5. |
 | End-to-end smoke | Playwright | Planned. Critical studio and public flows. |
 
 The workflow has read-only `permissions` (`contents: read`), a concurrency group per pull request or branch, a 20-minute timeout, and no secrets. Its PostgreSQL credentials belong to a disposable service container and are not secrets. Actions are pinned to full commit SHAs. It does not publish artifacts or deploy.
@@ -214,20 +225,26 @@ The workflow has read-only `permissions` (`contents: read`), a concurrency group
 ## Testing approach
 
 - **Domain rules:** unit tests with no database.
-- **Persistence and SQL:** integration tests against real PostgreSQL. Database behavior is not mocked: foreign keys, `CHECK` constraints, and transactions are exactly what these tests must prove.
+- **Persistence and SQL:** integration tests against real PostgreSQL, in the disposable [test database](#test-database). Database behavior is not mocked: foreign keys, `CHECK` constraints, and transactions are exactly what these tests must prove. A rejection test asserts the SQLSTATE and the name of the constraint that fired (helpers in [`src/testing/`](../src/testing/)), so it cannot pass because of an unrelated error.
+- **Invariants:** each of ADR 0002's INV-1 to INV-5 has database-level tests now; the HTTP-level parts are listed in [Security § Required tests](security.md#required-tests) and arrive with the routes.
 - **Privacy:** the tests listed in [Security § Required tests](security.md#required-tests).
 - **UI:** Playwright for complete flows, including keyboard operation of the rating input, the language menu, and dialogs. Run at desktop width and at 390px.
-- **Fixtures:** synthetic and clearly labeled. Real writing never appears in tests.
+- **Fixtures:** synthetic and labeled `[Test]` ([`src/testing/fixtures.ts`](../src/testing/fixtures.ts)). They exist only inside rolled-back test transactions. Real writing never appears in tests, and nothing is seeded into the development database.
 
 ## Database changes
 
-The schema lives in [`src/db/schema.ts`](../src/db/schema.ts). Drizzle Kit writes versioned SQL migrations to `src/db/migrations/`, a directory that is created by the first migration (M1.2). Configuration: [`drizzle.config.ts`](../drizzle.config.ts).
+The schema lives in [`src/db/schema.ts`](../src/db/schema.ts), and Drizzle Kit writes versioned SQL migrations to [`src/db/migrations/`](../src/db/migrations/). Configuration: [`drizzle.config.ts`](../drizzle.config.ts). The model is described in [Data Model](data-model.md).
 
 1. Change the Drizzle schema.
-2. Run `pnpm db:generate` and **read the generated SQL**.
+2. Run `pnpm db:generate --name=<what_changed>` and **read the generated SQL**.
 3. Check for data loss: dropped columns, changed types, removed constraints on authored tables.
-4. Run `pnpm db:migrate` against a local database that contains data, not only against an empty one. Drizzle records applied migrations in `drizzle.__drizzle_migrations`.
-5. Commit the schema change and the migration together, and describe the migration in the PR.
+4. Run `pnpm test:integration`: global setup applies every migration to the empty test database, and the tests verify the result.
+5. Run `pnpm db:migrate` against your local development database. Once it contains data, this also checks the migration against existing rows. Drizzle records applied migrations in `drizzle.__drizzle_migrations`.
+6. Commit the schema change and the migration together, and describe the migration in the PR.
+
+**Custom SQL.** For something Drizzle cannot declare (today: one deferrable constraint), run `pnpm db:generate --custom --name=<what>` and write the SQL into the empty file it creates. Comment the schema where the object lives, so readers of `schema.ts` know it exists.
+
+**Applied migrations are permanent.** Never edit or delete a migration that has been applied anywhere outside a disposable test database. Fix mistakes with a new migration.
 
 Never use `drizzle-kit push`: every schema change goes through a reviewed migration file. Migrations are never applied automatically to a production database; that procedure is written down when a deployment target exists.
 
