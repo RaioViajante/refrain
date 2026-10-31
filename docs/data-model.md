@@ -369,7 +369,7 @@ Artist journals use the same query with `artist_journals` and `artist_id`.
 
 M1.2 integration tests run against a disposable PostgreSQL 17 database after applying the committed migrations ([Development § Test database](development.md#test-database)). Each rejection test checks the SQLSTATE and the name of the constraint that fired.
 
-Coverage, measured against the migrated database (95 named constraints and unique indexes): every `CHECK` constraint, every `RESTRICT` foreign key, every partial unique index, and every `UNIQUE` constraint that states a rule is triggered by a test and asserted by name. Not asserted by name:
+Coverage, measured against the migrated database (96 named constraints and unique indexes): every `CHECK` constraint, every `RESTRICT` foreign key, every partial unique index, and every `UNIQUE` constraint that states a rule is triggered by a test and asserted by name. Not asserted by name:
 
 - the cascading foreign keys, which have no violation to assert; deletion tests check the effect of every one row by row (an album and a recording hard-deleted from the catalog; an album journal with reflections, a memory with music links, and an artist journal permanently deleted);
 - the single-column `uuid` primary keys, and the composite primary keys of `album_tracks`, `edition_tracks`, `track_artists`, and `track_reflection_texts`;
