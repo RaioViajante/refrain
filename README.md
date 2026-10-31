@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="reference/refrain-home-character.png" width="320" alt="Ink drawing of a person with curly hair and headphones, sitting cross-legged on the floor and writing in a notebook while looking up, next to a stack of records, a mug, a cassette and a few crumpled pages." />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/refrain-home-character-dark.png">
+    <img src="reference/refrain-home-character.png" width="320" alt="Ink drawing of a person with curly hair and headphones, sitting cross-legged on the floor and writing in a notebook while looking up, next to a stack of records, a mug, a cassette and a few crumpled pages." />
+  </picture>
 </p>
 
 <h3 align="center">refrain</h3>
@@ -10,19 +13,19 @@ a place to remember what music felt like.<br>
 songs, albums, artists, and the moments they stayed with me.
 
 <pre>
-00. <a href="#the-journal">journal</a> ···· songs, records, people, memories
-01. <a href="#whats-inside">inside</a> ····· where everything lives
-02. <a href="#run-it">run</a> ········ start it locally
-03. <a href="#read-next">docs</a> ······· the longer version
-04. <a href="#current-status">status</a> ····· a work in progress
+00. <a href="#the-journal">journal</a> ·· songs, records, people, memories
+01. <a href="#whats-inside">inside</a> ··· where everything lives
+02. <a href="#run-it">run</a> ······ start it locally
+03. <a href="#read-next">docs</a> ····· the longer version
+04. <a href="#current-status">status</a> ··· a work in progress
 </pre>
 
 #### the journal
 
 <pre>
-memories ··········· a moment and its music
-artist journals ···· a musician or band
-album journals ····· the record, track by track
+memories ········· a moment and its music
+artist journals ·· a musician or band
+album journals ··· a record, track by track
 </pre>
 
 each track can have its own reflection, rating, and favourite mark. ratings are optional. every entry starts as a draft and stays private until it is published on purpose. one author, no reader accounts.
@@ -34,12 +37,12 @@ none of this is built yet. the approved screens are in [`reference/`](reference/
 #### what's inside
 
 ```
-src/app/       routes · one development page
-src/db/        database client and schema
-docs/          the long version of everything
-reference/     approved designs · read-only
-compose.yaml   local postgresql 17
-.github/       ci checks on every pull request
+src/app/      routes · a dev page for now
+src/db/       database client and schema
+docs/         the long version
+reference/    approved designs · read-only
+compose.yaml  local postgresql 17
+.github/      ci on every pull request
 ```
 
 #### run it
@@ -58,16 +61,16 @@ then open `http://localhost:3000`. checks: `pnpm lint`, `pnpm typecheck`, `pnpm 
 #### read next
 
 <pre>
-<a href="docs/product.md">product.md</a> ········· what it is, what it isn't
-<a href="docs/requirements.md">requirements.md</a> ···· the academic requirements
-<a href="docs/architecture.md">architecture.md</a> ···· modules and boundaries
-<a href="docs/data-model.md">data-model.md</a> ······ tables and constraints
-<a href="docs/design-system.md">design-system.md</a> ··· ink, paper, two typefaces
-<a href="docs/security.md">security.md</a> ········ privacy and access
-<a href="docs/development.md">development.md</a> ····· setup, checks, workflow
-<a href="docs/roadmap.md">roadmap.md</a> ········· what comes next
-<a href="docs/decisions/">decisions/</a> ········· why it is built this way
-<a href="AGENTS.md">AGENTS.md</a> ·········· rules for changing the code
+<a href="docs/product.md">product</a> ········ what it is, what it isn't
+<a href="docs/requirements.md">requirements</a> ··· the academic requirements
+<a href="docs/architecture.md">architecture</a> ··· modules and boundaries
+<a href="docs/data-model.md">data-model</a> ····· tables and constraints
+<a href="docs/design-system.md">design-system</a> ·· ink, paper, two typefaces
+<a href="docs/security.md">security</a> ······· privacy and access
+<a href="docs/development.md">development</a> ···· setup, checks, workflow
+<a href="docs/roadmap.md">roadmap</a> ········ what comes next
+<a href="docs/decisions/">decisions</a> ······ why it is built this way
+<a href="AGENTS.md">agents</a> ········· how to change the code
 </pre>
 
 #### current status

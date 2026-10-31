@@ -23,6 +23,7 @@ This document summarizes items 1 and 2. If it disagrees with them, correct this 
 | `reference/refrain-home-character.png` | The original character illustration (1536×1024). Byte-identical to `reference/refrain/pages/refrain-character.png`, which the mockups load. |
 | `reference/refrain-cursor/` | Pencil cursor: `refrain-pencil-48.png`, `refrain-pencil-32.png`, `refrain-pencil.svg` (master), `refrain-pencil.cur`, `preview.png`, `README.md` |
 | `reference/refrain-favicon-kit/` | Favicons (16–512 px), `apple-touch-icon.png`, `favicon.ico`, preview. Drawn from the character's face. |
+| `docs/assets/refrain-home-character-dark.png` | Not a reference: a dark-theme derivative of the character for the repository README only, approved by the author. Same dimensions and transparency as the original, with tones remapped so the dark ink masses stay visible on GitHub's dark theme. |
 
 Reference files are not edited, renamed, recompressed, or deleted. Implementation copies the assets it needs into the application's public assets.
 
@@ -80,7 +81,7 @@ There is no other color anywhere, including status, error, and success states, w
 
 - **Header (public):** minimal, centered navigation: Home, Albums, Artists, Memories. The Home link is the way back to the homepage. There is no logo, wordmark, or site name in the header. The current page has a drawn underline.
 - **Header (studio):** "Writing studio" label, centered Desk and Catalog navigation, and a "Public pages" link.
-- **Character:** appears only on the public homepage, between the navigation and the introduction. Static, using the original asset, with the approved alt text ("Ink drawing of a person with curly hair and headphones, sitting cross-legged on the floor and writing in a notebook while looking up, next to a stack of records, a mug, a cassette and a few crumpled pages."). It never appears on internal pages or as a header logo. The favicon kit is the only derived use.
+- **Character:** appears only on the public homepage, between the navigation and the introduction. Static, using the original asset, with the approved alt text ("Ink drawing of a person with curly hair and headphones, sitting cross-legged on the floor and writing in a notebook while looking up, next to a stack of records, a mug, a cassette and a few crumpled pages."). It never appears on internal pages or as a header logo. The favicon kit and the README's dark-theme derivative are the only derived uses. The application uses only the original.
 - **Footer:** centered and understated. A single rule, then the closing line *some songs take you back.* in Kalam, then the language selector. The language selector exists **only** in the footer, opens upward, and offers English and Português (Brasil). Its note reads: "Changes the interface only. Writing stays in the language it was written in."
 
 ## Components
