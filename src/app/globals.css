@@ -1,1 +1,111 @@
 @import "tailwindcss";
+
+/* Tokens from docs/design-system.md § Color tokens and § Typography. */
+@theme {
+  --color-ink: #111111;
+  --color-ink-2: #3a3a3a;
+  --color-ink-3: #5a5a5a;
+  --color-rule: #cfcfcf;
+  --color-frame-quiet: #ababab;
+  --color-paper: #ffffff;
+}
+
+/* Accessibility baseline: a visible focus ring everywhere. */
+:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 4px;
+}
+
+/*
+ * Writing Studio, minimal (M1.3A). The full V4.4 studio arrives later.
+ * Kalam and Alegreya Sans come from next/font, which defines --font-kalam and
+ * --font-alegreya-sans on the .studio element (src/app/studio/layout.tsx), so
+ * they are referenced here rather than through :root tokens.
+ */
+.studio {
+  min-height: 100vh;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-alegreya-sans), sans-serif;
+}
+
+.studio-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 44px;
+  padding: 24px 64px;
+  border-bottom: 1px solid var(--color-rule);
+}
+
+.studio-main {
+  padding: 72px 64px;
+}
+
+.studio-main > * + * {
+  margin-top: 1.5rem;
+}
+
+.studio-title {
+  font-family: var(--font-kalam), cursive;
+  font-weight: 700;
+  font-size: 52px;
+  line-height: 1.1;
+}
+
+.studio-field {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-frame-quiet);
+  border-radius: 2px;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-size: 18px;
+}
+
+.studio-field:focus {
+  border-color: var(--color-ink);
+}
+
+.studio-button {
+  min-height: 44px;
+  padding: 6px 22px;
+  border: 1.5px solid var(--color-ink);
+  border-radius: 2px;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-kalam), cursive;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.studio-button:disabled {
+  cursor: progress;
+  color: var(--color-ink-3);
+  border-color: var(--color-ink-3);
+}
+
+@media (max-width: 720px) {
+  .studio-header {
+    padding: 16px 20px;
+  }
+
+  .studio-main {
+    padding: 48px 20px;
+  }
+
+  .studio-title {
+    font-size: 30px;
+  }
+}
+
+@media (max-width: 370px) {
+  .studio-header,
+  .studio-main {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}
