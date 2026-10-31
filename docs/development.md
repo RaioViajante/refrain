@@ -55,27 +55,96 @@ None of these uses a `NEXT_PUBLIC_` prefix, so none reaches the browser. The aut
 
 ### Authentication
 
-The Writing Studio has one account: the author's. It is created by a local command, never by a web form; there is no sign-up ([Security § Authentication and sessions](security.md#authentication-and-sessions)).
+The Writing Studio has one account: the author's. It is created by a local command, never by a web form. There is no sign-up ([Security § Authentication and sessions](security.md#authentication-and-sessions)).
 
-**1. Configure.** In `.env`, set the three authentication variables. Generate the secret with:
+**Secrets stay out of commands.** Never put the password or `BETTER_AUTH_SECRET` in a command line, an argument, an environment variable on the command line, a commit, documentation, a chat, or a log. The commands below never print either of them.
+
+#### First-time setup of the author account
+
+Run these once, after pulling M1.3A, one at a time. Check each result before you go on.
+
+**1. Check the toolchain.**
 
 ```sh
-openssl rand -base64 32
+node --version     # v24.22.2, from .nvmrc (24.x before 24.22.1 lacks a security fix)
+pnpm --version     # 12.15.0
+pnpm install --frozen-lockfile
 ```
 
-Paste the output as `BETTER_AUTH_SECRET`. Use a different secret for every environment; replacing it signs out every session.
+If Node is older, switch to the version in `.nvmrc` with your Node version manager first.
 
-**2. Migrate** the development database, so the authentication tables exist: `pnpm db:migrate` (after checking the target, as described in [Database changes](#database-changes)).
+**2. Add the missing configuration, without overwriting anything.** This lists the variables that `.env.example` has and `.env` lacks, by name only:
 
-**3. Create the account.** The command names the target database explicitly, as `host:port/database`, and refuses to run unless it matches `DATABASE_URL`:
+```sh
+comm -13 <(grep -oE '^[A-Z_]+=' .env | sort) <(grep -oE '^[A-Z_]+=' .env.example | sort)
+```
+
+- For every listed name except `BETTER_AUTH_SECRET`, copy its line from `.env.example` into `.env` with an editor. Change nothing that is already there.
+- Set `BETTER_AUTH_URL=http://localhost:3000`.
+- Set `REFRAIN_AUTHOR_EMAIL` to the email address you will sign in with.
+- Generate the secret straight into `.env`. It appears in no command and no output, and an existing secret is kept:
+
+```sh
+grep -q '^BETTER_AUTH_SECRET=' .env && echo "BETTER_AUTH_SECRET is already in the file: keep it." || { printf 'BETTER_AUTH_SECRET='; openssl rand -base64 32; } >> .env
+```
+
+Then check that the three authentication variables have values. It prints `set` or `MISSING`, never a value:
+
+```sh
+node --env-file=.env -e 'for (const v of ["BETTER_AUTH_SECRET", "BETTER_AUTH_URL", "REFRAIN_AUTHOR_EMAIL"]) console.log(v, process.env[v]?.trim() ? "set" : "MISSING")'
+```
+
+Use a different secret in every environment. Replacing it later signs out every session.
+
+**3. Verify the development database target.**
+
+```sh
+pnpm db:up
+docker compose ps postgres
+node --env-file=.env -e 'try { const u = new URL(process.env.DATABASE_URL); console.log({ host: u.hostname, port: u.port || "5432", database: u.pathname.slice(1), queryParameters: [...u.searchParams.keys()] }) } catch { console.log("DATABASE_URL is missing or not a valid URL") }'
+```
+
+Continue only if all of these hold:
+
+- the service is healthy;
+- the host is `127.0.0.1` or `localhost`;
+- the port matches the service (`5432` by default);
+- the database is `refrain`, or your own `POSTGRES_DB`;
+- `queryParameters` is empty.
+
+If the database holds writing you care about, back it up first ([Local database](#local-database)).
+
+**4. Apply the migrations and confirm the schema.**
+
+```sh
+pnpm db:migrate
+docker compose exec -T postgres psql -U refrain -d refrain -Atc "select count(*) from drizzle.__drizzle_migrations"
+docker compose exec -T postgres psql -U refrain -d refrain -Atc "select string_agg(tablename, ' ' order by tablename) from pg_tables where schemaname = 'public' and tablename like 'auth\_%'"
+```
+
+Expect `5` migrations (0000 to 0004), then `auth_accounts auth_rate_limits auth_sessions auth_users auth_verifications`. Migrations only add what is pending and never seed data.
+
+**5. Create the account, interactively.** Name the target explicitly. The command refuses unless the target matches `DATABASE_URL`:
 
 ```sh
 pnpm author:provision --target=127.0.0.1:5432/refrain
 ```
 
-It prints the target and the email (`REFRAIN_AUTHOR_EMAIL`), then asks for the password twice without showing it. The password must be 15 to 128 characters and must not contain the email; a passphrase from a password manager is a good choice. The command never accepts the password as an argument or an environment variable, so it does not reach shell history or the process list. It can also read the password from standard input, for example from a password manager's command-line tool. It refuses, and changes nothing, if any account already exists.
+1. It prints the target and the email, which is `REFRAIN_AUTHOR_EMAIL`. Check both.
+2. It asks for the password twice, without showing it. Generate the password in a password manager and paste it into the prompt.
+3. It writes the account, or refuses and changes nothing if any account already exists.
 
-**4. Sign in** with `pnpm dev` at `http://localhost:3000/studio/sign-in`. The studio entry point, `/studio`, shows a placeholder: the editor is not built yet. "Sign out" ends the session.
+The password must be 15 to 128 characters and must not contain the email. The command never accepts the password as an argument or an environment variable, so it does not reach shell history or the process list.
+
+**6. Verify sign-in and sign-out.** Run `pnpm dev`, then:
+
+1. Open `http://localhost:3000/studio`. You are sent to the sign-in page.
+2. Sign in with a wrong password. The page says "That email and password don't match."
+3. Sign in with the right one. The studio shows "You are signed in. The editor is not built yet."
+4. Choose "Sign out". You are back on the sign-in page.
+5. Open `/studio` again. You are sent to sign-in again.
+
+Five sign-in attempts a minute are allowed, for everyone together.
 
 **Change or recover the password.** With access to the database:
 
