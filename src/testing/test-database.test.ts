@@ -60,6 +60,14 @@ describe("readTestDatabaseUrl", () => {
   });
 
   it.each([
+    "postgres://u:p@127.0.0.1:5433/refrain_test?host=db.example.com&port=5432",
+    "postgres://u:p@127.0.0.1:5433/refrain_test?host=/var/run/postgresql",
+    "postgres://u:p@127.0.0.1:5433/refrain_test?sslmode=disable",
+  ])("refuses query parameters, which can override the host: %s", (url) => {
+    expectRefusal({ TEST_DATABASE_URL: url }, "must not have query parameters");
+  });
+
+  it.each([
     "postgres://u:p@db.example.com:5432/refrain_test",
     "postgres://u:p@10.0.0.5:5432/refrain_test",
     "postgres://u:p@postgres-test:5432/refrain_test",

@@ -6,8 +6,10 @@
 // target passes two independent checks:
 //
 // 1. Client side, before connecting: the URL is a PostgreSQL URL on this
-//    machine (loopback host), its database name ends in `_test`, and it does
-//    not point at the same database as DATABASE_URL.
+//    machine (loopback host), its database name ends in `_test`, it has no
+//    query parameters (node-postgres lets `?host=` and `?port=` override the
+//    host and port the other checks validated), and it does not point at the
+//    same database as DATABASE_URL.
 // 2. Server side, after connecting: the database itself carries the
 //    disposable-test marker, a database comment written only by
 //    docker/postgres-test/01-mark-disposable.sql. Names can be mistyped; the
@@ -42,6 +44,11 @@ function parseTarget(value: string, variable: string): DatabaseTarget {
   if (url.protocol !== "postgres:" && url.protocol !== "postgresql:") {
     throw new TestDatabaseSafetyError(
       `${variable} must use the postgres:// or postgresql:// scheme.`,
+    );
+  }
+  if (url.search !== "") {
+    throw new TestDatabaseSafetyError(
+      `${variable} must not have query parameters, which can override its host or port.`,
     );
   }
   return {
@@ -88,7 +95,9 @@ export function readTestDatabaseUrl(env: Env): string {
     try {
       development = parseTarget(developmentValue, "DATABASE_URL");
     } catch {
-      // A malformed DATABASE_URL cannot name the same database.
+      // A malformed DATABASE_URL, or one with query parameters, cannot be
+      // compared reliably. TEST_DATABASE_URL has already passed its own
+      // checks, and the server-side marker check still applies.
     }
     if (
       development &&

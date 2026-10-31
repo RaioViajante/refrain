@@ -107,7 +107,7 @@ Integration tests write data, so they run against their own PostgreSQL server, n
 **Safety checks.** The integration tests never read `DATABASE_URL`. Before any test file runs, [`src/testing/global-setup.ts`](../src/testing/global-setup.ts) applies the checks in [`src/testing/test-database.ts`](../src/testing/test-database.ts) and refuses to continue unless all of them pass:
 
 1. `TEST_DATABASE_URL` is set. There is no fallback.
-2. Its host is loopback (`localhost`, `127.0.0.1`, or `[::1]`).
+2. Its host is loopback (`localhost`, `127.0.0.1`, or `[::1]`), and it has no query parameters, which node-postgres would let override the host or port.
 3. Its database name ends in `_test`.
 4. It does not point at the same database as `DATABASE_URL`.
 5. On the server, the connected database carries the disposable-test marker: a database comment written only by [`docker/postgres-test/01-mark-disposable.sql`](../docker/postgres-test/01-mark-disposable.sql). The local `postgres-test` service applies it when it initializes, and CI applies it to its own service container. A database name can be mistyped; the marker has to be placed on purpose.
@@ -214,10 +214,10 @@ If the plan changes or the repository becomes public, enable these as protection
 | Lint | `pnpm lint` | In CI. Includes module-boundary rules, which a unit test proves. |
 | Format check | `pnpm format:check` | In CI |
 | Type check | `pnpm typecheck` | In CI. TypeScript strict mode. |
-| Unit tests | `pnpm test` | In CI. Configuration validation, test-database safety checks, module boundaries, rating and slug rules. |
+| Unit tests | `pnpm test` | In CI. Configuration validation, test-database safety checks, module boundaries, rating and slug rules. `DATABASE_URL` and `TEST_DATABASE_URL` are removed before unit tests run, so a unit test cannot reach a database. |
 | Build | `pnpm build` | In CI, run without `DATABASE_URL` to prove that the build does not need a database |
 | Schema consistency | `pnpm db:check`, then `pnpm db:generate` must produce no new migration | In CI. Fails when `src/db/schema.ts` changes without a committed migration. |
-| Integration tests | `pnpm test:integration` | In CI, against a disposable PostgreSQL 17 service container with test credentials, marked as disposable by the same script as the local test database. Global setup applies the committed migrations first. Covers connectivity, test-database isolation, migrations and delete rules, every schema constraint, transactions, the academic queries, and the database-level parts of INV-1 to INV-5. |
+| Integration tests | `pnpm test:integration` | In CI, against a disposable PostgreSQL 17 service container with test credentials, marked as disposable by the same script as the local test database. Global setup applies the committed migrations first. Covers connectivity, test-database isolation, migrations and delete rules, the schema constraints ([coverage](data-model.md#validation)), transactions, the academic queries, and the database-level parts of INV-1 to INV-5. |
 | End-to-end smoke | Playwright | Planned. Critical studio and public flows. |
 
 The workflow has read-only `permissions` (`contents: read`), a concurrency group per pull request or branch, a 20-minute timeout, and no secrets. Its PostgreSQL credentials belong to a disposable service container and are not secrets. Actions are pinned to full commit SHAs. It does not publish artifacts or deploy.
