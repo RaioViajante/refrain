@@ -233,7 +233,7 @@ The workflow has read-only `permissions` (`contents: read`), a concurrency group
 
 ## Database changes
 
-The schema lives in [`src/db/schema.ts`](../src/db/schema.ts), and Drizzle Kit writes versioned SQL migrations to [`src/db/migrations/`](../src/db/migrations/). Configuration: [`drizzle.config.ts`](../drizzle.config.ts). The model is described in [Data Model](data-model.md).
+The schema lives in [`src/db/schema.ts`](../src/db/schema.ts), and Drizzle Kit writes versioned SQL migrations to [`src/db/migrations/`](../src/db/migrations/). Configuration: [`drizzle.config.ts`](../drizzle.config.ts). The model is described in [Data Model](data-model.md). The Claude Code skill [`refrain-db-change`](../.claude/skills/refrain-db-change/SKILL.md) walks through this procedure step by step: it classifies the change, verifies the target database, and tests the upgrade path on the disposable test database.
 
 1. Change the Drizzle schema.
 2. Run `pnpm db:generate --name=<what_changed>` and **read the generated SQL**.
