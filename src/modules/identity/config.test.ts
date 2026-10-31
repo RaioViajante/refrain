@@ -1,8 +1,11 @@
+import { randomBytes } from "node:crypto";
+
 import { describe, expect, it } from "vitest";
 
 import { AuthConfigError, readAuthConfig } from "./config";
 
-const SECRET = "Zm9vYmFyLWJhei1xdXV4LTEyMzQ1Njc4OTAtYWJjZGVm";
+// Generated per run: no secret-like literal lives in the repository.
+const SECRET = randomBytes(32).toString("base64");
 
 const valid = {
   BETTER_AUTH_SECRET: SECRET,
