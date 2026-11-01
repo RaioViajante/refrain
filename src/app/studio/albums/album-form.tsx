@@ -8,7 +8,8 @@ import {
   createAlbumAction,
   updateAlbumAction,
 } from "@/app/studio/albums/actions";
-import { ArtistRows, type CreditRow } from "@/app/studio/artist-rows";
+import { type AlbumValues, emptyAlbum } from "@/app/studio/albums/album-values";
+import { ArtistRows } from "@/app/studio/artist-rows";
 import {
   FormStatus,
   TextField,
@@ -16,26 +17,6 @@ import {
   useUnsavedGuard,
 } from "@/app/studio/form-kit";
 import { problemWith } from "@/app/studio/messages";
-
-export interface AlbumValues {
-  title: string;
-  year: string;
-  mbReleaseGroupId: string;
-  credits: CreditRow[];
-  label: string;
-  releaseDate: string;
-  country: string;
-}
-
-export const emptyAlbum: AlbumValues = {
-  title: "",
-  year: "",
-  mbReleaseGroupId: "",
-  credits: [{ artistId: "", creditedAs: "" }],
-  label: "",
-  releaseDate: "",
-  country: "",
-};
 
 export function AlbumForm({
   albumId,
