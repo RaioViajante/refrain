@@ -118,6 +118,8 @@ interface TextFieldProps {
   autoComplete?: HTMLInputAutoCompleteAttribute;
   lang?: string;
   width?: string;
+  /** "opening" draws the sentence in Kalam light, with one line under it. */
+  variant?: "opening";
 }
 
 export function TextField({
@@ -135,6 +137,7 @@ export function TextField({
   autoComplete = "off",
   lang,
   width,
+  variant,
 }: TextFieldProps) {
   const id = useId();
   const describedBy = `${id}-note`;
@@ -149,7 +152,9 @@ export function TextField({
       <input
         id={id}
         type={type}
-        className="studio-field"
+        className={
+          variant === "opening" ? "studio-opening-field" : "studio-field"
+        }
         style={width ? { maxWidth: width } : undefined}
         value={value}
         onChange={(event: ChangeEvent<HTMLInputElement>) =>

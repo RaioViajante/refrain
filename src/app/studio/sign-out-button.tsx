@@ -25,7 +25,7 @@ export function SignOutButton() {
   }
 
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex flex-wrap items-center justify-end gap-x-4">
       <p role="status" className="text-[15.5px] text-ink-3">
         {failed ? "Couldn’t sign out. Try again." : ""}
       </p>
@@ -33,7 +33,7 @@ export function SignOutButton() {
         type="button"
         onClick={signOut}
         disabled={pending}
-        className="studio-button"
+        className="studio-button-quiet studio-header-action"
       >
         {pending ? "Signing out…" : "Sign out"}
       </button>

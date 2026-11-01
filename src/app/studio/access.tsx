@@ -11,7 +11,7 @@ import type { AuthorizationFailure } from "@/modules/identity";
 export function accessDenied(reason: AuthorizationFailure): ReactElement {
   if (reason === "unavailable") {
     return (
-      <main className="studio-main">
+      <main id="studio-content" className="studio-main">
         <h1 className="studio-title">Writing studio</h1>
         <p className="text-[19px]">
           The studio isn’t available right now. Try again later.

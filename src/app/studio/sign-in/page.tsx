@@ -3,6 +3,11 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
+import {
+  STUDIO_CONTENT_ID,
+  StudioFooter,
+  StudioHeader,
+} from "@/app/studio/frame";
 import { SignInForm } from "@/app/studio/sign-in/sign-in-form";
 import { authorizeAuthor } from "@/modules/identity";
 
@@ -13,16 +18,15 @@ export const metadata: Metadata = { title: "Sign in · refrain" };
 export default function SignInPage() {
   return (
     <>
-      <header className="studio-header">
-        <p className="text-[16px] text-ink-2">Writing studio</p>
-      </header>
-      <main className="studio-main max-w-[440px]">
+      <StudioHeader />
+      <main id={STUDIO_CONTENT_ID} className="studio-main" data-layout="narrow">
         <h1 className="studio-title">Sign in</h1>
         <Suspense fallback={null}>
           <AlreadySignedIn />
         </Suspense>
         <SignInForm />
       </main>
+      <StudioFooter />
     </>
   );
 }
