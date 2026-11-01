@@ -190,7 +190,7 @@ test("the journal editor's three inputs and its Save button are drawn at 3:1 or 
   }
 });
 
-test("in forced-colors mode every control keeps a real border and no drawn image, in every state", async ({
+test("in forced-colors mode the editor's controls keep a real border and no drawn image, at rest, on hover and in focus", async ({
   page,
 }) => {
   // Windows high contrast replaces the page's colors, and a drawn outline is a
