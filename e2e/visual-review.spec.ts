@@ -35,6 +35,7 @@ const body = [
 let albumUrl = "";
 let journalUrl = "";
 let trackTitles: string[] = [];
+const extraAlbums: { id: string; index: number }[] = [];
 
 async function shoot(page: Page, name: string, fullPage = true) {
   // React reveals a streamed page a moment after it arrives, so wait until
@@ -91,6 +92,22 @@ test("populated catalog", async ({ page }) => {
     await page.getByRole("button", { name: "Create and add" }).click();
     await expect(page.getByText(title).first()).toBeVisible();
   }
+  // More of a catalog, so the lists and the Desk can be compared with a fuller
+  // reference: two more artists, each with an album and a track or two.
+  for (const [index, extra] of ["Second", "Third"].entries()) {
+    const more = await createAlbumThroughStudio(page, {
+      artist: named(`Visual ${extra} Artist`),
+      album: named(`Visual ${extra} Album`),
+    });
+    extraAlbums.push({ id: more.albumUrl.split("/").pop()!, index });
+    for (const n of [1, 2]) {
+      await page.locator("#new-track-title").fill(named(`${extra} Track ${n}`));
+      await page.getByRole("button", { name: "Create and add" }).click();
+      await expect(
+        page.getByText(named(`${extra} Track ${n}`)).first(),
+      ).toBeVisible();
+    }
+  }
   await visit(page, "/studio/artists", "Artists");
   await shoot(page, "06-artists");
   await visit(page, "/studio/albums", "Albums");
@@ -123,6 +140,23 @@ test("journal: write, read, edit", async ({ page }) => {
   await page.goto(`${journalUrl}/edit`);
   await expect(page.getByLabel("Your reflection")).toHaveValue(body);
   await shoot(page, "15-journal-edit");
+  // Two more journals in other states, so the Desk shows a mix of drafts and
+  // private writing, as the reference does.
+  for (const { id, index } of extraAlbums) {
+    await page.goto(`/studio/journals/new?album=${id}`);
+    await page
+      .getByLabel("Opening sentence (optional)")
+      .fill(`[Test] Synthetic opening ${index + 2}.`);
+    await page
+      .getByLabel("Your reflection")
+      .fill(`[Test] Synthetic reflection ${index + 2}, for the review only.`);
+    await page.getByRole("button", { name: "Save as draft" }).click();
+    await page.waitForURL(/\/studio\/journals\/[0-9a-f-]{36}$/);
+    if (index === 1) {
+      await page.getByRole("button", { name: "Private", exact: true }).click();
+      await expect(page.getByText("Now private.")).toBeVisible();
+    }
+  }
   await visit(page, "/studio", "Your desk");
   await shoot(page, "16-desk-populated");
   await visit(page, "/studio/journals", "Journals");
