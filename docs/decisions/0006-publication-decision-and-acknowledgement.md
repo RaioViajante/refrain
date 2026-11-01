@@ -59,7 +59,7 @@ Rules:
 - **Complete by construction.** It is derived from the predicate fragments for the hypothetical state "`L` is published", so it cannot disagree with what the public queries will return. Today [`predicate.ts`](../../src/modules/publication/predicate.ts) hard-codes `status = 'published'`, so M2.1 parameterizes the fragments (the live public queries pass `'published'`). That edits a security-critical file, so it is its own commit with its own review, and the parity test (§ 13, test 1) is the guard.
 - **Informational lines are not part of the set.** Reflections that are flagged but have no text in `L` are not public in `L` (they may be public in another language that is published), and appear only as a count the studio may show. They are outside the digest. Catalog metadata (track and album titles) is displayed but not digested: a catalog edit changes how something is labelled, not what writing is exposed.
 - **The same disclosure for Draft and Private.** The status being left is shown, and changes nothing else (owner decision 6).
-- **Other kinds.** Memories and artist journals have no reflections and no rating, and go through the same operation. A memory's disclosure adds its remembered-when text and its ordered music links; an artist journal's has only the version and the address (the related writing its page lists is selected from other entries by the predicate). A kind that gains a public field adds it to the table in § 1 before its studio screen ships.
+- **Other kinds.** Memories and artist journals have no reflections and no rating, and go through the same operation. A memory's disclosure adds its remembered-when text and its ordered music links; an artist journal's has only the version and the address (the related writing its page will list, per [Product](../product.md), is a planned M3 query that must use the predicate; it is not built). A kind that gains a public field adds it to the table in § 1 before its studio screen ships.
 
 ### 3. The acknowledgement token
 
@@ -102,7 +102,7 @@ Further semantics:
 
 ### 5. Changes after publication
 
-A *change to a public item* is a write that makes an item of § 1 public with a content digest that was not public before: new, or different. Removing an item from the public surface is not one. The command that makes the write computes the **exposure delta** (the new or different public items) inside the same transaction.
+A *change to a public item* is a write after which an item of § 1 is public and contains a value (a text, a link, a mark, a rating, a flag) that the public item did not contain before. Removing an item from the public surface, shrinking it (clearing a text, removing a link, clearing the rating), and reordering are not changes; replacing a field with a different value is one, and a write that both removes and adds is one. The **address** is exempt, as its row below explains. The command that makes the write computes the **exposure delta** (the items that gained a value) inside the same transaction.
 
 - **No delta:** the write proceeds as today. Saving a draft, a private version, or a reflection that is not public never asks.
 - **A delta and no valid confirmation:** the transaction is rolled back, nothing is written, and the call fails with `confirmation_required` (or `confirmation_mismatch` when a confirmation was supplied but does not match). The failure carries the delta and the confirmation token that would be accepted for exactly this input.
@@ -121,7 +121,7 @@ This one rule covers the owner's decisions:
 | Change a memory's remembered-when text or its music links while a version is public | the memory-details item |
 | Change the address while a version is public | none for new writing: it exposes no writing, is an explicit author action with its own dialog and keeps the old address as a redirect (ADR 0002, D7.4 and D7.5) |
 | Change a reflection that is not flagged, or whose language is not public | none |
-| Unflag a reflection, clear the album rating, or clear text | none (a removal), but the interface asks first |
+| Unflag a reflection, clear the album rating, clear a text, clear remembered-when, or remove a music link | none (a removal or a shrinking), but the interface asks first |
 
 The case in the second row is the one ADR 0005 § 5 does not reach, because no version is being published: a reflection that was flagged earlier appears publicly as soon as its text exists in a language that is already public. ADR 0002 D5.2 makes it public by its own flag and the version's state; this ADR requires that the author sees it first.
 
@@ -156,7 +156,7 @@ Interface requirements (specified in [Design System](../design-system.md#writing
 
 - The Publication module exports no function that makes a version `published` except the checked `publishLanguageVersion`. The current unchecked signature is **removed**, not wrapped. Tests that need a published version call preview and publish through a helper in `src/testing/`, which uses the same code.
 - **One writer.** A static test fails if any file other than the Publication command writes `status = 'published'` to `entry_texts` (SQL text, Drizzle `set`/`values`, or a status variable) in production code. Migrations and `src/testing/` are the only places that may set it.
-- **No application code obtains a token and submits it in the same call.** `previewPublication` is called only by the preview action. The publish wrapper and the publish action take the token only from the request body, which only the review dialog submits after the author has seen the disclosure. A failure's fresh token is shown to the author and is sent only by a new explicit action. No function calls both preview and publish, and none constructs a token. Without this rule a wrapper could preview and then publish in one request, which would be an unchecked path built from the checked one. A static test (on the syntax tree) enforces it, and the mutation "the wrapper previews, then publishes" must fail it. What the command itself can prove is that a decision about *this exact state* was submitted; that the decision was a human one is guaranteed by this rule and by browser test 17. A script that deliberately previews and publishes is outside application code ([Undecided](#undecided-questions), question 2).
+- **No application code obtains a token and submits it in the same call.** This covers both tokens: the publication acknowledgement (§ 3) and the confirmation of a change to a public version (§ 5). `previewPublication` is called only by the preview action. The publish and save wrappers and actions take a token only from the request body, which only the review or confirmation dialog sends after the author has seen the disclosure or the delta. A failure's fresh token is shown to the author and is sent only by a new explicit action: no code catches `acknowledgement_*` or `confirmation_*` and retries with the token it carries. Only the Publication module's digest function constructs a token. Without this rule a wrapper could preview and publish, or save, catch the refusal, and save again, in one request, which would be an unchecked path built from the checked one. The rule applies to production code under `src/`, excluding `src/testing/`, whose helper calls both on purpose. A static test (on the syntax tree, following calls one level into local helpers) enforces it: `previewPublication` may be imported only by the preview action's file, and no function may call both preview and publish, or catch a refusal code and call the same command again. The mutations "the wrapper previews, then publishes" and "the save action catches `confirmation_required` and retries with its token" must each fail it. What the command itself can prove is that a decision about *this exact state* was submitted; that the decision was a human one is guaranteed by this rule and by browser test 17. A script that deliberately previews and publishes is outside application code ([Undecided](#undecided-questions), question 2).
 - **The Journals module wraps; presentation never imports Publication.** A studio action calls a Journals wrapper that checks the entry's kind and calls the Publication engine, as `restoreAlbumJournal` does. `no-publishing.test.ts` keeps forbidding presentation from naming the Publication commands.
 - **The database role and a trigger are not relied on yet.** A trigger that rejects a transition to `published` made outside the command would be a second lock. It would be a migration, so it is not part of this ADR ([Undecided](#undecided-questions)).
 
@@ -276,10 +276,10 @@ No accepted text is edited. Where this ADR depends on an earlier statement, or r
 
 **Positive**
 
-- No caller can publish without a decision about the exact set that will become public, and the set cannot change between the decision and the publication.
+- No application caller can publish without a decision about the exact set that will become public, and the set cannot change between the decision and the publication. Writers outside application code are bound only once the trigger question is decided.
 - A restored or reopened journal cannot go public through an old acknowledgement, and no reflection, rating, or address is exposed as a side effect.
 - No migration, no table, no secret, no new dependency. The acknowledgement is one function that the tests can attack.
-- The initial public release has no cache to go stale.
+- If the M3.1 spike passes, the initial public release has no cache to go stale. A failed spike reopens § 11 and the matching [Security](../security.md#caching) text before any public route ships.
 
 **Negative and costs**
 
@@ -288,9 +288,9 @@ No accepted text is edited. Where this ADR depends on an earlier statement, or r
 - A save of a public version takes two round trips when it changes the page.
 - The album rating is public whenever the journal is public and a rating exists. An author who wants a rating kept private on a public journal has to clear it until a flag exists.
 - Out-of-process writers (a script, `psql`, a migration) can still set a status; only application code is bound until the trigger question is decided.
-- The stamp depends on `updated_at` being set by every command that changes these rows. The tests enforce that, but it is a convention (ADR 0003).
+- The stamp depends on `updated_at` being set by every command that saves, publishes, unpublishes, deletes, or restores (the address is bound by the digest instead). The tests enforce that, but it is a convention (ADR 0003).
 - The disclosure and delta computations add reads to the publish and save paths. They are bounded by one entry's rows.
-- Per-request rendering with `no-store` gives up CDN caching for the first public release. For a single author's journal that is acceptable, and caching can return behind an ADR.
+- If the spike passes, per-request rendering with `no-store` gives up CDN caching for the first public release. For a single author's journal that is acceptable, and caching can return behind an ADR.
 
 ## Undecided questions
 
