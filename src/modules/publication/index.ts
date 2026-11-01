@@ -3,6 +3,7 @@ export {
   changeEntrySlug,
   publishLanguageVersion,
   PublicationError,
+  reserveInitialSlug,
   retireEntrySlugs,
   unpublishLanguageVersion,
   type PublicationFailure,

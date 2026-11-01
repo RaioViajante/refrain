@@ -6,6 +6,7 @@ import {
   createTestAlbumJournal,
   createTestTrackReflection,
   inRollbackTransaction,
+  testAuthor,
 } from "@/testing";
 
 import { listAlbumJournalProgress } from "./queries";
@@ -58,7 +59,7 @@ describe("listAlbumJournalProgress (AC-05, COUNT of written tracks)", () => {
       await reflect(6, { texts: { "pt-BR": "" } }); // empty text
       await reflect(7, { ratingHalfSteps: 8, isFavourite: true }); // no text at all
 
-      expect(await listAlbumJournalProgress(tx)).toEqual([
+      expect(await listAlbumJournalProgress(tx, testAuthor())).toEqual([
         {
           entryId: journalId,
           albumTitle: "[Test] Ten Tracks",
@@ -91,7 +92,7 @@ describe("listAlbumJournalProgress (AC-05, COUNT of written tracks)", () => {
         });
       }
 
-      expect(await listAlbumJournalProgress(tx)).toEqual([
+      expect(await listAlbumJournalProgress(tx, testAuthor())).toEqual([
         expect.objectContaining({ tracksWritten: 1, trackCount: 1 }),
       ]);
     });
@@ -117,7 +118,7 @@ describe("listAlbumJournalProgress (AC-05, COUNT of written tracks)", () => {
         });
       }
 
-      const progress = await listAlbumJournalProgress(tx);
+      const progress = await listAlbumJournalProgress(tx, testAuthor());
       expect(progress).toHaveLength(2);
       expect(progress).toEqual(
         expect.arrayContaining([

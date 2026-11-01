@@ -1,6 +1,14 @@
 import { expect } from "vitest";
 
-import { getDb, type Transaction } from "@/db";
+import {
+  databaseErrorOf,
+  getDb,
+  SqlState,
+  type DatabaseErrorShape,
+  type Transaction,
+} from "@/db";
+
+export { databaseErrorOf, SqlState, type DatabaseErrorShape };
 
 class RollbackSignal extends Error {}
 
@@ -24,30 +32,21 @@ export async function inRollbackTransaction(
   }
 }
 
-export interface DatabaseErrorShape {
-  /** PostgreSQL SQLSTATE, for example 23503 (foreign_key_violation). */
-  code: string;
-  /** Name of the violated constraint, when PostgreSQL reports one. */
-  constraint?: string;
-}
-
-/** Finds the PostgreSQL error behind a Drizzle query error. */
-export function databaseErrorOf(
-  error: unknown,
-): DatabaseErrorShape | undefined {
-  let current: unknown = error;
-  for (let depth = 0; depth < 5; depth++) {
-    if (typeof current !== "object" || current === null) {
-      return undefined;
-    }
-    if ("code" in current && typeof current.code === "string") {
-      const constraint =
-        "constraint" in current && typeof current.constraint === "string"
-          ? current.constraint
-          : undefined;
-      return { code: current.code, constraint };
-    }
-    current = "cause" in current ? current.cause : undefined;
+/**
+ * Runs `work` in a savepoint and returns whatever it threw, or `undefined`.
+ * The savepoint is rolled back on failure, so the outer test transaction
+ * stays usable even when a statement fails.
+ */
+export async function captureFailure(
+  tx: Transaction,
+  work: (savepoint: Transaction) => Promise<unknown>,
+): Promise<unknown> {
+  try {
+    await tx.transaction(async (savepoint) => {
+      await work(savepoint);
+    });
+  } catch (error) {
+    return error;
   }
   return undefined;
 }
@@ -89,11 +88,3 @@ export async function expectRejected(
     expected.constraint === undefined ? { code: expected.code } : expected,
   );
 }
-
-/** SQLSTATE codes used by the tests. */
-export const SqlState = {
-  notNullViolation: "23502",
-  foreignKeyViolation: "23503",
-  uniqueViolation: "23505",
-  checkViolation: "23514",
-} as const;
