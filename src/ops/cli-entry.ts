@@ -3,7 +3,13 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { OpsError, parseArguments, runBackup, runVerify } from "./backup";
+import {
+  COMPARED_TABLES,
+  OpsError,
+  parseArguments,
+  runBackup,
+  runVerify,
+} from "./backup";
 
 const root = resolve(__dirname, "..", "..");
 
@@ -50,7 +56,7 @@ async function main(): Promise<number> {
           ? "The archive matches its .sha256 file."
           : "No .sha256 file was found next to the archive, so its integrity was not checked.",
         result.compared
-          ? "Every row of the 19 compared tables (the writing, its status and publication history, deletion, versions, slugs, the catalog, and the author's account) equals the source's, and the migration count matches. The three session and rate-limit tables are deliberately empty in a backup."
+          ? `Every row of the ${COMPARED_TABLES.length} compared tables (the writing, its status and publication history, deletion, versions, slugs, the catalog, and the author's account) equals the source's, and the migration count matches. The three session and rate-limit tables are deliberately empty in a backup.`
           : "Not compared with a source (no --compare-with): the archive restored without error, nothing more is claimed.",
         "The scratch database is discarded by pnpm db:test:down.",
       ].join("\n"),

@@ -1,7 +1,12 @@
 import { spawn } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import {
+  chmodSync,
+  constants,
+  copyFileSync,
   fchmodSync,
+  mkdtempSync,
+  rmSync,
   closeSync,
   createReadStream,
   existsSync,
@@ -14,7 +19,8 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, isAbsolute, relative, sep } from "node:path";
+import { tmpdir } from "node:os";
+import { dirname, isAbsolute, join, relative, sep } from "node:path";
 
 import { TEST_DATABASE_MARKER } from "@/testing/test-database";
 
@@ -278,7 +284,7 @@ function inContainer(
   });
 }
 
-const PSQL = `exec psql -X -v ON_ERROR_STOP=1 -q -U "$POSTGRES_USER"`;
+const PSQL = `PGTZ=UTC exec psql -X -v ON_ERROR_STOP=1 -q -U "$POSTGRES_USER"`;
 
 async function scalar(
   service: Service["name"],
@@ -333,8 +339,12 @@ function sha256OfFile(path: string): Promise<string> {
  * A mismatch means the file was changed or damaged after it was written.
  * Returns whether a sidecar was found and matched.
  */
-export async function checkSidecar(file: string): Promise<boolean> {
-  const sidecar = `${file}.sha256`;
+export async function checkSidecar(
+  file: string,
+  /** The archive the checksum file sits next to, when `file` is a copy of it. */
+  original: string = file,
+): Promise<boolean> {
+  const sidecar = `${original}.sha256`;
   const stat = safeLstat(sidecar);
   if (!stat) {
     return false;
@@ -481,11 +491,17 @@ export async function runBackup(options: {
     }
   }
   const sha256 = await sha256OfFile(options.output);
-  writeFileSync(
-    `${options.output}.sha256`,
-    `${sha256}  ${options.output.split("/").pop()}\n`,
-    { mode: 0o600, flag: "wx" },
-  );
+  try {
+    writeFileSync(
+      `${options.output}.sha256`,
+      `${sha256}  ${options.output.split("/").pop()}\n`,
+      { mode: 0o600, flag: "wx" },
+    );
+  } catch {
+    throw new OpsError(
+      `The backup was written to ${options.output}, but its .sha256 file could not be created (one appeared in the meantime). Keep the backup, and do not trust it until it is verified.`,
+    );
+  }
   return {
     output: options.output,
     bytes: statSync(options.output).size,
@@ -584,11 +600,45 @@ export interface VerifyResult {
 /**
  * Restores a backup into a NEW scratch database on the disposable test
  * container (never the development database, and never an existing
- * database), then checks it. With `compareWith`, the restored authored tables
- * and a digest of every language version's text must equal the source's.
+ * database), then checks it. The archive is first copied to a private
+ * temporary file (0600, in a 0700 directory), and the checksum, the listing,
+ * and the restore all read that one copy, so what was checked is what runs.
+ * The copy is removed afterwards. With `compareWith`, the restored copy must
+ * equal the source table by table.
  */
 export async function runVerify(options: {
   file: string;
+  compareWith?: string;
+  env: Env;
+  repositoryRoot: string;
+}): Promise<VerifyResult> {
+  if (!isAbsolute(options.file)) {
+    throw new OpsError("--file must be an absolute path.");
+  }
+  if (!safeLstat(options.file)?.isFile()) {
+    throw new OpsError(
+      "--file is not a regular file (symbolic links are refused).",
+    );
+  }
+  const directory = mkdtempSync(join(tmpdir(), "refrain-verify-"));
+  try {
+    const copy = join(directory, "archive.dump");
+    copyFileSync(options.file, copy, constants.COPYFILE_EXCL);
+    chmodSync(copy, 0o600);
+    return await verifyArchive({
+      ...options,
+      file: copy,
+      original: options.file,
+    });
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
+async function verifyArchive(options: {
+  file: string;
+  /** The archive the user named, when `file` is a private copy of it. */
+  original: string;
   compareWith?: string;
   env: Env;
   repositoryRoot: string;
@@ -605,7 +655,7 @@ export async function runVerify(options: {
   // `--file` must be a backup you made: restoring runs its contents as SQL on
   // the disposable container. The checksum catches damage and edits, not a
   // file that was hostile from the start.
-  const checked = await checkSidecar(options.file);
+  const checked = await checkSidecar(options.file, options.original);
   const source = options.compareWith
     ? resolveTarget(options.compareWith, options.env)
     : undefined;

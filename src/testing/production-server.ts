@@ -159,7 +159,13 @@ async function waitUntilReady(
     }
     try {
       const response = await fetch(url, { redirect: "manual" });
-      if (response.status === 200) {
+      // An answer counts only once the server this run started has said it
+      // is ready: another process on the same port could answer first, and a
+      // child that lost the bind race never prints it.
+      if (
+        response.status === 200 &&
+        readFileSync(log, "utf8").includes("Ready in")
+      ) {
         return;
       }
     } catch {
@@ -262,15 +268,9 @@ export async function startProductionServer(
 
   try {
     await waitUntilReady(`${baseURL}/studio/sign-in`, server, serverLog);
-    // The answer must come from the server this run started. With a fixed
-    // port, another process could have taken it in the moment between
-    // checking it and binding it, and answer 200 before our server has tried
-    // and failed to bind. A server that lost the race exits within moments,
-    // so wait for that before trusting the answer.
-    if (options.port !== undefined) {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-    }
-    if (server.exitCode !== null || server.pid === undefined) {
+    // Still the server this run started (a child that lost a bind race has
+    // exited, and would not have printed its ready line either).
+    if (server.exitCode !== null) {
       throw new Error(
         "The test server exited after it was started, so another process may hold its port.",
       );
