@@ -243,6 +243,13 @@ describe("the checksum next to an archive", () => {
       expect(await checkSidecar(file)).toBe(true);
       writeFileSync(file, "archive bytes, changed");
       await expect(checkSidecar(file)).rejects.toBeInstanceOf(OpsError);
+      // A checksum file that is not a checksum, or not a regular file, is
+      // refused rather than skipped.
+      writeFileSync(`${file}.sha256`, "SHA256 (a.dump) = abc\n");
+      await expect(checkSidecar(file)).rejects.toBeInstanceOf(OpsError);
+      rmSync(`${file}.sha256`);
+      symlinkSync(join(directory, "elsewhere"), `${file}.sha256`);
+      await expect(checkSidecar(file)).rejects.toBeInstanceOf(OpsError);
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }

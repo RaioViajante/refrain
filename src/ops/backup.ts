@@ -330,10 +330,21 @@ function sha256OfFile(path: string): Promise<string> {
  */
 export async function checkSidecar(file: string): Promise<boolean> {
   const sidecar = `${file}.sha256`;
-  if (!safeLstat(sidecar)?.isFile()) {
+  const stat = safeLstat(sidecar);
+  if (!stat) {
     return false;
   }
+  if (!stat.isFile()) {
+    throw new OpsError(
+      "The .sha256 next to the archive is not a regular file (symbolic links are refused). Nothing was restored.",
+    );
+  }
   const expected = readFileSync(sidecar, "utf8").trim().split(/\s+/)[0];
+  if (!expected || !/^[0-9a-f]{64}$/.test(expected)) {
+    throw new OpsError(
+      "The .sha256 next to the archive is not a checksum written by db:backup. Nothing was restored.",
+    );
+  }
   if (expected !== (await sha256OfFile(file))) {
     throw new OpsError(
       "The archive does not match its .sha256 file: it was changed or damaged after it was written. Nothing was restored.",

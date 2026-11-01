@@ -410,7 +410,7 @@ describe("restoring an album journal", () => {
 });
 
 describe("a restore and the lists that show it", () => {
-  it("lists a deleted journal that has no language version at all, instead of failing", async () => {
+  it("leaves a deleted journal that has no original language version out of the list, instead of failing", async () => {
     await inScratchTransaction(async (tx) => {
       const { albumId } = await setUp(tx);
       const entryId = await createTestAlbumJournal(tx, {

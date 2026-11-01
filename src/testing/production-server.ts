@@ -262,9 +262,14 @@ export async function startProductionServer(
 
   try {
     await waitUntilReady(`${baseURL}/studio/sign-in`, server, serverLog);
-    // The answer came from the server this run started, not from a process
-    // that took a fixed port in the moment between checking it and binding it:
-    // a server that lost the race has exited by now.
+    // The answer must come from the server this run started. With a fixed
+    // port, another process could have taken it in the moment between
+    // checking it and binding it, and answer 200 before our server has tried
+    // and failed to bind. A server that lost the race exits within moments,
+    // so wait for that before trusting the answer.
+    if (options.port !== undefined) {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    }
     if (server.exitCode !== null || server.pid === undefined) {
       throw new Error(
         "The test server exited after it was started, so another process may hold its port.",
