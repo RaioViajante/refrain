@@ -96,6 +96,9 @@ function failed(error: unknown): ActionResult<never> {
       case "entry_not_deleted":
         return { ok: false, code: "not_deleted" };
       case "slug_unavailable":
+      // Unreachable from the studio until a publishing control exists; the
+      // confirmed save of M2.2 replaces this refusal.
+      case "published_text_locked":
         return { ok: false, code: "failed" };
     }
   }
