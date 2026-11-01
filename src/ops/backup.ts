@@ -623,11 +623,15 @@ export async function runVerify(options: {
   const directory = mkdtempSync(join(tmpdir(), "refrain-verify-"));
   // An interrupt must not leave a full copy of the backup behind.
   const onInterrupt = () => {
-    rmSync(directory, { recursive: true, force: true });
-    process.exit(130);
+    try {
+      rmSync(directory, { recursive: true, force: true });
+    } finally {
+      process.exit(130);
+    }
   };
   process.once("SIGINT", onInterrupt);
   process.once("SIGTERM", onInterrupt);
+  process.once("SIGHUP", onInterrupt);
   try {
     const copy = join(directory, "archive.dump");
     try {
@@ -635,7 +639,7 @@ export async function runVerify(options: {
       chmodSync(copy, 0o600);
     } catch {
       throw new OpsError(
-        "The archive could not be copied for checking (is the disk full, or did the file change?). Nothing was restored.",
+        "The archive could not be copied for checking (it may be unreadable or changed, or the disk may be full). Nothing was restored.",
       );
     }
     return await verifyArchive({
@@ -646,6 +650,7 @@ export async function runVerify(options: {
   } finally {
     process.off("SIGINT", onInterrupt);
     process.off("SIGTERM", onInterrupt);
+    process.off("SIGHUP", onInterrupt);
     rmSync(directory, { recursive: true, force: true });
   }
 }

@@ -25,7 +25,7 @@ M1 is delivered in increments, each authorized separately by the author:
 
 ### Follow-ups from the M1.3B review
 
-- **Restoring a journal (owner decision accepted; built in M1.3C, [ADR 0005](decisions/0005-restoring-deleted-journals.md)).** The studio moves a journal to Recently deleted and keeps it, but cannot restore it, and does not offer "Delete now". At the M1.3B merge (PR #16) the owner accepted this restoration policy, which settles the question that ADR 0003 § 5 and issue #6 left open. It is an owner decision recorded here, not an ADR; formalizing it as one is an option when it is implemented.
+- **Restoring a journal (owner decision accepted; built in M1.3C, [ADR 0005](decisions/0005-restoring-deleted-journals.md)).** Until M1.3C the studio moved a journal to Recently deleted and kept it, but could not restore it. At the M1.3B merge (PR #16) the owner accepted this restoration policy, which settles the question that ADR 0003 § 5 and issue #6 left open. M1.3C built it and formalized it as [ADR 0005](decisions/0005-restoring-deleted-journals.md), which is Accepted. The studio still does not offer "Delete now".
   - A language version that was **draft** is restored as a **draft**.
   - A language version that was **private** is restored as **private**.
   - A language version that was **published** is restored as **private**.

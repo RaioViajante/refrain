@@ -48,7 +48,7 @@ This is a safety condition on a **future** interface. It is not implemented, and
 
 Before the publication interface lets the author publish a language version of a journal that has track reflections, it must:
 
-1. determine which individual track reflections would become publicly visible as a result (those whose `is_published` is set);
+1. determine which individual track reflections would become publicly visible as a result, per language (those whose `is_published` is set and that have text in the language being published, which is what the predicate requires);
 2. clearly disclose those reflections to the author;
 3. require explicit confirmation that includes them;
 4. let the author review or change their individual publication selections before completing the publication;
