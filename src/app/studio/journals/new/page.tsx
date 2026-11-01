@@ -50,24 +50,27 @@ async function NewJournal({
 
   return (
     <StudioFrame current="journals" layout={album ? "wide" : "notebook"}>
-      <p>
-        <Link href="/studio/journals" className="studio-link">
-          ← Journals
-        </Link>
-      </p>
       {album ? (
-        <>
-          <h1 className="studio-title studio-title-editor">
-            Write about {album.title}
-          </h1>
-          {artists ? <p className="studio-meta">{artists}</p> : null}
-          <JournalEditor
-            create={{ albumId: album.albumId }}
-            initial={{ opening: "", body: "" }}
-          />
-        </>
+        <JournalEditor
+          back={{ href: "/studio/journals", label: "Journals" }}
+          heading={
+            <div className="studio-editor-head">
+              <h1 className="studio-title studio-title-editor">
+                Write about {album.title}
+              </h1>
+              {artists ? <p className="studio-meta">{artists}</p> : null}
+            </div>
+          }
+          create={{ albumId: album.albumId }}
+          initial={{ opening: "", body: "" }}
+        />
       ) : (
         <>
+          <p>
+            <Link href="/studio/journals" className="studio-link">
+              ← Journals
+            </Link>
+          </p>
           <h1 className="studio-title">Write a journal</h1>
           {choices.length === 0 ? (
             <div className="studio-panel">

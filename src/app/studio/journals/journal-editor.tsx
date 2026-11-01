@@ -2,7 +2,13 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 
 import {
   FormStatus,
@@ -43,6 +49,10 @@ interface JournalEditorProps {
     status: VisibilityStatus;
   };
   initial: { opening: string; body: string };
+  /** Where "back" goes, and what it is called. */
+  back: { href: string; label: string };
+  /** The page's heading, shown under the action bar. */
+  heading?: ReactNode;
 }
 
 /**
@@ -50,7 +60,13 @@ interface JournalEditorProps {
  * happens to a save: a conflict, an expired session, or a network error
  * leaves it where it is, and leaving the page asks first. Saving is explicit.
  */
-export function JournalEditor({ create, edit, initial }: JournalEditorProps) {
+export function JournalEditor({
+  create,
+  edit,
+  initial,
+  back,
+  heading,
+}: JournalEditorProps) {
   const router = useRouter();
   const [opening, setOpening] = useState(initial.opening);
   const [body, setBody] = useState(initial.body);
@@ -126,55 +142,30 @@ export function JournalEditor({ create, edit, initial }: JournalEditorProps) {
   }
 
   return (
-    <form onSubmit={save} className="studio-columns" noValidate>
-      <div className="studio-writing-column">
-        <TextField
-          label="Opening sentence (optional)"
-          value={opening}
-          onChange={(value) => edited(() => setOpening(value))}
-          maxLength={300}
-          lang={locale}
-          variant="opening"
-          hint="One line that opens the journal, in your words."
-          problem={problemWith(failure, "opening")}
-        />
-        <div className="grid gap-2">
-          <TextAreaField
-            label="Your reflection"
-            value={body}
-            onChange={(value) => edited(() => setBody(value))}
-            rows={18}
-            lang={locale}
-            hint="A blank line starts a new paragraph. Your writing is kept as plain text."
-            problem={problemWith(failure, "body")}
-          />
-          <p className="studio-count" aria-live="off">
-            {words(body)} {words(body) === 1 ? "word" : "words"}
-          </p>
+    <form onSubmit={save} className="studio-editor" noValidate>
+      <div className="studio-editorbar" data-mode={create ? "create" : "edit"}>
+        <div className="studio-editorbar-start">
+          <Link href={back.href} className="studio-crumb">
+            ← {back.label}
+          </Link>
+          {create ? (
+            <SelectField
+              label="Written in"
+              variant="inline"
+              value={locale}
+              onChange={(value) => edited(() => setLocale(value as Language))}
+              options={LANGUAGES}
+              problem={problemWith(failure, "locale")}
+            />
+          ) : null}
         </div>
-      </div>
-
-      <div className="studio-margin studio-margin-sticky">
-        {edit ? (
-          <p className="studio-meta studio-editor-state">
-            <StatusMark status={edit.status} />
-          </p>
-        ) : null}
-        {create ? (
-          <SelectField
-            label="Written in"
-            value={locale}
-            onChange={(value) => edited(() => setLocale(value as Language))}
-            options={LANGUAGES}
-            hint="The language you write this journal in. It is recorded with the journal, and nothing is translated for you."
-            problem={problemWith(failure, "locale")}
+        <div className="studio-editorbar-end">
+          <FormStatus
+            pending={pending}
+            failure={failure}
+            saved={saved}
+            dirty={dirty}
           />
-        ) : (
-          <p className="studio-meta">
-            Written in {LANGUAGES.find((l) => l.value === locale)?.label}
-          </p>
-        )}
-        <div className="studio-actions">
           <button
             type="submit"
             className={`studio-button ${dirty ? "studio-button-primary" : ""}`}
@@ -182,26 +173,61 @@ export function JournalEditor({ create, edit, initial }: JournalEditorProps) {
           >
             {create ? "Save as draft" : "Save"}
           </button>
-          {edit ? (
-            <Link
-              href={`/studio/journals/${edit.entryId}`}
-              className="studio-link"
-            >
-              Back to the journal
-            </Link>
-          ) : null}
         </div>
-        <FormStatus
-          pending={pending}
-          failure={failure}
-          saved={saved}
-          dirty={dirty}
-        />
-        <p className="studio-hint">
-          {create
-            ? "A new journal starts as a private draft. Nothing here is published."
-            : "Saving never changes who can see this journal."}
-        </p>
+      </div>
+
+      {heading}
+
+      <div className="studio-columns">
+        <div className="studio-writing-column">
+          <TextField
+            label="Opening sentence (optional)"
+            value={opening}
+            onChange={(value) => edited(() => setOpening(value))}
+            maxLength={300}
+            lang={locale}
+            variant="opening"
+            hint="One line that opens the journal, in your words."
+            problem={problemWith(failure, "opening")}
+          />
+          <div className="grid gap-2">
+            <TextAreaField
+              label="Your reflection"
+              value={body}
+              onChange={(value) => edited(() => setBody(value))}
+              rows={18}
+              lang={locale}
+              hint="A blank line starts a new paragraph. Your writing is kept as plain text."
+              problem={problemWith(failure, "body")}
+            />
+            <p className="studio-count" aria-live="off">
+              {words(body)} {words(body) === 1 ? "word" : "words"}
+            </p>
+          </div>
+        </div>
+
+        <div className="studio-margin">
+          {edit ? (
+            <>
+              <p className="studio-meta studio-editor-state">
+                <StatusMark status={edit.status} />
+              </p>
+              <p className="studio-meta">
+                Written in {LANGUAGES.find((l) => l.value === locale)?.label}
+              </p>
+            </>
+          ) : (
+            <p className="studio-hint">
+              The language you write this journal in. It is recorded with the
+              journal, and nothing is translated for you.
+            </p>
+          )}
+          <p className="studio-hint">
+            {create
+              ? "A new journal starts as a private draft. Nothing here is published."
+              : "Saving never changes who can see this journal."}
+          </p>
+        </div>
       </div>
     </form>
   );

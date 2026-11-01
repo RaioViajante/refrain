@@ -69,6 +69,7 @@ export function useUnsavedGuard(dirty: boolean) {
 }
 
 interface FieldFrameProps {
+  className?: string;
   label: string;
   hint?: string;
   problem?: string;
@@ -78,6 +79,7 @@ interface FieldFrameProps {
 }
 
 function FieldFrame({
+  className,
   label,
   hint,
   problem,
@@ -86,7 +88,7 @@ function FieldFrame({
   children,
 }: FieldFrameProps) {
   return (
-    <div className="studio-field-group">
+    <div className={`studio-field-group ${className ?? ""}`}>
       <label htmlFor={htmlFor} className="studio-label">
         {label}
       </label>
@@ -183,6 +185,8 @@ interface SelectFieldProps {
   hint?: string;
   problem?: string;
   required?: boolean;
+  /** "inline" puts the label beside the select, for a bar. */
+  variant?: "inline";
 }
 
 export function SelectField({
@@ -194,11 +198,13 @@ export function SelectField({
   hint,
   problem,
   required,
+  variant,
 }: SelectFieldProps) {
   const id = useId();
   const describedBy = `${id}-note`;
   return (
     <FieldFrame
+      className={variant === "inline" ? "studio-field-inline" : undefined}
       label={label}
       hint={hint}
       problem={problem}
