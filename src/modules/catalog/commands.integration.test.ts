@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import { schema, type Transaction } from "@/db";
@@ -10,7 +10,9 @@ import {
   createTestArtistJournal,
   createTestMemory,
   createTestTrackReflection,
-  inRollbackTransaction,
+  inScratchTransaction,
+  rowsAdded,
+  type CountedTable,
   testAuthor,
 } from "@/testing";
 
@@ -64,16 +66,12 @@ async function failure(
   return error as CatalogError;
 }
 
-async function count(tx: Transaction, table: string): Promise<number> {
-  const result = await tx.execute<{ n: number }>(
-    sql.raw(`select count(*)::int as n from ${table}`),
-  );
-  return result.rows[0]!.n;
-}
+// Rows a test added to a table, whatever other suites left committed.
+const count = (tx: Transaction, table: CountedTable) => rowsAdded(tx, table);
 
 describe("artists", () => {
   it("creates, reads, updates, and trims an artist", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const { id } = await createArtist(tx, author, {
         name: "  [Test] Band   ",
         sortName: "",
@@ -108,7 +106,7 @@ describe("artists", () => {
   });
 
   it("never lets input reach a column the schema does not name", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const { id } = await createArtist(tx, author, {
         name: "[Test] Artist",
         kind: "person",
@@ -123,7 +121,7 @@ describe("artists", () => {
   });
 
   it("rejects invalid input with fixed field codes and writes nothing", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const cases: [unknown, Record<string, string>][] = [
         [{ name: "", kind: "person" }, { name: "required" }],
         [{ name: "   ", kind: "person" }, { name: "required" }],
@@ -146,7 +144,7 @@ describe("artists", () => {
   });
 
   it("strips control characters the database cannot store", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const { id } = await createArtist(tx, author, {
         name: "[Test] Nul\u0000 Band\ud800",
         kind: "group",
@@ -157,7 +155,7 @@ describe("artists", () => {
   });
 
   it("reports a duplicate MusicBrainz identifier without a database error", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       await createArtist(tx, author, {
         name: "[Test] One",
         kind: "person",
@@ -190,7 +188,7 @@ describe("artists", () => {
   });
 
   it("reports missing records and malformed ids as such", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const input = { name: "[Test] A", kind: "person" };
       for (const run of [
         (db: Transaction) => updateArtist(db, author, MISSING, input),
@@ -210,7 +208,7 @@ describe("artists", () => {
   });
 
   it("archives and restores without deleting, and keeps credits", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const artistId = await createTestArtist(tx, "[Test] Archived");
       const album = await createTestAlbum(tx, { artistIds: [artistId] });
 
@@ -226,7 +224,7 @@ describe("artists", () => {
   });
 
   it("deletes an unreferenced artist and refuses a referenced one", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const free = await createTestArtist(tx, "[Test] Free");
       await deleteArtist(tx, author, free);
       expect(await getArtist(tx, author, free)).toBeNull();
@@ -257,7 +255,7 @@ describe("artists", () => {
   });
 
   it("counts albums, tracks, and journals without multiplying them", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const artistId = await createTestArtist(tx, "[Test] Counted");
       await createTestAlbum(tx, {
         title: "[Test] One",
@@ -290,7 +288,7 @@ describe("artists", () => {
 
 describe("albums", () => {
   it("creates an album with its reference edition and ordered credits", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const first = await createTestArtist(tx, "[Test] First");
       const second = await createTestArtist(tx, "[Test] Second");
       const { id } = await createAlbum(tx, author, {
@@ -328,7 +326,7 @@ describe("albums", () => {
   });
 
   it("does not assume titles are unique", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const artistId = await createTestArtist(tx);
       const input = { title: "[Test] Same Title", credits: [{ artistId }] };
       const a = await createAlbum(tx, author, input);
@@ -338,7 +336,7 @@ describe("albums", () => {
   });
 
   it("validates credits, year, date, and country", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const artistId = await createTestArtist(tx);
       const credits = [{ artistId }];
       const cases: [Record<string, unknown>, string][] = [
@@ -363,7 +361,7 @@ describe("albums", () => {
   });
 
   it("rolls back the whole album when a credit cannot be written", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const artistId = await createTestArtist(tx);
       const missing = await failure(tx, (db) =>
         createAlbum(db, author, {
@@ -395,7 +393,7 @@ describe("albums", () => {
   });
 
   it("refuses to credit an archived artist, but keeps an existing credit", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const live = await createTestArtist(tx, "[Test] Live");
       const archived = await createTestArtist(tx, "[Test] Archived");
       await archiveArtist(tx, author, archived);
@@ -431,7 +429,7 @@ describe("albums", () => {
   });
 
   it("edits metadata, edition, and the order of credits in one step", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const a = await createTestArtist(tx, "[Test] A");
       const b = await createTestArtist(tx, "[Test] B");
       const { id } = await createAlbum(tx, author, {
@@ -460,7 +458,7 @@ describe("albums", () => {
   });
 
   it("rolls back an edit that fails after the metadata changed", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const a = await createTestArtist(tx, "[Test] A");
       const { id } = await createAlbum(tx, author, {
         title: "[Test] Original",
@@ -478,7 +476,7 @@ describe("albums", () => {
   });
 
   it("reports missing albums", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const artistId = await createTestArtist(tx);
       const input = { title: "[Test] A", credits: [{ artistId }] };
       for (const run of [
@@ -496,7 +494,7 @@ describe("albums", () => {
   });
 
   it("archives and restores an album that writing still references", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const artistId = await createTestArtist(tx);
       const album = await createTestAlbum(tx, { artistIds: [artistId] });
       const journalId = await createTestAlbumJournal(tx, {
@@ -517,7 +515,7 @@ describe("albums", () => {
   });
 
   it("deletes an unreferenced album with its credits and edition, keeping its tracks", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const artistId = await createTestArtist(tx);
       const album = await createTestAlbum(tx, { artistIds: [artistId] });
       await deleteAlbum(tx, author, album.albumId);
@@ -534,7 +532,7 @@ describe("albums", () => {
   });
 
   it("refuses to delete an album with writing, and changes nothing", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const withJournal = await createTestAlbum(tx, { title: "[Test] Journal" });
       const deletedJournal = await createTestAlbumJournal(tx, {
         albumId: withJournal.albumId,
@@ -565,7 +563,7 @@ describe("albums", () => {
 
 describe("tracks", () => {
   it("creates, reads, and updates a track with credits", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const a = await createTestArtist(tx, "[Test] A");
       const b = await createTestArtist(tx, "[Test] B");
       const { id } = await createTrack(tx, author, {
@@ -605,7 +603,7 @@ describe("tracks", () => {
   });
 
   it("validates length, credits, and identifiers", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const a = await createTestArtist(tx);
       const cases: [Record<string, unknown>, string][] = [
         [{ title: "" }, "title"],
@@ -626,7 +624,7 @@ describe("tracks", () => {
   });
 
   it("creates a track and appends it to an album in one transaction", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const album = await createTestAlbum(tx, { trackTitles: ["[Test] One"] });
       const { id } = await createTrack(tx, author, {
         title: "[Test] Two",
@@ -650,7 +648,7 @@ describe("tracks", () => {
   });
 
   it("reuses one recording on several albums without duplicating it", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const artistId = await createTestArtist(tx);
       const first = await createTestAlbum(tx, {
         title: "[Test] Studio",
@@ -678,7 +676,7 @@ describe("tracks", () => {
   });
 
   it("allows a track that belongs to no album", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const { id } = await createTrack(tx, author, { title: "[Test] Single" });
       expect((await getTrack(tx, author, id))?.albums).toEqual([]);
       const stats = await getCatalogStatistics(tx, author);
@@ -687,7 +685,7 @@ describe("tracks", () => {
   });
 
   it("archives and restores, and keeps an archived track off new albums", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const album = await createTestAlbum(tx, { trackTitles: [] });
       const { id } = await createTrack(tx, author, { title: "[Test] Old" });
       await archiveTrack(tx, author, id);
@@ -703,7 +701,7 @@ describe("tracks", () => {
   });
 
   it("deletes a free track and refuses one that is on an album", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const free = await createTrack(tx, author, { title: "[Test] Free" });
       await deleteTrack(tx, author, free.id);
       expect(await getTrack(tx, author, free.id)).toBeNull();
@@ -723,7 +721,7 @@ describe("tracks", () => {
   });
 
   it("reports missing tracks", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       for (const run of [
         (db: Transaction) => updateTrack(db, author, MISSING, { title: "[Test] x" }),
         (db: Transaction) => archiveTrack(db, author, MISSING),
@@ -741,7 +739,7 @@ describe("album tracklists", () => {
     detail?.tracklist.map((track) => track.title);
 
   it("orders, adds, removes, and moves tracks with contiguous positions", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const album = await createTestAlbum(tx, {
         trackTitles: ["[Test] A", "[Test] B", "[Test] C"],
       });
@@ -786,7 +784,7 @@ describe("album tracklists", () => {
   });
 
   it("rejects a tracklist with unknown, duplicate, or archived tracks and keeps the old order", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const album = await createTestAlbum(tx, {
         trackTitles: ["[Test] A", "[Test] B"],
       });
@@ -817,7 +815,7 @@ describe("album tracklists", () => {
   });
 
   it("refuses to remove a track that a reflection refers to", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const album = await createTestAlbum(tx, {
         trackTitles: ["[Test] A", "[Test] B"],
       });
@@ -856,7 +854,7 @@ describe("album tracklists", () => {
   });
 
   it("keeps disc numbers and numbers positions within each disc", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const album = await createTestAlbum(tx, { trackTitles: [] });
       const ids: string[] = [];
       for (const title of ["[Test] 1", "[Test] 2", "[Test] 3"]) {
@@ -879,7 +877,7 @@ describe("album tracklists", () => {
   });
 
   it("never touches another album's tracklist", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const one = await createTestAlbum(tx, { title: "[Test] One", trackTitles: ["[Test] a", "[Test] b"] });
       const two = await createTestAlbum(tx, { title: "[Test] Two", trackTitles: ["[Test] c"] });
       await removeTrackFromAlbum(tx, author, one.albumId, one.trackIds[0]!);
@@ -895,7 +893,7 @@ describe("album tracklists", () => {
 
 describe("catalog queries", () => {
   it("counts tracks per album once, however many credits the album has", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const artists = [
         await createTestArtist(tx, "[Test] 1"),
         await createTestArtist(tx, "[Test] 2"),
@@ -915,7 +913,7 @@ describe("catalog queries", () => {
   });
 
   it("includes archived albums in the counts, flagged as archived", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const album = await createTestAlbum(tx, { trackTitles: ["[Test] a"] });
       await archiveAlbum(tx, author, album.albumId);
       const row = (await listAlbumTrackCounts(tx, author)).find(
@@ -926,7 +924,7 @@ describe("catalog queries", () => {
   });
 
   it("computes catalog statistics from SQL aggregates", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const before = await getCatalogStatistics(tx, author);
       const artistId = await createTestArtist(tx);
       await createTestAlbum(tx, { artistIds: [artistId], trackTitles: ["[Test] a", "[Test] b"] });

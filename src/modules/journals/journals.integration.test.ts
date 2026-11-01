@@ -9,7 +9,9 @@ import {
   createTestArtist,
   createTestArtistJournal,
   createTestMemory,
-  inRollbackTransaction,
+  inScratchTransaction,
+  rowsAdded,
+  type CountedTable,
   testAuthor,
 } from "@/testing";
 import { listPublicLanguageVersions } from "@/modules/publication";
@@ -45,12 +47,8 @@ async function failure(
   return (error as JournalError).failure;
 }
 
-async function rows(tx: Transaction, table: string): Promise<number> {
-  const result = await tx.execute<{ n: number }>(
-    sql.raw(`select count(*)::int as n from ${table}`),
-  );
-  return result.rows[0]!.n;
-}
+// Rows a test added to a table, whatever other suites left committed.
+const rows = (tx: Transaction, table: CountedTable) => rowsAdded(tx, table);
 
 async function setUp(tx: Transaction, title = "[Test] Grace") {
   const artistId = await createTestArtist(tx, "[Test] Artist");
@@ -60,7 +58,7 @@ async function setUp(tx: Transaction, title = "[Test] Grace") {
 
 describe("creating an album journal", () => {
   it("creates one draft entry with its language version, subtype row, and slug", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const { albumId } = await setUp(tx);
       const created = await createAlbumJournal(tx, author, {
         albumId,
@@ -133,7 +131,7 @@ describe("creating an album journal", () => {
   });
 
   it("is never public: nothing is published, featured, or visible to public queries", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const { albumId } = await setUp(tx);
       const { entryId } = await createAlbumJournal(tx, author, {
         albumId,
@@ -150,7 +148,7 @@ describe("creating an album journal", () => {
   });
 
   it("allows an empty draft and stores no document for it", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const { albumId } = await setUp(tx);
       const { entryId } = await createAlbumJournal(tx, author, {
         albumId,
@@ -167,7 +165,7 @@ describe("creating an album journal", () => {
   });
 
   it("allows several independent journals for the same album, with distinct slugs", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const { albumId } = await setUp(tx, "Grace");
       const slugs: string[] = [];
       for (let index = 0; index < 3; index++) {
@@ -184,7 +182,7 @@ describe("creating an album journal", () => {
   });
 
   it("falls back to a generic slug for a title with no usable characters", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const { albumId } = await setUp(tx, "日本語");
       const { entryId } = await createAlbumJournal(tx, author, {
         albumId,
@@ -196,7 +194,7 @@ describe("creating an album journal", () => {
   });
 
   it("refuses an unknown or archived album and writes nothing", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const { albumId } = await setUp(tx);
       expect(
         await failure(tx, (db) =>
@@ -215,7 +213,7 @@ describe("creating an album journal", () => {
   });
 
   it("rejects invalid input with fixed field codes", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const { albumId } = await setUp(tx);
       const cases: [Record<string, unknown>, string][] = [
         [{ albumId: "nope", locale: "en" }, "albumId"],
@@ -238,7 +236,7 @@ describe("creating an album journal", () => {
   });
 
   it("stores markup as plain text and never as structure", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const { albumId } = await setUp(tx);
       const hostile = '<img src=x onerror=alert(1)>\n\n<script>1</script> "quoted" \'single\'';
       const { entryId } = await createAlbumJournal(tx, author, {
@@ -254,7 +252,7 @@ describe("creating an album journal", () => {
   });
 
   it("rolls back every row when the entry cannot be completed", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const { albumId } = await setUp(tx);
       // Fill every slug candidate, so the reservation fails after the entry,
       // its version, and its subtype row were inserted.
@@ -301,7 +299,7 @@ describe("saving an album journal", () => {
   }
 
   it("edits the draft, bumps the version, and keeps paragraph breaks", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const entryId = await createDraft(tx);
       const text = "[Test] One.\nStill one.\n\n[Test] Two.\n\n\n\n[Test] Three.  ";
       const saved = await saveAlbumJournal(tx, author, {
@@ -332,7 +330,7 @@ describe("saving an album journal", () => {
   });
 
   it("can clear the writing", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const entryId = await createDraft(tx);
       await saveAlbumJournal(tx, author, {
         entryId,
@@ -349,7 +347,7 @@ describe("saving an album journal", () => {
   });
 
   it("refuses a stale save and changes nothing", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const entryId = await createDraft(tx, "[Test] Original");
       await saveAlbumJournal(tx, author, {
         entryId,
@@ -377,7 +375,7 @@ describe("saving an album journal", () => {
   });
 
   it("never changes visibility, the slug, or the featured state", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const entryId = await createDraft(tx);
       await setAlbumJournalPrivacy(tx, author, { entryId, locale: "en", status: "private" });
       await saveAlbumJournal(tx, author, { entryId, expectedVersion: 1, body: "[Test] x" });
@@ -387,7 +385,7 @@ describe("saving an album journal", () => {
   });
 
   it("refuses unknown entries, entries of another kind, and deleted entries", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const artistId = await createTestArtist(tx);
       const artistJournal = await createTestArtistJournal(tx, { artistId });
       const memory = await createTestMemory(tx);
@@ -416,7 +414,7 @@ describe("saving an album journal", () => {
   });
 
   it("leaves stored formatting it cannot represent untouched", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const entryId = await createDraft(tx);
       const rich = {
         type: "doc",
@@ -449,7 +447,7 @@ describe("saving an album journal", () => {
   });
 
   it("rejects invalid input", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const entryId = await createDraft(tx);
       for (const input of [
         { entryId: "nope", expectedVersion: 1 },
@@ -479,7 +477,7 @@ describe("journal privacy", () => {
   }
 
   it("moves a version between draft and private, and keeps it out of public queries", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const entryId = await draft(tx);
       await setAlbumJournalPrivacy(tx, author, { entryId, locale: "en", status: "private" });
       expect((await getAlbumJournal(tx, author, entryId))?.status).toBe("private");
@@ -490,7 +488,7 @@ describe("journal privacy", () => {
   });
 
   it("cannot publish, whatever the input", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const entryId = await draft(tx);
       for (const status of ["published", "Published", "", null, 1, undefined]) {
         expect(
@@ -505,7 +503,7 @@ describe("journal privacy", () => {
   });
 
   it("refuses unknown versions, entries of another kind, and deleted entries", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const entryId = await draft(tx);
       expect(
         await failure(tx, (db) =>
@@ -536,7 +534,7 @@ describe("journal privacy", () => {
 
 describe("deleting an album journal", () => {
   it("moves it to Recently deleted and keeps everything it owns", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const { albumId } = await setUp(tx);
       const { entryId } = await createAlbumJournal(tx, author, {
         albumId,
@@ -561,7 +559,7 @@ describe("deleting an album journal", () => {
   });
 
   it("refuses to delete twice, or an unknown or other-kind entry", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const { albumId } = await setUp(tx);
       const { entryId } = await createAlbumJournal(tx, author, { albumId, locale: "en", body: "x" });
       await deleteAlbumJournal(tx, author, entryId);
@@ -577,7 +575,7 @@ describe("deleting an album journal", () => {
   });
 
   it("is recoverable data, and permanent deletion stays a separate command", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const { albumId } = await setUp(tx);
       const { entryId } = await createAlbumJournal(tx, author, { albumId, locale: "en", body: "x" });
       // "Delete now" is refused until the journal is in Recently deleted.
@@ -594,7 +592,7 @@ describe("deleting an album journal", () => {
 
 describe("journal queries", () => {
   it("lists journals once each however many credits the album has, newest edit first", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const artists = [
         await createTestArtist(tx, "[Test] A"),
         await createTestArtist(tx, "[Test] B"),
@@ -618,7 +616,7 @@ describe("journal queries", () => {
   });
 
   it("counts journals by status with SQL aggregates, deleted ones separately", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       const before = await getJournalStatistics(tx, author);
       const { albumId } = await setUp(tx);
       const a = await createAlbumJournal(tx, author, { albumId, locale: "en", body: "a" });
@@ -639,7 +637,7 @@ describe("journal queries", () => {
   });
 
   it("returns null for an unknown or malformed id", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inScratchTransaction(async (tx) => {
       expect(await getAlbumJournal(tx, author, MISSING)).toBeNull();
       expect(await getAlbumJournal(tx, author, "nope")).toBeNull();
     });

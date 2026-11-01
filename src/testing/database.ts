@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { expect } from "vitest";
 
 import {
@@ -30,6 +31,62 @@ export async function inRollbackTransaction(
       throw error;
     }
   }
+}
+
+const COUNTED_TABLES = [
+  "artists",
+  "albums",
+  "album_artists",
+  "album_editions",
+  "tracks",
+  "track_artists",
+  "album_tracks",
+  "edition_tracks",
+  "entries",
+  "entry_texts",
+  "album_journals",
+  "track_reflections",
+  "entry_slugs",
+] as const;
+
+export type CountedTable = (typeof COUNTED_TABLES)[number];
+
+let baseline: Record<string, number> = {};
+
+async function tableCounts(tx: Transaction): Promise<Record<string, number>> {
+  const counts: Record<string, number> = {};
+  for (const table of COUNTED_TABLES) {
+    const result = await tx.execute<{ n: number }>(
+      sql.raw(`select count(*)::int as n from ${table}`),
+    );
+    counts[table] = result.rows[0]!.n;
+  }
+  return counts;
+}
+
+/**
+ * Like `inRollbackTransaction`, and records how many rows each counted table
+ * has when the test starts, so `rowsAdded` is correct even if another suite
+ * committed rows to the shared test database.
+ */
+export async function inScratchTransaction(
+  work: (tx: Transaction) => Promise<void>,
+): Promise<void> {
+  await inRollbackTransaction(async (tx) => {
+    baseline = await tableCounts(tx);
+    await work(tx);
+  });
+}
+
+/** How many rows `table` gained since `inScratchTransaction` began. */
+export async function rowsAdded(
+  tx: Transaction,
+  table: CountedTable,
+): Promise<number> {
+  const result = await tx.execute<{ n: number }>(
+    sql.raw(`select count(*)::int as n from ${table}`),
+  );
+  return result.rows[0]!.n - (baseline[table] ?? 0);
 }
 
 /**

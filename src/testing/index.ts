@@ -6,6 +6,9 @@ export {
   databaseErrorOf,
   expectRejected,
   inRollbackTransaction,
+  inScratchTransaction,
+  rowsAdded,
+  type CountedTable,
   SqlState,
   type DatabaseErrorShape,
 } from "./database";
@@ -21,3 +24,4 @@ export {
   type TestAlbum,
   type TestVersion,
 } from "./fixtures";
+export { raceAll, uniqueLabel, withConnections } from "./concurrency";
