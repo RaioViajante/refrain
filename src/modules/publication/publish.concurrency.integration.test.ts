@@ -477,6 +477,18 @@ describe("publication against concurrent changes (test 6)", () => {
       // already begun. Hold the lock until the database clock is past the
       // expiry: only a clock read after the lock was granted notices.
       async (tx) => {
+        // The test proves something only if the waiting transaction began
+        // before the token expired; on a runner too slow for that it fails
+        // loudly instead of quietly checking nothing.
+        const waiting = await tx.execute<{ started: string }>(sql`
+          select floor(extract(epoch from xact_start) * 1000)::bigint::text
+                   as started
+            from pg_stat_activity
+           where wait_event_type = 'Lock'
+             and application_name = 'refrain-concurrency-tests'
+             and datname = current_database()
+           limit 1`);
+        expect(Number(waiting.rows[0]!.started)).toBeLessThan(expiresAtMs);
         for (let attempt = 0; attempt < 200; attempt++) {
           const clock = await tx.execute<{ past: boolean }>(sql`
             select floor(extract(epoch from clock_timestamp()) * 1000)
