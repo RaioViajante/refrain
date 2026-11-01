@@ -44,17 +44,23 @@ A deleted entry can hold language versions in any state, including `published` (
 
 ### 5. Required condition for the M2 publishing interface
 
-This is a safety condition on a **future** interface. It is not implemented, and M1.3C has no publishing control. It extends ADR 0002 D5 (a reflection is public only when its own flag is set *and* its parent version is public) without changing it, and it applies whenever a parent language version is published again after having been unpublished, deleted, or restored.
+This is a safety condition on **future** publishing functionality: every code path that publishes or republishes a journal language version, whether an interface, a script, a bulk operation, or an API. ("Interface" in this heading and in the links to it means all of them.) It is not implemented, and M1.3C has no publishing control. It extends ADR 0002 D5 (a reflection is public only when its own flag is set *and* its parent version is public) without changing it, and it applies whenever publishing or republishing a language version may expose individual track reflections, including after the version was unpublished, deleted, or restored. The owner clarified and tightened it on 2026-11-01, after the merge of PR #19; this ADR stays Accepted.
 
-Before the publication interface lets the author publish a language version of a journal that has track reflections, it must:
+Whenever publishing or republishing a journal language version may expose individual track reflections, the publishing system must:
 
-1. determine which individual track reflections would become publicly visible as a result, per language (those whose `is_published` is set and that have text in the language being published, which is what the predicate requires);
-2. clearly disclose those reflections to the author;
-3. require explicit confirmation that includes them;
-4. let the author review or change their individual publication selections before completing the publication;
-5. never expose a previously published reflection silently, as an undisclosed side effect of publishing the parent version.
+1. **Determine the exact set** of track reflections that would become publicly visible, accounting for language-specific eligibility: a reflection is in the set for a language when its `is_published` is set and it has text in that language, which is what the publication predicate requires. The set is therefore a set of reflection-and-language pairs.
+2. **Disclose that set** to the author clearly, identifying each reflection and its language.
+3. **Let the author review or change** individual publication selections before publishing.
+4. **Require explicit acknowledgement** of the effective set before publication.
+5. **Enforce that acknowledgement at the Publication domain-command boundary**, not merely in the user interface.
+6. **Reject a missing, outdated, or mismatched acknowledgement**, in particular when the effective publication set has changed since the author acknowledged it.
+7. **Make the consistency check atomic with the publication.** The comparison of the acknowledged set with the effective set and the visibility change happen under the same lock and in the same transaction, so no change can fall between the confirmation and the final visibility change.
+8. **Apply to every caller**, including future interfaces, scripts, bulk operations, and APIs. There is no caller-specific path around it.
+9. **Never expose a previously published reflection silently**, as an undisclosed side effect of publishing its parent language version.
 
-The condition is tracked in the [Roadmap (M2)](../roadmap.md#adr-0005-condition-for-the-m2-publishing-interface) and in [Security § Planned](../security.md#implemented-and-planned-protections).
+The implementation may use versioned acknowledgements or an equivalent concurrency-safe mechanism. This ADR deliberately fixes no command or API signature: that is decided, and reviewed, with the M2 design.
+
+The publication predicate, ADR 0002 and its invariants (INV-1 to INV-5), and the restoration policy in § 1 remain authoritative and are not changed by this section. The condition is tracked in the [Roadmap (M2)](../roadmap.md#adr-0005-condition-for-the-m2-publishing-interface) and in [Security § Planned](../security.md#implemented-and-planned-protections).
 
 ## What the owner approved
 
@@ -74,7 +80,7 @@ The condition is tracked in the [Roadmap (M2)](../roadmap.md#adr-0005-condition-
 | 12 | The private *Recently deleted* page with a confirmed *Restore…* and a notice chosen from a fixed query-string value; no pagination for this single-author implementation | Accepted in the M1.3C review |
 | 13 | No schema change and no migration | Accepted in the M1.3C review |
 | 14 | Automatic purge and permanent-delete controls stay disabled | Owner policy; confirmed in the M1.3C review |
-| 15 | The M2 publishing interface must satisfy the five-part condition in § 5 | Required by the owner in the M1.3C review |
+| 15 | The M2 publishing system must satisfy the nine requirements in § 5, enforced at the Publication command boundary | Required by the owner in the M1.3C review; clarified 2026-11-01 |
 
 Remaining trade-offs and risks: until the M2 condition is built, nothing in the studio can set a reflection's flag or publish a version, so the exposure cannot occur. The restore dialog's promise ("nothing is published again until you choose to publish it") is exact for the language version; § 5 is what makes it exact for reflections too. Restore exists for album journals only.
 
