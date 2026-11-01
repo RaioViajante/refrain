@@ -35,6 +35,7 @@ const eslintConfig = defineConfig([
     "test-results/**",
     "playwright-report/**",
     "playwright/**",
+    "visual-review/**",
   ]),
   {
     rules: {

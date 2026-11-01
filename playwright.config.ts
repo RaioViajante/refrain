@@ -68,7 +68,8 @@ export default defineConfig({
     },
     {
       name: "desktop",
-      testMatch: /(catalog|journal|recovery|academic)\.spec\.ts/,
+      testMatch:
+        /(catalog|journal|recovery|academic|navigation|layout)\.spec\.ts/,
       use: {
         browserName: "chromium",
         viewport: { width: 1280, height: 900 },
@@ -76,6 +77,21 @@ export default defineConfig({
       },
       dependencies: ["setup", "anonymous"],
     },
+    // The visual review package: only with VISUAL_REVIEW=1 (`pnpm review:screens`).
+    ...(process.env.VISUAL_REVIEW
+      ? [
+          {
+            name: "visual-review",
+            testMatch: /visual-review\.spec\.ts/,
+            use: {
+              browserName: "chromium" as const,
+              viewport: { width: 1280, height: 900 },
+              storageState: AUTH_FILE,
+            },
+            dependencies: ["setup"],
+          },
+        ]
+      : []),
     {
       name: "mobile-390",
       testMatch: /mobile\.spec\.ts/,
