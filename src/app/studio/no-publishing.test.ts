@@ -14,6 +14,11 @@ import { describe, expect, it } from "vitest";
 const FORBIDDEN_NAMES = new Set([
   "publishLanguageVersion",
   "unpublishLanguageVersion",
+  "previewPublication",
+  "previewPublicChange",
+  "signConfirmation",
+  "verifyConfirmation",
+  "confirmationIsCurrent",
   "changeEntrySlug",
   "reserveInitialSlug",
   "retireEntrySlugs",
@@ -67,6 +72,9 @@ describe("the studio cannot publish, re-address, or permanently delete", () => {
     expect(violations("publishLanguageVersion(db, id, 'en');")).toHaveLength(1);
     expect(violations("const f = permanentlyDeleteEntry;")).toHaveLength(1);
     expect(violations("changeEntrySlug(a, b, c)")).toHaveLength(1);
+    expect(violations("previewPublication(db, author, input)")).toHaveLength(1);
+    expect(violations("signConfirmation(author, issue)")).toHaveLength(1);
+    expect(violations("verifyConfirmation(a, t, b)")).toHaveLength(1);
     expect(violations("export const ok = 1;")).toEqual([]);
   });
 });

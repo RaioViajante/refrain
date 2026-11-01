@@ -12,9 +12,14 @@ import {
   changeEntrySlug,
   normalizeSlug,
   PublicationError,
-  publishLanguageVersion,
 } from "@/modules/publication";
-import { raceAll, testAuthor, uniqueLabel, withConnections } from "@/testing";
+import {
+  publishForTest,
+  raceAll,
+  testAuthor,
+  uniqueLabel,
+  withConnections,
+} from "@/testing";
 
 import {
   createAlbumJournal,
@@ -277,7 +282,7 @@ describe("patches saved from two editors at the same moment", () => {
 async function newDeletedPublishedJournal(albumId: string): Promise<string> {
   const db = getDb();
   const entryId = await newJournal(albumId, "[Test] Once published");
-  await publishLanguageVersion(db, entryId, "en");
+  await publishForTest(db, entryId, "en");
   await deleteAlbumJournal(db, author, entryId);
   return entryId;
 }
@@ -344,7 +349,7 @@ describe("restoring journals at the same moment", () => {
       const outcomes = await withConnections(2, (dbs) =>
         raceAll([
           () => restoreAlbumJournal(dbs[0]!, author, entryId),
-          () => publishLanguageVersion(dbs[1]!, entryId, "en"),
+          () => publishForTest(dbs[1]!, entryId, "en"),
         ]),
       );
       const [restored, published] = outcomes;

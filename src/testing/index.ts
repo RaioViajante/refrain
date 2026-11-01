@@ -25,3 +25,14 @@ export {
   type TestVersion,
 } from "./fixtures";
 export { raceAll, uniqueLabel, withConnections } from "./concurrency";
+export {
+  claimsOf,
+  hkdfSha256,
+  mintTestToken,
+  otherSession,
+  reissueTestToken,
+  shiftedTestToken,
+  testSecret,
+  type RawClaims,
+} from "./confirmation";
+export { publishForTest } from "./publishing";

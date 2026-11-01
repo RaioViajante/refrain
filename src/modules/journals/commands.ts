@@ -151,6 +151,9 @@ export async function createAlbumJournal(
  *   when the entry is locked, or the save is refused with `version_conflict`
  *   and nothing is written. Two editors never overwrite each other silently.
  * - A journal in Recently deleted cannot be saved.
+ * - A published version cannot be saved (`published_text_locked`) until the
+ *   confirmed save of M2.2 exists (ADR 0006 § 5): the interim, fail-closed
+ *   behavior. Nothing in the studio can publish yet, so no author meets it.
  * - It is a patch (docs/data-model.md): `opening` and `body` left out are
  *   unchanged, and a save naming neither is refused. Clearing either is done on
  *   purpose with `null` or a blank string.
@@ -177,7 +180,10 @@ export async function saveAlbumJournal(
     }
 
     const [stored] = await tx
-      .select({ body: schema.entryTexts.body })
+      .select({
+        body: schema.entryTexts.body,
+        status: schema.entryTexts.status,
+      })
       .from(schema.entryTexts)
       .where(
         and(
@@ -187,6 +193,13 @@ export async function saveAlbumJournal(
       );
     if (!stored) {
       throw new JournalError("entry_not_found");
+    }
+    // Fail closed until M2.2 (ADR 0006 § 5): a save would change a public
+    // page without the author seeing what changes, so a published version
+    // cannot be saved. Unpublish it first. This is a guard, not the feature:
+    // the confirmed save replaces it.
+    if (stored.status === "published") {
+      throw new JournalError("published_text_locked");
     }
     // The stored text is only replaced when the save names a body. A save
     // that names only the opening sentence leaves the body exactly as it is,
@@ -234,7 +247,7 @@ export async function saveAlbumJournal(
  */
 export async function setAlbumJournalPrivacy(
   db: DatabaseExecutor,
-  _author: AuthorizedAuthor,
+  author: AuthorizedAuthor,
   input: unknown,
 ): Promise<void> {
   const data = parse(journalPrivacyInput, input);
@@ -246,6 +259,7 @@ export async function setAlbumJournalPrivacy(
       }
       await unpublishLanguageVersion(
         tx,
+        author,
         data.entryId,
         data.locale,
         data.status,

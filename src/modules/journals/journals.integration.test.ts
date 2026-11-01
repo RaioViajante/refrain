@@ -10,6 +10,7 @@ import {
   createTestArtistJournal,
   createTestMemory,
   inScratchTransaction,
+  publishForTest,
   rowsAdded,
   type CountedTable,
   testAuthor,
@@ -391,6 +392,47 @@ describe("saving an album journal", () => {
       const journal = await getAlbumJournal(tx, author, entryId);
       expect(journal?.body).toBe("[Test] Written in the first tab");
       expect(journal?.version).toBe(2);
+    });
+  });
+
+  it("refuses to save a published version until the confirmed save exists (ADR 0006 § 5, interim)", async () => {
+    await inScratchTransaction(async (tx) => {
+      const entryId = await createDraft(tx, "[Test] As published");
+      await publishForTest(tx, entryId, "en");
+      const before = await getAlbumJournal(tx, author, entryId);
+      expect(before?.status).toBe("published");
+
+      for (const change of [
+        { opening: "[Test] Changed" },
+        { body: "[Test] Shorter" },
+        { opening: null, body: "" },
+      ]) {
+        expect(
+          await failure(tx, (db) =>
+            saveAlbumJournal(db, author, {
+              entryId,
+              expectedVersion: before!.version,
+              ...change,
+            }),
+          ),
+        ).toBe("published_text_locked");
+      }
+      // Nothing changed: not the text, not the version.
+      expect(await getAlbumJournal(tx, author, entryId)).toEqual(before);
+
+      // Unpublishing first is the way to change the text, and it works.
+      await setAlbumJournalPrivacy(tx, author, {
+        entryId,
+        locale: "en",
+        status: "private",
+      });
+      await expect(
+        saveAlbumJournal(tx, author, {
+          entryId,
+          expectedVersion: before!.version,
+          body: "[Test] Rewritten",
+        }),
+      ).resolves.toEqual({ version: before!.version + 1 });
     });
   });
 
