@@ -14,10 +14,12 @@ export {
   MAX_ALBUM_TRACKS,
   MAX_CREDITS,
   type AlbumInput,
+  type AlbumPatch,
   type ArtistInput,
+  type ArtistPatch,
   type MoveDirection,
   type NewTrackInput,
-  type TrackInput,
+  type TrackPatch,
   type TracklistInput,
 } from "./input";
 export type {

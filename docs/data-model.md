@@ -280,10 +280,22 @@ Each item below is one transaction (the numbers are stable; the boundary 1 impor
 **Catalog commands added in M1.3B** (each one transaction; all lock the album row when they rewrite its credits or tracklist, so two edits run one after the other):
 
 - `createAlbum`: the album, its reference edition, and its ordered credits.
-- `updateAlbum`: metadata, the edition's metadata, and the credits, replaced together.
+- `updateAlbum`: a patch of the album's metadata, of the reference edition's metadata (field by field), and, when named, of the credits (the whole list), in one transaction.
 - `setAlbumTracklist`, `addTrackToAlbum`, `removeTrackFromAlbum`, `moveTrackInAlbum`: album membership and the reference edition's order. The edition's rows are replaced, not renumbered, because `(edition_id, disc_number, position)` is unique and not deferrable; nothing authored refers to `edition_tracks`. Removing a recording that a track reflection refers to is refused.
 - `createTrack` (optionally appended to an album) and `updateTrack` with its credits.
 - Archive, restore, and a guarded hard delete for artists, albums, and tracks: the delete is attempted and `ON DELETE RESTRICT` decides, so a record that anything refers to is refused as `in_use`.
+
+**Update contract (M1.3B).** Every update of a catalog record or a journal's text is a patch, so that an unrelated edit can never erase the author's data:
+
+- A **create** takes the whole record; an optional field left out is empty.
+- An **update** changes only what it names. A field left out is unchanged. A field that is present is validated and replaces the stored value.
+- **Clearing is intentional**: `null`, or a blank string, for an optional field (a sort name, a year, an edition's label, a journal's opening sentence or reflection). A required field (a name or a title) can be replaced but never cleared.
+- A patch that names nothing, or only an empty `edition`, is refused as `invalid_input`; it is never a silent no-op.
+- A **list** that is present (credits, a track's artists, a tracklist) replaces the whole list and must be complete (an album needs at least one credit; a tracklist must carry its `tracks`). An item in a replaced list that leaves out an optional field keeps the stored value: reordering credits keeps each "credited as", and a tracklist keeps each track's disc.
+- Saving a journal is a patch of `opening` and `body`, with the `entries.version` check. Replacing a body that the plain editor would not reproduce exactly is refused; the opening sentence of that text can still be changed, and the body is then left exactly as it is.
+- Catalog metadata has no version counter: two sessions editing the same artist, album, or track can overwrite each other's named fields (last write wins). Journal text does not: a stale save is refused.
+
+Integration tests omit, clear, and update a field while the unrelated fields hold data, for each record, and the same behavior is asserted through the Server Actions over HTTP.
 
 **Journal commands added in M1.3B:** `createAlbumJournal` (boundary 2: the entry, its original version as a `draft`, the `album_journals` row, and a slug reserved by `reserveInitialSlug`), `saveAlbumJournal` (the version check of boundary 3 for an album journal's text), `setAlbumJournalPrivacy` (only `draft` or `private`, through `unpublishLanguageVersion`), and `deleteAlbumJournal` (sets `deleted_at`; recoverable).
 

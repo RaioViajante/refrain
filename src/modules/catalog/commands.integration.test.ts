@@ -649,6 +649,7 @@ describe("tracks", () => {
         ],
       });
 
+      // A patch: what it names changes, and the rest stays.
       await updateTrack(tx, author, id, {
         title: "[Test] Song (reprise)",
         lengthMs: null,
@@ -657,8 +658,8 @@ describe("tracks", () => {
       expect(await getTrack(tx, author, id)).toMatchObject({
         title: "[Test] Song (reprise)",
         lengthMs: null,
-        credit: null,
-        mbRecordingId: null,
+        credit: "feat. [Test]",
+        mbRecordingId: MB_ID,
         credits: [{ artistId: a }],
       });
     });
@@ -1095,22 +1096,6 @@ describe("archived albums and replace semantics", () => {
     });
   });
 
-  it("clears an optional field that an update leaves out (updates replace)", async () => {
-    await inScratchTransaction(async (tx) => {
-      const { id } = await createArtist(tx, author, {
-        name: "[Test] A",
-        kind: "person",
-        sortName: "A, [Test]",
-        mbArtistId: MB_ID,
-      });
-      await updateArtist(tx, author, id, { name: "[Test] A", kind: "person" });
-      expect(await getArtist(tx, author, id)).toMatchObject({
-        sortName: null,
-        mbArtistId: null,
-      });
-    });
-  });
-
   it("lets a failed single-statement command abort only its own savepoint when wrapped", async () => {
     await inScratchTransaction(async (tx) => {
       const album = await createTestAlbum(tx, { trackTitles: ["[Test] A"] });
@@ -1124,6 +1109,370 @@ describe("archived albums and replace semantics", () => {
         (await failure(tx, (db) => deleteTrack(db, author, album.trackIds[0]!)))
           ?.failure,
       ).toBe("in_use");
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The update contract: a field left out is unchanged, a field that is present
+// replaces the stored value, and clearing is done on purpose.
+// ---------------------------------------------------------------------------
+
+const OTHER_MB_ID_2 = "0cbbd3d1-6e1b-4f58-a1c3-9f9f0f3e7c11";
+
+describe("artist updates are patches", () => {
+  async function fullArtist(tx: Transaction) {
+    const { id } = await createArtist(tx, author, {
+      name: "[Test] Full",
+      sortName: "Full, [Test]",
+      kind: "group",
+      mbArtistId: MB_ID,
+    });
+    return id;
+  }
+
+  it("changes only what it names", async () => {
+    await inScratchTransaction(async (tx) => {
+      const id = await fullArtist(tx);
+      await updateArtist(tx, author, id, { name: "[Test] Renamed" });
+      expect(await getArtist(tx, author, id)).toMatchObject({
+        name: "[Test] Renamed",
+        sortName: "Full, [Test]",
+        kind: "group",
+        mbArtistId: MB_ID,
+      });
+      await updateArtist(tx, author, id, { kind: "person" });
+      await updateArtist(tx, author, id, { mbArtistId: OTHER_MB_ID_2 });
+      expect(await getArtist(tx, author, id)).toMatchObject({
+        name: "[Test] Renamed",
+        sortName: "Full, [Test]",
+        kind: "person",
+        mbArtistId: OTHER_MB_ID_2,
+      });
+    });
+  });
+
+  it("clears an optional field only when told to, with null or a blank string", async () => {
+    await inScratchTransaction(async (tx) => {
+      const id = await fullArtist(tx);
+      await updateArtist(tx, author, id, { sortName: null });
+      expect(await getArtist(tx, author, id)).toMatchObject({
+        name: "[Test] Full",
+        sortName: null,
+        mbArtistId: MB_ID,
+      });
+      await updateArtist(tx, author, id, { mbArtistId: "  " });
+      expect(await getArtist(tx, author, id)).toMatchObject({
+        sortName: null,
+        mbArtistId: null,
+        kind: "group",
+      });
+    });
+  });
+
+  it("refuses an empty patch, and never clears a required field", async () => {
+    await inScratchTransaction(async (tx) => {
+      const id = await fullArtist(tx);
+      for (const patch of [
+        {},
+        { unknown: 1 },
+        { sortName: undefined },
+        { name: "" },
+        { name: "   " },
+        { name: null },
+        { kind: null },
+        { kind: "robot" },
+        { sortName: 5 },
+        null,
+      ]) {
+        const error = await failure(tx, (db) =>
+          updateArtist(db, author, id, patch),
+        );
+        expect(error?.failure, JSON.stringify(patch)).toBe("invalid_input");
+      }
+      expect(await getArtist(tx, author, id)).toMatchObject({
+        name: "[Test] Full",
+        sortName: "Full, [Test]",
+        kind: "group",
+        mbArtistId: MB_ID,
+      });
+    });
+  });
+});
+
+describe("album updates are patches", () => {
+  async function fullAlbum(tx: Transaction) {
+    const a = await createTestArtist(tx, "[Test] A");
+    const b = await createTestArtist(tx, "[Test] B");
+    const { id } = await createAlbum(tx, author, {
+      title: "[Test] Full album",
+      firstReleaseYear: 1994,
+      mbReleaseGroupId: MB_ID,
+      credits: [{ artistId: a, creditedAs: "[Test] The A" }, { artistId: b }],
+      edition: {
+        label: "[Test] Label",
+        releaseDate: "1994-08-23",
+        country: "US",
+      },
+    });
+    const one = await createTrack(tx, author, {
+      title: "[Test] One",
+      albumId: id,
+    });
+    const two = await createTrack(tx, author, {
+      title: "[Test] Two",
+      albumId: id,
+    });
+    const journalId = await createTestAlbumJournal(tx, {
+      albumId: id,
+      versions: [{ locale: "en", text: "[Test] Written words" }],
+    });
+    return { id, a, b, tracks: [one.id, two.id], journalId };
+  }
+
+  async function snapshotOf(tx: Transaction, id: string) {
+    const album = await getAlbum(tx, author, id);
+    return { ...album };
+  }
+
+  it("keeps credits, edition, tracklist, and journals when only the title changes", async () => {
+    await inScratchTransaction(async (tx) => {
+      const { id, journalId, tracks } = await fullAlbum(tx);
+      const before = await snapshotOf(tx, id);
+      await updateAlbum(tx, author, id, { title: "[Test] New title" });
+      expect(await snapshotOf(tx, id)).toEqual({
+        ...before,
+        title: "[Test] New title",
+      });
+      expect(
+        (await getAlbum(tx, author, id))?.tracklist.map((t) => t.trackId),
+      ).toEqual(tracks);
+      const [text] = await tx
+        .select()
+        .from(schema.entryTexts)
+        .where(eq(schema.entryTexts.entryId, journalId));
+      expect(text?.bodyText).toBe("[Test] Written words");
+    });
+  });
+
+  it("clears an optional album field only when told to", async () => {
+    await inScratchTransaction(async (tx) => {
+      const { id } = await fullAlbum(tx);
+      const before = await snapshotOf(tx, id);
+      await updateAlbum(tx, author, id, { firstReleaseYear: null });
+      expect(await snapshotOf(tx, id)).toEqual({
+        ...before,
+        firstReleaseYear: null,
+      });
+      await updateAlbum(tx, author, id, { mbReleaseGroupId: "" });
+      expect(await snapshotOf(tx, id)).toEqual({
+        ...before,
+        firstReleaseYear: null,
+        mbReleaseGroupId: null,
+      });
+      await updateAlbum(tx, author, id, { firstReleaseYear: 2001 });
+      expect((await getAlbum(tx, author, id))?.firstReleaseYear).toBe(2001);
+    });
+  });
+
+  it("patches the reference edition field by field", async () => {
+    await inScratchTransaction(async (tx) => {
+      const { id } = await fullAlbum(tx);
+      await updateAlbum(tx, author, id, {
+        edition: { label: "[Test] New label" },
+      });
+      expect((await getAlbum(tx, author, id))?.edition).toEqual({
+        label: "[Test] New label",
+        releaseDate: "1994-08-23",
+        country: "US",
+      });
+      await updateAlbum(tx, author, id, { edition: { country: null } });
+      expect((await getAlbum(tx, author, id))?.edition).toEqual({
+        label: "[Test] New label",
+        releaseDate: "1994-08-23",
+        country: null,
+      });
+      await updateAlbum(tx, author, id, { edition: { releaseDate: "" } });
+      expect((await getAlbum(tx, author, id))?.edition).toEqual({
+        label: "[Test] New label",
+        releaseDate: null,
+        country: null,
+      });
+      expect(await count(tx, "album_editions")).toBe(1);
+    });
+  });
+
+  it("reorders credits without erasing a credited-as name, and clears one only when told to", async () => {
+    await inScratchTransaction(async (tx) => {
+      const { id, a, b } = await fullAlbum(tx);
+      // `creditedAs` left out of an item: the stored name stays with its artist.
+      await updateAlbum(tx, author, id, {
+        credits: [{ artistId: b }, { artistId: a }],
+      });
+      expect(
+        (await getAlbum(tx, author, id))?.credits.map((c) => [
+          c.artistId,
+          c.creditedAs,
+        ]),
+      ).toEqual([
+        [b, null],
+        [a, "[Test] The A"],
+      ]);
+      // Said on purpose, it changes; null clears.
+      await updateAlbum(tx, author, id, {
+        credits: [
+          { artistId: b, creditedAs: "[Test] Bee" },
+          { artistId: a, creditedAs: null },
+        ],
+      });
+      expect(
+        (await getAlbum(tx, author, id))?.credits.map((c) => [
+          c.artistId,
+          c.creditedAs,
+        ]),
+      ).toEqual([
+        [b, "[Test] Bee"],
+        [a, null],
+      ]);
+      // Credits are untouched by an edit that does not mention them.
+      await updateAlbum(tx, author, id, { firstReleaseYear: 1999 });
+      expect((await getAlbum(tx, author, id))?.credits).toHaveLength(2);
+    });
+  });
+
+  it("refuses an empty patch and incomplete replacements, and changes nothing", async () => {
+    await inScratchTransaction(async (tx) => {
+      const { id, a } = await fullAlbum(tx);
+      const before = await snapshotOf(tx, id);
+      for (const patch of [
+        {},
+        { edition: {} },
+        { title: "" },
+        { title: null },
+        { credits: [] },
+        { credits: [{ artistId: a }, { artistId: a }] },
+        { credits: [{}] },
+        { firstReleaseYear: 1799 },
+        { edition: { releaseDate: "1994-02-30" } },
+      ]) {
+        const error = await failure(tx, (db) =>
+          updateAlbum(db, author, id, patch),
+        );
+        expect(error?.failure, JSON.stringify(patch)).toBe("invalid_input");
+      }
+      expect(await snapshotOf(tx, id)).toEqual(before);
+    });
+  });
+});
+
+describe("track updates are patches", () => {
+  it("keeps credits and fields that the patch does not name, and clears only on purpose", async () => {
+    await inScratchTransaction(async (tx) => {
+      const a = await createTestArtist(tx, "[Test] A");
+      const album = await createTestAlbum(tx, { trackTitles: [] });
+      const { id } = await createTrack(tx, author, {
+        title: "[Test] Song",
+        lengthMs: 100_000,
+        credit: "[Test] note",
+        mbRecordingId: MB_ID,
+        artistIds: [a],
+        albumId: album.albumId,
+      });
+      await updateTrack(tx, author, id, { title: "[Test] Renamed" });
+      expect(await getTrack(tx, author, id)).toMatchObject({
+        title: "[Test] Renamed",
+        lengthMs: 100_000,
+        credit: "[Test] note",
+        mbRecordingId: MB_ID,
+        credits: [{ artistId: a }],
+        albums: [{ id: album.albumId }],
+      });
+      await updateTrack(tx, author, id, { credit: "" });
+      expect(await getTrack(tx, author, id)).toMatchObject({
+        credit: null,
+        lengthMs: 100_000,
+        credits: [{ artistId: a }],
+      });
+      // An empty list is a deliberate removal of every credit.
+      await updateTrack(tx, author, id, { artistIds: [] });
+      expect((await getTrack(tx, author, id))?.credits).toEqual([]);
+      expect((await getTrack(tx, author, id))?.albums).toHaveLength(1);
+    });
+  });
+
+  it("refuses an empty patch and a cleared title", async () => {
+    await inScratchTransaction(async (tx) => {
+      const { id } = await createTrack(tx, author, {
+        title: "[Test] Song",
+        lengthMs: 5_000,
+      });
+      for (const patch of [
+        {},
+        { title: "" },
+        { title: null },
+        { lengthMs: 0 },
+        { artistIds: "x" },
+      ]) {
+        const error = await failure(tx, (db) =>
+          updateTrack(db, author, id, patch),
+        );
+        expect(error?.failure, JSON.stringify(patch)).toBe("invalid_input");
+      }
+      expect(await getTrack(tx, author, id)).toMatchObject({
+        title: "[Test] Song",
+        lengthMs: 5_000,
+      });
+    });
+  });
+});
+
+describe("tracklist replacement is complete, and keeps what it is not told to change", () => {
+  it("refuses a representation without its tracks, and keeps each track's disc", async () => {
+    await inScratchTransaction(async (tx) => {
+      const album = await createTestAlbum(tx, { trackTitles: [] });
+      const ids: string[] = [];
+      for (const title of ["[Test] 1", "[Test] 2", "[Test] 3"]) {
+        ids.push((await createTrack(tx, author, { title })).id);
+      }
+      await setAlbumTracklist(tx, author, album.albumId, {
+        tracks: [
+          { trackId: ids[0]!, discNumber: 1 },
+          { trackId: ids[1]!, discNumber: 2 },
+          { trackId: ids[2]!, discNumber: 2 },
+        ],
+      });
+      // Reordering without naming any disc keeps each track on its own disc.
+      await setAlbumTracklist(tx, author, album.albumId, {
+        tracks: [
+          { trackId: ids[0]! },
+          { trackId: ids[2]! },
+          { trackId: ids[1]! },
+        ],
+      });
+      expect(
+        (await getAlbum(tx, author, album.albumId))?.tracklist.map((t) => [
+          t.trackId,
+          t.discNumber,
+          t.position,
+        ]),
+      ).toEqual([
+        [ids[0], 1, 1],
+        [ids[2], 2, 1],
+        [ids[1], 2, 2],
+      ]);
+      // An incomplete representation is refused, not read as "no tracks".
+      for (const input of [{}, { tracks: null }, null]) {
+        expect(
+          (
+            await failure(tx, (db) =>
+              setAlbumTracklist(db, author, album.albumId, input),
+            )
+          )?.failure,
+        ).toBe("invalid_input");
+      }
+      expect(
+        (await getAlbum(tx, author, album.albumId))?.tracklist,
+      ).toHaveLength(3);
     });
   });
 });

@@ -145,8 +145,12 @@ export async function createAlbumJournal(
  *   when the entry is locked, or the save is refused with `version_conflict`
  *   and nothing is written. Two editors never overwrite each other silently.
  * - A journal in Recently deleted cannot be saved.
- * - Stored text that the plain editor would not reproduce exactly (see
- *   `editableText`) is left untouched: `unsupported_content`.
+ * - It is a patch (docs/data-model.md): `opening` and `body` left out are
+ *   unchanged, and a save naming neither is refused. Clearing either is done on
+ *   purpose with `null` or a blank string.
+ * - Replacing the body of stored text that the plain editor would not
+ *   reproduce exactly (see `editableText`) is refused, and the text is left
+ *   untouched: `unsupported_content`. The opening sentence can still change.
  * - Visibility is never touched.
  *
  * Returns the new version.
@@ -178,18 +182,28 @@ export async function saveAlbumJournal(
     if (!stored) {
       throw new JournalError("entry_not_found");
     }
-    if (editableText(stored.body) === null) {
-      throw new JournalError("unsupported_content");
+    // The stored text is only replaced when the save names a body. A save
+    // that names only the opening sentence leaves the body exactly as it is,
+    // whatever it holds.
+    const changes: {
+      opening?: string | null;
+      body?: unknown;
+      bodyText?: string;
+    } = {};
+    if (data.opening !== undefined) {
+      changes.opening = data.opening;
     }
-
-    const document = textToDocument(data.body);
+    if (data.body !== undefined) {
+      if (editableText(stored.body) === null) {
+        throw new JournalError("unsupported_content");
+      }
+      const document = textToDocument(data.body ?? "");
+      changes.body = document;
+      changes.bodyText = document ? documentToText(document)! : "";
+    }
     await tx
       .update(schema.entryTexts)
-      .set({
-        opening: data.opening,
-        body: document,
-        bodyText: document ? documentToText(document)! : "",
-      })
+      .set(changes)
       .where(
         and(
           eq(schema.entryTexts.entryId, data.entryId),

@@ -16,11 +16,13 @@ import { fieldErrorsOf } from "@/validation";
 import { CatalogError, type CatalogBlocker } from "./errors";
 import {
   albumInput,
+  albumPatch,
   artistInput,
+  artistPatch,
   catalogId,
   moveDirection,
   newTrackInput,
-  trackInput,
+  trackPatch,
   tracklistInput,
 } from "./input";
 
@@ -33,8 +35,10 @@ import {
 // transaction, a refusal aborts that transaction, so a test wraps such a call
 // in its own savepoint (`captureFailure`).
 //
-// Updates replace: an optional field left out of the input is cleared, not kept.
-// The studio's forms always send every field.
+// Updates are patches (see ./input.ts): a field left out is unchanged, a field
+// that is present replaces the stored value, and clearing an optional field is
+// done on purpose with `null` or a blank string. A list that is present
+// replaces the whole list.
 //
 // Every command takes the `AuthorizedAuthor` that only the Identity module can
 // create, so presentation code cannot call one without having authorized the
@@ -117,6 +121,16 @@ function parse<Schema extends z.ZodType>(
   return result.data;
 }
 
+// The fields of a patch that are present. A key whose value is `undefined` was
+// not sent, so it is not written.
+function present<Patch extends Record<string, unknown>>(
+  patch: Patch,
+): Partial<Patch> {
+  return Object.fromEntries(
+    Object.entries(patch).filter(([, value]) => value !== undefined),
+  ) as Partial<Patch>;
+}
+
 function idOf(value: unknown): string {
   return parse(catalogId, value);
 }
@@ -140,14 +154,19 @@ export async function createArtist(
   });
 }
 
+/**
+ * Updates the fields of an artist that `patch` names; the others are unchanged.
+ * `name` and `kind` can be replaced, never cleared. `sortName` and
+ * `mbArtistId` are cleared with `null` or a blank string.
+ */
 export async function updateArtist(
   db: DatabaseExecutor,
   _author: AuthorizedAuthor,
   artistId: unknown,
-  input: unknown,
+  patch: unknown,
 ): Promise<void> {
   const id = idOf(artistId);
-  const data = parse(artistInput, input);
+  const data = present(parse(artistPatch, patch));
   await guarded(async () => {
     const updated = await db
       .update(schema.artists)
@@ -293,8 +312,17 @@ async function linkedAlbumArtists(
 async function replaceAlbumCredits(
   tx: Transaction,
   albumId: string,
-  credits: { artistId: string; creditedAs: string | null }[],
+  // `creditedAs` undefined: keep the one stored for that artist, if any.
+  credits: { artistId: string; creditedAs?: string | null }[],
 ): Promise<void> {
+  const stored = await tx
+    .select({
+      artistId: schema.albumArtists.artistId,
+      creditedAs: schema.albumArtists.creditedAs,
+    })
+    .from(schema.albumArtists)
+    .where(eq(schema.albumArtists.albumId, albumId));
+  const keep = new Map(stored.map((row) => [row.artistId, row.creditedAs]));
   // (album_id, position) is unique and not deferrable, so the credits are
   // replaced rather than renumbered in place.
   await tx
@@ -305,7 +333,10 @@ async function replaceAlbumCredits(
       albumId,
       artistId: credit.artistId,
       position: index + 1,
-      creditedAs: credit.creditedAs,
+      creditedAs:
+        credit.creditedAs === undefined
+          ? (keep.get(credit.artistId) ?? null)
+          : credit.creditedAs,
     })),
   );
 }
@@ -348,51 +379,65 @@ export async function createAlbum(
 }
 
 /**
- * Edits an album's metadata, its reference edition's metadata, and replaces
- * its ordered credits, in one transaction. The album row is locked, so two
- * concurrent edits run one after the other and the credits never interleave.
+ * Updates the parts of an album that `patch` names, in one transaction; the
+ * rest is unchanged. The album row is locked, so two concurrent edits run one
+ * after the other and the credits never interleave.
+ *
+ * - `title` can be replaced, never cleared; the other album fields are cleared
+ *   with `null`.
+ * - `edition` is a patch of the reference edition: its fields left out are
+ *   unchanged.
+ * - `credits`, when present, is the complete new list (at least one artist, in
+ *   credit order). An item that leaves out `creditedAs` keeps the stored one.
+ *   Leaving `credits` out leaves the credits untouched.
  */
 export async function updateAlbum(
   db: DatabaseExecutor,
   _author: AuthorizedAuthor,
   albumId: unknown,
-  input: unknown,
+  patch: unknown,
 ): Promise<void> {
   const id = idOf(albumId);
-  const data = parse(albumInput, input);
+  const { credits, edition, ...fields } = parse(albumPatch, patch);
   await guarded(() =>
     db.transaction(async (tx) => {
       await lockAlbum(tx, id);
-      await assertArtistsLinkable(
-        tx,
-        data.credits.map((credit) => credit.artistId),
-        await linkedAlbumArtists(tx, id),
-      );
-      await tx
-        .update(schema.albums)
-        .set({
-          title: data.title,
-          firstReleaseYear: data.firstReleaseYear,
-          mbReleaseGroupId: data.mbReleaseGroupId,
-        })
-        .where(eq(schema.albums.id, id));
-
-      const edition = await tx
-        .update(schema.albumEditions)
-        .set(data.edition)
-        .where(
-          and(
-            eq(schema.albumEditions.albumId, id),
-            eq(schema.albumEditions.isReference, true),
-          ),
-        )
-        .returning({ id: schema.albumEditions.id });
-      if (edition.length === 0) {
-        await tx
-          .insert(schema.albumEditions)
-          .values({ albumId: id, isReference: true, ...data.edition });
+      if (credits) {
+        await assertArtistsLinkable(
+          tx,
+          credits.map((credit) => credit.artistId),
+          await linkedAlbumArtists(tx, id),
+        );
       }
-      await replaceAlbumCredits(tx, id, data.credits);
+      const albumFields = present(fields);
+      if (Object.keys(albumFields).length > 0) {
+        await tx
+          .update(schema.albums)
+          .set(albumFields)
+          .where(eq(schema.albums.id, id));
+      }
+
+      const editionFields = present(edition ?? {});
+      if (Object.keys(editionFields).length > 0) {
+        const updated = await tx
+          .update(schema.albumEditions)
+          .set(editionFields)
+          .where(
+            and(
+              eq(schema.albumEditions.albumId, id),
+              eq(schema.albumEditions.isReference, true),
+            ),
+          )
+          .returning({ id: schema.albumEditions.id });
+        if (updated.length === 0) {
+          await tx
+            .insert(schema.albumEditions)
+            .values({ albumId: id, isReference: true, ...editionFields });
+        }
+      }
+      if (credits) {
+        await replaceAlbumCredits(tx, id, credits);
+      }
     }),
   );
 }
@@ -512,14 +557,21 @@ export async function createTrack(
   );
 }
 
+/**
+ * Updates the fields of a track that `patch` names; the others are unchanged.
+ * `title` can be replaced, never cleared. `lengthMs`, `credit` and
+ * `mbRecordingId` are cleared with `null`. `artistIds`, when present, is the
+ * complete new list of credited artists (an empty list removes them all, on
+ * purpose); leaving it out leaves the credits untouched.
+ */
 export async function updateTrack(
   db: DatabaseExecutor,
   _author: AuthorizedAuthor,
   trackId: unknown,
-  input: unknown,
+  patch: unknown,
 ): Promise<void> {
   const id = idOf(trackId);
-  const { artistIds, ...fields } = parse(trackInput, input);
+  const { artistIds, ...fields } = parse(trackPatch, patch);
   await guarded(() =>
     db.transaction(async (tx) => {
       const locked = await tx.execute(
@@ -528,20 +580,27 @@ export async function updateTrack(
       if (locked.rows.length === 0) {
         throw new CatalogError("not_found");
       }
-      const linked = await tx
-        .select({ artistId: schema.trackArtists.artistId })
-        .from(schema.trackArtists)
-        .where(eq(schema.trackArtists.trackId, id));
-      await assertArtistsLinkable(
-        tx,
-        artistIds,
-        new Set(linked.map((row) => row.artistId)),
-      );
-      await tx
-        .update(schema.tracks)
-        .set(fields)
-        .where(eq(schema.tracks.id, id));
-      await replaceTrackCredits(tx, id, artistIds);
+      if (artistIds) {
+        const linked = await tx
+          .select({ artistId: schema.trackArtists.artistId })
+          .from(schema.trackArtists)
+          .where(eq(schema.trackArtists.trackId, id));
+        await assertArtistsLinkable(
+          tx,
+          artistIds,
+          new Set(linked.map((row) => row.artistId)),
+        );
+      }
+      const trackFields = present(fields);
+      if (Object.keys(trackFields).length > 0) {
+        await tx
+          .update(schema.tracks)
+          .set(trackFields)
+          .where(eq(schema.tracks.id, id));
+      }
+      if (artistIds) {
+        await replaceTrackCredits(tx, id, artistIds);
+      }
     }),
   );
 }
@@ -754,7 +813,8 @@ async function rewriteTracklist(
  * in the reference edition, in one transaction. A recording may be on several
  * albums and is never duplicated. New recordings must exist and not be
  * archived. A recording that a track reflection refers to cannot be removed
- * (`in_use`, blocked by `reflections`).
+ * (`in_use`, blocked by `reflections`). `tracks` is the complete list: leaving
+ * it out is refused, and a track that leaves out `discNumber` keeps its disc.
  */
 export async function setAlbumTracklist(
   db: DatabaseExecutor,
@@ -767,7 +827,21 @@ export async function setAlbumTracklist(
   await guarded(() =>
     db.transaction(async (tx) => {
       await lockAlbumForTracklist(tx, id);
-      await rewriteTracklist(tx, id, data.tracks);
+      // A track that leaves out its disc keeps the one it is on now.
+      const discs = new Map(
+        (await currentTracklist(tx, id)).map((item) => [
+          item.trackId,
+          item.discNumber,
+        ]),
+      );
+      await rewriteTracklist(
+        tx,
+        id,
+        data.tracks.map((item) => ({
+          trackId: item.trackId,
+          discNumber: item.discNumber ?? discs.get(item.trackId) ?? 1,
+        })),
+      );
     }),
   );
 }

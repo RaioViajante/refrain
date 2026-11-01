@@ -240,3 +240,32 @@ describe("saving a journal from two editors at the same moment", () => {
     }
   });
 });
+
+describe("patches saved from two editors at the same moment", () => {
+  it("lets one opening-only save through, and never touches the body", async () => {
+    const albumId = await newAlbum(uniqueLabel("Patch race"));
+    const entryId = await newJournal(
+      albumId,
+      "[Test] The words that must stay",
+    );
+    const outcomes = await withConnections(4, (dbs) =>
+      raceAll(
+        dbs.map(
+          (db, index) => () =>
+            saveAlbumJournal(db, author, {
+              entryId,
+              expectedVersion: 1,
+              opening: `[Test] Opening ${index}`,
+            }),
+        ),
+      ),
+    );
+    expect(outcomes.filter((o) => o.status === "fulfilled")).toHaveLength(1);
+    for (const reason of rejections(outcomes)) {
+      expect((reason as JournalError).failure).toBe("version_conflict");
+    }
+    const journal = await getAlbumJournal(getDb(), author, entryId);
+    expect(journal?.body).toBe("[Test] The words that must stay");
+    expect(journal?.version).toBe(2);
+  });
+});
