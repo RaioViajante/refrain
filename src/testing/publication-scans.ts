@@ -107,8 +107,13 @@ export const WRITER_ALLOWLIST: ReadonlySet<string> = new Set([
   "src/modules/publication/commands.ts#retireEntrySlugs",
   // Writes a new draft entry that no other transaction can see (L1).
   "src/modules/journals/commands.ts#createAlbumJournal",
-  // The one writer of the text columns until M2.2 adds the confirmation step.
+  // The confirmed save (ADR 0006 § 5): it writes the text columns, the album
+  // rating, and (through writeReflection) the track reflections, only after
+  // the Publication module's gate.
   "src/modules/journals/commands.ts#saveAlbumJournal",
+  // The one writer of track_reflections and track_reflection_texts. Called
+  // only by saveAlbumJournal, under the entry lock, after the gate.
+  "src/modules/journals/reflections.ts#writeReflection",
   // An explicit, author-only deletion that cascades through foreign keys.
   "src/modules/journals/commands.ts#permanentlyDeleteEntry",
 ]);
@@ -609,6 +614,17 @@ export const PUBLICATION_INDEX_EXPORTS: ReadonlySet<string> = new Set([
   "previewPublication",
   "publishLanguageVersion",
   "PublishPreview",
+  "assertWrittenAsPredicted",
+  "previewPublicChange",
+  "requirePublicChangeConfirmation",
+  "verifyChangeConfirmation",
+  "PublicChangePreview",
+  "ExposureChange",
+  "ExposureSubject",
+  "ProposedChange",
+  "ProposedReflection",
+  "ProposedText",
+  "PublicChangeDelta",
   "getPublicLanguageVersion",
   "listPublicLanguageVersions",
   "listPublicTrackReflections",
@@ -806,8 +822,18 @@ export function exportSurfaceViolations(files: SourceText[]): string[] {
 // ---------------------------------------------------------------------------
 // Scan 4: no application code mints a token and consumes it in one operation.
 
-const MINTING_PREVIEWS = ["previewPublication", "previewPublicChange"];
-const CONSUMERS = ["publishLanguageVersion"];
+const MINTING_PREVIEWS = [
+  "previewPublication",
+  "previewPublicChange",
+  // The Journals wrapper of previewPublicChange (ADR 0006 § 9: the wrapper
+  // is a preview too, and no action reaches it until M2.3).
+  "previewAlbumJournalChange",
+];
+const CONSUMERS = [
+  "publishLanguageVersion",
+  "saveAlbumJournal",
+  "requirePublicChangeConfirmation",
+];
 const SIGNING = "signConfirmation";
 
 /**
@@ -820,8 +846,15 @@ export const TESTING_IMPORT_ALLOWLIST: Readonly<Record<string, string>> = {
   "src/ops/backup.ts": "@/testing/test-database",
 };
 
-/** Files allowed to import a preview: none until M2.3 adds the actions. */
-export const PREVIEW_IMPORTERS: ReadonlySet<string> = new Set<string>();
+/**
+ * Files allowed to import a preview. The Journals commands wrap
+ * `previewPublicChange` in `previewAlbumJournalChange`, which no function
+ * there calls together with the save, and which no Server Action reaches
+ * until M2.3 adds the actions. Adding a file needs review.
+ */
+export const PREVIEW_IMPORTERS: ReadonlySet<string> = new Set<string>([
+  "src/modules/journals/commands.ts",
+]);
 
 function importsOf(
   source: ts.SourceFile,
@@ -956,7 +989,7 @@ export function mintConsumeViolations(files: SourceText[]): string[] {
         !inPublication &&
         !PREVIEW_IMPORTERS.has(file.path) &&
         imported.names.some((name) => MINTING_PREVIEWS.includes(name)) &&
-        imported.specifier.startsWith("@/modules/publication")
+        /^@\/modules\/(publication|journals)/.test(imported.specifier)
       ) {
         problems.push(
           `${file.path} imports a preview, which only its own action may`,
@@ -985,7 +1018,11 @@ export function mintConsumeViolations(files: SourceText[]): string[] {
       const minted = MINTING_PREVIEWS.filter((preview) =>
         reachable.has(preview),
       );
-      const consumed = CONSUMERS.filter((consumer) => reachable.has(consumer));
+      // A consumer that itself previews is a mint-and-consume too: it never
+      // appears among its own callees, so it counts as reaching itself.
+      const consumed = CONSUMERS.filter(
+        (consumer) => reachable.has(consumer) || consumer === name,
+      );
       if (minted.length > 0 && consumed.length > 0) {
         problems.push(
           `${file.path}: ${name} calls ${minted.join(", ")} and ${consumed.join(", ")}`,

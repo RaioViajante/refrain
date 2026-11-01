@@ -20,6 +20,23 @@ export {
   publishLanguageVersion,
   type PublishPreview,
 } from "./publish";
+// Changes to a public journal (ADR 0006 § 5): the preview mints a
+// `change_public` token, and the Journals save is gated by the others.
+export {
+  assertWrittenAsPredicted,
+  previewPublicChange,
+  requirePublicChangeConfirmation,
+  verifyChangeConfirmation,
+  type PublicChangePreview,
+} from "./change";
+export type {
+  ExposureChange,
+  ExposureSubject,
+  ProposedChange,
+  ProposedReflection,
+  ProposedText,
+  PublicChangeDelta,
+} from "./surface";
 // The publication predicate itself (./predicate) is internal: other modules
 // read public data only through these functions.
 export {

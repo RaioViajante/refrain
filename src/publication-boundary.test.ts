@@ -621,6 +621,63 @@ describe("the scans catch mutations of the real source", () => {
     expect(writerViolations(files)).not.toEqual([]);
   });
 
+  it("catches the checked publish previewing its own token", () => {
+    const files = changed("src/modules/publication/publish.ts", (text) =>
+      text.replace(
+        "  const data = parse(publishInput, input);\n  if (!confirmationAvailable()) {",
+        "  const data = parse(publishInput, input);\n  await previewPublication(db, author, data);\n  if (!confirmationAvailable()) {",
+      ),
+    );
+    expect(mintConsumeViolations(files)).not.toEqual([]);
+  });
+
+  it("catches the confirmed save previewing its own token", () => {
+    const files = changed("src/modules/journals/commands.ts", (text) =>
+      text.replace(
+        "const change = await prepareChange(tx, data, journal);",
+        "const change = await prepareChange(tx, data, journal);\n      await previewPublicChange(tx, author, { entryId: data.entryId, expectedVersion: data.expectedVersion, change });",
+      ),
+    );
+    expect(mintConsumeViolations(files)).not.toEqual([]);
+  });
+
+  it("catches a studio action that retries a refused save with a token it previewed", () => {
+    const files = changed(
+      "src/app/studio/journals/actions.ts",
+      (text) =>
+        `${text}\nexport async function saveAndConfirm(author: never, input: never) {\n  try {\n    return await saveAlbumJournal(author, input);\n  } catch {\n    const preview = await previewAlbumJournalChange(author, input);\n    return saveAlbumJournal(author, { ...(input as object), confirmation: preview.confirmation } as never);\n  }\n}\n`,
+    );
+    expect(mintConsumeViolations(files)).not.toEqual([]);
+  });
+
+  it("catches a studio file importing the wrapper of a preview", () => {
+    expect(
+      mintConsumeViolations([
+        file(
+          "src/app/studio/journals/actions.ts",
+          'import { previewAlbumJournalChange } from "@/modules/journals";',
+        ),
+      ]),
+    ).not.toEqual([]);
+  });
+
+  it("catches a second writer of the track reflections, and a reflection write outside its one writer", () => {
+    for (const text of [
+      "export async function sneaky(tx) { await tx.insert(schema.trackReflectionTexts).values({}); }",
+      "export async function sneaky(tx) { await tx.execute(sql`update track_reflections set is_published = true`); }",
+      "export async function sneaky(tx) { await tx.delete(schema.trackReflectionTexts); }",
+    ]) {
+      expect(writers("src/modules/journals/other.ts", text), text).not.toEqual(
+        [],
+      );
+    }
+    // The one writer is the named function in its own file, and nothing else.
+    const write =
+      "export async function writeReflection(tx) { await tx.insert(schema.trackReflectionTexts).values({}); }";
+    expect(writers("src/modules/journals/reflections.ts", write)).toEqual([]);
+    expect(writers("src/modules/journals/commands.ts", write)).not.toEqual([]);
+  });
+
   it("catches signing a token anywhere but a preview", () => {
     const files = changed("src/modules/publication/publish.ts", (text) =>
       text.replace(
