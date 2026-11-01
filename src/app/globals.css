@@ -354,6 +354,7 @@
   grid-template-columns: 56px minmax(0, 1fr) auto;
   align-items: center;
   gap: 4px 18px;
+  padding-block: 18px;
 }
 
 .studio-row.studio-entry:not(:has(.studio-entry-end)) {
@@ -364,6 +365,14 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
+}
+
+/* The Desk's rows: the way to keep writing, then the status at the right edge,
+   on the row's own line as in the reference. */
+.studio-entry-end.studio-entry-end-row {
+  flex-direction: row;
+  align-items: center;
+  gap: 4px 22px;
 }
 
 .studio-entry-end {
@@ -818,15 +827,79 @@ select.studio-field[aria-invalid="true"] {
   align-content: start;
 }
 
-.studio-margin-sticky {
+/* The editor's action bar, as in the reference: the way back and the language
+   on the left, the save state and Save on the right. Sticky on wide screens,
+   so Save is always one glance away. On a phone it stays sticky only when it
+   is one short row (editing); creating adds the language select, which makes
+   it taller than it should be over the writing. */
+.studio-editor {
+  display: block;
+}
+
+.studio-editorbar {
   position: sticky;
-  top: 24px;
+  top: 0;
+  z-index: 6;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 20px;
+  padding: 8px 0;
+  margin-bottom: 20px;
+  background: rgb(255 255 255 / 0.97);
+}
+
+.studio-editorbar-start,
+.studio-editorbar-end {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  min-width: 0;
+}
+
+.studio-editorbar-end {
+  justify-content: flex-end;
+  /* On a row of its own (a phone, creating), Save stays at the right. */
+  margin-left: auto;
+}
+
+.studio-crumb {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 16.5px;
+  text-decoration: none;
+}
+
+.studio-crumb:hover {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 5px;
+}
+
+/* A select with its label beside it, for the bar. */
+.studio-field-inline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.studio-field-inline .studio-label {
+  font-size: 18px;
+  white-space: nowrap;
+}
+
+.studio-field-inline .studio-field {
+  width: 190px;
 }
 
 /* The editor's heading: the album and its artists are context, so they stay
    quiet beside the writing. */
 .studio-editor-head {
   max-width: 760px;
+  margin-bottom: 32px;
 }
 
 .studio-editor-head > * + * {
@@ -889,6 +962,12 @@ select.studio-field[aria-invalid="true"] {
 
 .studio-panel .studio-section-title {
   font-size: 31px;
+}
+
+/* An empty desk: a panel with one clear next step, as in the reference. */
+.studio-empty {
+  max-width: 560px;
+  padding: 32px 36px 34px;
 }
 
 /* Loading: quiet gray blocks, never a spinner. */
@@ -1102,10 +1181,6 @@ select.studio-field[aria-invalid="true"] {
     grid-template-columns: minmax(0, 1fr);
     row-gap: 32px;
   }
-
-  .studio-margin-sticky {
-    position: static;
-  }
 }
 
 @media (max-width: 960px) {
@@ -1123,27 +1198,6 @@ select.studio-field[aria-invalid="true"] {
   .studio-journal .studio-artwork {
     display: none;
   }
-
-  /* Exactly two destinations fit beside the label and the session control, so
-     the header stays one row. */
-  .studio-header-bar {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    grid-template-areas: "label nav end";
-    gap: 8px 12px;
-  }
-}
-
-/* On the narrowest screens the label is its icon (the words stay for
-   assistive technology), so the header keeps to one row. */
-@media (max-width: 480px) {
-  .studio-header-label-text {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
-  }
 }
 
 @media (max-width: 720px) {
@@ -1151,8 +1205,29 @@ select.studio-field[aria-invalid="true"] {
     font-size: 18px;
   }
 
+  /* The reference's phone header is a short vertical composition: the label
+     and the two destinations centered, and the session control, quiet, at the
+     right. Nothing wraps, and the identity stays visible. */
   .studio-header {
-    padding-top: 12px;
+    padding-top: 16px;
+  }
+
+  .studio-header-bar {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "label"
+      "nav"
+      "end";
+    justify-items: center;
+    gap: 0;
+  }
+
+  .studio-header-label {
+    min-height: 28px;
+  }
+
+  .studio-header-end {
+    justify-self: end;
   }
 
   .studio-nav {
@@ -1198,6 +1273,18 @@ select.studio-field[aria-invalid="true"] {
 
   .studio-editor-head .studio-title-editor {
     font-size: 30px;
+  }
+
+  .studio-editorbar[data-mode="create"] {
+    position: static;
+  }
+
+  .studio-editorbar-end {
+    gap: 4px 10px;
+  }
+
+  .studio-field-inline .studio-field {
+    width: 160px;
   }
 
   .studio-reading,

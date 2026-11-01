@@ -58,7 +58,7 @@ async function Desk() {
       </p>
 
       {journals.length === 0 ? (
-        <div className="studio-panel">
+        <div className="studio-panel studio-empty">
           <p className="studio-section-title">Nothing written yet.</p>
           {catalogEmpty ? (
             <ol className="list-decimal pl-6 space-y-1">
@@ -83,23 +83,34 @@ async function Desk() {
               </li>
             </ol>
           ) : (
-            <p>
-              Choose an album and start a journal. It begins as a draft that
-              only you can see.
-            </p>
+            <>
+              <p>
+                Start with an album you love. A journal begins as a draft that
+                only you can see.
+              </p>
+              <p>
+                <Link
+                  href="/studio/journals/new"
+                  className="studio-button studio-button-primary"
+                >
+                  <Icon name="plus" />
+                  Write a journal
+                </Link>
+              </p>
+            </>
           )}
         </div>
-      ) : null}
-
-      <div className="studio-actions" style={{ marginTop: 26 }}>
-        <Link
-          href="/studio/journals/new"
-          className="studio-button studio-button-primary"
-        >
-          <Icon name="plus" />
-          Write a journal
-        </Link>
-      </div>
+      ) : (
+        <div className="studio-actions" style={{ marginTop: 26 }}>
+          <Link
+            href="/studio/journals/new"
+            className="studio-button studio-button-primary"
+          >
+            <Icon name="plus" />
+            Write a journal
+          </Link>
+        </div>
+      )}
 
       {journals.length > 0 ? (
         <section aria-labelledby="desk-journals" className="studio-desk-list">
@@ -133,8 +144,7 @@ async function Desk() {
                         : ""}
                     </span>
                   </span>
-                  <span className="studio-entry-end">
-                    <StatusMark status={journal.status} />
+                  <span className="studio-entry-end studio-entry-end-row">
                     <Link
                       href={`/studio/journals/${journal.entryId}/edit`}
                       className="studio-link studio-meta studio-end-link"
@@ -142,6 +152,7 @@ async function Desk() {
                     >
                       Edit
                     </Link>
+                    <StatusMark status={journal.status} />
                   </span>
                 </li>
               );
