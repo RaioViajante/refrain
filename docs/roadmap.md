@@ -62,15 +62,21 @@ Artists, albums, and tracks have no version counter. Two tabs that each loaded t
 
 ### ADR 0005 condition for the M2 publishing interface
 
-Required by the owner in the M1.3C review, and recorded in [ADR 0005 § 5](decisions/0005-restoring-deleted-journals.md#5-required-condition-for-the-m2-publishing-interface). A restore keeps each track reflection's own publication flag. So when a language version is published again after being unpublished, deleted, or restored, reflections that were flagged earlier would become public with it. The M2 publishing interface **must not allow that silently**. Before it publishes a language version that has track reflections, it must:
+Required by the owner in the M1.3C review, clarified on 2026-11-01, and recorded in [ADR 0005 § 5](decisions/0005-restoring-deleted-journals.md#5-required-condition-for-the-m2-publishing-interface), which is the authoritative text. A restore keeps each track reflection's own publication flag, so when a language version is published again after being unpublished, deleted, or restored, reflections that were flagged earlier would become public with it. M2's publishing **system** (any interface, script, bulk operation, or API that publishes or republishes a journal language version) **must not allow that silently**. Whenever publishing may expose individual track reflections, it must:
 
-1. determine which individual track reflections would become publicly visible;
-2. clearly disclose them to the author;
-3. require explicit confirmation that includes them;
-4. let the author review or change their individual publication selections before completing the publication;
-5. never expose a previously published reflection as an undisclosed side effect of publishing the parent version.
+1. determine the exact set of reflections that would become public, per language (flag set and text in that language);
+2. disclose that set to the author, identifying each reflection and its language;
+3. let the author review or change individual publication selections;
+4. require explicit acknowledgement of the effective set;
+5. **enforce that acknowledgement at the Publication command boundary**, not only in the UI;
+6. reject missing, outdated, or mismatched acknowledgements when the effective set has changed;
+7. check this **atomically** with the visibility change, so nothing can fall between confirmation and publication;
+8. apply to **every caller**, with no path around it;
+9. never expose a previously published reflection as an undisclosed side effect of publishing the parent version.
 
-Not built, and not authorized: M1.3C has no publishing control, and nothing in the studio can set a reflection's flag. M2 is not done until this is, and a test must show that a reflection flagged before a restore does not become public without the disclosure and confirmation.
+Versioned acknowledgements or an equivalent concurrency-safe mechanism may be used; no command signature is fixed yet, and the design is reviewed with M2.
+
+Not built, and not authorized: M1.3C has no publishing control, and nothing in the studio can set a reflection's flag. M2 is not done until this is. Tests must show, at the command boundary and not only through the UI, that a reflection flagged before a restore does not become public without a matching acknowledgement, and that a stale or mismatched acknowledgement is refused.
 
 ## Critical path
 
