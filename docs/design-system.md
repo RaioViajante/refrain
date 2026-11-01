@@ -189,6 +189,7 @@ Each of these is resolved by the [Authority](#authority) rules. The reference fi
 
 - The editor already has version tabs ("Original · English", "Author's translation · Português"). The **Visibility** panel in the settings margin applies to the **selected version**. Its heading names that version, for example "Visibility · English (original)".
 - "Publish…" and "Unpublish…" act on the selected version only. The confirmation names the language: "Publish the English version?" The other version's state is shown beneath, read-only, for example "Português: Draft".
+- "Publish…" is offered for a draft and for a private version alike, with the same confirmation. If what the author reviewed has changed when they confirm (another tab saved, a flag changed), the dialog stays open, shows what changed, and asks again; nothing is published.
 - The status beside the title in the editor's top bar shows the selected version.
 - Desk rows show one status mark per existing version, for example "Published · EN", "Draft · PT".
 - A translation tab exists only after the author creates the translation. Nothing is generated (ADR 0002, D3).
@@ -199,8 +200,19 @@ Each of these is resolved by the [Authority](#authority) rules. The reference fi
 
 - The expanded track panel gains a third checkbox, beside "Mark as favourite" and "Still writing": **"Show on the public page"**, with the hint "Shown only while this journal is published." It is off by default.
 - The track row's status area adds the visibility word after the writing state, for example "written · public" or "still writing · private". The two are never merged (INV-2).
-- The confirmation for publishing the journal states how many reflections will be shown, for example "4 of 10 track reflections are set to show." Publishing never changes any track's setting.
+- The confirmation for publishing the journal **lists every reflection that will be shown, each with its track and language**, for example "Track 3 · English", with the address and the album rating when one is set, and states how many. A count alone is not enough ([ADR 0005 § 5](decisions/0005-restoring-deleted-journals.md#5-required-condition-for-the-m2-publishing-interface), items 2 and 3). Each row can be unchecked: that is the ordinary save command, separate from publishing, and it takes effect immediately, so cancelling the dialog afterwards leaves the change in place (it can only hide). The save returns the new version, which the open editor adopts so its next Save does not conflict, and the list is refreshed before the author confirms. The confirmation is required even when no reflection will be shown, and then says so. Publishing never changes any track's setting.
 - On the public page, nothing changes: published reflections render as in the Grace mockup, and any other track shows "not written yet".
+
+### Changes to a published version
+
+*Editors, settings margin and Save.* *Accepted in [ADR 0006 § 5](decisions/0006-publication-decision-and-acknowledgement.md#5-changes-after-publication).*
+
+- While the selected version is published, the editor says so beside the title and above Save, in words and always visible: "This version is published. Saving changes the public page."
+- Save on a published version first asks the server what would change. When anything on the public page would (any edit of the version's text, **including a shorter one** or clearing a field, and any reflection, rating, or link that appears or changes), the existing confirmation dialog names it and offers "Save and update the public page" and "Cancel". Cancelling writes nothing. Removing something from the public page (unflagging a reflection, clearing the rating, unpublishing) does not open this dialog; it keeps its ordinary confirmation.
+- Turning on "Show on the public page" for a reflection, or adding text to a reflection that is already set to show, in a language that is published, asks the same way.
+- There is no autosave of a published version. The text stays in the editor whatever happens.
+- Changing the address of a published entry always asks: the dialog names the new address and says that the old one will redirect to it.
+- Saving a draft, a private version, or a reflection that is not public never asks.
 
 ### Featured journal
 
