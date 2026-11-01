@@ -101,43 +101,81 @@ export function describeTarget(connectionString: string): string {
 // Removes terminal escape sequences, such as arrow keys, from typed input.
 const ESCAPE_SEQUENCE = /\u001b(\[[0-9;]*[A-Za-z~]|O[A-Za-z])?/g;
 
-function promptHidden(question: string): Promise<string> {
+/** The parts of a terminal input stream that the hidden prompt uses. */
+export interface HiddenInput {
+  setRawMode(mode: boolean): unknown;
+  setEncoding(encoding: BufferEncoding): unknown;
+  resume(): unknown;
+  pause(): unknown;
+  on(event: "data", listener: (chunk: string) => void): unknown;
+  off(event: "data", listener: (chunk: string) => void): unknown;
+}
+
+export interface PromptOutput {
+  write(text: string): unknown;
+}
+
+/**
+ * Asks each question in turn and reads one hidden answer per question.
+ *
+ * Echo is turned off (raw mode) before the first question is written and
+ * stays off until every answer has been read, so a password that is typed
+ * or pasted at any moment, including between two prompts, is never shown.
+ * Answers that arrive together in one chunk are kept, not dropped.
+ */
+export function readHiddenAnswers(
+  questions: readonly string[],
+  input: HiddenInput,
+  output: PromptOutput,
+): Promise<string[]> {
   return new Promise((resolve, reject) => {
-    const stdin = process.stdin;
+    const answers: string[] = [];
     let value = "";
+    let done = false;
     const finish = (error?: Error) => {
-      stdin.off("data", onData);
-      stdin.setRawMode(false);
-      stdin.pause();
-      process.stdout.write("\n");
+      done = true;
+      input.off("data", onData);
+      input.setRawMode(false);
+      input.pause();
       if (error) {
+        output.write("\n");
         reject(error);
       } else {
-        resolve(value);
+        resolve(answers);
       }
     };
     const onData = (chunk: string) => {
       for (const character of chunk.replace(ESCAPE_SEQUENCE, "")) {
-        if (character === "\r" || character === "\n") {
-          finish();
+        if (done) {
           return;
         }
-        if (character === "\u0003" || character === "\u0004") {
+        if (character === "\r" || character === "\n") {
+          answers.push(value);
+          value = "";
+          output.write("\n");
+          const next = questions[answers.length];
+          if (next === undefined) {
+            finish();
+            return;
+          }
+          output.write(next);
+        } else if (character === "\u0003" || character === "\u0004") {
           finish(new CommandError("Cancelled. Nothing was changed."));
           return;
-        }
-        if (character === "\u007f" || character === "\b") {
+        } else if (character === "\u007f" || character === "\b") {
           value = [...value].slice(0, -1).join("");
         } else if (character >= " ") {
           value += character;
         }
       }
     };
-    process.stdout.write(question);
-    stdin.setEncoding("utf8");
-    stdin.setRawMode(true);
-    stdin.resume();
-    stdin.on("data", onData);
+    // Echo off first, then the first question: no window in which typed
+    // characters are echoed.
+    input.setRawMode(true);
+    input.setEncoding("utf8");
+    input.on("data", onData);
+    input.resume();
+    output.write(questions[0] ?? "");
   });
 }
 
@@ -166,8 +204,11 @@ async function readPassword(): Promise<string> {
   if (!process.stdin.isTTY) {
     return readPasswordFromStdin();
   }
-  const password = await promptHidden("Password (not shown): ");
-  const repeated = await promptHidden("Repeat the password: ");
+  const [password = "", repeated] = await readHiddenAnswers(
+    ["Password (not shown): ", "Repeat the password: "],
+    process.stdin,
+    process.stdout,
+  );
   if (password !== repeated) {
     throw new CommandError("The passwords do not match. Nothing was changed.");
   }

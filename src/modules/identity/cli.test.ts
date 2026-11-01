@@ -3,7 +3,14 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { describeTarget, parseArguments } from "./cli";
+import { EventEmitter } from "node:events";
+
+import {
+  describeTarget,
+  parseArguments,
+  readHiddenAnswers,
+  type HiddenInput,
+} from "./cli";
 
 describe("author command arguments", () => {
   it("requires a command and an explicit target", () => {
@@ -74,5 +81,99 @@ describe("account creation", () => {
       /from\s+["']\.\/(provisioning|cli|auth)["']/,
     );
     expect(existsSync("src/instrumentation.ts")).toBe(false);
+  });
+});
+
+// A terminal that records every operation in order, so the tests can check
+// when echo is off relative to the prompts. In raw mode a real terminal does
+// not echo, so echo is on exactly while the log's last raw-mode call is
+// `raw:false` (or before any call).
+function fakeTerminal() {
+  const log: string[] = [];
+  const events = new EventEmitter();
+  const input: HiddenInput = {
+    setRawMode: (mode) => log.push(`raw:${mode}`),
+    setEncoding: () => undefined,
+    resume: () => log.push("resume"),
+    pause: () => log.push("pause"),
+    on: (event, listener) => events.on(event, listener),
+    off: (event, listener) => events.off(event, listener),
+  };
+  const output = { write: (text: string) => log.push(`write:${text}`) };
+  const type = (chunk: string) => events.emit("data", chunk);
+  const echoOnAt = (index: number) =>
+    log
+      .slice(0, index)
+      .filter((entry) => entry.startsWith("raw:"))
+      .at(-1) !== "raw:true";
+  return { log, input, output, type, echoOnAt };
+}
+
+const QUESTIONS = ["Password (not shown): ", "Repeat the password: "];
+const PASSWORD = "[Test] a long passphrase here";
+
+describe("hidden password prompt", () => {
+  it("keeps echo off from before the first question until the last answer", async () => {
+    const terminal = fakeTerminal();
+    const answers = readHiddenAnswers(
+      QUESTIONS,
+      terminal.input,
+      terminal.output,
+    );
+    terminal.type(`${PASSWORD}\r`);
+    terminal.type(`${PASSWORD}\r`);
+    expect(await answers).toEqual([PASSWORD, PASSWORD]);
+
+    for (const question of QUESTIONS) {
+      const index = terminal.log.indexOf(`write:${question}`);
+      expect(index).toBeGreaterThan(-1);
+      expect(terminal.echoOnAt(index)).toBe(false);
+    }
+    // Echo is turned back on exactly once, after both answers.
+    expect(terminal.log.filter((entry) => entry === "raw:false")).toHaveLength(
+      1,
+    );
+    expect(terminal.log.indexOf("raw:false")).toBeGreaterThan(
+      terminal.log.indexOf(`write:${QUESTIONS[1]}`),
+    );
+    expect(terminal.log.join("")).not.toContain(PASSWORD);
+  });
+
+  it("keeps a second answer that arrives together with the first", async () => {
+    const terminal = fakeTerminal();
+    const answers = readHiddenAnswers(
+      QUESTIONS,
+      terminal.input,
+      terminal.output,
+    );
+    // A fast paste, or typing ahead before the second prompt appears.
+    terminal.type(`${PASSWORD}\r${PASSWORD}\r`);
+    expect(await answers).toEqual([PASSWORD, PASSWORD]);
+    expect(terminal.log.join("")).not.toContain(PASSWORD);
+  });
+
+  it("restores the terminal and changes nothing when cancelled", async () => {
+    const terminal = fakeTerminal();
+    const answers = readHiddenAnswers(
+      QUESTIONS,
+      terminal.input,
+      terminal.output,
+    );
+    terminal.type("[Test] partial\u0003");
+    await expect(answers).rejects.toThrow("Cancelled. Nothing was changed.");
+    expect(terminal.log.at(-1)).toBe("write:\n");
+    expect(terminal.log).toContain("raw:false");
+    expect(terminal.log.join("")).not.toContain("[Test] partial");
+  });
+
+  it("supports backspace and ignores arrow keys", async () => {
+    const terminal = fakeTerminal();
+    const answers = readHiddenAnswers(
+      [QUESTIONS[0] ?? ""],
+      terminal.input,
+      terminal.output,
+    );
+    terminal.type("abX\u007f\u001b[Dc\r");
+    expect(await answers).toEqual(["abc"]);
   });
 });
