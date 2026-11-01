@@ -318,7 +318,7 @@ pnpm exec playwright show-report           # the HTML report of the last local r
 - Every test gets its own browser context. The `setup` project signs in once through the real form and stores the session in `playwright/.auth/author.json` for the authenticated projects. The `anonymous` project has no stored session, and some tests mint a session of their own in the test database (as the HTTP tests do) so that they can end it. **The file, `playwright-report/`, and `test-results/` are ignored by Git** and traces are off in CI: they can hold the synthetic session cookie.
 - Sign-in is rate limited for all clients together (five a minute), so the suite signs in three times (once in setup, twice in `authentication.spec.ts`) and mints everything else.
 
-**What is covered** (`e2e/`, 55 tests over four projects):
+**What is covered** (`e2e/`, 56 tests over four projects):
 
 | File | Workflow |
 | --- | --- |
@@ -329,8 +329,8 @@ pnpm exec playwright show-report           # the HTML report of the last local r
 | `negative.spec.ts` | An expired, revoked, forged, and tampered session; a session that ends while the author is writing (the save is refused in words, nothing is stored, the text stays); invalid input |
 | `academic.spec.ts` | The AC-04 example (album, credited artist, linked tracks, private journal) read back with a JOIN, the aggregates, and a subquery; a change made in SQL appears in the interface |
 | `layout.spec.ts` | The Studio's lateral contract, measured at 390, 768, 1280, 1440, and 2560 px: the shell is `min(100% - 35.2px, 1320px)` and centered, header, content, and footer share its edges, no Studio page scrolls sideways even with long names, the writing keeps its measure on an ultrawide screen, the skip link works after client-side navigation, the navigation has a 2px focus ring and 44 px targets, and reduced motion stops every transition |
-| `navigation.spec.ts` | Moving between Studio sections is a client-side navigation (no document request, the `window` survives), keyboard navigation raises no console, script, or hydration error, and a recorded known limitation: focus returns to the start of the page ([Studio visual fidelity](design/studio-visual-fidelity.md#navigation-investigation-issue-23)) |
-| `accessibility.spec.ts` | axe-core (WCAG 2.0, 2.1 and 2.2, A and AA) on 16 Studio pages at 1280 and 390 px, the open dialog and sign-in, a canary that proves the scanner reports a broken element, and the drawn boundary of every input at rest, on hover and in focus (at least 3:1). axe is a floor, not a verdict ([Accessibility notes](design/studio-visual-fidelity.md#accessibility-notes)) |
+| `navigation.spec.ts` | Moving between Studio sections is a client-side navigation (no document request, the `window` survives), keyboard navigation raises no console, script, or hydration error, and a recorded known limitation: focus is no longer on the link that was activated ([Studio visual fidelity](design/studio-visual-fidelity.md#navigation-investigation-issue-23)) |
+| `accessibility.spec.ts` | axe-core (WCAG 2.0, 2.1 and 2.2, A and AA) on 16 Studio pages at 1280 and 390 px, the open dialog and sign-in, a canary that proves the scanner reports a broken element, the drawn boundary of the editor's inputs and Save button at rest, on hover and in focus (at least 3:1), and forced-colors emulation (real borders, no drawn image, in every state). axe is a floor, not a verdict ([Accessibility notes](design/studio-visual-fidelity.md#accessibility-notes)) |
 | `mobile.spec.ts` | At 390 px on a touch device: no page is wider than the screen, the main controls are at least 44 px, delete and restore work by touch |
 
 There is no `sleep`: each test waits for something the application shows (a heading, a message, a URL). A flaky test is a bug, so there are no retries.

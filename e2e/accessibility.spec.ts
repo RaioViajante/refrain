@@ -189,3 +189,44 @@ test("the journal editor's three inputs and its Save button are drawn at 3:1 or 
     expect(contrastOnWhite(color)).toBeGreaterThanOrEqual(3);
   }
 });
+
+test("in forced-colors mode every control keeps a real border and no drawn image, in every state", async ({
+  page,
+}) => {
+  // Windows high contrast replaces the page's colors, and a drawn outline is a
+  // background image: real borders must stand in for it, also on hover, in
+  // focus, and for the primary button, whose ink fill must never come back.
+  await page.emulateMedia({ forcedColors: "active" });
+  await open(page, 1280, `/studio/journals/new?album=${albumId}`);
+  await page.getByLabel("Your reflection").fill("[Test] forced colors");
+  const controls = [
+    page.getByLabel("Opening sentence (optional)"),
+    page.getByLabel("Your reflection"),
+    page.getByLabel("Written in"),
+    // Primary once the text has been edited.
+    page.getByRole("button", { name: "Save as draft" }),
+  ];
+  for (const control of controls) {
+    for (const state of ["rest", "hover", "focus"] as const) {
+      if (state === "hover") await control.hover();
+      if (state === "focus") await control.focus();
+      const style = await control.evaluate((element) => {
+        const computed = getComputedStyle(element);
+        return {
+          image: computed.backgroundImage,
+          border: ["Top", "Bottom"].map(
+            (side) =>
+              parseFloat(
+                computed.getPropertyValue(`border-${side.toLowerCase()}-width`),
+              ) > 0,
+          ),
+        };
+      });
+      expect(style.image, `${state}: no drawn image`).toBe("none");
+      expect(
+        style.border.some(Boolean),
+        `${state}: a real border remains`,
+      ).toBe(true);
+    }
+  }
+});

@@ -901,18 +901,21 @@ select.studio-field[aria-invalid="true"] {
    real borders take their place, in the system's own colors. */
 
 @media (forced-colors: active) {
-  :is(.studio-button, .studio-field, .studio-textarea, .studio-dialog):is(
-    :hover,
-    :focus,
-    :focus-visible,
-    :disabled,
-    [aria-invalid="true"]
-  ),
+  /* The drawn images never return, in any state: hover, focus, disabled and
+     invalid rules out-rank a plain selector, so this one is !important. It is a
+     system-mode override, which is what !important is for. */
+  .studio-button,
+  .studio-field,
+  .studio-textarea,
+  .studio-opening-field,
+  .studio-dialog {
+    background-image: none !important;
+  }
+
   .studio-field,
   .studio-textarea,
   .studio-button,
   .studio-dialog {
-    background-image: none;
     border: 1px solid CanvasText;
   }
 
@@ -922,11 +925,9 @@ select.studio-field[aria-invalid="true"] {
 
   select.studio-field {
     appearance: auto;
-    background-image: none;
   }
 
   .studio-opening-field {
-    background-image: none;
     border-bottom: 1px solid CanvasText;
   }
 

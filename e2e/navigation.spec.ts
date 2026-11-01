@@ -10,9 +10,10 @@ import { expect, test } from "@playwright/test";
 // What it deliberately does not claim: the Studio header is rendered by each
 // authorized page, not by a shared layout (an anonymous response must never
 // contain the studio's furniture, see src/modules/identity/studio.http.test.ts),
-// so each section brings its own header and keyboard focus returns to the top of
-// the page. That is documented in docs/design/studio-visual-fidelity.md as a
-// follow-up that needs a decision about the authorization boundary.
+// so each section brings its own header and keyboard focus is no longer on the
+// link that was activated. That is documented in
+// docs/design/studio-visual-fidelity.md as a follow-up that needs a decision
+// about the authorization boundary.
 //
 // Sign-out is a full navigation on purpose, so that nothing rendered under
 // the old session can be shown again; it is covered by authentication.spec.ts.
