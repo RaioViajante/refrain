@@ -50,7 +50,7 @@ async function main(): Promise<number> {
           ? "The archive matches its .sha256 file."
           : "No .sha256 file was found next to the archive, so its integrity was not checked.",
         result.compared
-          ? "The row counts of the compared tables, the migration count, and a digest of every language version, entry, and slug equal the source's. Tables not listed above are not compared."
+          ? "Every row of the 19 compared tables (the writing, its status and publication history, deletion, versions, slugs, the catalog, and the author's account) equals the source's, and the migration count matches. The three session and rate-limit tables are deliberately empty in a backup."
           : "Not compared with a source (no --compare-with): the archive restored without error, nothing more is claimed.",
         "The scratch database is discarded by pnpm db:test:down.",
       ].join("\n"),

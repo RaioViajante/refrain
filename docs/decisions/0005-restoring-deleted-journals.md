@@ -39,8 +39,28 @@ A deleted entry can hold language versions in any state, including `published` (
 
 - **Restore every version as a draft.** Simpler to explain, but it discards the author's decision that a version was finished (`private`) and is not the owner's policy.
 - **Restore versions as they were, including `published`.** Rejected by the owner: a restore would republish.
-- **Bump `entries.version` on restore.** It would turn an unchanged text into a conflict for an open editor. A restore changes who can see a version, never the text, and the version guards the text.
+- **Bump `entries.version` on restore.** It would turn an unchanged text into a conflict for an open editor. A restore changes who can see a version, never the text, and the version guards the text. This was tested rather than assumed: a deleted journal refuses every save, so nothing can change the text between the delete and the restore; an editor opened before the delete saves what it loaded and is accepted (the save changes no visibility); and an editor that is stale because of a save made before or after the delete and restore is refused as a conflict, with the newer writing untouched. The tests are in `restore.integration.test.ts` ("an editor that was open before the journal was deleted and restored") and `recovery.spec.ts` (two tabs across a delete and a restore).
 - **Put the visibility change in the Journals module.** The Publication module already owns `unpublishLanguageVersion`, slugs, and the invariants that only its commands keep (ADR 0003); a second place that writes `entry_texts.status` would make them harder to hold.
+
+## What the owner has approved, and what is still to approve
+
+| # | Decision | Source | Needs the owner's approval |
+| --- | --- | --- | --- |
+| 1 | Draft returns as draft, private as private, published as **private** | Owner policy (PR #16) | No |
+| 2 | A restore never publishes anything | Owner policy | No |
+| 3 | Content and publication history (`first_published_at`, version and entry) are preserved | Owner policy | No |
+| 4 | All slug rules stay in force; a published slug stays reserved and current | Owner policy | No |
+| 5 | The predicate and INV-1 to INV-5 are unchanged; no purge, no permanent-delete control | Owner policy | No |
+| 6 | `published_at` is cleared on the demoted version (a database check requires it: a version that is not `published` has none) | Consequence of 1 | Confirm |
+| 7 | The visibility change lives in the Publication module (`restoreDeletedEntry`), and the Journals module wraps it | New | **Yes** |
+| 8 | Restoring a journal that is not deleted is **refused** (`entry_not_deleted`), which is also the answer to a repeated or concurrent restore | New | **Yes** |
+| 9 | `entries.version` is **not** incremented by a restore (tested, see Alternatives) | New | **Yes** |
+| 10 | Track-reflection flags (`is_published`, favourite, rating, "still writing") and `is_featured` are not changed; a reflection that was flagged for publication goes public with its version when the author publishes the version again | New | **Yes** |
+| 11 | `updated_at` is set on the entry and the demoted versions, so the "edited" date shows the restore | New (minor) | Confirm |
+| 12 | A private *Recently deleted* page with a confirmed *Restore…*, a notice chosen from a fixed query-string value, no pagination | New | **Yes** |
+| 13 | No schema change, no migration | New | Confirm |
+
+Remaining trade-offs and risks: decision 10 means the restore dialog's promise that nothing is published again until the author chooses is exactly true of the language version but not of a reflection that was flagged earlier (the flag follows its version). Nothing in the studio can set the flag yet, and when M2 adds a publishing control it must list the reflections still flagged. Decision 12 leaves a long list unpaginated. Restore exists for album journals only.
 
 ## Consequences
 

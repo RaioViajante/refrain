@@ -13,11 +13,14 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   checkOutputPath,
   checkSidecar,
+  COMPARED_TABLES,
+  EXCLUDED_DATA,
   knownServices,
   OpsError,
   parseArguments,
   resolveTarget,
   targetOfUrl,
+  unaccountedTables,
 } from "./backup";
 
 // The pure rules of the backup tool. They need no database and no Docker. The
@@ -253,5 +256,30 @@ describe("the checksum next to an archive", () => {
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
+  });
+});
+
+describe("every table is accounted for", () => {
+  it("compares or deliberately excludes each table, and names one that is neither", () => {
+    expect(unaccountedTables([...COMPARED_TABLES, ...EXCLUDED_DATA])).toEqual(
+      [],
+    );
+    expect(
+      unaccountedTables([...COMPARED_TABLES, "track_ratings", "a_new_table"]),
+    ).toEqual(["a_new_table", "track_ratings"]);
+  });
+
+  it("never compares the tables that a backup leaves empty, and excludes only authentication data that is transient or replayable", () => {
+    for (const table of EXCLUDED_DATA) {
+      expect(COMPARED_TABLES).not.toContain(table);
+    }
+    expect([...EXCLUDED_DATA].sort()).toEqual([
+      "auth_rate_limits",
+      "auth_sessions",
+      "auth_verifications",
+    ]);
+    // The account and its credential are compared, never excluded.
+    expect(COMPARED_TABLES).toContain("auth_users");
+    expect(COMPARED_TABLES).toContain("auth_accounts");
   });
 });

@@ -409,6 +409,143 @@ describe("restoring an album journal", () => {
   });
 });
 
+describe("an editor that was open before the journal was deleted and restored", () => {
+  // `entries.version` guards the text, and only a save changes the text. A
+  // deleted journal cannot be saved, so nothing can change the text between
+  // the delete and the restore, and a restore changes who can see a version,
+  // never the text. So a restore does not bump the version (ADR 0005), and
+  // these tests show that no stale save is then wrongly accepted or refused.
+
+  it("can still save what it loaded, because nothing about the writing changed, and the save changes no visibility", async () => {
+    await inScratchTransaction(async (tx) => {
+      const { albumId } = await setUp(tx);
+      const entryId = await createTestAlbumJournal(tx, {
+        albumId,
+        slug: "test-grace",
+        versions: [
+          {
+            locale: "en",
+            status: "published",
+            publishedAt: longAgo,
+            text: "[Test] As loaded",
+          },
+        ],
+      });
+      const opened = await getAlbumJournal(tx, author, entryId); // the form loads
+      expect(opened).toMatchObject({ version: 1, body: "[Test] As loaded" });
+
+      await deleteAlbumJournal(tx, author, entryId);
+      // While deleted, the stale form is refused outright.
+      expect(
+        await failure(tx, (db) =>
+          saveAlbumJournal(db, author, {
+            entryId,
+            expectedVersion: 1,
+            body: "[Test] Typed in the open form",
+          }),
+        ),
+      ).toBe("entry_deleted");
+      await restoreAlbumJournal(tx, author, entryId);
+      const before = await preserved(tx, entryId);
+
+      // The same base, so the save is accepted: it is not a stale save.
+      await saveAlbumJournal(tx, author, {
+        entryId,
+        expectedVersion: 1,
+        body: "[Test] Typed in the open form",
+      });
+
+      const after = await getAlbumJournal(tx, author, entryId);
+      expect(after).toMatchObject({
+        version: 2,
+        body: "[Test] Typed in the open form",
+        status: "private", // restored as private; a save never changes it
+        deletedAt: null,
+      });
+      // Publication history and every slug are exactly what the restore left.
+      const [version] = await tx
+        .select()
+        .from(schema.entryTexts)
+        .where(eq(schema.entryTexts.entryId, entryId));
+      expect(version).toMatchObject({ status: "private", publishedAt: null });
+      expect(version?.firstPublishedAt).toEqual(longAgo);
+      const slugs = (s: string) => JSON.parse(s).slugs;
+      expect(slugs(await preserved(tx, entryId))).toEqual(slugs(before));
+      expect(await listPublicLanguageVersions(tx, entryId)).toEqual([]);
+    });
+  });
+
+  it("cannot overwrite writing that was saved after it was opened, even across a delete and a restore", async () => {
+    await inScratchTransaction(async (tx) => {
+      const { albumId } = await setUp(tx);
+      const { entryId } = await createAlbumJournal(tx, author, {
+        albumId,
+        locale: "en",
+        body: "[Test] Base",
+      });
+      // Two editors load the same version.
+      const a = await getAlbumJournal(tx, author, entryId);
+      const b = await getAlbumJournal(tx, author, entryId);
+      expect(a?.version).toBe(1);
+      expect(b?.version).toBe(1);
+
+      await deleteAlbumJournal(tx, author, entryId);
+      await restoreAlbumJournal(tx, author, entryId);
+
+      // B saves first, and wins.
+      await saveAlbumJournal(tx, author, {
+        entryId,
+        expectedVersion: 1,
+        body: "[Test] Newer writing from B",
+      });
+      // A's save is now stale: refused, and B's writing is untouched.
+      expect(
+        await failure(tx, (db) =>
+          saveAlbumJournal(db, author, {
+            entryId,
+            expectedVersion: 1,
+            body: "[Test] Stale text from A",
+          }),
+        ),
+      ).toBe("version_conflict");
+      expect(await getAlbumJournal(tx, author, entryId)).toMatchObject({
+        version: 2,
+        body: "[Test] Newer writing from B",
+      });
+    });
+  });
+
+  it("is refused when the writing was saved before the delete, whatever happens in between", async () => {
+    await inScratchTransaction(async (tx) => {
+      const { albumId } = await setUp(tx);
+      const { entryId } = await createAlbumJournal(tx, author, {
+        albumId,
+        locale: "en",
+        body: "[Test] Base",
+      });
+      await saveAlbumJournal(tx, author, {
+        entryId,
+        expectedVersion: 1,
+        body: "[Test] Saved before the delete",
+      });
+      await deleteAlbumJournal(tx, author, entryId);
+      await restoreAlbumJournal(tx, author, entryId);
+      expect(
+        await failure(tx, (db) =>
+          saveAlbumJournal(db, author, {
+            entryId,
+            expectedVersion: 1, // an editor opened before that save
+            body: "[Test] Stale",
+          }),
+        ),
+      ).toBe("version_conflict");
+      expect((await getAlbumJournal(tx, author, entryId))?.body).toBe(
+        "[Test] Saved before the delete",
+      );
+    });
+  });
+});
+
 describe("a restore and the lists that show it", () => {
   it("leaves a deleted journal that has no original language version out of the list, instead of failing", async () => {
     await inScratchTransaction(async (tx) => {

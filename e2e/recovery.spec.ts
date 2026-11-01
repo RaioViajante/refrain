@@ -343,3 +343,61 @@ test("a second restore of the same journal, from a stale tab, is refused in word
   expect(after).toMatchObject({ deleted: false, status: "draft" });
   await other.close();
 });
+
+test("an editor opened before the delete cannot overwrite newer writing after the restore", async ({
+  page,
+}) => {
+  const url = await writeJournal(page);
+  const entryId = idOf(url);
+
+  // Two tabs load the editor at the same version.
+  const first = await page.context().newPage();
+  const second = await page.context().newPage();
+  for (const tab of [first, second]) {
+    await tab.goto(`${url}/edit`);
+    await expect(tab.getByLabel("Your reflection")).toHaveValue(body);
+  }
+
+  // Meanwhile the journal is deleted and restored.
+  await moveToRecentlyDeleted(page, url);
+  await page.goto("/studio/journals/deleted");
+  await journalRows(page, "Recently deleted journals")
+    .getByRole("button", { name: `Restore the journal about ${names.album}` })
+    .click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Restore journal" })
+    .click();
+  await expect(page).toHaveURL(/\?restored=1$/);
+
+  // The second tab saves first. It started from the same text, so it is not stale.
+  await second
+    .getByLabel("Opening sentence (optional)")
+    .fill("[Test] E2E Newer opening from the second tab.");
+  await second.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(second.getByText("Saved just now")).toBeVisible();
+
+  // The first tab still holds the old version: its save is refused, its text
+  // stays in the box, and the newer writing is what is stored.
+  const typed = "[Test] E2E Typed in the stale first tab.";
+  await first.getByLabel("Opening sentence (optional)").fill(typed);
+  await first.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(
+    first.getByRole("alert").filter({ hasText: "changed somewhere else" }),
+  ).toContainText("nothing was saved");
+  await expect(first.getByLabel("Opening sentence (optional)")).toHaveValue(
+    typed,
+  );
+
+  const after = await stored(entryId);
+  expect(after).toMatchObject({
+    deleted: false,
+    status: "draft",
+    published_at: null,
+    opening: "[Test] E2E Newer opening from the second tab.",
+    body_text: body,
+    version: 2,
+  });
+  await first.close();
+  await second.close();
+});

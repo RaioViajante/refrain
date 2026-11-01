@@ -307,11 +307,16 @@ function firstLines(text: string, count = 5): string {
 // Authentication data that must never travel in a backup: sessions can be
 // replayed, and the rest is transient. The account and its password hash are
 // kept, so the author can sign in after a restore (and that is sensitive).
-const EXCLUDED_DATA = [
+//
+// The three tables keep their structure in the backup; only their rows are left
+// out: live session tokens, one-time verification values (nothing in Refrain
+// sends or uses them), and sign-in rate-limit counters. None holds writing,
+// publication state, slugs, or the account's credentials.
+export const EXCLUDED_DATA = [
   "auth_sessions",
   "auth_verifications",
   "auth_rate_limits",
-];
+] as const;
 
 function sha256OfFile(path: string): Promise<string> {
   return new Promise((resolvePromise, reject) => {
@@ -489,8 +494,14 @@ export async function runBackup(options: {
   };
 }
 
-// The authored tables a restore must reproduce, and a digest of the writing.
-const COMPARED_TABLES = [
+// Every table of the application's schema is accounted for, one way or the
+// other: its rows are compared between the source and the restored copy
+// (COMPARED_TABLES, which is everything that holds writing, the catalog,
+// publication state, slugs, and the author's account), or its rows are
+// deliberately left out of the backup (EXCLUDED_DATA). A table that is in
+// neither list fails the restore check, so a table added later can never be
+// silently left out of the comparison.
+export const COMPARED_TABLES = [
   "artists",
   "albums",
   "tracks",
@@ -510,45 +521,49 @@ const COMPARED_TABLES = [
   "artist_journals",
   "auth_users",
   "auth_accounts",
-];
-const COUNT_QUERY = COMPARED_TABLES.map(
-  (table) => `select '${table}' as t, count(*)::text as n from public.${table}`,
+] as const;
+
+/** Tables of the `public` schema that are neither compared nor excluded. */
+export function unaccountedTables(tables: readonly string[]): string[] {
+  const known = new Set<string>([...COMPARED_TABLES, ...EXCLUDED_DATA]);
+  return tables.filter((table) => !known.has(table)).sort();
+}
+
+// For each compared table: its row count, and a digest over the text of every
+// row in a fixed order, so any changed column (the writing, its status and
+// publication history, deletion, versions, slugs and their marks, the
+// account's password hash) makes the restored copy differ. The digests are
+// computed inside PostgreSQL and never printed.
+const TABLE_QUERY = COMPARED_TABLES.map(
+  (table) =>
+    `select '${table}' as t, count(*)::text || ':' || coalesce(md5(string_agg(x::text, '|' order by x::text)), 'empty') as n from public.${table} x`,
 ).join(" union all ");
-// One digest over what a restore must not change: every language version's
-// text, status, and publication history, each entry's deletion, history, and
-// version, and every slug with its marks.
-const WRITING_DIGEST_QUERY = `select md5(
-  coalesce((select string_agg(concat_ws(':', entry_id, locale, is_original, status,
-              coalesce(opening,''), body_text, coalesce(published_at::text,''),
-              coalesce(first_published_at::text,'')), '|' order by entry_id, locale)
-              from public.entry_texts), '') || '#' ||
-  coalesce((select string_agg(concat_ws(':', id, kind, version,
-              coalesce(deleted_at::text,''), coalesce(first_published_at::text,'')),
-              '|' order by id) from public.entries), '') || '#' ||
-  coalesce((select string_agg(concat_ws(':', kind, slug, coalesce(entry_id::text,''),
-              is_current, was_published), '|' order by kind, slug)
-              from public.entry_slugs), ''))`;
+
+interface Snapshot {
+  /** Row count and content digest of each compared table. */
+  tables: Record<string, { rows: string; digest: string }>;
+  migrations: string;
+}
 
 async function snapshotOf(
   service: Service["name"],
   database: string,
   cwd: string,
-): Promise<{
-  counts: Record<string, string>;
-  digest: string;
-  migrations: string;
-}> {
+): Promise<Snapshot> {
   const rows = await scalar(
     service,
     database,
-    `select t || '=' || n from (${COUNT_QUERY}) c order by t`,
+    `select t || '=' || n from (${TABLE_QUERY}) c order by t`,
     cwd,
   );
   return {
-    counts: Object.fromEntries(
-      rows.split("\n").map((row) => row.split("=") as [string, string]),
+    tables: Object.fromEntries(
+      rows.split("\n").map((row) => {
+        const [table, value] = row.split("=") as [string, string];
+        const [count, digest] = value.split(":") as [string, string];
+        return [table, { rows: count, digest }];
+      }),
     ),
-    digest: await scalar(service, database, WRITING_DIGEST_QUERY, cwd),
     migrations: await scalar(
       service,
       database,
@@ -654,6 +669,38 @@ export async function runVerify(options: {
     throw new OpsError(`The restore failed:\n${firstLines(restored.stderr)}`);
   }
 
+  // Every table of the restored copy is accounted for, and the tables whose
+  // rows are deliberately left out of a backup really came back empty.
+  const present = (
+    await scalar(
+      "postgres-test",
+      scratch,
+      "select coalesce(string_agg(tablename, ' ' order by tablename), '') from pg_tables where schemaname = 'public'",
+      options.repositoryRoot,
+    )
+  )
+    .split(" ")
+    .filter(Boolean);
+  const unaccounted = unaccountedTables(present);
+  if (unaccounted.length > 0) {
+    throw new OpsError(
+      `The restored copy has tables that the restore check neither compares nor excludes: ${unaccounted.join(", ")}. Add them to src/ops/backup.ts before relying on this check.`,
+    );
+  }
+  for (const table of EXCLUDED_DATA) {
+    const left = await scalar(
+      "postgres-test",
+      scratch,
+      `select count(*) from public.${table}`,
+      options.repositoryRoot,
+    );
+    if (left !== "0") {
+      throw new OpsError(
+        `The backup carries rows of ${table}, which must never be in a backup.`,
+      );
+    }
+  }
+
   const after = await snapshotOf(
     "postgres-test",
     scratch,
@@ -667,14 +714,13 @@ export async function runVerify(options: {
       database,
       options.repositoryRoot,
     );
-    const differences = Object.keys(before.counts).filter(
-      (table) => before.counts[table] !== after.counts[table],
-    );
+    const differences = COMPARED_TABLES.filter(
+      (table) =>
+        before.tables[table]?.rows !== after.tables[table]?.rows ||
+        before.tables[table]?.digest !== after.tables[table]?.digest,
+    ).map(String);
     if (before.migrations !== after.migrations) {
       differences.push("migrations");
-    }
-    if (before.digest !== after.digest) {
-      differences.push("the writing, its status and history, or the slugs");
     }
     if (differences.length > 0) {
       throw new OpsError(
@@ -685,7 +731,9 @@ export async function runVerify(options: {
   }
   return {
     scratch,
-    counts: after.counts,
+    counts: Object.fromEntries(
+      Object.entries(after.tables).map(([table, value]) => [table, value.rows]),
+    ),
     migrations: after.migrations,
     compared,
     checksumChecked: checked,
