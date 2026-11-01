@@ -14,7 +14,8 @@ const base = inject("studioBaseURL");
 const email = inject("studioAuthorEmail");
 const password = inject("studioAuthorPassword");
 
-const SIGNED_IN = "Your desk";
+// Text that only the signed-in Desk contains (its introduction).
+const SIGNED_IN = "Everything you are writing";
 const SIGN_IN_REDIRECT = "NEXT_REDIRECT;replace;/studio/sign-in;307;";
 
 function post(
