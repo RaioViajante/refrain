@@ -11,7 +11,7 @@ import {
   type VisibilityStatus,
 } from "@/db";
 
-import { isNormalizedSlug } from "./slug";
+import { isNormalizedSlug, suffixSlug } from "./slug";
 
 // Publication commands: visibility transitions and slug changes. Each runs in
 // one transaction (data model, transaction boundaries 4 and 6); called with a
@@ -241,6 +241,47 @@ export async function changeEntrySlug(
       }
     }
   });
+}
+
+// More collisions than this on one base is not a collision but a bug.
+const MAX_SLUG_ATTEMPTS = 100;
+
+/**
+ * Reserves an entry's first current slug, inside the transaction that creates
+ * the entry (data model, transaction boundary 2): `base`, then `base-2`,
+ * `base-3`, ... until one is free (ADR 0002, D7.3). The slug is never marked
+ * as published: it becomes a public address only when a version is published.
+ *
+ * Safe under concurrency: each attempt is an `INSERT ... ON CONFLICT DO
+ * NOTHING`, which waits for a concurrent claim of the same slug to finish and
+ * then moves on to the next candidate, so two entries never share a slug and
+ * a collision never surfaces as a database error.
+ *
+ * `base` must already be normalized (see `normalizeSlug`) and non-empty. Must
+ * run in a transaction that holds the entry row, before the entry is visible.
+ * Refused with `slug_taken` only if every candidate is taken.
+ */
+export async function reserveInitialSlug(
+  tx: Transaction,
+  entryId: string,
+  base: string,
+): Promise<string> {
+  if (!isNormalizedSlug(base)) {
+    throw new PublicationError("invalid_slug");
+  }
+  const entry = await lockLiveEntry(tx, entryId);
+  for (let attempt = 1; attempt <= MAX_SLUG_ATTEMPTS; attempt++) {
+    const slug = suffixSlug(base, attempt);
+    const inserted = await tx.execute<{ slug: string }>(sql`
+      insert into entry_slugs (kind, slug, entry_id, is_current, was_published)
+      values (${entry.kind}, ${slug}, ${entryId}, true, false)
+      on conflict (kind, slug) do nothing
+      returning slug`);
+    if (inserted.rows.length > 0) {
+      return slug;
+    }
+  }
+  throw new PublicationError("slug_taken");
 }
 
 /**

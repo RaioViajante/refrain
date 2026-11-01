@@ -38,6 +38,13 @@ const eslintConfig = defineConfig([
         "error",
         { patterns: [publicEntryPointsOnly, noParentRelativeImports] },
       ],
+      // An argument that is deliberately unused starts with an underscore:
+      // the AuthorizedAuthor that a studio command takes only as proof that
+      // the request was authorized.
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        { argsIgnorePattern: "^_" },
+      ],
     },
   },
   {

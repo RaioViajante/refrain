@@ -8,6 +8,7 @@ import {
   createTestArtist,
   createTestMemory,
   inRollbackTransaction,
+  testAuthor,
 } from "@/testing";
 
 import { listAlbumsWithArtists, listAlbumUsage } from "./queries";
@@ -37,7 +38,7 @@ describe("listAlbumsWithArtists (AC-04, JOIN)", () => {
       // An album without credits has no row in an inner join.
       await createTestAlbum(tx, { title: "[Test] D Uncredited" });
 
-      expect(await listAlbumsWithArtists(tx)).toEqual([
+      expect(await listAlbumsWithArtists(tx, testAuthor())).toEqual([
         {
           albumId: solo.albumId,
           title: "[Test] A Solo",
@@ -70,7 +71,7 @@ describe("listAlbumsWithArtists (AC-04, JOIN)", () => {
       await tx
         .insert(schema.albumArtists)
         .values({ albumId, artistId, position: 1, creditedAs: "[Test] Alias" });
-      const [row] = await listAlbumsWithArtists(tx);
+      const [row] = await listAlbumsWithArtists(tx, testAuthor());
       expect(row?.artistName).toBe("[Test] Alias");
     });
   });
@@ -91,7 +92,7 @@ describe("listAlbumUsage (AC-05, subquery)", () => {
       // A memory that links one of the album's tracks, not the album itself.
       await createTestMemory(tx, { music: [{ trackId: used.trackIds[0]! }] });
 
-      expect(await listAlbumUsage(tx)).toEqual([
+      expect(await listAlbumUsage(tx, testAuthor())).toEqual([
         { albumId: used.albumId, title: "[Test] A Used", usedIn: 3 },
         { albumId: unused.albumId, title: "[Test] B Unused", usedIn: 0 },
       ]);

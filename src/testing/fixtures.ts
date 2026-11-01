@@ -3,6 +3,7 @@
 // exist only inside rolled-back test transactions.
 import { eq } from "drizzle-orm";
 
+import type { AuthorizedAuthor } from "@/modules/identity";
 import {
   schema,
   type EntryKind,
@@ -10,6 +11,18 @@ import {
   type Transaction,
   type VisibilityStatus,
 } from "@/db";
+
+/**
+ * A stand-in for the proof that Identity creates after authorizing a request.
+ * Commands under test take it, but never read it, so a test can pass this
+ * value; the real authorization is tested through Identity and over HTTP.
+ */
+export function testAuthor(): AuthorizedAuthor {
+  return {
+    userId: "00000000-0000-4000-8000-000000000001",
+    sessionId: "00000000-0000-4000-8000-000000000002",
+  } as AuthorizedAuthor;
+}
 
 /** A Tiptap document with one paragraph. */
 export function testDocument(text: string) {

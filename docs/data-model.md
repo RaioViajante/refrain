@@ -1,6 +1,6 @@
 # Data Model
 
-**Status:** implemented in M1.2. The schema is [`src/db/schema.ts`](../src/db/schema.ts); the applied SQL is in [`src/db/migrations/`](../src/db/migrations/). The publication transitions, slug changes, and "Delete now" exist as transactional module commands; no route or screen calls them yet, and catalog and journal CRUD arrive in later increments ([Roadmap](roadmap.md)).
+**Status:** implemented in M1.2. The schema is [`src/db/schema.ts`](../src/db/schema.ts); the applied SQL is in [`src/db/migrations/`](../src/db/migrations/). The publication transitions, slug changes, and "Delete now" exist as transactional module commands; M1.3B adds the catalog and album-journal commands and the Writing Studio screens that call them ([Roadmap](roadmap.md)). It changes no table and adds no migration.
 
 - The domain rules come from [ADR 0002](decisions/0002-domain-model-decisions.md), which is accepted. The schema conventions, publication history, and slug retention are in [ADR 0003](decisions/0003-relational-schema-conventions.md), which is accepted.
 - Every constraint below is declared in PostgreSQL. Integration tests against a real PostgreSQL 17 database exercise them as described under [Validation](#validation).
@@ -236,20 +236,20 @@ These rules hold through transactions, module functions, and tests, not through 
 
 | Rule | Where it is enforced |
 | --- | --- |
-| Every entry has exactly one subtype row and one original version | The entry-creation transaction (M2) |
-| Every entry has exactly one current slug (D7.1); "at most one" is a constraint | The entry-creation transaction (M2) and `changeEntrySlug` |
+| Every entry has exactly one subtype row and one original version | `createAlbumJournal` (album journals); artist journals and memories arrive in M2 |
+| Every entry has exactly one current slug (D7.1); "at most one" is a constraint | `createAlbumJournal` (through `reserveInitialSlug`) and `changeEntrySlug` |
 | Previous-slug rows stay while their entry exists (D7.5): they are only added, marked non-current, or retired, never deleted or re-pointed to another entry | `changeEntrySlug` and `permanentlyDeleteEntry`. The primary key prevents two rows holding one slug; it does not prevent a raw `DELETE` of a row. |
 | `was_published` is set on a slug before it is served, and never cleared | `publishLanguageVersion` and `changeEntrySlug` set it. `resolvePublicSlug` serves only marked slugs, so a missing mark makes an address unreachable rather than releasable. |
 | A retired row is never deleted, re-attached to an entry, or unmarked | No command does so. The constraints cannot see previous values, so a raw `UPDATE` or `DELETE` could; the database role is not restricted; production database access is decided with the deployment target. |
-| Every album has a reference edition | The catalog import or creation transaction (M1.3) |
+| Every album has a reference edition | `createAlbum` creates it with the album; `updateAlbum` and the tracklist commands create it if it is missing (`updateAlbum` only when it names an edition field; no command deletes an edition) |
 | `entry_texts.first_published_at` is set by the first publication and never cleared or overwritten (the constraints require it while published, but cannot see the previous value) | `publishLanguageVersion` and `unpublishLanguageVersion` |
 | `entries.first_published_at` equals the earliest `entry_texts.first_published_at` | `publishLanguageVersion`. Rows written before migration 0002 may keep an earlier entry-level value with no recorded version history; migrations 0002 and 0003 backfill what can be derived. |
 | A slug is frozen after the first publication; later changes keep the old slug | `changeEntrySlug` |
 | A deleted entry's visibility and slug are not changed | The publication commands refuse deleted entries |
-| Saves do not overwrite newer writing | The save command checks `entries.version` (M2) |
-| Memory titles are present; opening and margin note only on journals | Zod validation at the server boundary (M2) |
-| The Tiptap node and mark schema | Zod validation at the server boundary (M2) |
-| Public reads see only visible writing | The [publication predicate](security.md#publication-predicate), implemented once and tested; no public route exists yet |
+| Saves do not overwrite newer writing | `saveAlbumJournal` locks the entry and checks `entries.version`; other kinds arrive in M2 |
+| Memory titles are present; opening and margin note only on journals | Zod validation at the server boundary (album journals: M1.3B; memories: M2) |
+| The Tiptap node and mark schema | Plain text becomes paragraphs, text, and hard breaks only (`textToDocument`); a stored document is editable in the plain editor only if saving would reproduce it exactly (`editableText`), and is otherwise refused as `unsupported_content` and left untouched. The full schema is validated when Tiptap arrives (M2) |
+| Public reads see only visible writing | The [publication predicate](security.md#publication-predicate), implemented once and tested; no public route exists yet. No Studio command can change a version to `published` |
 
 ## Deletion and recovery
 
@@ -265,7 +265,7 @@ These rules hold through transactions, module functions, and tests, not through 
 
 ## Transaction boundaries
 
-Each item below is one transaction:
+Each item below is one transaction (the numbers are stable; the boundary 1 import and 3's track reflections are not built yet):
 
 1. **Import from MusicBrainz**: upsert artists; insert the album, its reference edition, tracks, `album_artists`, `track_artists`, `album_tracks`, and `edition_tracks`.
 2. **Create an entry**: `entries`, the original `entry_texts` row, the subtype row, and the initial `entry_slugs` row.
@@ -277,7 +277,29 @@ Each item below is one transaction:
 8. **Reorder memory music** (deferred unique constraint).
 9. **Permanent delete** (`permanentlyDeleteEntry`): release or retire the slugs, then delete the entry and everything it owns.
 
-External HTTP calls (MusicBrainz, artwork) happen **before** a transaction opens, never inside one. Transactions use Drizzle's `db.transaction`; nested calls become savepoints. The integration tests exercise boundaries 2, 4, 5, 6, 7, 8, and 9, including rollback of an invalid multi-row write and of a failed publication.
+**Catalog commands added in M1.3B** (each one transaction; all lock the album row when they rewrite its credits or tracklist, so two edits run one after the other):
+
+- `createAlbum`: the album, its reference edition, and its ordered credits.
+- `updateAlbum`: a patch of the album's metadata, of the reference edition's metadata (field by field), and, when named, of the credits (the whole list), in one transaction.
+- `setAlbumTracklist`, `addTrackToAlbum`, `removeTrackFromAlbum`, `moveTrackInAlbum`: album membership and the reference edition's order. The edition's rows are replaced, not renumbered, because `(edition_id, disc_number, position)` is unique and not deferrable; nothing authored refers to `edition_tracks`. Removing a recording that a track reflection refers to is refused.
+- `createTrack` (optionally appended to an album) and `updateTrack` with its credits.
+- Archive, restore, and a guarded hard delete for artists, albums, and tracks: the delete is attempted and `ON DELETE RESTRICT` decides, so a record that anything refers to is refused as `in_use`.
+
+**Update contract (M1.3B).** Every update of a catalog record or a journal's text is a patch, so that an unrelated edit can never erase the author's data:
+
+- A **create** takes the whole record; an optional field left out is empty.
+- An **update** changes only what it names. A field left out is unchanged. A field that is present is validated and replaces the stored value.
+- **Clearing is intentional**: `null`, or a blank string, for an optional field (a sort name, a year, an edition's label, a journal's opening sentence or reflection). A required field (a name or a title) can be replaced but never cleared.
+- A patch that names nothing, or only an empty `edition`, is refused as `invalid_input`; it is never a silent no-op.
+- A **list** that is present (credits, a track's artists, a tracklist) replaces the whole list and must be complete (an album needs at least one credit; a tracklist must carry its `tracks`). An item in a replaced list that leaves out an optional field keeps the stored value: reordering credits keeps each "credited as", and a tracklist keeps each track's disc.
+- Saving a journal is a patch of `opening` and `body`, with the `entries.version` check. Replacing a body that the plain editor would not reproduce exactly is refused; the opening sentence of that text can still be changed, and the body is then left exactly as it is.
+- Catalog metadata has no version counter: two sessions editing the same artist, album, or track can overwrite each other's named fields (last write wins). Journal text does not: a stale save is refused.
+
+Integration tests omit, clear, and update a field while the unrelated fields hold data, for each record, and the same behavior is asserted through the Server Actions over HTTP.
+
+**Journal commands added in M1.3B:** `createAlbumJournal` (boundary 2: the entry, its original version as a `draft`, the `album_journals` row, and a slug reserved by `reserveInitialSlug`), `saveAlbumJournal` (the version check of boundary 3 for an album journal's text), `setAlbumJournalPrivacy` (only `draft` or `private`, through `unpublishLanguageVersion`), and `deleteAlbumJournal` (sets `deleted_at`; recoverable).
+
+External HTTP calls (MusicBrainz, artwork) happen **before** a transaction opens, never inside one. Transactions use Drizzle's `db.transaction`; nested calls become savepoints. A command that is a single statement (archive, restore, or delete of one record) is atomic by itself and has no savepoint. The integration tests exercise boundaries 2, 4, 5, 6, 7, 8, and 9 and the M1.3B commands above, including rollback of an invalid multi-row write and of a failed publication.
 
 ## Representative SQL
 
@@ -324,6 +346,31 @@ select e.id as entry_id, al.title as album_title,
 ```
 
 A track counts as written when its reflection has non-empty text in the original language and is not flagged "still writing", which matches the derived states above. Reflections that are empty, still in progress, or written only in a translation are not counted. Only tracks of the reference edition are counted, so the result never exceeds `track_count` (a reflection on a recording outside the reference edition stays valid but is not part of "4 of 10").
+
+**Aggregate: tracks on each album** (Albums list; [`listAlbumTrackCounts`](../src/modules/catalog/queries.ts)). One one-to-many join, so the count cannot be multiplied; an album with no tracks reads 0:
+
+```sql
+select al.id, al.title, al.first_release_year,
+       al.archived_at is not null as archived,
+       count(m.track_id)::int as track_count
+  from albums al
+  left join album_tracks m on m.album_id = al.id
+ group by al.id
+ order by al.title, al.id;
+```
+
+**Aggregate with `FILTER`: journals by status** (Desk; [`getJournalStatistics`](../src/modules/journals/queries.ts)):
+
+```sql
+select count(*) filter (where e.deleted_at is null)::int as total,
+       count(*) filter (where e.deleted_at is null and o.status = 'draft')::int as draft,
+       count(*) filter (where e.deleted_at is null and o.status = 'private')::int as private,
+       count(*) filter (where e.deleted_at is null and o.status = 'published')::int as published,
+       count(*) filter (where e.deleted_at is not null)::int as deleted
+  from album_journals j
+  join entries e     on e.id = j.entry_id
+  join entry_texts o on o.entry_id = e.id and o.is_original;
+```
 
 The JOIN and the usage subquery list every catalog album, including albums whose only writing is a draft or private. They are **Writing Studio queries** and must never back a public page: a public Albums listing selects albums through the [publication predicate](security.md#publication-predicate), in the Publication module (M3).
 

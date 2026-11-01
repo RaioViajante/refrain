@@ -1,6 +1,15 @@
+import { sql } from "drizzle-orm";
 import { expect } from "vitest";
 
-import { getDb, type Transaction } from "@/db";
+import {
+  databaseErrorOf,
+  getDb,
+  SqlState,
+  type DatabaseErrorShape,
+  type Transaction,
+} from "@/db";
+
+export { databaseErrorOf, SqlState, type DatabaseErrorShape };
 
 class RollbackSignal extends Error {}
 
@@ -24,30 +33,77 @@ export async function inRollbackTransaction(
   }
 }
 
-export interface DatabaseErrorShape {
-  /** PostgreSQL SQLSTATE, for example 23503 (foreign_key_violation). */
-  code: string;
-  /** Name of the violated constraint, when PostgreSQL reports one. */
-  constraint?: string;
+const COUNTED_TABLES = [
+  "artists",
+  "albums",
+  "album_artists",
+  "album_editions",
+  "tracks",
+  "track_artists",
+  "album_tracks",
+  "edition_tracks",
+  "entries",
+  "entry_texts",
+  "album_journals",
+  "track_reflections",
+  "entry_slugs",
+] as const;
+
+export type CountedTable = (typeof COUNTED_TABLES)[number];
+
+let baseline: Record<string, number> = {};
+
+async function tableCounts(tx: Transaction): Promise<Record<string, number>> {
+  const counts: Record<string, number> = {};
+  for (const table of COUNTED_TABLES) {
+    const result = await tx.execute<{ n: number }>(
+      sql.raw(`select count(*)::int as n from ${table}`),
+    );
+    counts[table] = result.rows[0]!.n;
+  }
+  return counts;
 }
 
-/** Finds the PostgreSQL error behind a Drizzle query error. */
-export function databaseErrorOf(
-  error: unknown,
-): DatabaseErrorShape | undefined {
-  let current: unknown = error;
-  for (let depth = 0; depth < 5; depth++) {
-    if (typeof current !== "object" || current === null) {
-      return undefined;
-    }
-    if ("code" in current && typeof current.code === "string") {
-      const constraint =
-        "constraint" in current && typeof current.constraint === "string"
-          ? current.constraint
-          : undefined;
-      return { code: current.code, constraint };
-    }
-    current = "cause" in current ? current.cause : undefined;
+/**
+ * Like `inRollbackTransaction`, and records how many rows each counted table
+ * has when the test starts, so `rowsAdded` is correct even if another suite
+ * committed rows to the shared test database.
+ */
+export async function inScratchTransaction(
+  work: (tx: Transaction) => Promise<void>,
+): Promise<void> {
+  await inRollbackTransaction(async (tx) => {
+    baseline = await tableCounts(tx);
+    await work(tx);
+  });
+}
+
+/** How many rows `table` gained since `inScratchTransaction` began. */
+export async function rowsAdded(
+  tx: Transaction,
+  table: CountedTable,
+): Promise<number> {
+  const result = await tx.execute<{ n: number }>(
+    sql.raw(`select count(*)::int as n from ${table}`),
+  );
+  return result.rows[0]!.n - (baseline[table] ?? 0);
+}
+
+/**
+ * Runs `work` in a savepoint and returns whatever it threw, or `undefined`.
+ * The savepoint is rolled back on failure, so the outer test transaction
+ * stays usable even when a statement fails.
+ */
+export async function captureFailure(
+  tx: Transaction,
+  work: (savepoint: Transaction) => Promise<unknown>,
+): Promise<unknown> {
+  try {
+    await tx.transaction(async (savepoint) => {
+      await work(savepoint);
+    });
+  } catch (error) {
+    return error;
   }
   return undefined;
 }
@@ -89,11 +145,3 @@ export async function expectRejected(
     expected.constraint === undefined ? { code: expected.code } : expected,
   );
 }
-
-/** SQLSTATE codes used by the tests. */
-export const SqlState = {
-  notNullViolation: "23502",
-  foreignKeyViolation: "23503",
-  uniqueViolation: "23505",
-  checkViolation: "23514",
-} as const;

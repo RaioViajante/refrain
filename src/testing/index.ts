@@ -2,9 +2,13 @@
 // database. Imported only by tests, never by application code.
 export {
   captureDatabaseError,
+  captureFailure,
   databaseErrorOf,
   expectRejected,
   inRollbackTransaction,
+  inScratchTransaction,
+  rowsAdded,
+  type CountedTable,
   SqlState,
   type DatabaseErrorShape,
 } from "./database";
@@ -15,7 +19,9 @@ export {
   createTestArtistJournal,
   createTestMemory,
   createTestTrackReflection,
+  testAuthor,
   testDocument,
   type TestAlbum,
   type TestVersion,
 } from "./fixtures";
+export { raceAll, uniqueLabel, withConnections } from "./concurrency";

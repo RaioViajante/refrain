@@ -14,7 +14,7 @@ const base = inject("studioBaseURL");
 const email = inject("studioAuthorEmail");
 const password = inject("studioAuthorPassword");
 
-const SIGNED_IN = "You are signed in. The editor is not built yet.";
+const SIGNED_IN = "Your desk";
 const SIGN_IN_REDIRECT = "NEXT_REDIRECT;replace;/studio/sign-in;307;";
 
 function post(
