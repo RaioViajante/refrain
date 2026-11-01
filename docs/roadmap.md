@@ -89,7 +89,7 @@ M2 is split into increments, each authorized separately by the author. **Only M2
 | **M2.2 — Reflections** | Commands for track-reflection text, flags, still-writing, favourite, ratings, and the album rating, with the version rule and confirmed saves; the track-by-track editor in plain text. | ADR 0006 accepted |
 | **M2.3 — Publish in the studio** | Publish and Unpublish dialogs that list the disclosed reflections, confirmation for changes to a public version, Server Actions, HTTP and browser tests. | M2.1, M2.2 |
 | **M2.4 — Delete now** | The studio control and its author-bound command, with the interim copy (INV-4). | M2.1 |
-| **First public slice (M3.1)** | One public album-journal page by address, redirects, and identical `404`s, through the Publication queries only, with `no-store` ([ADR 0006 § 11](decisions/0006-publication-decision-and-acknowledgement.md#11-public-reads-and-caches)). | M2.3 |
+| **First public slice (M3.1)** | One public album-journal page by address, redirects, and identical `404`s, through the Publication queries only, with `no-store`. It starts with a spike that proves real `308`/`404` statuses and `no-store` under Cache Components ([ADR 0006 § 11](decisions/0006-publication-decision-and-acknowledgement.md#11-public-reads-and-caches)). | M2.3 |
 | After November 16, or if time allows | Author-written translations, featuring and address-change controls, memories and artist journals, the full `en` and `pt-BR` interface, Tiptap. Translations stay on the roadmap but do not block the first public demonstration. | Scoped individually |
 
 ## Critical path

@@ -36,9 +36,10 @@ All three use one function that describes the **public surface** of an entry, de
 
 | Item | Public when | Digest covers |
 | --- | --- | --- |
-| **Version** `(locale)` | the entry is not deleted and that version's status is `published` | title, opening, body, margin note |
+| **Version** `(locale)` | the entry is not deleted and that version's status is `published` | title, opening, margin note, and the body as its canonical `jsonb` text (not only `body_text`, so a formatting-only edit is caught) |
 | **Address** | at least one version is public | the current slug |
 | **Album rating** (album journals) | at least one version is public (the rating belongs to the journal, not to a language) | the value, or its absence |
+| **Memory details** (memories) | at least one version is public | the remembered-when text and the ordered music links (track or album ids) |
 | **Reflection** `(track reflection, locale)` | its `is_published` is set, it has text in that locale, and that locale's version is public | text, favourite, rating, still-writing |
 
 "Has text in that locale" means a `track_reflection_texts` row exists for it, as the predicate already requires. Writers must not leave a row for an empty text (an M2.2 rule, tested), so a row means text.
@@ -54,11 +55,11 @@ All three use one function that describes the **public surface** of an entry, de
 
 Rules:
 
-- **Per language, and only that language.** The disclosure for `L` never contains a pair of another language, and never says whether another language version exists or what state it is in (§ 7). The studio may show other versions' states elsewhere, read-only, as the design specifies.
-- **Complete by construction.** It is derived from the predicate fragments for the hypothetical state "`L` is published", so it cannot disagree with what the public queries will return. A parity test proves this (§ 13).
-- **Informational lines are not part of the set.** Reflections that are flagged but have no text in `L` are public in no language yet, and appear only as a count the studio may show. They are outside the digest. Catalog metadata (track and album titles) is displayed but not digested: a catalog edit changes how something is labelled, not what writing is exposed.
+- **Per language, and only that language.** The disclosure for `L` never contains a pair of another language. The studio is private, so it may say that the rating is already public through another version (`alreadyPublic`) and may show other versions' states, read-only, as the design specifies. Nothing public ever mentions an unpublished language (INV-3; § 13, test 10).
+- **Complete by construction.** It is derived from the predicate fragments for the hypothetical state "`L` is published", so it cannot disagree with what the public queries will return. Today [`predicate.ts`](../../src/modules/publication/predicate.ts) hard-codes `status = 'published'`, so M2.1 parameterizes the fragments (the live public queries pass `'published'`). That edits a security-critical file, so it is its own commit with its own review, and the parity test (§ 13, test 1) is the guard.
+- **Informational lines are not part of the set.** Reflections that are flagged but have no text in `L` are not public in `L` (they may be public in another language that is published), and appear only as a count the studio may show. They are outside the digest. Catalog metadata (track and album titles) is displayed but not digested: a catalog edit changes how something is labelled, not what writing is exposed.
 - **The same disclosure for Draft and Private.** The status being left is shown, and changes nothing else (owner decision 6).
-- **Other kinds.** Memories and artist journals have no reflections and no rating. Their disclosure has the version, the address, and an empty reflection set. They go through the same operation.
+- **Other kinds.** Memories and artist journals have no reflections and no rating, and go through the same operation. A memory's disclosure adds its remembered-when text and its ordered music links; an artist journal's has only the version and the address (the related writing its page lists is selected from other entries by the predicate). A kind that gains a public field adds it to the table in § 1 before its studio screen ships.
 
 ### 3. The acknowledgement token
 
@@ -74,7 +75,7 @@ How each requirement of owner decision 2 and ADR 0005 § 5 holds:
 - **Bound to the version.** Any change to the text bumps `entries.version` (§ 6) and changes the digest.
 - **Bound to the locale.** `L` is in the digest and the command acts on `L` only.
 - **Bound to the effective set.** A flag, a text, a rating, a favourite mark, a still-writing mark, the album rating, or the address that changes the disclosure changes the digest (ADR 0005 § 5.6).
-- **Not replayable across a lifecycle change.** The stamp changes when the entry or the version is saved, published, unpublished, deleted, or restored. A restore sets `entries.updated_at` (ADR 0005, decision 11), deleting sets it through the ORM, and publishing and unpublishing set the version's `updated_at` explicitly. So an acknowledgement from before a deletion cannot republish a restored journal ([§ 8](#8-deleted-and-restored-entries)). The stamp is a second layer: the content and the set are bound directly, and are the primary guarantee. Timestamps are not a trigger-maintained column (ADR 0003), so M2.1 must test that **every** command that changes these rows moves the stamp, and a command that forgets fails that test.
+- **Not replayable across a lifecycle change.** The stamp changes when the entry or the version is saved, published, unpublished, deleted, or restored. A restore sets `entries.updated_at` (ADR 0005, decision 11), deleting sets it through the ORM, and publishing and unpublishing set the version's `updated_at` explicitly. So an acknowledgement from before a deletion cannot republish a restored journal ([§ 8](#8-deleted-and-restored-entries)). The stamp is a second layer: the content and the set are bound directly, and are the primary guarantee. Timestamps are not a trigger-maintained column (ADR 0003), and `now()` is the transaction's start time, not its commit time and not monotonic, so only *inequality* is ever compared. M2.1 must test that **every** command that saves, publishes, unpublishes, deletes, or restores moves the stamp, and a command that forgets fails that test. Unpublishing sets only the version's `updated_at`, which is enough because the target version's stamp is in the token. The address is not in the stamp: it is bound by the digest directly, and `changeEntrySlug` sets no `updated_at` today.
 
 **What the token is and is not.** It binds a decision to a state; it is not a credential. Anyone who may call the command can compute a matching token, because the rule is public and the repository is intended to be public. That is deliberate. The control makes it impossible to publish *without* a decision about the current disclosed set, for any caller (ADR 0005 § 8), and impossible to publish a different set from the one decided. It does not try to stop an authorized author who deliberately scripts the acknowledgement, which no design can. Authorization is a separate check ([§ 10](#10-authorization)).
 
@@ -82,8 +83,8 @@ How each requirement of owner decision 2 and ADR 0005 § 5 holds:
 
 `publishLanguageVersion(db, author, { entryId, locale, expectedVersion, acknowledgement })` runs in one transaction, in this order. The first failing step ends it with that failure, and **nothing is written** by a failed call:
 
-1. Validate the input (Zod): the id, the locale, a positive integer version, a token of the form `v1.` plus 43 base64url characters. Anything else is `invalid_input`; the input is never echoed.
-2. Lock the entry row (`FOR UPDATE`, § 7). `entry_not_found` for an unknown entry, a version that does not exist, or an entry of another kind than the caller's.
+1. Validate the input (Zod): the id, the locale, a positive integer version, and, **when a token is present**, its form: `v1.` plus 43 base64url characters. Anything else is `invalid_input`; the input is never echoed. An *absent* token is not an input error: it reaches step 7.
+2. Lock the entry row (`FOR UPDATE`, § 7). `entry_not_found` for an unknown entry or a version that does not exist. The kind check belongs to the Journals wrapper, whose own lock admits only album journals (as `restoreAlbumJournal` does); the engine takes no kind.
 3. Refuse a deleted entry: `entry_deleted`.
 4. Refuse a stale editor: `entries.version` differs from `expectedVersion` → `version_conflict`.
 5. Refuse a version with nothing to publish: `nothing_to_publish` (default rule: the version has a non-blank opening or body; see [Undecided](#undecided-questions)).
@@ -115,7 +116,10 @@ This one rule covers the owner's decisions:
 | Add text in a language to a reflection that is already flagged and whose version in that language is public | the new reflection item |
 | Flag a reflection (`is_published` on) (decision 3) | the reflection item |
 | Change a public reflection's text, rating, favourite mark, or still-writing label | the reflection item |
+| Create a reflection that is already flagged and has text, while its language is public | the reflection item |
 | Set or change the album rating while any version is public (decision 5) | the rating item |
+| Change a memory's remembered-when text or its music links while a version is public | the memory-details item |
+| Change the address while a version is public | none for new writing: it exposes no writing, is an explicit author action with its own dialog and keeps the old address as a redirect (ADR 0002, D7.4 and D7.5) |
 | Change a reflection that is not flagged, or whose language is not public | none |
 | Unflag a reflection, clear the album rating, or clear text | none (a removal), but the interface asks first |
 
@@ -129,11 +133,11 @@ Interface requirements (specified in [Design System](../design-system.md#writing
 
 ### 6. The version rule
 
-**Every command that changes anything on the public surface bumps `entries.version` and checks the version it was given**, except commands that change only publication state (publish, unpublish, delete, restore, address), which are covered by the stamp. This extends the Revisit item of ADR 0005 (§ 3, "any future operation that changes text must preserve an equivalent version and concurrency check") to reflections, the album rating, flags, and translations, and it is what lets § 3 and § 5 rely on the version. A restore still does not bump it (ADR 0005, decision 9). A test lists the commands that write authored content and shows that each bumps the version, so a new command that does not is caught.
+**Every command that changes anything on the public surface bumps `entries.version` and checks the version it was given**, except commands that change only publication state (publish, unpublish, delete, restore), which are covered by the stamp, and the address, which the digest binds directly (§ 3). This extends the Revisit item of ADR 0005 (§ 3, "any future operation that changes text must preserve an equivalent version and concurrency check") to reflections, the album rating, flags, and translations, and it is what lets § 3 and § 5 rely on the version. A restore still does not bump it (ADR 0005, decision 9). A test lists the commands that write authored content and shows that each bumps the version, so a new command that does not is caught.
 
 ### 7. Transactions and lock order
 
-- **L1. The entry row is the lock for everything the entry owns.** A transaction that reads in order to decide, or writes, any row owned by entry `E` (`entries`, `entry_texts`, the subtype row, `track_reflections` and their texts, `memory_music`, `entry_slugs` of `E`) first runs `SELECT … FROM entries WHERE id = E FOR UPDATE`. No command writes those rows without it. Reflection rows need no lock of their own.
+- **L1. The entry row is the lock for everything the entry owns.** A transaction that reads in order to decide, or writes, any row owned by entry `E` (`entries`, `entry_texts`, the subtype row, `track_reflections` and their texts, `memory_music`, `entry_slugs` of `E`) first runs `SELECT … FROM entries WHERE id = E FOR UPDATE`. No command writes those rows without it, except the transaction that creates the entry, whose rows no other transaction can see before it commits. Reflection rows need no lock of their own.
 - **L2. One entry per transaction.** A command never holds two entry locks. A future command that must touch two entries (moving the featured mark, boundary 5) takes the locks in ascending id order; this ADR adds no such command.
 - **L3. Catalog locks come after the entry lock**, never before it. No command takes both today.
 - **L4. The slug claim can wait but cannot cycle.** `ON CONFLICT` on `entry_slugs` waits for another transaction's uncommitted claim of the same slug. That transaction holds only its own entry lock and never waits for ours, so no cycle exists (L2).
@@ -152,12 +156,13 @@ Interface requirements (specified in [Design System](../design-system.md#writing
 
 - The Publication module exports no function that makes a version `published` except the checked `publishLanguageVersion`. The current unchecked signature is **removed**, not wrapped. Tests that need a published version call preview and publish through a helper in `src/testing/`, which uses the same code.
 - **One writer.** A static test fails if any file other than the Publication command writes `status = 'published'` to `entry_texts` (SQL text, Drizzle `set`/`values`, or a status variable) in production code. Migrations and `src/testing/` are the only places that may set it.
+- **No application code obtains a token and submits it in the same call.** `previewPublication` is called only by the preview action. The publish wrapper and the publish action take the token only from the request body, which only the review dialog submits after the author has seen the disclosure. A failure's fresh token is shown to the author and is sent only by a new explicit action. No function calls both preview and publish, and none constructs a token. Without this rule a wrapper could preview and then publish in one request, which would be an unchecked path built from the checked one. A static test (on the syntax tree) enforces it, and the mutation "the wrapper previews, then publishes" must fail it. What the command itself can prove is that a decision about *this exact state* was submitted; that the decision was a human one is guaranteed by this rule and by browser test 17. A script that deliberately previews and publishes is outside application code ([Undecided](#undecided-questions), question 2).
 - **The Journals module wraps; presentation never imports Publication.** A studio action calls a Journals wrapper that checks the entry's kind and calls the Publication engine, as `restoreAlbumJournal` does. `no-publishing.test.ts` keeps forbidding presentation from naming the Publication commands.
 - **The database role and a trigger are not relied on yet.** A trigger that rejects a transition to `published` made outside the command would be a second lock. It would be a migration, so it is not part of this ADR ([Undecided](#undecided-questions)).
 
 ### 10. Authorization
 
-- Every new command (`previewPublication`, `publishLanguageVersion`, `unpublishLanguageVersion`, the confirmed save, and the Journals wrappers) takes the `AuthorizedAuthor` as its second parameter. The type is a compile-time signal (the commands do not inspect it), so it is not the control.
+- Every new command (`previewPublication`, `publishLanguageVersion`, `unpublishLanguageVersion`, the confirmed save, and the Journals wrappers) takes the `AuthorizedAuthor` as its second parameter. So do `changeEntrySlug` and `permanentlyDeleteEntry` when a studio screen first binds them (M2.4 for the second). The type is a compile-time signal (the commands do not inspect it), so it is not the control.
 - Every new Server Action starts with an awaited `authorizeAuthor`, then runs through `perform` (the application's own `Origin`), then validates with Zod inside the command. A static test requires the first and the HTTP suite proves the rest. Preview is an action too: it returns private writing.
 - A failure is a fixed code. The disclosure and delta that some failures carry go only to a request that passed authorization, are `no-store`, and are never logged. The token is never logged or echoed.
 - Each action is added to the HTTP test's table, which fails if one is missing.
@@ -167,8 +172,9 @@ Interface requirements (specified in [Design System](../design-system.md#writing
 - **Only Publication queries.** Public routes read through `@/modules/publication`. Presentation already cannot import the database client (lint); a static test additionally requires that public routes import nothing from Journals, Catalog's studio functions, or Publication's commands. Every public query is built from `predicate.ts` and returns a projection without status, deletion state, or an unpublished language. A route never decides visibility itself.
 - **New public queries are Publication's.** The queries M3 needs (listings, the sitemap, the album rating) are defined in the Publication module from the same fragments, not in a route. The album rating is public only through the "at least one version is public" rule in § 1, and a test shows it is absent otherwise.
 - **An oracle test.** An independent TypeScript implementation of the predicate is compared with every public query over the whole state matrix (§ 13). A query that is wrong in any cell fails.
-- **Initial public release: no shared cache.** Journal pages, listings, metadata, `sitemap`, `robots`, and every `308` and `404` from slug resolution are rendered per request and sent with `Cache-Control: no-store`. There is no static generation or incremental regeneration of journal data, no `use cache` of it, and no `generateStaticParams` for journal routes. A `308` is cacheable by default, so it carries `no-store` explicitly: a cached redirect would keep revealing the current address of an entry that has since been unpublished or deleted (INV-5), and a cached `404` would hide a newly published one. Data is read after the request starts (inside `Suspense`, after `connection()`, as the development page does), so nothing is rendered at build time; the build needs no database, which CI already proves.
-- **What this guarantees:** there is no cache that can keep a stale page, so unpublishing, deleting, restoring, unflagging, rating changes, and address changes take effect on the next request. An HTTP test against the production build asserts the header on every public response class. That Next.js and the host honor the header is verified by test and again at deployment ([Security § Deployment gate](../security.md#deployment-gate)); it is not assumed.
+- **Initial public release: no shared cache.** Journal pages, listings, metadata, `sitemap`, `robots`, and every `308` and `404` from slug resolution are rendered per request and sent with `Cache-Control: no-store`. There is no static generation or incremental regeneration of journal data, no `use cache` of it, and no `generateStaticParams` for journal routes. A `308` is cacheable by default, so it carries `no-store` explicitly: a cached redirect would keep revealing the current address of an entry that has since been unpublished or deleted (INV-5), and a cached `404` would hide a newly published one. Nothing journal-related is rendered at build time; the build needs no database, which CI already proves.
+- **How a route sends a real `308` or `404` with `no-store` is an open implementation question.** The studio's pattern (`cacheComponents`, data read behind `Suspense` after `connection()`) answers HTTP 200 with a prerendered shell and a streamed redirect ([Security § Deployment gate](../security.md#deployment-gate), item 2). Journal routes cannot use it as it stands: a streamed redirect is not a `308` (INV-5), a shell is not a per-request `404`, and a prerendered shell is not `no-store` per request. The address must be resolved, and the status and headers chosen, before any response byte is sent, for example in a route handler or before any `Suspense` boundary. **M3.1 starts with a spike** that proves, on the production build, real `308` and `404` statuses, `no-store` on `200`, `308`, and `404`, and no static shell or journal data in the build output. If it fails, this strategy is revisited before any public route ships.
+- **What this guarantees, once the spike has passed:** there is no cache that can keep a stale page, so unpublishing, deleting, restoring, unflagging, rating changes, and address changes take effect on the next request. An HTTP test against the production build asserts the header on every public response class. That Next.js and the host honor the header and the statuses is verified by that test and again at deployment ([Security § Deployment gate](../security.md#deployment-gate)); it is not assumed.
 - **Introducing any cache later needs its own ADR**, which defines the invalidation for every event in this section and the tests that show a stale page cannot be served. Nothing in M2 builds the invalidation, because nothing is cached.
 
 ### 12. Error codes and recovery
@@ -186,7 +192,7 @@ Interface requirements (specified in [Design System](../design-system.md#writing
 | `confirmation_required` | a change to the public page without a token | none | the delta and token; show the confirmation |
 | `confirmation_mismatch` | the confirmation no longer matches | none | the fresh delta and token; ask again |
 
-Every failure leaves the database as it was (one transaction), and none loses the author's text: the editor keeps it. A failure is never retried automatically, and a token is never reused by the client after any failure. The existing codes (`entry_not_deleted`, `slug_taken`, `invalid_slug`, `invalid_status`, `unsupported_content`) are unchanged.
+Every failure leaves the database as it was (one transaction), and none loses the author's text: the editor keeps it. A failure is never retried automatically, and a token is never reused by the client after any failure. The existing codes (`entry_not_deleted`, `slug_taken`, `invalid_slug`, `invalid_status`, `unsupported_content`) are unchanged. The Publication engine's `version_not_found` reaches the Journals layer as `entry_not_found`, as it does today.
 
 ### 13. Required tests
 
@@ -195,10 +201,10 @@ All are required before the code they cover ships. A privacy rule is not tested 
 **PostgreSQL (real database).**
 
 1. **Disclosure parity.** Over the full matrix of {entry deleted or not} × {each language: draft, private, published} × {flag} × {text present per language} × {album rating set or not} × {the other language already public or not}: the disclosure for `L` equals the pairs the public queries return for `L` after `L` is published, minus those returned before. No pair of another language ever appears.
-2. **No publication without a matching token:** missing, malformed, empty-string, and well-formed-but-wrong tokens leave a row checksum of every table unchanged. An empty set still needs its token.
-3. **Each invalidator separately** makes a previously valid token fail: a flag on and off; text added or removed in `L`; a reflection text, rating, favourite, or still-writing change; the album rating; a text save; the address; publishing and unpublishing `L`; delete and restore; a second use of the same token. Changes to another language's reflection do not alter `L`'s set. Each lifecycle command moves the stamp.
+2. **No publication without a matching token:** an absent token is `acknowledgement_required`, a malformed or empty-string one is `invalid_input`, and a well-formed wrong one is `acknowledgement_mismatch`; each leaves a row checksum of every table unchanged. An empty set still needs its token.
+3. **Each invalidator separately** makes a previously valid token fail: a flag on and off; text added or removed in `L`; a reflection text, rating, favourite, or still-writing change; the album rating; a text save; the address; publishing and unpublishing `L`; delete and restore; a second use of the same token. Changes to another language's reflection do not alter `L`'s set. Save, publish, unpublish, delete, and restore each move the stamp; the address change is caught by the digest.
 4. **ADR 0005 scenario:** flag a reflection, publish, delete, restore (private, nothing public), then publish without a token, with the token from before the deletion, and with a fresh token; only the last succeeds, and exactly the flagged set becomes public.
-5. **Concurrency over real connections** (no sleeps; the entry lock held by a controlled transaction): publish against a flag flip, a text save, a rating change, a delete, a restore, an address change, and another publish; eight simultaneous publishes; a flag flipped between preview and publish; no `deadlock_detected` over repeated runs; only domain failures; every outcome is a state that was valid. The lock is removed once and the test must fail.
+5. **Concurrency over real connections** (no sleeps; the entry lock held by a controlled transaction): publish against a flag flip, a text save, a rating change, a delete, a restore, an address change, and another publish; eight simultaneous publishes; a flag flipped between preview and publish; a catalog tracklist rewrite against a reflection insert; no `deadlock_detected` over repeated runs; only domain failures (no raw foreign-key error); every outcome is a state that was valid. The lock is removed once and the test must fail.
 6. **Draft equals Private:** the same checks and the same refusals from both.
 7. **Refusals:** deleted, wrong kind, missing locale, no slug, nothing to publish, stale version. Each writes nothing. A failing step in the middle of a publish (a trigger) rolls everything back.
 8. **Post-publication changes:** every row of the § 5 table, with and without a token, with a stale token, and with a token for a different input. A refusal changes no row and not `entries.version`. A save of a non-public item never asks. `still-writing` never changes whether a reflection is public (INV-2).
@@ -206,7 +212,7 @@ All are required before the code they cover ships. A privacy rule is not tested 
 10. **Translations (INV-3):** the disclosure, the public queries, `listPublicLanguageVersions`, and slug resolution never expose or mention an unpublished language, in every state combination.
 11. **Preview** is authorized, read-only (a row checksum), and takes no lock.
 12. **Oracle:** the independent predicate against every public query over the same matrix; the album rating is public only when some version is.
-13. **One writer:** the static scan of § 9, with probes showing it catches each form of the write.
+13. **One writer and no self-minted token:** the static scans of § 9, with probes showing they catch each form of the write and a function that calls both preview and publish.
 
 **HTTP (the production build).**
 
@@ -222,7 +228,7 @@ All are required before the code they cover ships. A privacy rule is not tested 
 20. Delete, restore, and the restored journal is private; publishing again shows the full set; the public page then shows exactly the disclosed set and nothing else.
 21. Unpublish: the next request to the public address is the same `404` as an unknown one.
 
-**Mutation checks** (each is made once by hand, must fail at least one test, and is recorded in the pull request that adds the code): compare the count instead of the set; omit the locale, the flag, the rating, the version, the stamp, or the address from the digest; accept a missing token; skip the comparison for Draft or for an empty set; remove the entry lock; compare before taking the lock; write before comparing; re-export the unchecked publish; make preview write; skip the delta for the album rating or for a reflection's text; remove `no-store` from the `308`.
+**Mutation checks** (each is made once by hand, must fail at least one test, and is recorded in the pull request that adds the code): compare the count instead of the set; omit the locale, the flag, the rating, the version, the stamp, or the address from the digest; accept a missing token; skip the comparison for Draft or for an empty set; remove the entry lock; compare before taking the lock; write before comparing; re-export the unchecked publish; make the wrapper preview and then publish; make preview write; skip the delta for the album rating or for a reflection's text; remove `no-store` from the `308`.
 
 ## How ADR 0005 § 5 is met
 
@@ -231,11 +237,11 @@ All are required before the code they cover ships. A privacy rule is not tested 
 | 1 | Determine the exact set, per language | § 2: pairs `(reflection, L)` with the flag and text in `L`, derived from the predicate fragments; test 1 |
 | 2 | Disclose it, identifying each reflection and language | § 2 (each item identifies reflection, track, and language), [Design System](../design-system.md#per-track-publication) (the dialog lists them; conflict C6) |
 | 3 | Let the author review or change selections | The dialog edits flags with the ordinary save, which bumps the version; a new preview follows, so the author always acknowledges what is then effective (§ 3, § 6) |
-| 4 | Require explicit acknowledgement | § 3 and § 4: the token, required even for an empty set |
+| 4 | Require explicit acknowledgement | § 3 and § 4: the command requires a token for this exact state, even for an empty set. That the acknowledgement is a human act is guaranteed by § 9 (no application code mints and submits its own token) and browser test 17; the command alone proves only that a decision about this state was submitted |
 | 5 | Enforce it at the Publication command boundary | § 4 (inside the command) and § 9 (no other way to publish) |
 | 6 | Reject missing, outdated, or mismatched acknowledgements | § 4 step 7 and § 12: `acknowledgement_required`, `acknowledgement_mismatch`; tests 2 and 3 |
 | 7 | Check atomically with the visibility change | § 7, L6: one transaction under the entry lock; test 5 |
-| 8 | Apply to every caller | § 4 (one path for Draft, Private, and an empty set) and § 9 (the unchecked signature is removed, one writer, a static test) |
+| 8 | Apply to every caller | Met for every caller that uses application code: § 4 (one path for Draft, Private, and an empty set) and § 9 (the unchecked signature is removed, one writer, static tests). **Not met for out-of-process writers** (a script with raw SQL, `psql`, a migration) until [question 2](#undecided-questions) is decided |
 | 9 | Never expose a flagged reflection as an undisclosed side effect | § 2 (complete by construction), § 5 (the same rule after publication), § 8 (restored entries); tests 1, 4, and 8 |
 
 ## Conflicts and clarifications
@@ -253,6 +259,7 @@ No accepted text is edited. Where this ADR depends on an earlier statement, or r
 | C7 | Product, rule 2: "Saving is not publishing"; saving never changes visibility. | Still true: a save never changes any status. It can change the *content* of a public version, and then only after confirmation (decision 4). |
 | C8 | [Security § Planned](../security.md#implemented-and-planned-protections): the publication commands take no `AuthorizedAuthor` until bound. | They take it when this is built (§ 10). |
 | C9 | `no-publishing.test.ts` forbids presentation from reaching the Publication commands. | It stays. The Journals wrapper is the way in, so the guard is not relaxed, only extended to the new names. |
+| C11 | [Roadmap § Catalog edit concurrency](../roadmap.md#catalog-edit-concurrency-last-write-wins): catalog edits are last-write-wins and take no entry lock. | Kept. Catalog metadata (titles, credits, tracklist order) changes how a public page is labelled, not what writing is exposed, so it is not digested and needs no confirmation. A test covers a catalog rewrite racing a reflection insert (§ 13, test 5). |
 | C10 | ADR 0003 § 4: the transitions are `publishLanguageVersion` and `unpublishLanguageVersion`. | The names stay; the signature of the first changes (§ 4). That is an implementation detail of an accepted decision, not a change to it. |
 
 ## Alternatives considered
@@ -280,6 +287,7 @@ No accepted text is edited. Where this ADR depends on an earlier statement, or r
 - Any save, in any language, invalidates every outstanding preview of the entry, because the version is per entry. That is conservative and cheap: the author previews again.
 - A save of a public version takes two round trips when it changes the page.
 - The album rating is public whenever the journal is public and a rating exists. An author who wants a rating kept private on a public journal has to clear it until a flag exists.
+- Out-of-process writers (a script, `psql`, a migration) can still set a status; only application code is bound until the trigger question is decided.
 - The stamp depends on `updated_at` being set by every command that changes these rows. The tests enforce that, but it is a convention (ADR 0003).
 - The disclosure and delta computations add reads to the publish and save paths. They are bounded by one entry's rows.
 - Per-request rendering with `no-store` gives up CDN caching for the first public release. For a single author's journal that is acceptable, and caching can return behind an ADR.
@@ -289,9 +297,10 @@ No accepted text is edited. Where this ADR depends on an earlier statement, or r
 These are the open points. Each has a stated default, which the implementation follows unless the owner decides otherwise.
 
 1. **What counts as publishable.** Default: the version has a non-blank opening or body (memories also need their title, as Zod already requires). An album journal with only track reflections and no essay would then need an opening sentence. The alternative is to count a non-empty disclosed reflection.
-2. **A database trigger as a second lock** against any writer that bypasses the command (a script, a future tool, a migration). Default: not now. Revisit before any hosted deployment, through `/refrain-db-change`.
+2. **A database trigger as a second lock** against any writer that bypasses the command (a script, a future tool, a migration). Default: not now, which leaves out-of-process writers unconstrained (mapping row 8). Recommended before any hosted deployment; it needs `/refrain-db-change`.
 3. **A separate publication switch for the album rating** (an additive `album_journals` column). Default: not now. The rating is disclosed and confirmed with the journal.
 4. **Whether unflagging a public reflection needs a command-level confirmation.** Default: no, because it reduces exposure; the interface asks first, as Product rule 1 requires for unpublishing.
+5. **How public routes send real `308` and `404` responses with `no-store` under Cache Components** (§ 11). Default: resolve the address before any streamed output; the M3.1 spike decides, before any public route ships.
 
 ## Revisit when
 
