@@ -8,7 +8,7 @@ Significant architectural, data, and workflow decisions are recorded here as sho
 | [0002](0002-domain-model-decisions.md) | Domain Model Decisions | Accepted |
 | [0003](0003-relational-schema-conventions.md) | Relational Schema Conventions | Accepted |
 | [0004](0004-single-author-identity.md) | Single-Author Identity and Access | Accepted |
-| [0005](0005-restoring-deleted-journals.md) | Restoring Deleted Journals | Proposed (policy accepted by the owner; implementation choices await review) |
+| [0005](0005-restoring-deleted-journals.md) | Restoring Deleted Journals | Accepted |
 
 ## Format
 
