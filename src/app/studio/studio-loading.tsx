@@ -7,7 +7,7 @@ import { STUDIO_CONTENT_ID } from "@/app/studio/frame";
  */
 export function StudioLoading() {
   return (
-    <main id={STUDIO_CONTENT_ID} className="studio-main">
+    <main id={STUDIO_CONTENT_ID} tabIndex={-1} className="studio-main">
       <div>
         <p role="status" className="studio-hint">
           Loading…

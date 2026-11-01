@@ -159,8 +159,20 @@
   min-width: 0;
 }
 
+/* The skip link moves focus here. The page is not a control, so it gets no
+   ring of its own. */
+.studio-main:focus {
+  outline: none;
+}
+
 .studio-main > * + * {
   margin-top: 1.5rem;
+}
+
+/* Headed sections on detail pages breathe: 48px (36px mobile), as in the
+   notebook layout. */
+.studio-main > section {
+  margin-top: 48px;
 }
 
 /* Pages that need the whole shell (the journal, the editors). */
@@ -223,6 +235,7 @@
 .studio-meta {
   font-size: 16px;
   color: #4a4a4a;
+  overflow-wrap: anywhere;
 }
 
 /* A section with a title in the margin column and its content in the writing
@@ -309,6 +322,10 @@
   grid-template-columns: 56px minmax(0, 1fr) auto;
   align-items: center;
   gap: 4px 18px;
+}
+
+.studio-row.studio-entry:not(:has(.studio-entry-end)) {
+  grid-template-columns: 56px minmax(0, 1fr);
 }
 
 .studio-entry-body {
@@ -541,7 +558,7 @@
 
 .studio-field::placeholder,
 .studio-textarea::placeholder {
-  color: #7a7a7a;
+  color: var(--color-ink-3);
 }
 
 .studio-field:hover {
@@ -551,6 +568,31 @@
 .studio-field:focus,
 .studio-field[aria-invalid="true"] {
   background-image: var(--stroke-field-focus);
+}
+
+/* A select keeps the drawn frame and gets a drawn chevron inside it, clear of
+   the edge. */
+select.studio-field {
+  --studio-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23111111' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  appearance: none;
+  padding-right: 48px;
+  background-image: var(--studio-chevron), var(--stroke-field);
+  background-position:
+    right 16px center,
+    0 0;
+  background-size:
+    16px 16px,
+    100% 100%;
+  background-repeat: no-repeat;
+}
+
+select.studio-field:hover {
+  background-image: var(--studio-chevron), var(--stroke-field-hover);
+}
+
+select.studio-field:focus,
+select.studio-field[aria-invalid="true"] {
+  background-image: var(--studio-chevron), var(--stroke-field-focus);
 }
 
 /* The long writing surface: a quiet frame that turns ink on focus. */
@@ -595,12 +637,11 @@
 }
 
 .studio-opening-field::placeholder {
-  color: #7a7a7a;
+  color: var(--color-ink-3);
 }
 
 .studio-opening-field:focus {
-  background-image: var(--stroke-field-focus);
-  background-size: 100% 8px;
+  background-image: var(--stroke-rule-focus);
 }
 
 .studio-problem {
@@ -849,6 +890,58 @@
   color: #2a2a2a;
 }
 
+/* ---------- Forced colors (Windows high contrast) ----------
+   The drawn outlines are background images, which that mode may not honor, so
+   real borders take their place, in the system's own colors. */
+
+@media (forced-colors: active) {
+  .studio-field,
+  .studio-textarea,
+  .studio-button,
+  .studio-dialog {
+    background-image: none;
+    border: 1px solid CanvasText;
+  }
+
+  .studio-button-primary {
+    border-width: 3px;
+  }
+
+  select.studio-field {
+    appearance: auto;
+    background-image: none;
+  }
+
+  .studio-opening-field {
+    background-image: none;
+    border-bottom: 1px solid CanvasText;
+  }
+
+  .studio-list::before,
+  .studio-row::after,
+  .studio-notebook::before,
+  .studio-footer::before {
+    background-image: none;
+    border-top: 1px solid GrayText;
+    height: 0;
+  }
+
+  .studio-nav a {
+    background-image: none;
+  }
+
+  .studio-nav a:hover,
+  .studio-nav a[aria-current="page"] {
+    text-decoration: underline;
+    text-underline-offset: 6px;
+  }
+
+  .studio-thumb,
+  .studio-artwork {
+    border-color: CanvasText;
+  }
+}
+
 /* ---------- Motion: subtle, and none at all when asked for less ---------- */
 
 @media (prefers-reduced-motion: reduce) {
@@ -888,7 +981,9 @@
   }
 }
 
-@media (max-width: 960px) {
+/* The editor stacks as soon as the page is one column, so the writing never
+   shrinks below its stacked width. */
+@media (max-width: 1099px) {
   .studio-columns {
     grid-template-columns: minmax(0, 1fr);
     row-gap: 32px;
@@ -897,7 +992,9 @@
   .studio-margin-sticky {
     position: static;
   }
+}
 
+@media (max-width: 960px) {
   .studio-journal {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
@@ -940,6 +1037,10 @@
 
   .studio-main {
     padding-block: 40px 72px;
+  }
+
+  .studio-main > section {
+    margin-top: 36px;
   }
 
   .studio-title {

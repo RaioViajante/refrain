@@ -185,6 +185,17 @@ export function strokes(): Record<string, string> {
         width: 1,
       },
     ]),
+    "rule-focus": svg(1200, 8, [
+      {
+        d: line(2, 4, 1198, 4, 62, {
+          roughness: 0.6,
+          bowing: 0.5,
+          single: true,
+        }),
+        stroke: INK,
+        width: 1.6,
+      },
+    ]),
     underline: svg(200, 10, [
       {
         d: line(2, 6, 197, 5, 71, { roughness: 0.7, single: true }),

@@ -135,7 +135,7 @@ export function AlbumForm({
         width="140px"
         problem={yearProblem ?? problemWith(failure, "firstReleaseYear")}
       />
-      <fieldset className="space-y-6 border-0 p-0 m-0 min-w-0">
+      <fieldset className="space-y-6 border-0 p-0 mx-0 mt-0 min-w-0">
         <legend className="studio-label mb-1">Reference edition</legend>
         <p className="studio-hint">
           The release that sets the order of the tracks. Everything here is

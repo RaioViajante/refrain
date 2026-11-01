@@ -146,7 +146,21 @@ export function JournalEditor({ create, edit, initial }: JournalEditorProps) {
         </div>
       </div>
 
-      <aside className="studio-margin studio-margin-sticky">
+      <div className="studio-margin studio-margin-sticky">
+        {create ? (
+          <SelectField
+            label="Written in"
+            value={locale}
+            onChange={(value) => edited(() => setLocale(value as Language))}
+            options={LANGUAGES}
+            hint="The language you write this journal in. It is recorded with the journal, and nothing is translated for you."
+            problem={problemWith(failure, "locale")}
+          />
+        ) : (
+          <p className="studio-meta">
+            Written in {LANGUAGES.find((l) => l.value === locale)?.label}
+          </p>
+        )}
         <div className="studio-actions">
           <button
             type="submit"
@@ -170,26 +184,12 @@ export function JournalEditor({ create, edit, initial }: JournalEditorProps) {
           saved={saved}
           dirty={dirty}
         />
-        {create ? (
-          <SelectField
-            label="Written in"
-            value={locale}
-            onChange={(value) => edited(() => setLocale(value as Language))}
-            options={LANGUAGES}
-            hint="The language you write this journal in. It is recorded with the journal, and nothing is translated for you."
-            problem={problemWith(failure, "locale")}
-          />
-        ) : (
-          <p className="studio-meta">
-            Written in {LANGUAGES.find((l) => l.value === locale)?.label}
-          </p>
-        )}
         <p className="studio-hint">
           {create
             ? "A new journal starts as a private draft. Nothing here is published."
             : "Saving never changes who can see this journal."}
         </p>
-      </aside>
+      </div>
     </form>
   );
 }

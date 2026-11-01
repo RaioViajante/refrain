@@ -19,7 +19,12 @@ export default function SignInPage() {
   return (
     <>
       <StudioHeader />
-      <main id={STUDIO_CONTENT_ID} className="studio-main" data-layout="narrow">
+      <main
+        id={STUDIO_CONTENT_ID}
+        tabIndex={-1}
+        className="studio-main"
+        data-layout="narrow"
+      >
         <h1 className="studio-title">Sign in</h1>
         <Suspense fallback={null}>
           <AlreadySignedIn />

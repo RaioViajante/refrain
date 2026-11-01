@@ -88,7 +88,12 @@ export function StudioFrame({
   return (
     <>
       <StudioHeader current={current} />
-      <main id={STUDIO_CONTENT_ID} className="studio-main" data-layout={layout}>
+      <main
+        id={STUDIO_CONTENT_ID}
+        tabIndex={-1}
+        className="studio-main"
+        data-layout={layout}
+      >
         {children}
       </main>
       <StudioFooter />
