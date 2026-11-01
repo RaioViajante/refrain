@@ -222,7 +222,14 @@ export function TracklistEditor({
                 <select
                   id="add-existing-track"
                   className="studio-field"
-                  style={{ flex: "1 1 260px", width: "auto" }}
+                  style={{
+                    flex: "1 1 260px",
+                    width: "auto",
+                    // The longest option must not widen the page: on a phone
+                    // the select shrinks to the screen instead.
+                    minWidth: 0,
+                    maxWidth: "100%",
+                  }}
                   value={existing}
                   onChange={(event) => setExisting(event.target.value)}
                 >

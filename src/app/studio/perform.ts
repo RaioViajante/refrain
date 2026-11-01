@@ -93,8 +93,9 @@ function failed(error: unknown): ActionResult<never> {
         return { ok: false, code: "conflict" };
       case "unsupported_content":
         return { ok: false, code: "unsupported" };
-      case "slug_unavailable":
       case "entry_not_deleted":
+        return { ok: false, code: "not_deleted" };
+      case "slug_unavailable":
         return { ok: false, code: "failed" };
     }
   }

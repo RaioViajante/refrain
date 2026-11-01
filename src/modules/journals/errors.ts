@@ -5,7 +5,8 @@ import type { FieldErrors } from "@/validation";
  * a database message, SQL, or the submitted text.
  *
  * - `entry_not_found`: no such album journal.
- * - `entry_not_deleted`: "Delete now" is only for entries in Recently deleted.
+ * - `entry_not_deleted`: restoring, and "Delete now", are only for entries in
+ *   Recently deleted. A repeated or concurrent second restore receives it.
  * - `entry_deleted`: the journal is in Recently deleted, so it cannot change.
  * - `album_not_found`, `album_archived`: a journal is about an album that
  *   exists and is not archived.

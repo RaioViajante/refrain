@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
-import { ArtistRows, type CreditRow } from "@/app/studio/artist-rows";
+import { ArtistRows } from "@/app/studio/artist-rows";
 import {
   FormStatus,
   SelectField,
@@ -11,41 +11,13 @@ import {
   useSubmission,
   useUnsavedGuard,
 } from "@/app/studio/form-kit";
-import { formatDuration, parseDuration } from "@/app/studio/format";
+import { parseDuration } from "@/app/studio/format";
 import { problemWith } from "@/app/studio/messages";
 import {
   createTrackAction,
   updateTrackAction,
 } from "@/app/studio/tracks/actions";
-
-interface TrackValues {
-  title: string;
-  length: string;
-  credit: string;
-  mbRecordingId: string;
-  artists: CreditRow[];
-  albumId: string;
-}
-
-export function initialTrackValues(track?: {
-  title: string;
-  lengthMs: number | null;
-  credit: string | null;
-  mbRecordingId: string | null;
-  artistIds: string[];
-}): TrackValues {
-  return {
-    title: track?.title ?? "",
-    length: formatDuration(track?.lengthMs ?? null),
-    credit: track?.credit ?? "",
-    mbRecordingId: track?.mbRecordingId ?? "",
-    artists: (track?.artistIds ?? []).map((artistId) => ({
-      artistId,
-      creditedAs: "",
-    })),
-    albumId: "",
-  };
-}
+import type { TrackValues } from "@/app/studio/tracks/track-values";
 
 export function TrackForm({
   trackId,

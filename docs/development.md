@@ -1,6 +1,6 @@
 # Development
 
-**Status:** the application foundation (M1.1), the relational domain (M1.2), identity and authorization (M1.3A), and the catalog and album-journal screens (M1.3B) exist: a Next.js application, a local PostgreSQL 17 database through Docker Compose, a separate disposable test database, the domain schema with versioned migrations, single-author authentication, a Writing Studio with catalog and private-journal CRUD, automated checks, and CI. There is no seed data: the development database holds only what you write into it ([Roadmap](roadmap.md)).
+**Status:** the application foundation (M1.1), the relational domain (M1.2), identity and authorization (M1.3A), the catalog and album-journal screens (M1.3B), and recovery, browser tests, and the backup tool (M1.3C) exist: a Next.js application, a local PostgreSQL 17 database through Docker Compose, a separate disposable test database, the domain schema with versioned migrations, single-author authentication, a Writing Studio with catalog and private-journal CRUD and restoring a deleted journal, automated checks including browser tests, a backup and restore-check tool, and CI. There is no seed data: the development database holds only what you write into it ([Roadmap](roadmap.md)).
 
 Every command in this document has been run successfully. Add a command only after it has run.
 
@@ -166,7 +166,7 @@ After [the author account exists](#first-time-setup-of-the-author-account), `pnp
 4. **Journal.** Journals → *Write a journal* (or *Write a journal about this album* on the album page) → choose the language you write in, an opening sentence, and your reflection; a blank line starts a paragraph → *Save as draft*. Saving is explicit; Cmd or Ctrl+S works.
 5. **Come back.** Leave, reopen the journal from Journals, *Edit this journal*, and the text is as you left it. Saving again checks that nobody saved in between; if another tab did, nothing is overwritten and your text stays in the box.
 6. **Who can see it.** On the journal page, *Draft* or *Private*. Both are only yours; there is nothing to publish with yet.
-7. **Delete and archive.** *Move to Recently deleted…* keeps the journal's writing in the database and takes it off your lists; the studio cannot restore it or delete it permanently yet. An artist, album, or track can be archived (hidden from pickers) or, only if nothing refers to it, deleted; otherwise the page says what still depends on it.
+7. **Delete, restore, and archive.** *Move to Recently deleted…* keeps the journal's writing in the database and takes it off your lists. Desk → *Recently deleted (n)*, or Journals → *Open Recently deleted*, lists what you moved; *Restore…* brings a journal back exactly as it was. A journal that was published when it was deleted comes back as **private**, and nothing is ever published by a restore. The studio does not delete permanently and nothing removes writing automatically. An artist, album, or track can be archived (hidden from pickers) or, only if nothing refers to it, deleted; otherwise the page says what still depends on it.
 8. **Numbers.** The Desk and the lists show counts that PostgreSQL computed on that request ([evidence](evidence/m1-3b.md)).
 
 *Sign out* ends the session; the journal's address then shows nothing private.
@@ -194,7 +194,7 @@ DATABASE_URL="$TESTURL" BETTER_AUTH_SECRET=$(openssl rand -base64 32) \
 
 Open `http://127.0.0.1:3400/studio`, sign in as `author@example.com` with that password, and follow [Using the Writing Studio](#using-the-writing-studio-m13b). When you are done, stop the server and discard everything with `pnpm db:test:down && pnpm db:test:up`.
 
-The same journey, without a browser and with its negative cases, is what `pnpm test:http` runs: create an artist, an album, and tracks; reorder them; write a journal of several paragraphs; save; leave and return; edit and save again with every earlier paragraph still there; and see that every action is refused without the author's session. A maintained browser test is a follow-up ([Roadmap](roadmap.md#follow-ups-from-the-m13b-review)).
+The same journey, without a browser and with its negative cases, is what `pnpm test:http` runs: create an artist, an album, and tracks; reorder them; write a journal of several paragraphs; save; leave and return; edit and save again with every earlier paragraph still there; and see that every action is refused without the author's session. The same journey in a real browser is `pnpm test:e2e` ([Browser tests](#browser-tests)).
 
 ### Commands
 
@@ -209,6 +209,10 @@ The same journey, without a browser and with its negative cases, is what `pnpm t
 | `pnpm test` | Unit tests (Vitest). No database needed. |
 | `pnpm test:integration` | Integration tests against the disposable [test database](#test-database) in `TEST_DATABASE_URL`. Refuses to run if the safety checks fail, and fails if the database is not reachable; it never skips. |
 | `pnpm test:http` | HTTP tests of the production build: authentication, and every studio Server Action. Needs `pnpm build` first and the test database. Starts `next start` on `127.0.0.1` against `TEST_DATABASE_URL` only ([HTTP tests](#http-tests)). |
+| `pnpm test:e2e` | Browser tests: builds, then runs Playwright against the production build, the disposable test database, and a synthetic author ([Browser tests](#browser-tests)) |
+| `pnpm test:e2e:run` | The same without the build, for when `pnpm build` was just run (CI does this) |
+| `pnpm db:backup --target=<host>:<port>/<database> --output=<absolute path>` | Writes a new, owner-only `pg_dump` archive of a local database ([Backup and restore](#backup-and-restore)) |
+| `pnpm db:backup:verify --file=<path> [--compare-with=<target>]` | Restores an archive into a new scratch database on the disposable test container and compares it with a source |
 | `pnpm author:provision --target=<host>:<port>/<database>` | Creates the single author account in the database in `DATABASE_URL` ([Authentication](#authentication)) |
 | `pnpm author:reset-password --target=<host>:<port>/<database>` | Replaces the author's password and signs out every session |
 | `pnpm db:up` / `pnpm db:down` | Start the development PostgreSQL and wait for health / stop it. Data is kept in the `refrain_postgres-data` volume. |
@@ -229,12 +233,7 @@ docker compose exec postgres psql -U refrain -d refrain
 
 These commands use the default `refrain` user and database. If you changed `POSTGRES_USER` or `POSTGRES_DB` in `.env`, substitute your values here and below.
 
-**Backup and restore of local data.** Dumps can contain writing, and `*.dump` is ignored by Git. Keep dumps outside the repository.
-
-```sh
-docker compose exec -T postgres pg_dump -U refrain -d refrain --format=custom > ~/refrain-local.dump
-docker compose exec -T postgres pg_restore -U refrain -d refrain --clean --if-exists < ~/refrain-local.dump
-```
+**Backup and restore of local data.** See [Backup and restore](#backup-and-restore) below. Dumps can contain writing and the author's password hash, and `*.dump` is ignored by Git. Keep them outside the repository.
 
 **Reset.** This permanently deletes all local data in the database volume:
 
@@ -292,6 +291,90 @@ The server uses its own connections, so these rows are committed, unlike the int
 
 [`src/testing/studio-actions.http.test.ts`](../src/testing/studio-actions.http.test.ts) calls each Server Action the way any client could, by its identifier from the build's manifest. It does not sign in, because sign-in is rate limited for all clients together and the authentication tests count their attempts: it mints sessions in the test database with the same HMAC signature the cookie carries ([`http-session.ts`](../src/testing/http-session.ts)), and removes them and its `[Test] HTTP …` rows when it finishes.
 
+### Browser tests
+
+`pnpm test:e2e` runs the Writing Studio in a real browser (Chromium, through [Playwright](https://playwright.dev) 1.64.1) against the **production build**, the **disposable test database**, and a **synthetic author**. Nothing reads or writes the development database or the owner's account, and no password of the owner's is ever needed.
+
+```sh
+pnpm db:test:up                            # the disposable test database (once)
+pnpm exec playwright install chromium      # the browser (once; about 100 MB, kept outside the repository)
+pnpm test:e2e                              # builds, then runs the suite
+pnpm exec playwright show-report           # the HTML report of the last local run
+```
+
+**What the setup does** ([`e2e/global-setup.ts`](../e2e/global-setup.ts), sharing [`src/testing/production-server.ts`](../src/testing/production-server.ts) with `pnpm test:http`):
+
+1. applies the same five safety checks to `TEST_DATABASE_URL` as the integration tests, including the server-side disposable marker, then the migrations;
+2. refuses to start unless the identity tables are empty;
+3. creates a synthetic author (`author@example.com`) with the real `pnpm author:provision` command, the password on standard input;
+4. starts `next start` on `127.0.0.1:3410` in production mode with a random secret. **The port must be free**: if it is taken (a development server, an earlier run) the setup stops instead of reusing it. Set `E2E_PORT` to use another;
+5. on the way out, removes the synthetic `[Test] E2E …` records and the author, then stops the server. `E2E_KEEP_DATA=1` keeps the records (to look at them, or to capture evidence); `pnpm db:test:down && pnpm db:test:up` discards everything.
+
+**Isolation.**
+
+- One worker, tests in a fixed order, each file creating the records it needs under a name of its own run (`[Test] E2E <run id> …`).
+- Every test gets its own browser context. The `setup` project signs in once through the real form and stores the session in `playwright/.auth/author.json` for the authenticated projects. The `anonymous` project has no stored session, and some tests mint a session of their own in the test database (as the HTTP tests do) so that they can end it. **The file, `playwright-report/`, and `test-results/` are ignored by Git** and traces are off in CI: they can hold the synthetic session cookie.
+- Sign-in is rate limited for all clients together (five a minute), so the suite signs in three times (once in setup, twice in `authentication.spec.ts`) and mints everything else.
+
+**What is covered** (`e2e/`, 30 tests over four projects):
+
+| File | Workflow |
+| --- | --- |
+| `authentication.spec.ts` | A visitor is sent to sign-in from every studio page; a wrong password is refused in words; the right one opens the studio with an `HttpOnly`, `SameSite=Strict` cookie; sign-out ends the session, also after "back" |
+| `catalog.spec.ts` | Create an artist, an album credited to it, and tracks; reorder, remove, and add back; edit album, artist, and track; every change after a reload and in PostgreSQL; a real `DELETE` of an unused record and the refusal of one in use |
+| `journal.spec.ts` | A private draft with several paragraphs and literal markup; leave and return to the exact text; edit one field without touching the others; a stale tab is refused as a conflict and keeps its text; draft and private, and no control to publish |
+| `recovery.spec.ts` | Delete a journal, find it in Recently deleted, restore it with every word; a journal that was published returns private with its history; a second restore from a stale tab is refused in words; an editor opened before a delete and restore cannot overwrite newer writing |
+| `negative.spec.ts` | An expired, revoked, forged, and tampered session; a session that ends while the author is writing (the save is refused in words, nothing is stored, the text stays); invalid input |
+| `academic.spec.ts` | The AC-04 example (album, credited artist, linked tracks, private journal) read back with a JOIN, the aggregates, and a subquery; a change made in SQL appears in the interface |
+| `mobile.spec.ts` | At 390 px on a touch device: no page is wider than the screen, the main controls are at least 44 px, delete and restore work by touch |
+
+There is no `sleep`: each test waits for something the application shows (a heading, a message, a URL). A flaky test is a bug, so there are no retries.
+
+**Running one file or one project:** `pnpm exec playwright test e2e/recovery.spec.ts --project=desktop` (the `setup` project runs first by itself). Within a file, tests share state and run in order, so a single test of a file may need its predecessors. A failure prints Playwright's own call log; `E2E_KEEP_SERVER_LOG=1` copies the server log to `test-results/server.log`.
+
+**Not covered:** real HTTPS, Firefox and WebKit, and anything public (there are no public pages). CI runs Chromium only.
+
+### Backup and restore
+
+The development database holds the author's writing. This is a local, manual procedure for backing it up, and for proving that a backup can be restored. It protects against a damaged database or a mistake, **not** against losing the machine or the Docker volume: that needs a copy elsewhere.
+
+**What a backup holds.** The whole database: the writing, the catalog, the author's account including the **password hash**, and the migration history. It leaves out the data of `auth_sessions`, `auth_verifications`, and `auth_rate_limits`, so a stolen backup cannot be replayed as a session. It holds no `BETTER_AUTH_SECRET` (that lives in `.env`, which is **not** backed up: keep it in your password manager, or the author signs in again after a restore with a new secret). Treat a backup like the writing itself.
+
+**Make a backup.** Name the database explicitly. The tool refuses unless the target is exactly what `DATABASE_URL` (or `TEST_DATABASE_URL`) resolves to, on a loopback host.
+
+```sh
+umask 077
+mkdir -p ~/refrain-backups && chmod 700 ~/refrain-backups
+pnpm db:backup --target=127.0.0.1:5432/refrain --output="$HOME/refrain-backups/refrain-$(date +%Y%m%d-%H%M%S).dump"
+```
+
+- It runs PostgreSQL 17's own `pg_dump` **inside the Compose container**, over its local socket: no host installation, and no password on any command line, in the environment of a command, or in any output.
+- The target must also be the container that publishes that port (`docker compose port`), so a different local PostgreSQL with a database of the same name is not mistaken for it.
+- The file must be a **new** path, absolute, in an existing directory **outside the repository** (a symbolic link into it is refused). It is created with permissions `0600`, next to a `.sha256` of the same mode. A failed run, or one interrupted by Ctrl-C or SIGTERM, removes only the file it created (closing the terminal or killing the process outright can leave a partial `.dump`, owner-only, which is never valid and which the tool will not reuse: delete it by hand), and a checksum file that already exists makes the run refuse. Nothing is ever overwritten, cleaned, or dropped.
+- The command says **NOT verified**. A backup is not valid until it has been restored.
+
+**Prove it restores.** This restores into a **new scratch database on the disposable test container**, never over an existing database and never into the development database, and compares it with the source:
+
+```sh
+pnpm db:test:up
+pnpm db:backup:verify --file="$HOME/refrain-backups/refrain-20261101-120000.dump" --compare-with=127.0.0.1:5432/refrain
+pnpm db:test:down        # discards the scratch database
+```
+
+`--file` must be a backup you made: restoring runs its contents as SQL, as the database superuser, on the disposable container. The archive is first copied to a private temporary file (removed when the command ends, including on Ctrl-C, SIGTERM, or a closed terminal; a run that is killed outright, with SIGKILL, can leave a `refrain-verify-…` folder in the temporary directory, which you delete by hand), and the checksum, the listing, and the restore all read that one copy. If a `.sha256` file sits next to the archive it must match, or nothing is restored (this catches damage and edits, not a file that was hostile from the start). The archive is then listed and refused if it is not a valid `pg_dump` archive. The restore runs as one transaction that stops at the first error. The check then confirms that every table of the restored copy is accounted for, that the three tables whose rows a backup leaves out (`auth_sessions`, `auth_verifications`, `auth_rate_limits`) came back empty, and, with `--compare-with`, compares the source and the restored copy table by table: the row count and a digest over the full text of every row of the **19 tables** that hold the writing, its status and publication history, deletion and versions, the slugs and their marks, the catalog, the reflections and memories (not built yet, so empty), and the author's account including the password hash. The digests are computed in PostgreSQL and never printed. The migration count must match too. Any difference fails. A table that the tool neither compares nor deliberately excludes also fails, so a table added later cannot be silently left out. Without `--compare-with` it claims only that the archive restored without error. The comparison reads the source with `SELECT` only. Run it right after the backup, with nothing saved in the studio in between: a later save is a real difference, and the check will report it.
+
+**Keep copies elsewhere.** Copy the verified `.dump` to somewhere that is not this device and not this Docker volume (an encrypted external drive, or an encrypted cloud folder you control). Encrypt it before it leaves the machine if the destination is not already encrypted. Never put a backup in the repository, an issue, a pull request, or a chat. Delete old backups you no longer need from every place you copied them.
+
+**Recovering after a loss.** Restoring a backup into the development database is deliberate and manual; the tool will not do it, and this has **not** been done with the owner's data. Restore into a **new** database, check it, then point the application at it:
+
+1. Stop the application. Make one more backup of whatever remains.
+2. Create a new, empty database (a name that does not exist): `docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d postgres -c "create database refrain_recovered"'`.
+3. Restore into it, with no `--clean`: `docker compose exec -T postgres sh -c 'pg_restore --no-owner --no-privileges --exit-on-error --single-transaction -U "$POSTGRES_USER" -d refrain_recovered' < /path/to/refrain.dump`.
+4. Point `DATABASE_URL` in `.env` at `refrain_recovered`, start the application, and check your journals. Sign in again (sessions are not in a backup).
+5. Keep the damaged database until you are sure. Remove it only by an explicit decision.
+
+**What this does not do.** It is not scheduled, it does not copy anywhere, it is not encrypted, it does not back up `.env`, and it has not been tested against a database of the owner's real size. Automatic purge stays disabled until backups are scheduled and a restore has been tested on real data ([ADR 0002](decisions/0002-domain-model-decisions.md), D4.4).
+
 ### Troubleshooting
 
 | Symptom | Cause and fix |
@@ -341,13 +424,14 @@ Versions are exact in `package.json`, and the lockfile is committed. Each was ch
 | `eslint-config-next` | 16.4.3 | |
 | `prettier` | 3.9.10 | |
 | `vitest` | 5.0.5 | With `vite` 8.3.5, its peer dependency |
+| `@playwright/test` | 1.64.1 | Browser tests (M1.3C). Published 2026-10-14, older than the seven-day minimum. Chromium is downloaded by `playwright install`, not by the package. |
 | `@types/node` | 24.19.2 | Matches the Node.js major version |
 | `@types/react`, `@types/react-dom` | 19.3.0 | |
 | PostgreSQL image | `postgres:17.11-trixie` | Same image locally and in CI |
 
-Planned dependencies (Tiptap, next-intl, Rough.js, Playwright) are added with the features that need them, after the same compatibility check.
+Planned dependencies (Tiptap, next-intl, Rough.js) are added with the features that need them, after the same compatibility check.
 
-`pnpm audit` reports two moderate advisories, both in development tools and both present before M1.3A: esbuild in `drizzle-kit` (development-server CORS), and minimatch in `eslint-config-next` (pattern denial of service). Neither runs in the application or receives untrusted input.
+`pnpm audit` reports two moderate advisories (unchanged by M1.3C, which added Playwright with none), both in development tools and both present before M1.3A: esbuild in `drizzle-kit` (development-server CORS), and minimatch in `eslint-config-next` (pattern denial of service). Neither runs in the application or receives untrusted input.
 
 ## Branches and commits
 
@@ -392,8 +476,9 @@ If the plan changes or the repository becomes public, enable these as protection
 | Build | `pnpm build` | In CI, run without `DATABASE_URL` to prove that the build does not need a database |
 | Schema consistency | `pnpm db:check`, then `pnpm db:generate` must produce no new migration | In CI. Fails when `src/db/schema.ts` changes without a committed migration. |
 | Integration tests | `pnpm test:integration` | In CI, against a disposable PostgreSQL 17 service container with test credentials, marked as disposable by the same script as the local test database. Global setup applies the committed migrations first. Covers connectivity, test-database isolation, migrations and delete rules, the schema constraints ([coverage](data-model.md#validation)), transactions, the academic queries, and the database-level parts of INV-1 to INV-5. |
-| HTTP tests | `pnpm test:http` | In CI, after the build and the integration tests, against the same disposable service database. The production build over real HTTP: studio access with and without a valid session, sign-in, cookies, sign-out, sign-up, origins, rate limiting, the author command, and the server log. |
-| End-to-end smoke | Playwright | Planned. Critical studio and public flows in a browser. |
+| HTTP tests | `pnpm test:http` | In CI, after the build and the integration tests, against the same disposable service database (and before the browser tests, which need the identity tables empty). The production build over real HTTP: studio access with and without a valid session, sign-in, cookies, sign-out, sign-up, origins, rate limiting, the author command, and the server log. |
+| Dependency audit | `pnpm audit --audit-level=high` | In CI (M1.3C). High and critical advisories fail the run; the two moderate advisories listed under [Toolchain](#toolchain) are in development tools and are reviewed, not hidden. |
+| Browser tests | `pnpm exec playwright test` | In CI (M1.3C), after `playwright install --with-deps chromium`: the production build in Chromium against the same disposable service database ([Browser tests](#browser-tests)). Public flows arrive with the public pages. |
 
 The workflow has read-only `permissions` (`contents: read`), a concurrency group per pull request or branch, a 20-minute timeout, and no secrets. Its PostgreSQL credentials belong to a disposable service container and are not secrets. Actions are pinned to full commit SHAs. It does not publish artifacts or deploy.
 
@@ -404,8 +489,8 @@ The workflow has read-only `permissions` (`contents: read`), a concurrency group
 - **Invariants:** each of ADR 0002's INV-1 to INV-5 has database-level tests now; the HTTP-level parts are listed in [Security § Required tests](security.md#required-tests) and arrive with the routes.
 - **Privacy:** the tests listed in [Security § Required tests](security.md#required-tests).
 - **Authentication:** integration tests run the real Better Auth instance on the test transaction, through the real request handler, with real `Request` and `Response` objects ([`identity.integration.test.ts`](../src/modules/identity/identity.integration.test.ts)); the [HTTP tests](#http-tests) run the production server. Session checks are never mocked.
-- **Studio actions:** the HTTP suite above, plus the static check that every action authorizes first ([Security § Authorization contract](security.md#authorization-contract)). The screens were also driven once in a real headless browser against the production build (see the [evidence](evidence/m1-3b.md)); that script is not in the repository, and Playwright tests are still planned.
-- **UI:** Playwright for complete flows, including keyboard operation of the rating input, the language menu, and dialogs. Run at desktop width and at 390px.
+- **Studio actions:** the HTTP suite above, plus the static check that every action authorizes first ([Security § Authorization contract](security.md#authorization-contract)). The same journey runs in a real browser in [`pnpm test:e2e`](#browser-tests) (M1.3C).
+- **UI:** Playwright for complete flows ([Browser tests](#browser-tests)), at desktop width and at 390px. Keyboard operation of the rating input and the language menu arrives with them. A defect that only a browser exposed (a form that threw on submit in the production build) is why these tests exist.
 - **Fixtures:** synthetic and labeled `[Test]` ([`src/testing/fixtures.ts`](../src/testing/fixtures.ts)). They exist only inside rolled-back test transactions. Real writing never appears in tests, and nothing is seeded into the development database.
 
 ## Database changes

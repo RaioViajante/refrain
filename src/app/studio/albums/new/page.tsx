@@ -3,7 +3,8 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { AlbumForm, emptyAlbum } from "@/app/studio/albums/album-form";
+import { AlbumForm } from "@/app/studio/albums/album-form";
+import { emptyAlbum } from "@/app/studio/albums/album-values";
 import { accessDenied } from "@/app/studio/access";
 import { StudioFrame } from "@/app/studio/frame";
 import { StudioLoading } from "@/app/studio/studio-loading";

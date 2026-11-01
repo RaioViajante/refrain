@@ -3,12 +3,18 @@ import "server-only";
 import { and, eq, sql } from "drizzle-orm";
 import type { z } from "zod";
 
-import { schema, type DatabaseExecutor, type Transaction } from "@/db";
+import {
+  schema,
+  type DatabaseExecutor,
+  type Locale,
+  type Transaction,
+} from "@/db";
 import type { AuthorizedAuthor } from "@/modules/identity";
 import {
   normalizeSlug,
   PublicationError,
   reserveInitialSlug,
+  restoreDeletedEntry,
   retireEntrySlugs,
   unpublishLanguageVersion,
 } from "@/modules/publication";
@@ -272,6 +278,36 @@ export async function deleteAlbumJournal(
   });
 }
 
+/**
+ * Restores an album journal from Recently deleted, one transaction, under the
+ * owner-accepted restoration policy (docs/roadmap.md): `draft` and `private`
+ * language versions keep their status, `published` ones return as `private`,
+ * and nothing is published. The writing, the publication history, and the
+ * slugs are untouched. See `restoreDeletedEntry` for the exact guarantees.
+ *
+ * - The entry row is locked first (`lockAlbumJournal`), which also admits only
+ *   album journals, so an entry of another kind is `entry_not_found`.
+ * - A journal that is not in Recently deleted is refused as
+ *   `entry_not_deleted` and nothing changes. A repeated restore, or the loser
+ *   of two concurrent restores, receives that same refusal.
+ *
+ * Returns the locales that were published and are now private, so the studio
+ * can say so.
+ */
+export async function restoreAlbumJournal(
+  db: DatabaseExecutor,
+  _author: AuthorizedAuthor,
+  entryId: unknown,
+): Promise<{ madePrivate: Locale[] }> {
+  const id = parse(journalId, entryId);
+  return translatePublication(() =>
+    db.transaction(async (tx) => {
+      await lockAlbumJournal(tx, id);
+      return restoreDeletedEntry(tx, id);
+    }),
+  );
+}
+
 // Publication failures that a journal command can cause, as journal failures.
 async function translatePublication<Result>(
   work: () => Promise<Result>,
@@ -286,6 +322,8 @@ async function translatePublication<Result>(
           throw new JournalError("entry_not_found");
         case "entry_deleted":
           throw new JournalError("entry_deleted");
+        case "entry_not_deleted":
+          throw new JournalError("entry_not_deleted");
         case "invalid_status":
           throw new JournalError("invalid_input");
         case "slug_taken":

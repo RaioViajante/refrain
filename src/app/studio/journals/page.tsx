@@ -72,20 +72,20 @@ async function Journals() {
       )}
 
       {deleted.length > 0 ? (
-        <section aria-labelledby="recently-deleted" id="recently-deleted">
+        <section aria-labelledby="recently-deleted">
           <h2 id="recently-deleted" className="studio-section-title">
             Recently deleted ({deleted.length})
           </h2>
           <p className="studio-hint" style={{ maxWidth: "62ch" }}>
-            Moved here, not erased: the writing stays in the database, and
-            nothing removes it automatically. The studio cannot restore a
-            journal from here, or delete one permanently, yet.
+            Moved there, not erased: the writing stays in the database, and
+            nothing removes it automatically. You can restore a journal from
+            there; permanent deletion is not offered yet.
           </p>
-          <JournalList
-            journals={deleted}
-            label="Recently deleted journals"
-            deleted
-          />
+          <p>
+            <Link href="/studio/journals/deleted" className="studio-button">
+              Open Recently deleted
+            </Link>
+          </p>
         </section>
       ) : null}
     </StudioFrame>
@@ -95,11 +95,9 @@ async function Journals() {
 function JournalList({
   journals,
   label,
-  deleted = false,
 }: {
   journals: AlbumJournalSummary[];
   label: string;
-  deleted?: boolean;
 }) {
   // The album is the journal's subject and heading (ADR 0002); the author's own
   // words appear only as a preview, so several journals about one album are
@@ -123,21 +121,12 @@ function JournalList({
           >
             {journal.excerpt || "Nothing written yet"}
           </span>
-          {deleted ? (
-            <span className="studio-meta">
-              started {formatDate(journal.createdAt)} · deleted{" "}
-              {journal.deletedAt ? formatDate(journal.deletedAt) : ""}
-            </span>
-          ) : (
-            <>
-              <StatusMark status={journal.status} />
-              <span className="studio-meta">
-                started {formatDate(journal.createdAt)} · edited{" "}
-                {formatDate(journal.updatedAt)} ·{" "}
-                {plural(journal.wordCount, "word")}
-              </span>
-            </>
-          )}
+          <StatusMark status={journal.status} />
+          <span className="studio-meta">
+            started {formatDate(journal.createdAt)} · edited{" "}
+            {formatDate(journal.updatedAt)} ·{" "}
+            {plural(journal.wordCount, "word")}
+          </span>
         </li>
       ))}
     </ul>

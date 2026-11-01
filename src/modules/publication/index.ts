@@ -4,6 +4,7 @@ export {
   publishLanguageVersion,
   PublicationError,
   reserveInitialSlug,
+  restoreDeletedEntry,
   retireEntrySlugs,
   unpublishLanguageVersion,
   type PublicationFailure,

@@ -72,6 +72,12 @@ jobs:
       - name: Unit tests
         run: pnpm test
 
+      # High and critical advisories fail the run. The two moderate advisories
+      # in development tools (docs/development.md § Toolchain) are reported by
+      # `pnpm audit`, not hidden, and are reviewed with each dependency change.
+      - name: Dependency audit
+        run: pnpm audit --audit-level=high
+
       # The committed migrations must match the Drizzle schema, and their
       # snapshots must be consistent. Neither command connects to a database;
       # the Drizzle Kit config only requires DATABASE_URL to be well formed.
@@ -114,5 +120,19 @@ jobs:
       # deletes the synthetic account it creates.
       - name: HTTP tests (production build)
         run: pnpm test:http
+        env:
+          TEST_DATABASE_URL: postgres://refrain_test:refrain-test-ci-only@127.0.0.1:5432/refrain_test
+
+      # Chromium only, at the version the lockfile pins. Browsers are
+      # downloaded for this job and discarded with it.
+      - name: Install Chromium for the browser tests
+        run: pnpm exec playwright install --with-deps chromium
+
+      # The same production build in a real browser: a fixed port that must be
+      # free, the disposable service database, and a synthetic author that the
+      # global setup creates and removes. No stored credentials exist anywhere:
+      # the session file is written during the run and is never uploaded.
+      - name: Browser tests (production build, Chromium)
+        run: pnpm exec playwright test
         env:
           TEST_DATABASE_URL: postgres://refrain_test:refrain-test-ci-only@127.0.0.1:5432/refrain_test

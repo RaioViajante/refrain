@@ -8,6 +8,7 @@ import { accessDenied } from "@/app/studio/access";
 import { formatDate, plural } from "@/app/studio/format";
 import { StudioFrame } from "@/app/studio/frame";
 import { JournalControls } from "@/app/studio/journals/journal-controls";
+import { RestoreJournalButton } from "@/app/studio/journals/restore-button";
 import { StudioLoading } from "@/app/studio/studio-loading";
 import { StatusMark } from "@/app/studio/status-mark";
 import { authorizeAuthor } from "@/modules/identity";
@@ -21,29 +22,41 @@ const LANGUAGE_NAMES = {
   "pt-BR": "Português (Brasil)",
 } as const;
 
-export default function JournalPage({
-  params,
-}: {
+type JournalProps = {
   params: Promise<{ id: string }>;
-}) {
+  searchParams: Promise<{ restored?: string | string[] }>;
+};
+
+export default function JournalPage({ params, searchParams }: JournalProps) {
   return (
     <Suspense fallback={<StudioLoading />}>
-      <Journal params={params} />
+      <Journal params={params} searchParams={searchParams} />
     </Suspense>
   );
 }
 
-async function Journal({ params }: { params: Promise<{ id: string }> }) {
+async function Journal({ params, searchParams }: JournalProps) {
   const authorization = await authorizeAuthor(await headers());
   if (!authorization.ok) {
     return accessDenied(authorization.reason);
   }
   const { id } = await params;
+  const { restored } = await searchParams;
   const journal = await getAlbumJournal(authorization.author, id);
   if (!journal) {
     notFound();
   }
   const deleted = journal.deletedAt !== null;
+  // Only a fixed word picks the notice; the query string is never shown. It
+  // is claimed only while the journal really is live, so a stale link to a
+  // journal that was deleted again says nothing false.
+  const restoredNotice = deleted
+    ? null
+    : restored === "private"
+      ? "Restored from Recently deleted. Part of it was published when it was deleted, and that part is now private. Nothing is published again until you choose to publish it."
+      : restored === "1"
+        ? "Restored from Recently deleted, with its writing exactly as you left it."
+        : null;
   const paragraphs =
     journal.body === null ? null : textToParagraphs(journal.body);
 
@@ -76,12 +89,27 @@ async function Journal({ params }: { params: Promise<{ id: string }> }) {
         </p>
       </header>
 
-      {deleted ? (
-        <p className="studio-panel">
-          This journal has been in Recently deleted since{" "}
-          {formatDate(journal.deletedAt!)}. Its writing is kept in the database,
-          and it cannot be changed there. The studio cannot restore it yet.
+      {restoredNotice ? (
+        <p role="status" className="studio-panel">
+          {restoredNotice}
         </p>
+      ) : null}
+
+      {deleted ? (
+        <div className="studio-panel space-y-3">
+          <p>
+            This journal has been in Recently deleted since{" "}
+            {formatDate(journal.deletedAt!)}. Its writing is kept in the
+            database, and it cannot be changed there until you restore it.
+          </p>
+          <RestoreJournalButton
+            entryId={journal.entryId}
+            albumTitle={journal.albumTitle}
+            wasPublished={journal.versions.some(
+              (version) => version.status === "published",
+            )}
+          />
+        </div>
       ) : (
         <p>
           <Link

@@ -13,6 +13,7 @@ export type StudioFailure =
   | "archived"
   | "conflict"
   | "deleted"
+  | "not_deleted"
   | "unsupported"
   | "failed";
 

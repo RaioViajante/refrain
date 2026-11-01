@@ -17,6 +17,8 @@
     "test": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
     "test:http": "vitest run --project http",
+    "test:e2e": "pnpm build && playwright test",
+    "test:e2e:run": "playwright test",
     "db:up": "docker compose up --detach --wait postgres",
     "db:down": "docker compose down",
     "db:test:up": "docker compose --profile test up --detach --wait postgres-test",
@@ -24,6 +26,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:check": "drizzle-kit check",
+    "db:backup": "tsx src/ops/cli-entry.ts backup",
+    "db:backup:verify": "tsx src/ops/cli-entry.ts verify",
     "author:provision": "tsx --conditions=react-server src/modules/identity/cli-entry.ts provision",
     "author:reset-password": "tsx --conditions=react-server src/modules/identity/cli-entry.ts reset-password"
   },
@@ -38,6 +42,7 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@playwright/test": "1.64.1",
     "@tailwindcss/postcss": "4.3.3",
     "@types/node": "24.19.2",
     "@types/pg": "8.23.1",

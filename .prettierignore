@@ -4,3 +4,8 @@ reference/
 # Documentation is formatted by hand; do not reformat it.
 *.md
 pnpm-lock.yaml
+
+# Playwright output
+test-results/
+playwright-report/
+playwright/

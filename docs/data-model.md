@@ -256,7 +256,7 @@ These rules hold through transactions, module functions, and tests, not through 
 | Action | Behavior | Mechanism |
 | --- | --- | --- |
 | Delete an entry | Moves to Recently deleted; hidden from public pages and from Desk listings | `UPDATE entries SET deleted_at = now()` |
-| Restore an entry | **Not built.** Owner-accepted policy ([Roadmap](roadmap.md#follow-ups-from-the-m13b-review)): draft versions return as draft, private as private, and published as **private**; restoring never republishes: a restored entry and its language versions are never made publicly visible by the restore, and become public only through the author's explicit publication. It keeps the content, `first_published_at`, and all existing slug rules, and the [publication predicate](security.md#publication-predicate) and ADR 0002's INV-1 to INV-5 remain enforced | `deleted_at = NULL` plus moving published versions to `private` in the same transaction. The studio cannot restore yet. |
+| Restore an entry | Built for album journals in M1.3C ([ADR 0005](decisions/0005-restoring-deleted-journals.md)). Owner-accepted policy ([Roadmap](roadmap.md#follow-ups-from-the-m13b-review)): draft versions return as draft, private as private, and published as **private**; restoring never republishes. It keeps the content, `first_published_at`, the slugs, and `entries.version`, and the [publication predicate](security.md#publication-predicate) and ADR 0002's INV-1 to INV-5 remain enforced. A journal that is not in Recently deleted is refused (`entry_not_deleted`), which is also the answer to a repeated or concurrent second restore | `restoreDeletedEntry`: lock the entry, set `published` versions to `private` with `published_at = NULL`, then `deleted_at = NULL`, in one transaction (boundary 10) |
 | Permanent delete ("Delete now") | Explicit author action with its own confirmation, only for an entry already in Recently deleted | `permanentlyDeleteEntry`: releases never-published slugs, retires published ones, then `DELETE FROM entries`, cascading only to rows the entry owns: language versions, subtype row, track reflections and their texts, memory links. See [Retention after permanent deletion](#entry_slugs). |
 | Automatic purge | **Disabled** (ADR 0002, D4.4). Entries stay in Recently deleted indefinitely. The database has no trigger or rule that removes them (a test asserts it), and no purge job exists. | Enabled only after backups exist, a restore has been tested, and a tested purge mechanism exists |
 | Archive a catalog record | All writing stays; links render as plain text; re-importing restores the record | `UPDATE … SET archived_at = now()` |
@@ -276,6 +276,7 @@ Each item below is one transaction (the numbers are stable; the boundary 1 impor
 7. **Change the reference edition**: clear the old flag, then set the new one.
 8. **Reorder memory music** (deferred unique constraint).
 9. **Permanent delete** (`permanentlyDeleteEntry`): release or retire the slugs, then delete the entry and everything it owns.
+10. **Restore a deleted entry** (`restoreDeletedEntry`, through `restoreAlbumJournal`): lock the entry (refusing one that is not deleted), set its `published` language versions to `private` and clear their `published_at`, then clear `deleted_at`. The writing, the publication history, the slugs, and `entries.version` are not touched, so nothing becomes public by a restore.
 
 **Catalog commands added in M1.3B** (each one transaction; all lock the album row when they rewrite its credits or tracklist, so two edits run one after the other):
 
@@ -293,13 +294,15 @@ Each item below is one transaction (the numbers are stable; the boundary 1 impor
 - A patch that names nothing, or only an empty `edition`, is refused as `invalid_input`; it is never a silent no-op.
 - A **list** that is present (credits, a track's artists, a tracklist) replaces the whole list and must be complete (an album needs at least one credit; a tracklist must carry its `tracks`). An item in a replaced list that leaves out an optional field keeps the stored value: reordering credits keeps each "credited as", and a tracklist keeps each track's disc.
 - Saving a journal is a patch of `opening` and `body`, with the `entries.version` check. Replacing a body that the plain editor would not reproduce exactly is refused; the opening sentence of that text can still be changed, and the body is then left exactly as it is.
-- Catalog metadata has no version counter: two sessions editing the same artist, album, or track can overwrite each other's named fields (last write wins). Journal text does not: a stale save is refused.
+- Catalog metadata has no version counter: two sessions editing the same artist, album, or track can overwrite each other's named fields (**last write wins**). This is a known limitation, not conflict protection, and it is not hidden by the interface. Journal text does not have it: a stale save is refused. The risk and the follow-up are in the [Roadmap](roadmap.md#catalog-edit-concurrency-last-write-wins).
 
 Integration tests omit, clear, and update a field while the unrelated fields hold data, for each record, and the same behavior is asserted through the Server Actions over HTTP.
 
 **Journal commands added in M1.3B:** `createAlbumJournal` (boundary 2: the entry, its original version as a `draft`, the `album_journals` row, and a slug reserved by `reserveInitialSlug`), `saveAlbumJournal` (the version check of boundary 3 for an album journal's text), `setAlbumJournalPrivacy` (only `draft` or `private`, through `unpublishLanguageVersion`), and `deleteAlbumJournal` (sets `deleted_at`; recoverable).
 
-External HTTP calls (MusicBrainz, artwork) happen **before** a transaction opens, never inside one. Transactions use Drizzle's `db.transaction`; nested calls become savepoints. A command that is a single statement (archive, restore, or delete of one record) is atomic by itself and has no savepoint. The integration tests exercise boundaries 2, 4, 5, 6, 7, 8, and 9 and the M1.3B commands above, including rollback of an invalid multi-row write and of a failed publication.
+**Journal command added in M1.3C:** `restoreAlbumJournal` (boundary 10: restore from Recently deleted under the owner-accepted policy; no schema change).
+
+External HTTP calls (MusicBrainz, artwork) happen **before** a transaction opens, never inside one. Transactions use Drizzle's `db.transaction`; nested calls become savepoints. A command that is a single statement (archive, restore, or delete of one record) is atomic by itself and has no savepoint. The integration tests exercise boundaries 2, 4, 5, 6, 7, 8, 9, and 10 and the M1.3B commands above, including rollback of an invalid multi-row write and of a failed publication.
 
 ## Representative SQL
 
@@ -464,7 +467,7 @@ Permanently deleting an entry removes only the rows it owns, retires its publish
 
 ## Open questions
 
-1. ~~Whether published language versions return as private when an entry is restored.~~ Decided by the owner at the M1.3B merge: they return as private, and restoring never republishes ([Roadmap](roadmap.md#follow-ups-from-the-m13b-review)). The restore command is not built yet (M1.3C); there is no schema impact.
+1. ~~Whether published language versions return as private when an entry is restored.~~ Decided by the owner at the M1.3B merge: they return as private, and restoring never republishes ([Roadmap](roadmap.md#follow-ups-from-the-m13b-review)). Built in M1.3C as `restoreDeletedEntry` ([ADR 0005](decisions/0005-restoring-deleted-journals.md)); there is no schema impact.
 2. How the automatic purge will run once enabled: a scheduled job or an on-access check (it stays disabled).
 
 Enum representation, publication history, and slug retention after permanent deletion are settled by [ADR 0003](decisions/0003-relational-schema-conventions.md).
