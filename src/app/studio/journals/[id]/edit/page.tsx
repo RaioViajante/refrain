@@ -78,6 +78,7 @@ async function EditJournal({ params }: { params: Promise<{ id: string }> }) {
       <div className="studio-editor-head">
         <p className="studio-meta">Editing your album journal</p>
         <h1 className="studio-title studio-title-editor">
+          <span className="studio-sr-only">Editing: </span>
           {journal.albumTitle}
         </h1>
         {journal.artistNames ? (

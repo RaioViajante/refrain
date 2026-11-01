@@ -31,6 +31,10 @@ test("a visitor is sent to sign-in from every studio page, and sees nothing priv
     await expect(
       page.getByRole("navigation", { name: "Writing studio" }),
     ).toHaveCount(0);
+    await expect(
+      page.getByRole("navigation", { name: "Catalog sections" }),
+    ).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Sign out" })).toHaveCount(0);
   }
   expect(await page.context().cookies()).toEqual([]);
 });

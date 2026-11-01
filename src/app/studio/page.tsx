@@ -137,7 +137,7 @@ async function Desk() {
                     <StatusMark status={journal.status} />
                     <Link
                       href={`/studio/journals/${journal.entryId}/edit`}
-                      className="studio-link studio-meta"
+                      className="studio-link studio-meta studio-end-link"
                       aria-label={`Edit the journal about ${journal.albumTitle}`}
                     >
                       Edit

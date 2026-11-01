@@ -318,7 +318,7 @@ pnpm exec playwright show-report           # the HTML report of the last local r
 - Every test gets its own browser context. The `setup` project signs in once through the real form and stores the session in `playwright/.auth/author.json` for the authenticated projects. The `anonymous` project has no stored session, and some tests mint a session of their own in the test database (as the HTTP tests do) so that they can end it. **The file, `playwright-report/`, and `test-results/` are ignored by Git** and traces are off in CI: they can hold the synthetic session cookie.
 - Sign-in is rate limited for all clients together (five a minute), so the suite signs in three times (once in setup, twice in `authentication.spec.ts`) and mints everything else.
 
-**What is covered** (`e2e/`, 68 tests over four projects):
+**What is covered** (`e2e/`, 69 tests over four projects):
 
 | File | Workflow |
 | --- | --- |

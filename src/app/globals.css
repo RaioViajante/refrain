@@ -75,6 +75,13 @@
   margin-top: 14px;
 }
 
+/* A small link that is still a full-size target. */
+.studio-end-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
 .studio-desk-catalog {
   margin-top: 40px;
 }

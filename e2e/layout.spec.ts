@@ -238,7 +238,7 @@ test("the skip link works after client-side navigation, with earlier routes stil
 
 // The header is one row at every width: the label, the two destinations, and
 // the session control share a line, and the two destinations never wrap.
-for (const width of [...WIDTHS, 360]) {
+for (const width of [...WIDTHS, 360, 320]) {
   test(`at ${width}px the header is a single row with two destinations`, async ({
     page,
   }) => {
