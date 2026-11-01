@@ -4,6 +4,7 @@
 // AuthorizedAuthor first. The commands and queries that take a
 // DatabaseExecutor stay inside the module (./commands, ./queries), where
 // tests run them in a rolled-back transaction.
+export type { ArtistKind } from "@/db";
 export { CatalogError, type CatalogBlocker, type CatalogFailure } from "./errors";
 export {
   MAX_ALBUM_TRACKS,

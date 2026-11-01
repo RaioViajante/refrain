@@ -4,6 +4,7 @@
 // take the AuthorizedAuthor first. `permanentlyDeleteEntry` takes a
 // DatabaseExecutor, so presentation code cannot call it; no studio screen
 // offers "Delete now" yet.
+export type { Locale, VisibilityStatus } from "@/db";
 export { permanentlyDeleteEntry } from "./commands";
 export { JournalError, type JournalFailure } from "./errors";
 export {
