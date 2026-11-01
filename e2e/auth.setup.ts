@@ -14,7 +14,7 @@ setup("sign in as the synthetic author", async ({ page }) => {
   await page.getByLabel("Password").fill(env("E2E_AUTHOR_PASSWORD"));
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(
-    page.getByRole("heading", { level: 1, name: "Your desk" }),
+    page.getByRole("heading", { level: 1, name: "Desk", exact: true }),
   ).toBeVisible();
   await page.context().storageState({ path: AUTH_FILE });
 });

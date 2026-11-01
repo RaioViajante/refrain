@@ -73,14 +73,29 @@ async function EditJournal({ params }: { params: Promise<{ id: string }> }) {
   }
 
   return (
-    <StudioFrame current="journals">
-      {back}
-      <h1 className="studio-title">Edit: {journal.albumTitle}</h1>
+    <StudioFrame current="journals" layout="wide">
       <JournalEditor
+        back={{
+          href: `/studio/journals/${journal.entryId}`,
+          label: "The journal",
+        }}
+        heading={
+          <div className="studio-editor-head">
+            <p className="studio-meta">Editing your album journal</p>
+            <h1 className="studio-title studio-title-editor">
+              <span className="studio-sr-only">Editing: </span>
+              {journal.albumTitle}
+            </h1>
+            {journal.artistNames ? (
+              <p className="studio-meta">{journal.artistNames}</p>
+            ) : null}
+          </div>
+        }
         edit={{
           entryId: journal.entryId,
           version: journal.version,
           locale: journal.locale,
+          status: journal.status,
         }}
         initial={{ opening: journal.opening ?? "", body: journal.body }}
       />

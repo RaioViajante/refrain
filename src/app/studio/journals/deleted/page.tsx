@@ -6,6 +6,7 @@ import { Suspense } from "react";
 import { accessDenied } from "@/app/studio/access";
 import { formatDate } from "@/app/studio/format";
 import { StudioFrame } from "@/app/studio/frame";
+import { Icon } from "@/app/studio/icons";
 import { RestoreJournalButton } from "@/app/studio/journals/restore-button";
 import { StudioLoading } from "@/app/studio/studio-loading";
 import { authorizeAuthor } from "@/modules/identity";
@@ -65,41 +66,42 @@ async function RecentlyDeleted() {
               (version) => version.status === "published",
             );
             return (
-              <li key={journal.entryId} className="studio-row">
-                <span
-                  className="studio-row-title"
-                  style={{ flex: "1 1 260px" }}
-                >
-                  <Link href={`/studio/journals/${journal.entryId}`}>
-                    {journal.albumTitle}
-                  </Link>
-                  <span className="studio-meta" style={{ display: "block" }}>
-                    {journal.artistNames}
+              <li key={journal.entryId} className="studio-row studio-entry">
+                <span className="studio-thumb" aria-hidden="true">
+                  <Icon name="album" size={26} />
+                </span>
+                <span className="studio-entry-body">
+                  <span className="studio-row-title">
+                    <Link href={`/studio/journals/${journal.entryId}`}>
+                      {journal.albumTitle}
+                    </Link>
+                  </span>
+                  <span className="studio-meta">{journal.artistNames}</span>
+                  <span
+                    className="studio-excerpt"
+                    lang={journal.excerpt ? journal.locale : undefined}
+                  >
+                    {journal.excerpt || "Nothing written yet"}
+                  </span>
+                  <span className="studio-meta">
+                    deleted{" "}
+                    {journal.deletedAt ? formatDate(journal.deletedAt) : ""}
+                    {" · "}
+                    {journal.versions
+                      .map(
+                        (version) =>
+                          `${LANGUAGE_NAMES[version.locale]}: ${version.status}${version.status === "published" ? ", returns as private" : ""}`,
+                      )
+                      .join("; ")}
                   </span>
                 </span>
-                <span
-                  className="studio-meta"
-                  style={{ flex: "2 1 260px" }}
-                  lang={journal.excerpt ? journal.locale : undefined}
-                >
-                  {journal.excerpt || "Nothing written yet"}
+                <span className="studio-entry-end">
+                  <RestoreJournalButton
+                    entryId={journal.entryId}
+                    albumTitle={journal.albumTitle}
+                    wasPublished={wasPublished}
+                  />
                 </span>
-                <span className="studio-meta" style={{ flex: "1 1 220px" }}>
-                  deleted{" "}
-                  {journal.deletedAt ? formatDate(journal.deletedAt) : ""}
-                  {" · "}
-                  {journal.versions
-                    .map(
-                      (version) =>
-                        `${LANGUAGE_NAMES[version.locale]}: ${version.status}${version.status === "published" ? ", returns as private" : ""}`,
-                    )
-                    .join("; ")}
-                </span>
-                <RestoreJournalButton
-                  entryId={journal.entryId}
-                  albumTitle={journal.albumTitle}
-                  wasPublished={wasPublished}
-                />
               </li>
             );
           })}

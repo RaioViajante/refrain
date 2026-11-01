@@ -19,10 +19,12 @@
     "test:http": "vitest run --project http",
     "test:e2e": "pnpm build && playwright test",
     "test:e2e:run": "playwright test",
+    "review:screens": "pnpm build && VISUAL_REVIEW=1 playwright test --project=visual-review",
     "db:up": "docker compose up --detach --wait postgres",
     "db:down": "docker compose down",
     "db:test:up": "docker compose --profile test up --detach --wait postgres-test",
     "db:test:down": "docker compose --profile test rm --stop --force postgres-test",
+    "design:strokes": "tsx src/design/write-strokes.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:check": "drizzle-kit check",
@@ -42,6 +44,7 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
     "@playwright/test": "1.64.1",
     "@tailwindcss/postcss": "4.3.3",
     "@types/node": "24.19.2",
@@ -52,6 +55,7 @@
     "eslint": "9.39.5",
     "eslint-config-next": "16.4.3",
     "prettier": "3.9.10",
+    "roughjs": "4.6.6",
     "tailwindcss": "4.3.3",
     "tsx": "4.23.15",
     "typescript": "6.0.3",

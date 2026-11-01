@@ -58,7 +58,7 @@ export function SignInForm() {
       aria-describedby="sign-in-message"
     >
       <div className="space-y-2">
-        <label htmlFor="email" className="block text-[17px]">
+        <label htmlFor="email" className="studio-label block">
           Email
         </label>
         <input
@@ -72,7 +72,7 @@ export function SignInForm() {
         />
       </div>
       <div className="space-y-2">
-        <label htmlFor="password" className="block text-[17px]">
+        <label htmlFor="password" className="studio-label block">
           Password
         </label>
         <input

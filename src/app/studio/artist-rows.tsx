@@ -48,7 +48,7 @@ export function ArtistRows({
   }
 
   return (
-    <fieldset className="space-y-4 border-0 p-0 m-0 min-w-0">
+    <fieldset className="space-y-4 border-0 p-0 mx-0 mt-0 min-w-0">
       <legend className="studio-label mb-3">{legend}</legend>
       {rows.length === 0 && emptyHint ? (
         <p className="studio-hint">{emptyHint}</p>

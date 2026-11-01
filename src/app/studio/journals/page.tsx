@@ -6,6 +6,7 @@ import { Suspense } from "react";
 import { accessDenied } from "@/app/studio/access";
 import { formatDate, plural } from "@/app/studio/format";
 import { StudioFrame } from "@/app/studio/frame";
+import { Icon } from "@/app/studio/icons";
 import { StudioLoading } from "@/app/studio/studio-loading";
 import { StatusMark } from "@/app/studio/status-mark";
 import { authorizeAuthor } from "@/modules/identity";
@@ -47,7 +48,11 @@ async function Journals() {
         journals as you want, written over the years.
       </p>
       <p>
-        <Link href="/studio/journals/new" className="studio-button">
+        <Link
+          href="/studio/journals/new"
+          className="studio-button studio-button-primary"
+        >
+          <Icon name="plus" />
           Write a journal
         </Link>
       </p>
@@ -105,27 +110,31 @@ function JournalList({
   return (
     <ul className="studio-list" aria-label={label}>
       {journals.map((journal) => (
-        <li key={journal.entryId} className="studio-row">
-          <span className="studio-row-title" style={{ flex: "1 1 280px" }}>
-            <Link href={`/studio/journals/${journal.entryId}`}>
-              {journal.albumTitle}
-            </Link>
-            <span className="studio-meta" style={{ display: "block" }}>
-              {journal.artistNames}
+        <li key={journal.entryId} className="studio-row studio-entry">
+          <span className="studio-thumb" aria-hidden="true">
+            <Icon name="album" size={26} />
+          </span>
+          <span className="studio-entry-body">
+            <span className="studio-row-title">
+              <Link href={`/studio/journals/${journal.entryId}`}>
+                {journal.albumTitle}
+              </Link>
+            </span>
+            <span className="studio-meta">{journal.artistNames}</span>
+            <span
+              className="studio-excerpt"
+              lang={journal.excerpt ? journal.locale : undefined}
+            >
+              {journal.excerpt || "Nothing written yet"}
             </span>
           </span>
-          <span
-            className="studio-meta"
-            style={{ flex: "2 1 280px" }}
-            lang={journal.excerpt ? journal.locale : undefined}
-          >
-            {journal.excerpt || "Nothing written yet"}
-          </span>
-          <StatusMark status={journal.status} />
-          <span className="studio-meta">
-            started {formatDate(journal.createdAt)} · edited{" "}
-            {formatDate(journal.updatedAt)} ·{" "}
-            {plural(journal.wordCount, "word")}
+          <span className="studio-entry-end">
+            <StatusMark status={journal.status} />
+            <span className="studio-meta">
+              started {formatDate(journal.createdAt)} · edited{" "}
+              {formatDate(journal.updatedAt)} ·{" "}
+              {plural(journal.wordCount, "word")}
+            </span>
           </span>
         </li>
       ))}

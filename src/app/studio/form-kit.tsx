@@ -69,6 +69,7 @@ export function useUnsavedGuard(dirty: boolean) {
 }
 
 interface FieldFrameProps {
+  className?: string;
   label: string;
   hint?: string;
   problem?: string;
@@ -78,6 +79,7 @@ interface FieldFrameProps {
 }
 
 function FieldFrame({
+  className,
   label,
   hint,
   problem,
@@ -86,7 +88,7 @@ function FieldFrame({
   children,
 }: FieldFrameProps) {
   return (
-    <div className="studio-field-group">
+    <div className={`studio-field-group ${className ?? ""}`}>
       <label htmlFor={htmlFor} className="studio-label">
         {label}
       </label>
@@ -118,6 +120,8 @@ interface TextFieldProps {
   autoComplete?: HTMLInputAutoCompleteAttribute;
   lang?: string;
   width?: string;
+  /** "opening" draws the sentence in Kalam light, with one line under it. */
+  variant?: "opening";
 }
 
 export function TextField({
@@ -135,6 +139,7 @@ export function TextField({
   autoComplete = "off",
   lang,
   width,
+  variant,
 }: TextFieldProps) {
   const id = useId();
   const describedBy = `${id}-note`;
@@ -149,7 +154,9 @@ export function TextField({
       <input
         id={id}
         type={type}
-        className="studio-field"
+        className={
+          variant === "opening" ? "studio-opening-field" : "studio-field"
+        }
         style={width ? { maxWidth: width } : undefined}
         value={value}
         onChange={(event: ChangeEvent<HTMLInputElement>) =>
@@ -178,6 +185,10 @@ interface SelectFieldProps {
   hint?: string;
   problem?: string;
   required?: boolean;
+  /** "inline" puts the label beside the select, for a bar. */
+  variant?: "inline";
+  /** The id of text elsewhere on the page that also describes the select. */
+  describedById?: string;
 }
 
 export function SelectField({
@@ -189,11 +200,14 @@ export function SelectField({
   hint,
   problem,
   required,
+  variant,
+  describedById,
 }: SelectFieldProps) {
   const id = useId();
   const describedBy = `${id}-note`;
   return (
     <FieldFrame
+      className={variant === "inline" ? "studio-field-inline" : undefined}
       label={label}
       hint={hint}
       problem={problem}
@@ -207,7 +221,9 @@ export function SelectField({
         onChange={(event) => onChange(event.target.value)}
         required={required}
         aria-invalid={problem ? true : undefined}
-        aria-describedby={describedBy}
+        aria-describedby={
+          describedById ? `${describedBy} ${describedById}` : describedBy
+        }
       >
         {placeholder !== undefined ? (
           <option value="">{placeholder}</option>

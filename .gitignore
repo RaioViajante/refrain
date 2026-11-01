@@ -47,3 +47,6 @@ npm-debug.log*
 *.dump.sha256
 *.backup
 /backups/
+
+# Visual review screenshots (synthetic data, generated, never committed)
+/visual-review/

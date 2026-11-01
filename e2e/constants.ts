@@ -11,3 +11,7 @@ export const BASE_URL = `http://127.0.0.1:${PORT}`;
 // The signed-in session of the synthetic author. Ignored by Git: it belongs
 // to the disposable server of one run.
 export const AUTH_FILE = "playwright/.auth/author.json";
+
+// The visual review package runs only when this is exactly "1"
+// (`pnpm review:screens`); any other value, including "0", leaves it off.
+export const VISUAL_REVIEW = process.env.VISUAL_REVIEW === "1";

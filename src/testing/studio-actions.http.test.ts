@@ -196,12 +196,12 @@ describe("the minted session is a real session", () => {
     const withCookie = await get("/studio", { cookie: author.cookie });
     expect(withCookie.status).toBe(200);
     const html = await withCookie.text();
-    expect(html).toContain("Your desk");
+    expect(html).toContain("Everything you are writing");
     expect(html).toContain('name="robots" content="noindex, nofollow"');
     expect(withCookie.headers.get("cache-control")).toContain("no-store");
 
     const without = await (await get("/studio")).text();
-    expect(without).not.toContain("Your desk");
+    expect(without).not.toContain("Everything you are writing");
     expect(without).toContain("NEXT_REDIRECT;replace;/studio/sign-in;307;");
   });
 });
