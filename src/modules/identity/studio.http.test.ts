@@ -44,10 +44,30 @@ function sessionSetCookie(response: Response): string | undefined {
     .find((cookie) => cookie.startsWith("refrain.session_token="));
 }
 
+// Markup that only the authenticated Studio renders: the header's navigation
+// (Desk and Catalog), the Catalog's navigation, and the session control. The
+// sign-in page's own header (the words "Writing studio" and a skip link) and
+// its closing line are public and are deliberately not listed.
+const AUTHENTICATED_ONLY = [
+  'aria-label="Writing studio"',
+  "Catalog sections",
+  "studio-nav",
+  "studio-header-end",
+  "Sign out",
+];
+
+function expectNoAuthenticatedMarkup(body: string): void {
+  for (const markup of AUTHENTICATED_ONLY) {
+    expect(body, `an anonymous body contains ${markup}`).not.toContain(markup);
+  }
+  expect(body).not.toContain(SIGNED_IN);
+}
+
 async function expectNoStudio(response: Response): Promise<void> {
   const body = await response.text();
   expect(body).not.toContain(SIGNED_IN);
   expect(body).not.toContain("Sign out");
+  expectNoAuthenticatedMarkup(body);
   // Cache Components streams the redirect into the static shell.
   expect(body).toContain(SIGN_IN_REDIRECT);
   expect(response.headers.get("cache-control")).toContain("no-store");
@@ -80,6 +100,27 @@ let liveCookie = "";
 describe("studio access without a valid session", () => {
   it("never renders the studio for an anonymous request", async () => {
     await expectNoStudio(await get("/studio"));
+  });
+
+  it.each([
+    "/studio/catalog",
+    "/studio/artists",
+    "/studio/albums",
+    "/studio/tracks",
+    "/studio/journals",
+    "/studio/journals/deleted",
+    "/studio/journals/new",
+  ])("never renders %s for an anonymous request", async (path) => {
+    await expectNoStudio(await get(path));
+  });
+
+  it("shows an anonymous visitor only public elements on the sign-in page", async () => {
+    const response = await get("/studio/sign-in");
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toContain("Sign in");
+    expectNoAuthenticatedMarkup(body);
+    expect(body).not.toContain("Recently deleted");
   });
 
   it.each([
@@ -164,6 +205,17 @@ describe("sign-in, the studio, and sign-out", () => {
     expect(studio.headers.get("cache-control")).toContain("private");
     const html = await studio.text();
     expect(html).toContain(SIGNED_IN);
+    // The markers the anonymous tests look for are really rendered when signed
+    // in, so their absence above is meaningful.
+    // (The Catalog navigation belongs to the Catalog's pages, not the Desk.)
+    for (const markup of AUTHENTICATED_ONLY.filter(
+      (markup) => markup !== "Catalog sections",
+    )) {
+      expect(html, `the signed-in Desk lacks ${markup}`).toContain(markup);
+    }
+    const catalog = await (await get("/studio/catalog", cookie)).text();
+    expect(catalog).toContain("Catalog sections");
+    expect(catalog).not.toContain(SIGN_IN_REDIRECT);
     expect(html).not.toContain(SIGN_IN_REDIRECT);
 
     // The sign-in page sends the signed-in author on to the studio.

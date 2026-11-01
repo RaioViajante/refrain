@@ -10,6 +10,7 @@ import { env } from "./support";
 
 const PRIVATE_PATHS = [
   "/studio",
+  "/studio/catalog",
   "/studio/artists",
   "/studio/albums",
   "/studio/tracks",

@@ -1115,8 +1115,14 @@ html:has(.studio-editorbar[data-mode="edit"]) {
   }
 
   .studio-nav a,
-  .studio-subnav a {
+  .studio-subnav a,
+  .studio-header-action {
     background-image: none;
+  }
+
+  .studio-header-action:hover:not(:disabled) {
+    text-decoration: underline;
+    text-underline-offset: 6px;
   }
 
   .studio-nav a:hover,

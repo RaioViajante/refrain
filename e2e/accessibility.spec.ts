@@ -230,4 +230,30 @@ test("in forced-colors mode the editor's controls keep a real border and no draw
       ).toBe(true);
     }
   }
+
+  // Sign out is plain words: its drawn underline must not appear either, and a
+  // plain underline takes its place on hover.
+  const signOut = page.getByRole("button", { name: "Sign out" });
+  for (const state of ["rest", "hover", "focus"] as const) {
+    if (state === "hover") await signOut.hover();
+    if (state === "focus") await signOut.focus();
+    const look = await signOut.evaluate((element) => {
+      const computed = getComputedStyle(element);
+      return {
+        image: computed.backgroundImage,
+        underline: computed.textDecorationLine,
+        minHeight: element.getBoundingClientRect().height,
+      };
+    });
+    expect(look.image, `Sign out, ${state}: no drawn image`).toBe("none");
+    expect(
+      look.minHeight,
+      "Sign out stays a 44px target",
+    ).toBeGreaterThanOrEqual(43.5);
+    if (state === "hover") {
+      expect(look.underline, "Sign out underlines on hover").toContain(
+        "underline",
+      );
+    }
+  }
 });
