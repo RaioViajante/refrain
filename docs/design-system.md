@@ -1,6 +1,6 @@
 # Design System
 
-**Status:** visual identity approved (design V4.4, October 31, 2026). Not yet implemented. This document summarizes the approved design for implementation. It does not redesign anything.
+**Status:** visual identity approved (design V4.4, October 31, 2026). **Implemented for the Writing Studio only** (branch `feat/studio-visual-fidelity`, [working specification](design/studio-visual-fidelity.md)); the public pages do not exist yet. This document summarizes the approved design for implementation. It does not redesign anything.
 
 ## Authority
 
@@ -87,7 +87,8 @@ There is no other color anywhere, including status, error, and success states, w
 
 ## Layout
 
-- Page padding: 64px desktop, 20px mobile, 16px at ≤ 370px. Content max width: 1312px.
+- **Studio:** the lateral contract of the RaioViajante sites: `width: min(100% - 35.2px, 1320px)`, centered, so 17.6px each side on a phone and a 1320px shell that stays centered on a wide monitor. Measured in their shared design package; see [Studio visual fidelity](design/studio-visual-fidelity.md#the-lateral-layout-contract-measured). It replaces the mockups' 64px/20px/16px page padding and 1312px width in the Studio; the reading measures below are unchanged.
+- Mockup values, kept for the public pages until they are built: page padding 64px desktop, 20px mobile, 16px at ≤ 370px; content max width 1312px.
 - **Notebook layout** (listings, home, studio overview): a 220px margin column for section titles beside one writing column, 64px apart.
 - **Album and artist journals:** two columns, 5fr / 7fr, 88px gap. Artwork on the left; title and writing on the right; the track list in the right column.
 - **Studio editors:** a writing column (max 760px) and a 300px settings margin, 80px apart. On mobile, settings follow the writing.
@@ -104,7 +105,7 @@ There is no other color anywhere, including status, error, and success states, w
 
 | Component | Rules |
 | --- | --- |
-| Button | Real `<button>` with a Rough.js outline behind the label. The outline redraws on hover; focus traces it twice. Destructive actions are ink too, with a trash icon and a confirmation. |
+| Button | Real `<button>` with a Rough.js outline behind the label (in the Studio, a generated CSS background: [Hand-drawn strokes](design/studio-visual-fidelity.md#hand-drawn-strokes)). The outline redraws on hover; focus thickens it, and the focus ring stays. Destructive actions are ink too, with a trash icon and a confirmation. |
 | Status | Published: filled dot. Private: drawn circle. Draft: dotted circle. Always shown with the word. |
 | Field | Labelled; quiet frame that turns ink on focus |
 | Rating | Half steps, optional, "No rating" by default. Album and track ratings are independent. Keyboard-operable as a radio group; the row gets 44px of height. |

@@ -211,6 +211,8 @@ The same journey, without a browser and with its negative cases, is what `pnpm t
 | `pnpm test:http` | HTTP tests of the production build: authentication, and every studio Server Action. Needs `pnpm build` first and the test database. Starts `next start` on `127.0.0.1` against `TEST_DATABASE_URL` only ([HTTP tests](#http-tests)). |
 | `pnpm test:e2e` | Browser tests: builds, then runs Playwright against the production build, the disposable test database, and a synthetic author ([Browser tests](#browser-tests)) |
 | `pnpm test:e2e:run` | The same without the build, for when `pnpm build` was just run (CI does this) |
+| `pnpm design:strokes` | Regenerates `src/app/strokes.css`, the Studio's hand-drawn outlines, from `src/design/strokes.ts` (fixed seeds; a unit test fails if the file is stale) |
+| `pnpm review:screens` | Builds, then captures the Studio's screens at 390, 768, 1280, 1440, and 2560 px into `visual-review/` (ignored by Git), from synthetic data on the disposable test database ([Visual review](design/studio-visual-fidelity.md#reproducing-the-review)) |
 | `pnpm db:backup --target=<host>:<port>/<database> --output=<absolute path>` | Writes a new, owner-only `pg_dump` archive of a local database ([Backup and restore](#backup-and-restore)) |
 | `pnpm db:backup:verify --file=<path> [--compare-with=<target>]` | Restores an archive into a new scratch database on the disposable test container and compares it with a source |
 | `pnpm author:provision --target=<host>:<port>/<database>` | Creates the single author account in the database in `DATABASE_URL` ([Authentication](#authentication)) |
@@ -316,7 +318,7 @@ pnpm exec playwright show-report           # the HTML report of the last local r
 - Every test gets its own browser context. The `setup` project signs in once through the real form and stores the session in `playwright/.auth/author.json` for the authenticated projects. The `anonymous` project has no stored session, and some tests mint a session of their own in the test database (as the HTTP tests do) so that they can end it. **The file, `playwright-report/`, and `test-results/` are ignored by Git** and traces are off in CI: they can hold the synthetic session cookie.
 - Sign-in is rate limited for all clients together (five a minute), so the suite signs in three times (once in setup, twice in `authentication.spec.ts`) and mints everything else.
 
-**What is covered** (`e2e/`, 30 tests over four projects):
+**What is covered** (`e2e/`, 45 tests over four projects):
 
 | File | Workflow |
 | --- | --- |
@@ -326,6 +328,8 @@ pnpm exec playwright show-report           # the HTML report of the last local r
 | `recovery.spec.ts` | Delete a journal, find it in Recently deleted, restore it with every word; a journal that was published returns private with its history; a second restore from a stale tab is refused in words; an editor opened before a delete and restore cannot overwrite newer writing |
 | `negative.spec.ts` | An expired, revoked, forged, and tampered session; a session that ends while the author is writing (the save is refused in words, nothing is stored, the text stays); invalid input |
 | `academic.spec.ts` | The AC-04 example (album, credited artist, linked tracks, private journal) read back with a JOIN, the aggregates, and a subquery; a change made in SQL appears in the interface |
+| `layout.spec.ts` | The Studio's lateral contract, measured at 390, 768, 1280, 1440, and 2560 px: the shell is `min(100% - 35.2px, 1320px)` and centered, header, content, and footer share its edges, no screen scrolls sideways, the writing keeps its measure on an ultrawide screen, the navigation has a skip link, a 2px focus ring, and 44 px targets, and reduced motion stops every transition |
+| `navigation.spec.ts` | Moving between Studio sections is a client-side navigation: no document request, and the `window` survives |
 | `mobile.spec.ts` | At 390 px on a touch device: no page is wider than the screen, the main controls are at least 44 px, delete and restore work by touch |
 
 There is no `sleep`: each test waits for something the application shows (a heading, a message, a URL). A flaky test is a bug, so there are no retries.
