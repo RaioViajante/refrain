@@ -1190,8 +1190,13 @@ describe("what a request without the author's session can do", () => {
       "select sort_name from artists where id = $1",
       [ids.artist],
     );
+    // The real field repeats the stored kind, so the shared fixture is unchanged.
+    const kind = await scalar<string>(
+      "select kind from artists where id = $1",
+      [ids.artist],
+    );
     const withReal = JSON.parse(
-      '{"__proto__":{"sortName":"POLLUTED"},"kind":"group"}',
+      `{"__proto__":{"sortName":"POLLUTED"},"kind":"${kind}"}`,
     );
     ok(
       await call("updateArtistAction", [ids.artist, withReal], {
@@ -1205,7 +1210,8 @@ describe("what a request without the author's session can do", () => {
         [ids.artist],
       ),
     ).toBe(current);
-    // The server's own objects were not polluted.
+    // A liveness probe only: the assertions above are what show that the
+    // polluted keys were ignored.
     const after = await get("/studio/sign-in");
     expect(after.status).toBe(200);
     await after.body?.cancel();
@@ -1238,7 +1244,8 @@ describe("what a request without the author's session can do", () => {
         },
       );
       const text = await response.text();
-      expect(response.status, body).toBeGreaterThanOrEqual(400);
+      // Next.js answers a body it cannot decode with a bare 500 and a digest.
+      expect(response.status, body).toBe(500);
       expect(text).not.toContain(label);
       expect(text).not.toMatch(/\sat\s|node_modules|select |insert /i);
     }
