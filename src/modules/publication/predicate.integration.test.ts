@@ -124,13 +124,18 @@ describe("the parameterized predicate keeps the public visibility rules", () => 
 
   it("selects the same reflection texts as the original predicate", async () => {
     await inRollbackTransaction(async (tx) => {
-      await buildMatrix(tx);
+      const entries = await buildMatrix(tx);
       const legacy = await rows(tx, legacyPublicTrackReflectionTexts);
       const current = await rows(tx, publicTrackReflectionTexts);
       expect(current).toEqual(legacy);
+      const mine = new Set(entries.map((entry) => entry.entryId));
       // Counted by hand: two flagged reflections with text in each public
       // language, in 7 public versions.
-      expect(current).toHaveLength(14);
+      expect(
+        current
+          .map((row) => JSON.parse(row) as { album_journal_id: string })
+          .filter((row) => mine.has(row.album_journal_id)),
+      ).toHaveLength(14);
     });
   });
 
@@ -157,15 +162,18 @@ describe("the parameterized predicate keeps the public visibility rules", () => 
       const entries = await buildMatrix(tx);
       // Slug history: a previous published address, a previous address that
       // was never public, and an address that is current but never public.
-      for (const { entryId, slug } of entries) {
+      for (const [index, { entryId, slug }] of entries.entries()) {
+        // Every other entry's current address was never public.
+        const currentWasPublic = index % 2 === 0;
         await tx.execute(sql`
           update entry_slugs set is_current = false, was_published = true
            where entry_id = ${entryId}`);
         await tx.execute(sql`
           insert into entry_slugs (kind, slug, entry_id, is_current, was_published)
-          values ('album_journal', ${slug + "-now"}, ${entryId}, true, true),
+          values ('album_journal', ${slug + "-now"}, ${entryId}, true, ${currentWasPublic}),
                  ('album_journal', ${slug + "-unseen"}, ${entryId}, false, false)`);
       }
+      const outcomes = { found: 0, redirect: 0, not_found: 0 };
       // The original resolution query, with the original predicate.
       for (const { entryId, slug } of entries) {
         for (const candidate of [slug, slug + "-now", slug + "-unseen"]) {
@@ -193,12 +201,19 @@ describe("the parameterized predicate keeps the public visibility rules", () => 
             : row.is_current
               ? { outcome: "found", entryId: row.entry_id }
               : { outcome: "redirect", currentSlug: row.current_slug };
-          expect(
-            await resolvePublicSlug(tx, "album_journal", candidate),
-            `${candidate} of ${entryId}`,
-          ).toEqual(legacy);
+          const actual = await resolvePublicSlug(
+            tx,
+            "album_journal",
+            candidate,
+          );
+          expect(actual, `${candidate} of ${entryId}`).toEqual(legacy);
+          outcomes[actual.outcome]++;
         }
       }
+      // All three outcomes occur, so the comparison is not vacuous.
+      expect(outcomes.found).toBeGreaterThan(0);
+      expect(outcomes.redirect).toBeGreaterThan(0);
+      expect(outcomes.not_found).toBeGreaterThan(0);
     });
   });
 
@@ -218,6 +233,22 @@ describe("the parameterized predicate keeps the public visibility rules", () => 
         const reflections = await rows(
           tx,
           trackReflectionTextsWithStatus(status),
+        );
+        const expectedReflections = await tx.execute<
+          Record<string, unknown>
+        >(sql`
+          select tr.id as track_reflection_id, tr.album_journal_id,
+                 tr.track_id, trt.locale
+            from track_reflections tr
+            join track_reflection_texts trt on trt.track_reflection_id = tr.id
+            join entry_texts t on t.entry_id = tr.album_journal_id
+                              and t.locale = trt.locale
+            join entries e on e.id = tr.album_journal_id
+           where tr.is_published
+             and e.deleted_at is null
+             and t.status = ${status}`);
+        expect(reflections).toEqual(
+          expectedReflections.rows.map((row) => JSON.stringify(row)).sort(),
         );
         if (status === "published") {
           expect(reflections).toEqual(

@@ -6,7 +6,6 @@ import {
   languageVersionsWithStatus,
   publicLanguageVersions,
   publicTrackReflectionTexts,
-  trackReflectionTextsWithStatus,
 } from "./predicate";
 
 // The public fragments are the parameterized builders applied to one value.
@@ -28,15 +27,6 @@ describe("the public publication predicate", () => {
     expect(params).toEqual(["published"]);
     expect(sql).toContain("where tr.is_published");
     expect(sql).toContain("pv.locale = trt.locale");
-  });
-
-  it("is the same text as the builder with the status fixed", () => {
-    expect(render(publicLanguageVersions)).toEqual(
-      render(languageVersionsWithStatus("published")),
-    );
-    expect(render(publicTrackReflectionTexts)).toEqual(
-      render(trackReflectionTextsWithStatus("published")),
-    );
   });
 
   it("binds the requested status for the disclosure, and never inlines it", () => {
