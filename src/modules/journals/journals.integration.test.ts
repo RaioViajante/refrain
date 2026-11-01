@@ -486,6 +486,43 @@ describe("saving an album journal", () => {
     });
   });
 
+  it("leaves a stored document untouched unless the plain editor would reproduce it exactly", async () => {
+    const p = (value: string) => ({
+      type: "paragraph",
+      content: [{ type: "text", text: value }],
+    });
+    const documents = [
+      { type: "doc", content: [p("a"), { type: "paragraph" }, p("b")] },
+      { type: "doc", content: [p("a\n\nb")] },
+      { type: "doc", content: [p("trailing   ")] },
+    ];
+    for (const document of documents) {
+      await inScratchTransaction(async (tx) => {
+        const entryId = await createDraft(tx);
+        await tx
+          .update(schema.entryTexts)
+          .set({ body: document, bodyText: "x" })
+          .where(eq(schema.entryTexts.entryId, entryId));
+        expect((await getAlbumJournal(tx, author, entryId))?.body).toBeNull();
+        expect(
+          await failure(tx, (db) =>
+            saveAlbumJournal(db, author, {
+              entryId,
+              expectedVersion: 1,
+              body: "x",
+            }),
+          ),
+        ).toBe("unsupported_content");
+        const [text] = await tx
+          .select()
+          .from(schema.entryTexts)
+          .where(eq(schema.entryTexts.entryId, entryId));
+        expect(text?.body).toEqual(document);
+        expect((await getAlbumJournal(tx, author, entryId))?.version).toBe(1);
+      });
+    }
+  });
+
   it("rejects invalid input", async () => {
     await inScratchTransaction(async (tx) => {
       const entryId = await createDraft(tx);

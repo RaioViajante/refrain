@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   documentToText,
+  editableText,
   normalizeBodyText,
   textToDocument,
   textToParagraphs,
@@ -158,5 +159,50 @@ describe("textToParagraphs", () => {
   it("splits a text for rendering", () => {
     expect(textToParagraphs("a\nb\n\nc")).toEqual([["a", "b"], ["c"]]);
     expect(textToParagraphs("")).toEqual([]);
+  });
+});
+
+describe("editableText", () => {
+  it("accepts what the plain editor itself wrote, and an empty body", () => {
+    for (const text of ["One.", "a\nb\n\nc", "  indented\n\né ✓ 日本語"]) {
+      expect(editableText(textToDocument(text))).toBe(normalizeBodyText(text));
+    }
+    expect(editableText(null)).toBe("");
+    expect(
+      editableText({ type: "doc", content: [{ type: "paragraph" }] }),
+    ).toBe("");
+  });
+
+  const p = (...content: object[]) => ({ type: "paragraph", content });
+  const text = (value: string) => ({ type: "text", text: value });
+  it.each([
+    [
+      "an empty paragraph between two paragraphs",
+      {
+        type: "doc",
+        content: [p(text("a")), { type: "paragraph" }, p(text("b"))],
+      },
+    ],
+    [
+      "a line feed inside one text node",
+      { type: "doc", content: [p(text("a\n\nb"))] },
+    ],
+    [
+      "trailing spaces on a text node",
+      { type: "doc", content: [p(text("a   "))] },
+    ],
+    ["a control character", { type: "doc", content: [p(text("a\u0001b"))] }],
+    [
+      "adjacent text nodes",
+      { type: "doc", content: [p(text("a"), text("b"))] },
+    ],
+    [
+      "a hard break at the end",
+      { type: "doc", content: [p(text("a"), { type: "hardBreak" })] },
+    ],
+  ])("refuses %s, because saving would change it", (_name, document) => {
+    // The structural reader accepts these; saving them would rewrite them.
+    expect(documentToText(document)).not.toBeNull();
+    expect(editableText(document)).toBeNull();
   });
 });

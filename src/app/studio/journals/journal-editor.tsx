@@ -50,12 +50,15 @@ export function JournalEditor({ create, edit, initial }: JournalEditorProps) {
   const [version, setVersion] = useState(edit?.version ?? 1);
   const [dirty, setDirty] = useState(false);
   const [saved, setSaved] = useState(false);
+  // A new journal is created once: after it succeeds, a second save (a double
+  // Cmd+S before the redirect) must not create another.
+  const [created, setCreated] = useState(false);
   const { pending, failure, run } = useSubmission();
   useUnsavedGuard(dirty);
 
   async function save(event?: FormEvent) {
     event?.preventDefault();
-    if (pending) {
+    if (pending || created) {
       return;
     }
     if (edit) {
@@ -84,6 +87,7 @@ export function JournalEditor({ create, edit, initial }: JournalEditorProps) {
       }),
     );
     if (result.ok) {
+      setCreated(true);
       setDirty(false);
       setSaved(true);
       router.push(`/studio/journals/${result.data.entryId}`);

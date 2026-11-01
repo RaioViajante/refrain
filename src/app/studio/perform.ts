@@ -1,9 +1,13 @@
 import "server-only";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 
 import { CatalogError } from "@/modules/catalog";
-import type { AuthorizationFailure } from "@/modules/identity";
+import {
+  hasTrustedOrigin,
+  type AuthorizationFailure,
+} from "@/modules/identity";
 import { JournalError } from "@/modules/journals";
 
 import type { ActionResult } from "./results";
@@ -22,7 +26,10 @@ export function denied(reason: AuthorizationFailure): ActionResult<never> {
 }
 
 /**
- * Runs a domain command and returns its result. A success refreshes the
+ * Runs a domain command and returns its result. The request must name this
+ * application's own origin; Next.js accepts an action call without an `Origin`
+ * header, so this is checked here (it is `unauthorized`, like a bad session).
+ * A success refreshes the
  * Studio's data: the studio is private and never cached, so this only drops
  * the browser's copy of pages it has already shown. No public page exists to
  * invalidate. An expected failure becomes a fixed code; anything else is
@@ -32,6 +39,9 @@ export function denied(reason: AuthorizationFailure): ActionResult<never> {
 export async function perform<Data>(
   work: () => Promise<Data>,
 ): Promise<ActionResult<Data>> {
+  if (!hasTrustedOrigin(await headers())) {
+    return denied("unauthenticated");
+  }
   try {
     const data = await work();
     revalidatePath("/studio", "layout");

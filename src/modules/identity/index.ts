@@ -5,6 +5,7 @@
 export {
   authorizeAuthor,
   AuthorizationError,
+  hasTrustedOrigin,
   requireAuthor,
   type AuthorizationFailure,
   type AuthorizationResult,

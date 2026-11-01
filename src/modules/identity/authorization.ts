@@ -116,6 +116,23 @@ export async function requireAuthor(
   return result.author;
 }
 
+/**
+ * Whether a state-changing request names the application's own origin, exactly
+ * as the authentication handler requires for its POSTs. Browsers always send
+ * `Origin` on a cross-origin POST; a request without it, or from another
+ * origin, is not trusted. Server Actions call this after authorizing, because
+ * Next.js itself accepts an action call that has no `Origin` header. Fails
+ * closed when the configuration cannot be read.
+ */
+export function hasTrustedOrigin(requestHeaders: Headers): boolean {
+  try {
+    return requestHeaders.get("origin") === getConfiguredAuth().config.baseURL;
+  } catch (error) {
+    reportUnavailable(error);
+    return false;
+  }
+}
+
 export function reportUnavailable(error: unknown): void {
   if (error instanceof AuthConfigError) {
     // The message names the variable, never its value.

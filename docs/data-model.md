@@ -248,7 +248,7 @@ These rules hold through transactions, module functions, and tests, not through 
 | A deleted entry's visibility and slug are not changed | The publication commands refuse deleted entries |
 | Saves do not overwrite newer writing | `saveAlbumJournal` locks the entry and checks `entries.version`; other kinds arrive in M2 |
 | Memory titles are present; opening and margin note only on journals | Zod validation at the server boundary (album journals: M1.3B; memories: M2) |
-| The Tiptap node and mark schema | Plain text becomes paragraphs, text, and hard breaks only (`textToDocument`); a document with anything else is never rewritten by the plain editor. The full schema is validated when Tiptap arrives (M2) |
+| The Tiptap node and mark schema | Plain text becomes paragraphs, text, and hard breaks only (`textToDocument`); a stored document is editable in the plain editor only if saving would reproduce it exactly (`editableText`), and is otherwise refused as `unsupported_content` and left untouched. The full schema is validated when Tiptap arrives (M2) |
 | Public reads see only visible writing | The [publication predicate](security.md#publication-predicate), implemented once and tested; no public route exists yet. No Studio command can change a version to `published` |
 
 ## Deletion and recovery
@@ -287,7 +287,7 @@ Each item below is one transaction (the numbers are stable; the boundary 1 impor
 
 **Journal commands added in M1.3B:** `createAlbumJournal` (boundary 2: the entry, its original version as a `draft`, the `album_journals` row, and a slug reserved by `reserveInitialSlug`), `saveAlbumJournal` (the version check of boundary 3 for an album journal's text), `setAlbumJournalPrivacy` (only `draft` or `private`, through `unpublishLanguageVersion`), and `deleteAlbumJournal` (sets `deleted_at`; recoverable).
 
-External HTTP calls (MusicBrainz, artwork) happen **before** a transaction opens, never inside one. Transactions use Drizzle's `db.transaction`; nested calls become savepoints. The integration tests exercise boundaries 2, 4, 5, 6, 7, 8, and 9 and the M1.3B commands above, including rollback of an invalid multi-row write and of a failed publication.
+External HTTP calls (MusicBrainz, artwork) happen **before** a transaction opens, never inside one. Transactions use Drizzle's `db.transaction`; nested calls become savepoints. A command that is a single statement (archive, restore, or delete of one record) is atomic by itself and has no savepoint. The integration tests exercise boundaries 2, 4, 5, 6, 7, 8, and 9 and the M1.3B commands above, including rollback of an invalid multi-row write and of a failed publication.
 
 ## Representative SQL
 

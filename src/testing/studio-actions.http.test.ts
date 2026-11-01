@@ -101,7 +101,7 @@ function parseResult(text: string): Result {
 async function call(
   name: string,
   args: unknown[],
-  options: { cookie?: string; routeId?: string } = {},
+  options: { cookie?: string; routeId?: string; origin?: string | null } = {},
 ): Promise<Result> {
   const action = actions[name];
   if (!action) {
@@ -112,7 +112,7 @@ async function call(
     method: "POST",
     redirect: "manual",
     headers: {
-      origin: base,
+      ...(options.origin === null ? {} : { origin: options.origin ?? base }),
       accept: "text/x-component",
       "content-type": "text/plain;charset=UTF-8",
       "next-action": action.id,
@@ -866,6 +866,25 @@ describe("what a request without the author's session can do", () => {
         ),
       ),
     ).toBe(0);
+  });
+
+  it("is refused without an Origin header, even with the author's cookie", async () => {
+    // Next.js itself accepts an action call that has no Origin header, so the
+    // studio checks it (SameSite=Strict is then a second control, not the only one).
+    const before = await snapshot();
+    const result = await call("deleteJournalAction", [ids.journal], {
+      cookie: author.cookie,
+      routeId: ids.journal,
+      origin: null,
+    });
+    expect(result).toEqual({ ok: false, code: "unauthorized" });
+    expect(await snapshot()).toEqual(before);
+    expect(
+      await scalar<string | null>(
+        "select deleted_at::text from entries where id = $1",
+        [ids.journal],
+      ),
+    ).toBeNull();
   });
 
   it("is refused from another origin, even with the author's cookie", async () => {

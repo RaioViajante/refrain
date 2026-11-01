@@ -1057,3 +1057,73 @@ describe("catalog queries", () => {
     });
   });
 });
+
+describe("archived albums and replace semantics", () => {
+  it("keeps an archived album's tracklist as it is", async () => {
+    await inScratchTransaction(async (tx) => {
+      const album = await createTestAlbum(tx, {
+        trackTitles: ["[Test] A", "[Test] B"],
+      });
+      const spare = await createTrack(tx, author, { title: "[Test] Spare" });
+      await archiveAlbum(tx, author, album.albumId);
+      const [a] = album.trackIds as [string, string];
+      for (const run of [
+        (db: Transaction) =>
+          addTrackToAlbum(db, author, album.albumId, spare.id),
+        (db: Transaction) => removeTrackFromAlbum(db, author, album.albumId, a),
+        (db: Transaction) =>
+          moveTrackInAlbum(db, author, album.albumId, a, "down"),
+        (db: Transaction) =>
+          setAlbumTracklist(db, author, album.albumId, { tracks: [] }),
+        (db: Transaction) =>
+          createTrack(db, author, {
+            title: "[Test] New",
+            albumId: album.albumId,
+          }),
+      ]) {
+        expect((await failure(tx, run))?.failure).toBe("archived_reference");
+      }
+      expect(
+        (await getAlbum(tx, author, album.albumId))?.tracklist,
+      ).toHaveLength(2);
+      // Restoring the album makes it editable again.
+      await restoreAlbum(tx, author, album.albumId);
+      await addTrackToAlbum(tx, author, album.albumId, spare.id);
+      expect(
+        (await getAlbum(tx, author, album.albumId))?.tracklist,
+      ).toHaveLength(3);
+    });
+  });
+
+  it("clears an optional field that an update leaves out (updates replace)", async () => {
+    await inScratchTransaction(async (tx) => {
+      const { id } = await createArtist(tx, author, {
+        name: "[Test] A",
+        kind: "person",
+        sortName: "A, [Test]",
+        mbArtistId: MB_ID,
+      });
+      await updateArtist(tx, author, id, { name: "[Test] A", kind: "person" });
+      expect(await getArtist(tx, author, id)).toMatchObject({
+        sortName: null,
+        mbArtistId: null,
+      });
+    });
+  });
+
+  it("lets a failed single-statement command abort only its own savepoint when wrapped", async () => {
+    await inScratchTransaction(async (tx) => {
+      const album = await createTestAlbum(tx, { trackTitles: ["[Test] A"] });
+      await createTestAlbumJournal(tx, { albumId: album.albumId });
+      expect(
+        (await failure(tx, (db) => deleteAlbum(db, author, album.albumId)))
+          ?.failure,
+      ).toBe("in_use");
+      // The test transaction is still usable afterwards.
+      expect(
+        (await failure(tx, (db) => deleteTrack(db, author, album.trackIds[0]!)))
+          ?.failure,
+      ).toBe("in_use");
+    });
+  });
+});

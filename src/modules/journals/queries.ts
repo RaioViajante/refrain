@@ -5,7 +5,7 @@ import { sql } from "drizzle-orm";
 import type { DatabaseExecutor, Locale, VisibilityStatus } from "@/db";
 import type { AuthorizedAuthor } from "@/modules/identity";
 
-import { documentToText } from "./body";
+import { editableText } from "./body";
 import { journalId } from "./input";
 
 export interface AlbumJournalProgress {
@@ -226,7 +226,7 @@ export async function getAlbumJournal(
     select slug from entry_slugs where entry_id = ${entryId} and is_current`);
   return {
     ...toSummary(row),
-    body: documentToText(row.body),
+    body: editableText(row.body),
     versions: versions.rows.map((version) => ({
       locale: version.locale,
       isOriginal: version.is_original,

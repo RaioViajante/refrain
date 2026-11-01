@@ -14,7 +14,7 @@ import {
 } from "@/modules/publication";
 import { fieldErrorsOf } from "@/validation";
 
-import { documentToText, textToDocument } from "./body";
+import { documentToText, editableText, textToDocument } from "./body";
 import { JournalError, type JournalFailure } from "./errors";
 import {
   createAlbumJournalInput,
@@ -145,8 +145,8 @@ export async function createAlbumJournal(
  *   when the entry is locked, or the save is refused with `version_conflict`
  *   and nothing is written. Two editors never overwrite each other silently.
  * - A journal in Recently deleted cannot be saved.
- * - Stored text that the plain editor cannot represent without loss (see
- *   `documentToText`) is left untouched: `unsupported_content`.
+ * - Stored text that the plain editor would not reproduce exactly (see
+ *   `editableText`) is left untouched: `unsupported_content`.
  * - Visibility is never touched.
  *
  * Returns the new version.
@@ -178,7 +178,7 @@ export async function saveAlbumJournal(
     if (!stored) {
       throw new JournalError("entry_not_found");
     }
-    if (documentToText(stored.body) === null) {
+    if (editableText(stored.body) === null) {
       throw new JournalError("unsupported_content");
     }
 

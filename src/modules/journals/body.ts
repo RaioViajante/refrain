@@ -1,3 +1,5 @@
+import { isDeepStrictEqual } from "node:util";
+
 import { cleanText } from "@/validation";
 
 // Plain text <-> the accepted storage format (ADR 0002, D6): a Tiptap
@@ -131,6 +133,25 @@ export function documentToText(body: unknown): string | null {
     lines.push(text);
   }
   return lines.join("\n\n");
+}
+
+/**
+ * The text of a stored document, but only if the plain editor reproduces that
+ * document exactly when the text is saved again; otherwise `null`. This is
+ * stricter than `documentToText`: a document without marks or attributes can
+ * still change when it is saved (an empty paragraph, a line feed inside a text
+ * node, trailing spaces, control characters), and a save must never rewrite
+ * writing that the author did not edit. An empty text is always editable.
+ */
+export function editableText(body: unknown): string | null {
+  const text = documentToText(body);
+  if (text === null) {
+    return null;
+  }
+  if (text === "") {
+    return "";
+  }
+  return isDeepStrictEqual(textToDocument(text), body) ? text : null;
 }
 
 /** The paragraphs of a text, each a list of its lines, for rendering. */

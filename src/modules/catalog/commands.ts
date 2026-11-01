@@ -25,9 +25,16 @@ import {
 } from "./input";
 
 // Catalog commands (artists, albums, their reference edition and credits,
-// tracks, and the ordered tracklist). Each validates its own input with Zod,
-// then runs in one transaction (docs/data-model.md § Transaction boundaries);
-// called with a transaction, it runs in a savepoint of it.
+// tracks, and the ordered tracklist). Each validates its own input with Zod.
+// A command that writes several rows runs in one transaction (docs/data-model.md
+// § Transaction boundaries) and, called with a transaction, in a savepoint of
+// it. A command that is one statement (create, archive, restore, and delete of
+// a single record) is atomic by itself and has no savepoint: inside a caller's
+// transaction, a refusal aborts that transaction, so a test wraps such a call
+// in its own savepoint (`captureFailure`).
+//
+// Updates replace: an optional field left out of the input is cleared, not kept.
+// The studio's forms always send every field.
 //
 // Every command takes the `AuthorizedAuthor` that only the Identity module can
 // create, so presentation code cannot call one without having authorized the
@@ -242,11 +249,29 @@ async function assertArtistsLinkable(
 }
 
 async function lockAlbum(tx: Transaction, albumId: string): Promise<void> {
-  const locked = await tx.execute(
-    sql`select id from albums where id = ${albumId} for update`,
+  const locked = await tx.execute<{ archived: boolean }>(
+    sql`select archived_at is not null as archived
+          from albums where id = ${albumId} for update`,
   );
   if (locked.rows.length === 0) {
     throw new CatalogError("not_found");
+  }
+}
+
+// An archived album keeps its tracklist as it is, as the studio shows it.
+async function lockAlbumForTracklist(
+  tx: Transaction,
+  albumId: string,
+): Promise<void> {
+  const locked = await tx.execute<{ archived: boolean }>(
+    sql`select archived_at is not null as archived
+          from albums where id = ${albumId} for update`,
+  );
+  if (locked.rows.length === 0) {
+    throw new CatalogError("not_found");
+  }
+  if (locked.rows[0]!.archived) {
+    throw new CatalogError("archived_reference");
   }
 }
 
@@ -475,7 +500,7 @@ export async function createTrack(
       const trackId = track!.id;
       await replaceTrackCredits(tx, trackId, artistIds);
       if (albumId) {
-        await lockAlbum(tx, albumId);
+        await lockAlbumForTracklist(tx, albumId);
         const tracklist = await currentTracklist(tx, albumId);
         await rewriteTracklist(tx, albumId, [
           ...tracklist,
@@ -741,7 +766,7 @@ export async function setAlbumTracklist(
   const data = parse(tracklistInput, input);
   await guarded(() =>
     db.transaction(async (tx) => {
-      await lockAlbum(tx, id);
+      await lockAlbumForTracklist(tx, id);
       await rewriteTracklist(tx, id, data.tracks);
     }),
   );
@@ -758,7 +783,7 @@ export async function addTrackToAlbum(
   const track = idOf(trackId);
   await guarded(() =>
     db.transaction(async (tx) => {
-      await lockAlbum(tx, id);
+      await lockAlbumForTracklist(tx, id);
       const tracklist = await currentTracklist(tx, id);
       if (tracklist.some((item) => item.trackId === track)) {
         return;
@@ -782,7 +807,7 @@ export async function removeTrackFromAlbum(
   const track = idOf(trackId);
   await guarded(() =>
     db.transaction(async (tx) => {
-      await lockAlbum(tx, id);
+      await lockAlbumForTracklist(tx, id);
       const tracklist = await currentTracklist(tx, id);
       if (!tracklist.some((item) => item.trackId === track)) {
         throw new CatalogError("not_found");
@@ -809,7 +834,7 @@ export async function moveTrackInAlbum(
   const way = parse(moveDirection, direction);
   await guarded(() =>
     db.transaction(async (tx) => {
-      await lockAlbum(tx, id);
+      await lockAlbumForTracklist(tx, id);
       const tracklist = await currentTracklist(tx, id);
       const index = tracklist.findIndex((item) => item.trackId === track);
       if (index === -1) {
