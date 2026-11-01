@@ -215,6 +215,8 @@ test("the skip link works after client-side navigation, with earlier routes stil
       page.getByRole("heading", { level: 1, name: section }),
     ).toBeVisible();
   }
+  // Next keeps the earlier routes in the DOM, hidden, each with the same
+  // #studio-content: the hazard this test exists for.
   const skip = page.getByRole("link", { name: "Skip to the content" });
   await skip.focus();
   await page.keyboard.press("Enter");

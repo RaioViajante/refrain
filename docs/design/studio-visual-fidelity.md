@@ -121,7 +121,7 @@ The reference draws every control outline with Rough.js, pre-generated with fixe
 
 Checked in the browser by tests, unless marked otherwise:
 
-- No horizontal overflow on 16 Studio pages (every list, `new`, and detail page for artists, albums, tracks, and journals, the journal reading and editing pages, and Recently deleted) at 390, 768, 1280, 1440, and 2560px, with long names (`e2e/layout.spec.ts`). Sign-in at 390px is covered by `mobile.spec.ts`. Open dialogs and the album tracklist editor with many rows are not measured.
+- No horizontal overflow on 16 Studio pages (every list, `new`, and detail page for artists, albums, tracks, and journals, the journal reading and editing pages, and Recently deleted, in its empty state) at 390, 768, 1280, 1440, and 2560px, with long names (`e2e/layout.spec.ts`). Sign-in at 390px is covered by `mobile.spec.ts`. Open dialogs and the album tracklist editor with many rows are not measured.
 - The shell's width and centering match the contract at the same five widths, and the header, content, and footer share their edges.
 - A skip link ("Skip to the content") is the first tab stop. After client-side navigation, activating it focuses the *visible* page's `<main>` (asserted; Next keeps earlier routes in the DOM, hidden, with the same id). The navigation links are at least 44px tall and show the 2px focus ring (asserted). Dialogs keep the native `<dialog>` focus trap and Escape handling (unchanged).
 - `prefers-reduced-motion: reduce` removes every transition in the Studio (asserted on every visible link and button), and the underline simply appears.

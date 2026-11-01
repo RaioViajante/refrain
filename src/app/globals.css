@@ -175,6 +175,10 @@
   margin-top: 48px;
 }
 
+.studio-main > section:first-child {
+  margin-top: 0;
+}
+
 /* Pages that need the whole shell (the journal, the editors). */
 .studio-main[data-layout="wide"] {
   grid-template-columns: minmax(0, 1fr);
@@ -895,6 +899,13 @@ select.studio-field[aria-invalid="true"] {
    real borders take their place, in the system's own colors. */
 
 @media (forced-colors: active) {
+  :is(.studio-button, .studio-field, .studio-textarea, .studio-dialog):is(
+    :hover,
+    :focus,
+    :focus-visible,
+    :disabled,
+    [aria-invalid="true"]
+  ),
   .studio-field,
   .studio-textarea,
   .studio-button,
@@ -1081,7 +1092,8 @@ select.studio-field[aria-invalid="true"] {
     font-size: 20px;
   }
 
-  .studio-row.studio-entry {
+  .studio-row.studio-entry,
+  .studio-row.studio-entry:not(:has(.studio-entry-end)) {
     grid-template-columns: 44px minmax(0, 1fr);
     gap: 2px 14px;
   }
