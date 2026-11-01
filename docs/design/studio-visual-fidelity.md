@@ -8,17 +8,19 @@ This is the working specification behind the Studio's visual layer. [Design Syst
 
 The request that started this work asked for fidelity to **V4.3**. The repository and the references are **V4.4**. The first pass used V4.4 without checking, which was a mistake of process. This section records what the source material does and does not establish. **The final decision belongs to the author.**
 
-**Is V4.3 available?** No. The only export on this machine is V4.4: the 33 pages in `reference/refrain/pages/` (every `<title>` says "(v4.4)"), their previews, and the Handoff ("refrain v4.4 — design handoff … How the approved V4.4 language is built"). `LEIA-ME.txt` says "design final (V4.4), 31 out. 2026". The author's own backup, `~/refrain-reference-backup-20261031-164328`, is byte-identical to it. A search of the home folder for names containing "v4.3" or "v43" found only that backup's V4.4 files. The text "V4.3" appears inside every V4.4 page, but only as comment headings in its CSS.
+**Is V4.3 available?** No. The only export on this machine is V4.4: the 29 pages in `reference/refrain/pages/` (every page `<title>` says "(v4.4)", and the Handoff's says "refrain v4.4"), their previews, and the Handoff ("refrain v4.4 — design handoff … How the approved V4.4 language is built"). `LEIA-ME.txt` says "design final (V4.4), 31 out. 2026". The author's own backup, `~/refrain-reference-backup-20261031-164328`, is byte-identical to it. A search of the home folder for names containing "v4.3" or "v43" found only that backup's V4.4 files. The text "V4.3" appears inside every V4.4 page, but only as comment headings in its CSS.
 
 **Is V4.4 documented as an approved replacement?** The repository says so: commit `24ccad7` (October 31, 2026) is titled "add approved design references" and describes them as "the approved V4.4 Refrain design"; `AGENTS.md` says "Implement the approved V4.4 design"; this project's design system says "visual identity approved (design V4.4, October 31, 2026)". Those commits are under the author's git identity but were written with AI co-authorship, so they are **statements in the repository, not independent proof** that the author chose V4.4 over V4.3. Nothing in the material records V4.3 being rejected or replaced.
 
-**What changed between them.** Each V4.4 page carries its own layered stylesheet: "V4.2 refinements", then "V4.3 polish" (type scale, contrast, a notebook layout, the footer), then "V4.3 system: listings + studio" (the 58px page title, the lede, filters, status marks, the editor bar, the 760px + 300px studio layout, dialogs, rows), then a final "V4.4" block. That block contains **only three things**:
+**What changed between them.** Each V4.4 page carries its own layered stylesheet: "V4.2 refinements", then "V4.3 polish" (type scale, contrast, a notebook layout, the footer), then "V4.3 system: listings + studio" (the 58px page title, the lede, filters, status marks, the editor bar, the 760px + 300px studio layout, dialogs, rows), then a final "V4.4" block. That block contains **three groups of rules, plus one mobile rule**:
 
 1. a centered public header without a brand or wordmark (`.hdr4`, replacing the older `.hdr` with `.brand`);
 2. the homepage's centered character illustration (`.opening`);
-3. a centered footer with the closing line and the language selector (`.ft4`).
+3. a centered footer with the closing line and the language selector (`.ft4`);
 
-Everything the Studio uses besides the footer is V4.3-era CSS carried into V4.4 unchanged, including the Studio's header (`.hdr`, which no `.hdr4` replaced).
+and a single mobile rule that centers the right-hand link of the *Studio's* header (`.hdr>a.ink`, "Public pages") below 720px.
+
+Everything else the Studio uses is V4.3-era CSS carried into V4.4 unchanged, including the Studio's header (`.hdr`, which no `.hdr4` replaced; V4.4 only adds that one mobile rule for its right-hand link, and the Studio has "Sign out" there).
 
 **Do any implementation decisions conflict with V4.3?**
 
@@ -90,8 +92,8 @@ All values come from the V4.4 pages' final CSS overrides (which, for the Studio,
 | Metadata | Alegreya Sans 16px, `#4A4A4A`; hints 15.5px, `#4F4F4F` |
 | Reading | Alegreya Sans 21px / 1.66, 62ch (19.5px mobile) |
 | Opening sentence | Kalam 300 31px / 1.38 reading, 30px as the editor field (26px mobile) |
-| Buttons | Kalam 400 18px, min-height 46px, padding 0 22px |
-| Color | `ink #111`, `text-2 #3A3A3A`, `text-3 #5A5A5A`, `rule #CFCFCF`, `frame-quiet #ABABAB`, `paper-2 #F4F4F2`, `paper-3 #F6F6F4`, hover `#F7F7F5`. No other color. Checkboxes use `accent-color: ink` |
+| Buttons | Kalam 400 18px, min-height 46px, padding 0 20px |
+| Color | `ink #111`, `text-2 #3A3A3A`, `text-3 #5A5A5A`, `rule #CFCFCF`, `frame-quiet #767676` (the mockups' `#ABABAB` is below 3:1), `paper-2 #F4F4F2`, `paper-3 #F6F6F4`, hover `#F7F7F5`. No other color. Checkboxes use `accent-color: ink` |
 | Vertical rhythm | Section spacing 48px (36px mobile); rows 14px padding, 44px minimum; page padding 64px top, 96px bottom (40/72 mobile) |
 | Breakpoints | ≤ 1099px: one column (the 284px offset no longer fits). ≤ 960px: editor and journal stack, header becomes two rows. ≤ 720px: mobile type and 44px thumbnails. ≤ 370px: smaller title |
 
@@ -164,6 +166,7 @@ The fix for the remount and the lost focus is a header that persists across sect
 - That lookup is for presentation only. Every page, route handler, and Server Action keeps its own `authorizeAuthor` (the source-scanning test `studio-entry-points.test.ts` stays as it is). A layout does not re-run on a soft navigation, so a session that ends while the author browses is noticed by the next page's own check, which redirects; nothing may rely on the layout.
 - The sign-in page stays outside the authenticated layout, and sign-out stays a full navigation.
 - `studio.http.test.ts` (an anonymous response contains no "Sign out", no studio words, and the sign-in redirect) is unchanged and must pass. New tests: an anonymous request's body has no header; a session revoked while browsing ends at sign-in with no header left; and the known-limitation test in `e2e/navigation.spec.ts` flips to assert that focus stays on the activated link.
+- Responses that include the furniture keep `Cache-Control: no-store` (the HTTP test asserts it), and the lookup uses `headers()`, so nothing is cached across sessions.
 - Cost: one more session lookup per full request. This is a change to the authorization boundary's presentation and needs the author's decision and, probably, an ADR.
 
 ## Accessibility notes
@@ -176,8 +179,8 @@ Checked in the browser by tests, unless marked otherwise:
 - `prefers-reduced-motion: reduce` removes every transition in the Studio (asserted on every visible link and button), and the underline simply appears.
 - Status is always a word with a mark. Problems still begin with "Problem:" and are announced. Nothing relies on color.
 - Text is no lighter than `#5A5A5A` (placeholders use it; hints `#4F4F4F`).
-- **Control boundaries (WCAG 2.2, 1.4.11, 3:1 against white).** The writing surface's quiet outline and the opening sentence's resting line were `#ABABAB` (2.3:1) and `#CFCFCF` (1.6:1). Both are now `#767676` (4.54:1, which leaves room for a thin, anti-aliased line), and the `frame-quiet` token in the design system says so. Inputs, selects, the dialog and buttons are drawn in ink. The remaining light grays are not control boundaries: row dividers (decorative), the disabled outline `#C8C8C8` (disabled controls are exempt), and the placeholders' artwork box. A unit test fails if any stroke that is a control boundary falls below 3:1 (`src/design/strokes.test.ts`, shown to fail with the old color), and a browser test reads the drawn boundary of every input at rest, on hover and in focus (`e2e/accessibility.spec.ts`).
-- **axe-core 4.14.0** (`@axe-core/playwright`, a dev dependency) runs WCAG 2.0/2.1/2.2 A and AA on 16 Studio pages at 1280 and 390px, on the open delete dialog, and on sign-in, with no violation. A canary test proves the scanner reports a deliberately broken element. axe is a floor: it cannot judge reading order or meaning, it cannot measure a boundary drawn as a background image (hence the check above), and it did not run in forced-colors mode.
+- **Control boundaries (WCAG 2.2, 1.4.11, 3:1 against white).** The writing surface's quiet outline and the opening sentence's resting line were `#ABABAB` (2.3:1) and `#CFCFCF` (1.6:1). Both are now `#767676` (4.54:1, which leaves room for a thin, anti-aliased line), and the `frame-quiet` token in the design system says so. Inputs, selects, the dialog and buttons are drawn in ink. The remaining light grays are not control boundaries: row dividers (decorative), the disabled outline `#C8C8C8` (disabled controls are exempt), and the artwork placeholder's box. A unit test fails if any stroke that is a control boundary falls below 3:1 (`src/design/strokes.test.ts`, shown to fail with the old color), and a browser test reads the drawn boundary of the journal editor's three inputs (opening sentence, reflection, language) at rest, on hover and in focus, and its Save button (`e2e/accessibility.spec.ts`); the unit test is what covers every stroke.
+- **axe-core 4.14.0** (`@axe-core/playwright`, a dev dependency) runs WCAG 2.0/2.1/2.2 A and AA on 16 Studio pages at 1280 and 390px, on the open delete dialog, and on sign-in, with no violation. A canary test proves the scanner reports a deliberately broken element. Only the delete dialog is scanned (not the restore or the album archive and delete dialogs), and validation-error states are not. axe also does not evaluate text drawn over a background image (the white label on the ink primary button is reported as "incomplete", which the test does not read); that contrast, white on `#111`, was calculated by hand at about 18:1. axe is a floor: it cannot judge reading order or meaning, it cannot measure a boundary drawn as a background image (hence the check above), and it did not run in forced-colors mode.
 - Forced colors (Windows high contrast): the drawn outlines are background images, so under `forced-colors: active` real 1px borders in the system's colors replace them (primary buttons get 3px). **Written to the specification and reviewed, not tested in a forced-colors browser.**
 - Not done: a screen reader pass.
 

@@ -101,15 +101,14 @@ test("keyboard navigation between sections raises no console, script, or hydrati
 
 // A KNOWN LIMITATION, recorded so it cannot be forgotten or quietly changed:
 // each page renders its own header, so the link that was just activated is
-// replaced by the next page's copy and keyboard focus falls back to the start
-// of the document. Moving the header into a shared layout would fix it, but a
+// replaced by the next page's copy and keyboard focus is no longer on that link. Moving the header into a shared layout would fix it, but a
 // layout is part of the static shell, which an anonymous request receives, and
 // the Studio's furniture (including "Sign out") must never be in it. The
 // follow-up and its required protections are in
 // docs/design/studio-visual-fidelity.md (§ A shared, authenticated header).
 // If that is ever built, this test is expected to change to the opposite
 // assertion: that focus stays on the activated link.
-test("known limitation: after a section loads, focus is back at the start of the page", async ({
+test("known limitation: after a section loads, focus is no longer on the link that was activated", async ({
   page,
 }) => {
   await page.goto("/studio");
@@ -124,12 +123,15 @@ test("known limitation: after a section loads, focus is back at the start of the
   await expect(
     page.getByRole("heading", { level: 1, name: "Artists" }),
   ).toBeVisible();
-  const focus = await page.evaluate(() => ({
-    onBody: document.activeElement === document.body,
-    // A visible element of the current page does not hold focus.
-    onVisibleLink:
-      document.activeElement?.tagName === "A" &&
-      document.activeElement.checkVisibility(),
-  }));
-  expect(focus).toEqual({ onBody: true, onVisibleLink: false });
+  // Asserts only what is documented: focus is not on a visible link in the new
+  // page's navigation. (It may be on the document or on the page's <main>.)
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          document.activeElement?.tagName === "A" &&
+          document.activeElement.checkVisibility(),
+      ),
+    )
+    .toBe(false);
 });

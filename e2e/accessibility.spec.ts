@@ -143,7 +143,7 @@ test.describe("sign-in", () => {
   });
 });
 
-test("every input's drawn boundary has at least 3:1 contrast, at rest, on hover and in focus", async ({
+test("the journal editor's three inputs and its Save button are drawn at 3:1 or better, at rest, on hover and in focus", async ({
   page,
 }) => {
   await open(page, 1280, `/studio/journals/new?album=${albumId}`);
@@ -180,7 +180,12 @@ test("every input's drawn boundary has at least 3:1 contrast, at rest, on hover 
   }
   // A secondary button's boundary at rest.
   const save = page.getByRole("button", { name: "Save as draft" });
-  for (const color of await strokeColors(save)) {
+  const saveColors = await strokeColors(save);
+  expect(
+    saveColors.length,
+    "the Save button has a drawn boundary",
+  ).toBeGreaterThan(0);
+  for (const color of saveColors) {
     expect(contrastOnWhite(color)).toBeGreaterThanOrEqual(3);
   }
 });

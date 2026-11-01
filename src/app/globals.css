@@ -10,7 +10,7 @@
   --color-rule: #cfcfcf;
   /* frame-quiet is #767676 here, not the mockups' #ABABAB: 4.5:1 instead of
      2.3:1, to meet WCAG 2.2 1.4.11 for control boundaries. */
-  --color-frame-quiet: #767676;
+  --color-frame-quiet: #767676; /* keep equal to QUIET in src/design/strokes.ts */
   --color-paper: #ffffff;
   --color-paper-2: #f4f4f2;
   --color-paper-3: #f6f6f4;
@@ -445,7 +445,7 @@
   justify-content: center;
   gap: 9px;
   min-height: 46px;
-  padding: 6px 22px;
+  padding: 6px 20px;
   border: 0;
   border-radius: 0;
   background: var(--stroke-button) center / 100% 100% no-repeat;
