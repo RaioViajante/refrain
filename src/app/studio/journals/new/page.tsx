@@ -49,7 +49,7 @@ async function NewJournal({
     .join(", ");
 
   return (
-    <StudioFrame current="journals">
+    <StudioFrame current="journals" layout={album ? "wide" : "notebook"}>
       <p>
         <Link href="/studio/journals" className="studio-link">
           ← Journals
@@ -57,7 +57,9 @@ async function NewJournal({
       </p>
       {album ? (
         <>
-          <h1 className="studio-title">Write about {album.title}</h1>
+          <h1 className="studio-title studio-title-editor">
+            Write about {album.title}
+          </h1>
           {artists ? <p className="studio-meta">{artists}</p> : null}
           <JournalEditor
             create={{ albumId: album.albumId }}

@@ -7,6 +7,7 @@ import { Suspense } from "react";
 import { accessDenied } from "@/app/studio/access";
 import { formatDate, plural } from "@/app/studio/format";
 import { StudioFrame } from "@/app/studio/frame";
+import { ArtworkPlaceholder } from "@/app/studio/artwork-placeholder";
 import { JournalControls } from "@/app/studio/journals/journal-controls";
 import { RestoreJournalButton } from "@/app/studio/journals/restore-button";
 import { StudioLoading } from "@/app/studio/studio-loading";
@@ -61,135 +62,149 @@ async function Journal({ params, searchParams }: JournalProps) {
     journal.body === null ? null : textToParagraphs(journal.body);
 
   return (
-    <StudioFrame current="journals">
+    <StudioFrame current="journals" layout="wide">
       <p>
         <Link href="/studio/journals" className="studio-link">
           ← Journals
         </Link>
       </p>
 
-      <header className="space-y-2">
-        <h1 className="studio-title" style={{ fontSize: "42px" }}>
-          {journal.albumTitle}
-        </h1>
-        <p className="studio-meta">
-          {journal.artistNames ? `${journal.artistNames} · ` : ""}
-          <Link
-            href={`/studio/albums/${journal.albumId}`}
-            className="studio-link"
+      <div className="studio-journal">
+        <div className="studio-journal-head">
+          <p className="studio-meta">Album journal</p>
+          <h1
+            className="studio-title"
+            style={{ fontSize: "clamp(34px, 4.2vw, 56px)" }}
           >
-            The album
-          </Link>
-        </p>
-        <p className="studio-meta">
-          <StatusMark status={journal.status} /> · written in{" "}
-          {LANGUAGE_NAMES[journal.locale]} · {plural(journal.wordCount, "word")}{" "}
-          · started {formatDate(journal.createdAt)} · edited{" "}
-          {formatDate(journal.updatedAt)} (UTC dates)
-        </p>
-      </header>
-
-      {restoredNotice ? (
-        <p role="status" className="studio-panel">
-          {restoredNotice}
-        </p>
-      ) : null}
-
-      {deleted ? (
-        <div className="studio-panel space-y-3">
-          <p>
-            This journal has been in Recently deleted since{" "}
-            {formatDate(journal.deletedAt!)}. Its writing is kept in the
-            database, and it cannot be changed there until you restore it.
+            {journal.albumTitle}
+          </h1>
+          <p className="studio-meta">
+            {journal.artistNames ? `${journal.artistNames} · ` : ""}
+            <Link
+              href={`/studio/albums/${journal.albumId}`}
+              className="studio-link"
+            >
+              The album
+            </Link>
           </p>
-          <RestoreJournalButton
-            entryId={journal.entryId}
-            albumTitle={journal.albumTitle}
-            wasPublished={journal.versions.some(
-              (version) => version.status === "published",
-            )}
-          />
+          <p className="studio-meta">
+            <StatusMark status={journal.status} /> · written in{" "}
+            {LANGUAGE_NAMES[journal.locale]} ·{" "}
+            {plural(journal.wordCount, "word")} · started{" "}
+            {formatDate(journal.createdAt)} · edited{" "}
+            {formatDate(journal.updatedAt)} (UTC dates)
+          </p>
         </div>
-      ) : (
-        <p>
-          <Link
-            href={`/studio/journals/${journal.entryId}/edit`}
-            className="studio-button"
-          >
-            Edit this journal
-          </Link>
-        </p>
-      )}
 
-      <article lang={journal.locale} className="space-y-6">
-        {journal.opening ? (
-          <p className="studio-opening">{journal.opening}</p>
-        ) : null}
-        {paragraphs === null ? (
-          <p className="studio-panel" lang="en">
-            This text has formatting that the plain editor can’t show without
-            losing it. It is untouched.
-          </p>
-        ) : paragraphs.length === 0 ? (
-          <p className="studio-hint" lang="en">
-            Nothing written yet.
-          </p>
-        ) : (
-          <div className="studio-reading">
-            {paragraphs.map((lines, index) => (
-              <p key={index}>
-                {lines.map((line, lineIndex) => (
-                  <span key={lineIndex}>
-                    {lineIndex > 0 ? <br /> : null}
-                    {line}
-                  </span>
-                ))}
+        <div className="studio-journal-writing">
+          {restoredNotice ? (
+            <p role="status" className="studio-panel">
+              {restoredNotice}
+            </p>
+          ) : null}
+
+          {deleted ? (
+            <div className="studio-panel space-y-3">
+              <p>
+                This journal has been in Recently deleted since{" "}
+                {formatDate(journal.deletedAt!)}. Its writing is kept in the
+                database, and it cannot be changed there until you restore it.
               </p>
-            ))}
-          </div>
-        )}
-      </article>
+              <RestoreJournalButton
+                entryId={journal.entryId}
+                albumTitle={journal.albumTitle}
+                wasPublished={journal.versions.some(
+                  (version) => version.status === "published",
+                )}
+              />
+            </div>
+          ) : null}
 
-      <section aria-labelledby="journal-state" className="space-y-3">
-        <h2 id="journal-state" className="studio-section-title">
-          Its state
-        </h2>
-        <dl className="studio-meta space-y-1">
-          <div>
-            <dt className="inline font-medium">Language versions: </dt>
-            <dd className="inline">
-              {journal.versions
-                .map(
-                  (version) =>
-                    `${LANGUAGE_NAMES[version.locale]}${version.isOriginal ? " (original)" : " (your translation)"}, ${version.status}`,
-                )
-                .join("; ")}
-              {journal.versions.length === 1
-                ? ". You haven’t written a translation, and nothing is translated for you."
-                : "."}
-            </dd>
-          </div>
-          <div>
-            <dt className="inline font-medium">Deleted: </dt>
-            <dd className="inline">
-              {deleted ? "yes, in Recently deleted" : "no"}
-            </dd>
-          </div>
-        </dl>
-      </section>
+          <article lang={journal.locale} className="space-y-6">
+            {journal.opening ? (
+              <p className="studio-opening">{journal.opening}</p>
+            ) : null}
+            {paragraphs === null ? (
+              <p className="studio-panel" lang="en">
+                This text has formatting that the plain editor can’t show
+                without losing it. It is untouched.
+              </p>
+            ) : paragraphs.length === 0 ? (
+              <p className="studio-hint" lang="en">
+                Nothing written yet.
+              </p>
+            ) : (
+              <div className="studio-reading">
+                {paragraphs.map((lines, index) => (
+                  <p key={index}>
+                    {lines.map((line, lineIndex) => (
+                      <span key={lineIndex}>
+                        {lineIndex > 0 ? <br /> : null}
+                        {line}
+                      </span>
+                    ))}
+                  </p>
+                ))}
+              </div>
+            )}
+          </article>
+        </div>
 
-      {deleted ? null : (
-        <section aria-labelledby="journal-manage" className="space-y-3">
-          <h2 id="journal-manage" className="studio-section-title">
-            Manage
-          </h2>
-          <JournalControls
-            entryId={journal.entryId}
-            locale={journal.locale}
-            status={journal.status}
-          />
-        </section>
-      )}
+        <div className="studio-journal-side">
+          <ArtworkPlaceholder />
+          {deleted ? null : (
+            <p>
+              <Link
+                href={`/studio/journals/${journal.entryId}/edit`}
+                className="studio-button"
+              >
+                Edit this journal
+              </Link>
+            </p>
+          )}
+
+          <section aria-labelledby="journal-state" className="space-y-3">
+            <h2 id="journal-state" className="studio-section-title">
+              Its state
+            </h2>
+            <dl className="studio-meta space-y-1">
+              <div>
+                <dt className="inline font-medium">Language versions: </dt>
+                <dd className="inline">
+                  {journal.versions
+                    .map(
+                      (version) =>
+                        `${LANGUAGE_NAMES[version.locale]}${version.isOriginal ? " (original)" : " (your translation)"}, ${version.status}`,
+                    )
+                    .join("; ")}
+                  {journal.versions.length === 1
+                    ? ". You haven’t written a translation, and nothing is translated for you."
+                    : "."}
+                </dd>
+              </div>
+              <div>
+                <dt className="inline font-medium">Deleted: </dt>
+                <dd className="inline">
+                  {deleted ? "yes, in Recently deleted" : "no"}
+                </dd>
+              </div>
+            </dl>
+          </section>
+
+          {deleted ? null : (
+            <section aria-labelledby="journal-manage" className="space-y-3">
+              <h2 id="journal-manage" className="studio-section-title">
+                Manage
+              </h2>
+              <JournalControls
+                entryId={journal.entryId}
+                locale={journal.locale}
+                status={journal.status}
+              />
+            </section>
+          )}
+        </div>
+      </div>
     </StudioFrame>
   );
 }
