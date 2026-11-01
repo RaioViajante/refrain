@@ -35,10 +35,10 @@ export function RestoreJournalButton({
       router.push(
         `/studio/journals/${entryId}?restored=${result.data.madePrivate.length > 0 ? "private" : "1"}`,
       );
-    } else if (result.code === "not_deleted" || result.code === "not_found") {
-      // Someone else restored or removed it: show the list as it is now.
-      router.refresh();
     }
+    // A refusal (already restored somewhere else, or gone) is said in words
+    // right here. The list is not refreshed: the row would vanish and take the
+    // explanation with it. The message tells the author to reload.
   }
 
   return (

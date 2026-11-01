@@ -72,7 +72,7 @@ async function Journals() {
       )}
 
       {deleted.length > 0 ? (
-        <section aria-labelledby="recently-deleted" id="recently-deleted">
+        <section aria-labelledby="recently-deleted">
           <h2 id="recently-deleted" className="studio-section-title">
             Recently deleted ({deleted.length})
           </h2>
