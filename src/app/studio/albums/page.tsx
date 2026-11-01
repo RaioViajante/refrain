@@ -6,6 +6,7 @@ import { Suspense } from "react";
 import { accessDenied } from "@/app/studio/access";
 import { plural } from "@/app/studio/format";
 import { StudioFrame } from "@/app/studio/frame";
+import { Icon } from "@/app/studio/icons";
 import { StudioLoading } from "@/app/studio/studio-loading";
 import {
   listAlbumsWithArtists,
@@ -52,21 +53,27 @@ async function Albums() {
   const archived = counts.filter((album) => album.archived);
 
   const row = (album: (typeof counts)[number]) => (
-    <li key={album.albumId} className="studio-row">
-      <span className="studio-row-title">
-        <Link href={`/studio/albums/${album.albumId}`}>{album.title}</Link>
+    <li key={album.albumId} className="studio-row studio-entry">
+      <span className="studio-thumb" aria-hidden="true">
+        <Icon name="album" size={26} />
       </span>
-      <span className="studio-meta">
-        {[
-          artistsByAlbum.get(album.albumId)?.join(", ") ?? "no credited artist",
-          album.firstReleaseYear ? String(album.firstReleaseYear) : "",
-          plural(album.trackCount, "track"),
-          album.archived
-            ? ""
-            : `used in ${plural(usedIn.get(album.albumId) ?? 0, "entry", "entries")}`,
-        ]
-          .filter(Boolean)
-          .join(" · ")}
+      <span className="studio-entry-body">
+        <span className="studio-row-title">
+          <Link href={`/studio/albums/${album.albumId}`}>{album.title}</Link>
+        </span>
+        <span className="studio-meta">
+          {[
+            artistsByAlbum.get(album.albumId)?.join(", ") ??
+              "no credited artist",
+            album.firstReleaseYear ? String(album.firstReleaseYear) : "",
+            plural(album.trackCount, "track"),
+            album.archived
+              ? ""
+              : `used in ${plural(usedIn.get(album.albumId) ?? 0, "entry", "entries")}`,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </span>
       </span>
     </li>
   );

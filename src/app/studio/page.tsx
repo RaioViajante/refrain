@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { accessDenied } from "@/app/studio/access";
 import { plural } from "@/app/studio/format";
 import { StudioFrame } from "@/app/studio/frame";
+import { Icon } from "@/app/studio/icons";
 import { StudioLoading } from "@/app/studio/studio-loading";
 import { getCatalogStatistics } from "@/modules/catalog";
 import { authorizeAuthor } from "@/modules/identity";
@@ -71,7 +72,80 @@ async function Desk() {
             </li>
           </ol>
         </div>
-      ) : null}
+      ) : (
+        <div className="studio-actions" style={{ marginTop: 26 }}>
+          <Link
+            href="/studio/journals/new"
+            className="studio-button studio-button-primary"
+          >
+            <Icon name="plus" />
+            Write a journal
+          </Link>
+          <Link href="/studio/albums/new" className="studio-button">
+            <Icon name="album" />
+            Add an album
+          </Link>
+          <Link href="/studio/artists/new" className="studio-button">
+            <Icon name="artist" />
+            Add an artist
+          </Link>
+        </div>
+      )}
+
+      <section className="studio-notebook" aria-labelledby="desk-journals">
+        <h2 id="desk-journals" className="studio-section-title">
+          Your journals
+        </h2>
+        <div className="space-y-4">
+          <p className="text-[19px]">
+            <Link href="/studio/journals" className="studio-link">
+              {plural(journals.total, "journal")}
+            </Link>
+            : {journals.draft} {journals.draft === 1 ? "draft" : "drafts"},{" "}
+            {journals.private} private, {journals.published} published.
+          </p>
+
+          {progress.length > 0 ? (
+            <>
+              <ul className="studio-list" aria-label="Journals in progress">
+                {progress.map((journal) => (
+                  <li key={journal.entryId} className="studio-row studio-entry">
+                    <span className="studio-thumb" aria-hidden="true">
+                      <Icon name="album" size={26} />
+                    </span>
+                    <span className="studio-entry-body">
+                      <span className="studio-row-title">
+                        <Link href={`/studio/journals/${journal.entryId}`}>
+                          {journal.albumTitle}
+                        </Link>
+                      </span>
+                      <span className="studio-meta">
+                        {journal.tracksWritten} of{" "}
+                        {plural(journal.trackCount, "track")} written
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="studio-hint">
+                Track-by-track reflections arrive in a later release.
+              </p>
+            </>
+          ) : null}
+
+          {journals.deleted > 0 ? (
+            <p className="studio-meta">
+              <Link
+                href="/studio/journals/deleted"
+                className="studio-link inline-flex items-center gap-2"
+              >
+                <Icon name="trash" size={16} />
+                Recently deleted ({journals.deleted})
+              </Link>
+            </p>
+          ) : null}
+        </div>
+      </section>
 
       <section className="studio-notebook" aria-labelledby="desk-catalog">
         <h2 id="desk-catalog" className="studio-section-title">
@@ -97,51 +171,6 @@ async function Desk() {
             {plural(catalog.tracksWithoutAlbum, "track")} on no album ·{" "}
             {plural(catalog.archivedRecords, "archived record")}
           </p>
-        </div>
-      </section>
-
-      <section className="studio-notebook" aria-labelledby="desk-journals">
-        <h2 id="desk-journals" className="studio-section-title">
-          Your journals
-        </h2>
-        <div className="space-y-4">
-          <p className="text-[19px]">
-            <Link href="/studio/journals" className="studio-link">
-              {plural(journals.total, "journal")}
-            </Link>
-            : {journals.draft} {journals.draft === 1 ? "draft" : "drafts"},{" "}
-            {journals.private} private, {journals.published} published.
-          </p>
-          {journals.deleted > 0 ? (
-            <p className="studio-meta">
-              <Link href="/studio/journals/deleted" className="studio-link">
-                Recently deleted ({journals.deleted})
-              </Link>
-            </p>
-          ) : null}
-
-          {progress.length > 0 ? (
-            <>
-              <ul className="studio-list" aria-label="Journals in progress">
-                {progress.map((journal) => (
-                  <li key={journal.entryId} className="studio-row">
-                    <span className="studio-row-title">
-                      <Link href={`/studio/journals/${journal.entryId}`}>
-                        {journal.albumTitle}
-                      </Link>
-                    </span>
-                    <span className="studio-meta">
-                      {journal.tracksWritten} of{" "}
-                      {plural(journal.trackCount, "track")} written
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              <p className="studio-hint">
-                Track-by-track reflections arrive in a later release.
-              </p>
-            </>
-          ) : null}
         </div>
       </section>
     </StudioFrame>

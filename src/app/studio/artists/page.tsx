@@ -6,6 +6,7 @@ import { Suspense } from "react";
 import { accessDenied } from "@/app/studio/access";
 import { plural } from "@/app/studio/format";
 import { StudioFrame } from "@/app/studio/frame";
+import { Icon } from "@/app/studio/icons";
 import { StudioLoading } from "@/app/studio/studio-loading";
 import { listArtists, type ArtistSummary } from "@/modules/catalog";
 import { authorizeAuthor } from "@/modules/identity";
@@ -82,15 +83,20 @@ function ArtistList({
   return (
     <ul className="studio-list" aria-label={label}>
       {artists.map((artist) => (
-        <li key={artist.id} className="studio-row">
-          <span className="studio-row-title">
-            <Link href={`/studio/artists/${artist.id}`}>{artist.name}</Link>
+        <li key={artist.id} className="studio-row studio-entry">
+          <span className="studio-thumb" data-bare aria-hidden="true">
+            <Icon name="artist" size={26} />
           </span>
-          <span className="studio-meta">
-            {artist.kind === "group" ? "Band" : "Person"} ·{" "}
-            {plural(artist.albumCount, "album")} ·{" "}
-            {plural(artist.trackCount, "track")} ·{" "}
-            {plural(artist.journalCount, "journal")}
+          <span className="studio-entry-body">
+            <span className="studio-row-title">
+              <Link href={`/studio/artists/${artist.id}`}>{artist.name}</Link>
+            </span>
+            <span className="studio-meta">
+              {artist.kind === "group" ? "Band" : "Person"} ·{" "}
+              {plural(artist.albumCount, "album")} ·{" "}
+              {plural(artist.trackCount, "track")} ·{" "}
+              {plural(artist.journalCount, "journal")}
+            </span>
           </span>
         </li>
       ))}
