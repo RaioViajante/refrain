@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { afterAll, describe, expect, it } from "vitest";
 
 import { getDb, schema } from "@/db";
@@ -12,6 +12,7 @@ import {
   changeEntrySlug,
   normalizeSlug,
   PublicationError,
+  publishLanguageVersion,
 } from "@/modules/publication";
 import { raceAll, testAuthor, uniqueLabel, withConnections } from "@/testing";
 
@@ -19,6 +20,7 @@ import {
   createAlbumJournal,
   deleteAlbumJournal,
   permanentlyDeleteEntry,
+  restoreAlbumJournal,
   saveAlbumJournal,
 } from "./commands";
 import { JournalError } from "./errors";
@@ -267,5 +269,162 @@ describe("patches saved from two editors at the same moment", () => {
     const journal = await getAlbumJournal(getDb(), author, entryId);
     expect(journal?.body).toBe("[Test] The words that must stay");
     expect(journal?.version).toBe(2);
+  });
+});
+
+// A journal that was published, then moved to Recently deleted: the state a
+// restore starts from. Committed, so several connections can race on it.
+async function newDeletedPublishedJournal(albumId: string): Promise<string> {
+  const db = getDb();
+  const entryId = await newJournal(albumId, "[Test] Once published");
+  await publishLanguageVersion(db, entryId, "en");
+  await deleteAlbumJournal(db, author, entryId);
+  return entryId;
+}
+
+async function storedState(entryId: string) {
+  const result = await getDb().execute<{
+    deleted: boolean;
+    status: string;
+    published_at: string | null;
+    first_published_at: string | null;
+    entry_first_published_at: string | null;
+    body_text: string;
+    version: number;
+  }>(sql`
+    select e.deleted_at is not null as deleted, t.status, t.published_at,
+           t.first_published_at,
+           e.first_published_at as entry_first_published_at,
+           t.body_text, e.version
+      from entries e join entry_texts t on t.entry_id = e.id
+     where e.id = ${entryId}`);
+  return result.rows[0];
+}
+
+describe("restoring journals at the same moment", () => {
+  it("lets exactly one of eight simultaneous restores win; the others are told it is not deleted", async () => {
+    const albumId = await newAlbum(uniqueLabel("Restore race"));
+    const entryId = await newDeletedPublishedJournal(albumId);
+    const before = await storedState(entryId);
+    expect(before).toMatchObject({ deleted: true, status: "published" });
+
+    const outcomes = await withConnections(8, (dbs) =>
+      raceAll(dbs.map((db) => () => restoreAlbumJournal(db, author, entryId))),
+    );
+
+    const winners = fulfilled(outcomes);
+    expect(winners).toEqual([{ madePrivate: ["en"] }]);
+    const losses = rejections(outcomes);
+    expect(losses).toHaveLength(7);
+    for (const loss of losses) {
+      expect(loss).toBeInstanceOf(JournalError);
+      expect((loss as JournalError).failure).toBe("entry_not_deleted");
+    }
+
+    // One restore: live, private, and the writing and history exactly as
+    // they were.
+    const after = await storedState(entryId);
+    expect(after).toMatchObject({
+      deleted: false,
+      status: "private",
+      published_at: null,
+      body_text: "[Test] Once published",
+      version: before!.version,
+    });
+    expect(after!.first_published_at).toBe(before!.first_published_at);
+    expect(after!.entry_first_published_at).toBe(
+      before!.entry_first_published_at,
+    );
+  });
+
+  it("never leaves a restored journal both live and published, whatever the order of a restore and a publication", async () => {
+    const albumId = await newAlbum(uniqueLabel("Restore versus publish"));
+    for (let round = 0; round < 6; round++) {
+      const entryId = await newDeletedPublishedJournal(albumId);
+      const outcomes = await withConnections(2, (dbs) =>
+        raceAll([
+          () => restoreAlbumJournal(dbs[0]!, author, entryId),
+          () => publishLanguageVersion(dbs[1]!, entryId, "en"),
+        ]),
+      );
+      const [restored, published] = outcomes;
+      expect(restored?.status).toBe("fulfilled");
+      const after = await storedState(entryId);
+      expect(after!.deleted).toBe(false);
+      if (published?.status === "fulfilled") {
+        // The author's publication ran after the restore: public by choice.
+        expect(after!.status).toBe("published");
+      } else {
+        // Refused because the entry was still deleted, with the domain's
+        // fixed code. The restore alone leaves it private.
+        expect(published?.reason).toBeInstanceOf(PublicationError);
+        expect((published?.reason as PublicationError).failure).toBe(
+          "entry_deleted",
+        );
+        expect(after!.status).toBe("private");
+      }
+    }
+  });
+
+  it("settles a restore against a permanent deletion one way or the other, never both", async () => {
+    const albumId = await newAlbum(uniqueLabel("Restore versus delete now"));
+    for (let round = 0; round < 6; round++) {
+      const entryId = await newDeletedPublishedJournal(albumId);
+      const outcomes = await withConnections(2, (dbs) =>
+        raceAll([
+          () => restoreAlbumJournal(dbs[0]!, author, entryId),
+          () => permanentlyDeleteEntry(dbs[1]!, entryId),
+        ]),
+      );
+      const [restored, removed] = outcomes;
+      const remains = await storedState(entryId);
+      if (restored?.status === "fulfilled") {
+        // Restored first: the entry is live, so "Delete now" is refused.
+        expect(removed?.status).toBe("rejected");
+        expect(
+          ((removed as PromiseRejectedResult).reason as JournalError).failure,
+        ).toBe("entry_not_deleted");
+        expect(remains).toMatchObject({ deleted: false, status: "private" });
+      } else {
+        // Deleted first: nothing is left to restore.
+        expect(removed?.status).toBe("fulfilled");
+        expect(
+          ((restored as PromiseRejectedResult).reason as JournalError).failure,
+        ).toBe("entry_not_found");
+        expect(remains).toBeUndefined();
+      }
+    }
+  });
+
+  it("keeps the text when a restore and a save of an open editor cross", async () => {
+    const albumId = await newAlbum(uniqueLabel("Restore versus save"));
+    for (let round = 0; round < 6; round++) {
+      const entryId = await newJournal(albumId, "[Test] Before");
+      await deleteAlbumJournal(getDb(), author, entryId);
+      const outcomes = await withConnections(2, (dbs) =>
+        raceAll([
+          () => restoreAlbumJournal(dbs[0]!, author, entryId),
+          () =>
+            saveAlbumJournal(dbs[1]!, author, {
+              entryId,
+              expectedVersion: 1,
+              body: "[Test] After",
+            }),
+        ]),
+      );
+      const [restored, saved] = outcomes;
+      expect(restored?.status).toBe("fulfilled");
+      const after = await storedState(entryId);
+      expect(after!.deleted).toBe(false);
+      if (saved?.status === "fulfilled") {
+        expect(after).toMatchObject({ body_text: "[Test] After", version: 2 });
+      } else {
+        // Saved while it was still deleted: refused, and nothing was lost.
+        expect(
+          ((saved as PromiseRejectedResult).reason as JournalError).failure,
+        ).toBe("entry_deleted");
+        expect(after).toMatchObject({ body_text: "[Test] Before", version: 1 });
+      }
+    }
   });
 });

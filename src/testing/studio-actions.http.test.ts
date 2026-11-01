@@ -220,6 +220,8 @@ const ids = {
   spareTrack: "",
   archivedTrack: "",
   journal: "",
+  // A journal that is in Recently deleted, for the restore tests.
+  recoverable: "",
 };
 let journalVersion = 1;
 
@@ -398,6 +400,43 @@ describe("the author's complete journey, through real HTTP and PostgreSQL", () =
       { title: own("Track 2"), position: 1 },
       { title: own("Track 1"), position: 2 },
     ]);
+  });
+
+  it("writes a second journal, makes it private, and moves it to Recently deleted", async () => {
+    const created = ok(
+      await call(
+        "createJournalAction",
+        [
+          {
+            albumId: ids.album,
+            locale: "en",
+            opening: `${label} Recoverable opening`,
+            body: `${label} recoverable first.\n\nRecoverable second paragraph.\n\nRecoverable third.`,
+          },
+        ],
+        { cookie: cookie() },
+      ),
+    );
+    ids.recoverable = String(created.entryId);
+    ok(
+      await call(
+        "setJournalPrivacyAction",
+        [{ entryId: ids.recoverable, locale: "en", status: "private" }],
+        { cookie: cookie(), routeId: ids.recoverable },
+      ),
+    );
+    ok(
+      await call("deleteJournalAction", [ids.recoverable], {
+        cookie: cookie(),
+        routeId: ids.recoverable,
+      }),
+    );
+    expect(
+      await scalar<boolean>(
+        "select deleted_at is not null from entries where id = $1",
+        [ids.recoverable],
+      ),
+    ).toBe(true);
   });
 
   it("creates a private draft journal, which is never public", async () => {
@@ -1077,12 +1116,18 @@ describe("what a request without the author's session can do", () => {
         routeId: ids.journal,
       },
       deleteJournalAction: { args: [ids.journal], routeId: ids.journal },
+      // A journal that really is in Recently deleted, so a restore that got
+      // through would visibly change the database.
+      restoreJournalAction: {
+        args: [ids.recoverable],
+        routeId: ids.recoverable,
+      },
     };
   }
 
   it("covers every server action in the build", () => {
     expect(Object.keys(attempts()).sort()).toEqual(Object.keys(actions).sort());
-    expect(Object.keys(actions).length).toBeGreaterThanOrEqual(22);
+    expect(Object.keys(actions).length).toBeGreaterThanOrEqual(23);
   });
 
   async function credentials(): Promise<[string, string | undefined][]> {
@@ -1301,6 +1346,7 @@ describe("what a request without the author's session can do", () => {
       "/studio/tracks",
       `/studio/tracks/${ids.track}`,
       "/studio/journals",
+      "/studio/journals/deleted",
       "/studio/journals/new",
       `/studio/journals/new?album=${ids.album}`,
       `/studio/journals/${ids.journal}`,
@@ -1396,6 +1442,7 @@ describe("what a request without the author's session can do", () => {
   it("keeps the titles of studio pages generic and the pages out of search", async () => {
     for (const path of [
       `/studio/journals/${ids.journal}`,
+      "/studio/journals/deleted",
       `/studio/albums/${ids.album}`,
       `/studio/artists/${ids.artist}`,
     ]) {
@@ -1419,6 +1466,306 @@ describe("what a request without the author's session can do", () => {
       expect(response.status, path).toBe(404);
       expect(await response.text()).not.toContain(label);
     }
+  });
+});
+
+describe("recovering a journal from Recently deleted, through real HTTP and PostgreSQL", () => {
+  const cookie = () => author.cookie;
+
+  const texts = async (entryId: string) =>
+    (
+      await db.query(
+        `select locale, status, published_at, first_published_at, opening,
+                body, body_text
+           from entry_texts where entry_id = $1 order by locale`,
+        [entryId],
+      )
+    ).rows;
+  const entryRow = async (entryId: string) =>
+    (
+      await db.query(
+        "select deleted_at, first_published_at, version from entries where id = $1",
+        [entryId],
+      )
+    ).rows[0];
+  const slugs = async (entryId: string) =>
+    (
+      await db.query(
+        "select kind, slug, is_current, was_published from entry_slugs where entry_id = $1 order by slug",
+        [entryId],
+      )
+    ).rows;
+
+  it("lists the journal on the Recently deleted page, for the author only", async () => {
+    const page = await get("/studio/journals/deleted", {
+      cookie: cookie(),
+    });
+    expect(page.status).toBe(200);
+    expect(page.headers.get("cache-control")).toContain("no-store");
+    const html = await page.text();
+    expect(html).toContain("Recently deleted");
+    expect(html).toContain(label); // the album title
+    expect(html).toContain("Restore…");
+    // The words promise only what is built (ADR 0002, INV-4).
+    expect(html).toContain("nothing removes it automatically");
+    expect(html).toContain("Permanent deletion is not offered yet");
+    expect(html).not.toMatch(/30 days|gone in|will be deleted|purged/i);
+    expect(html).not.toMatch(/Delete now|Delete permanently|Delete forever/);
+
+    const anonymous = await (await get("/studio/journals/deleted")).text();
+    expect(anonymous).not.toContain(label);
+    expect(anonymous).not.toContain("Restore…");
+    expect(anonymous).toContain("NEXT_REDIRECT;replace;/studio/sign-in;307;");
+  });
+
+  it("restores a private journal with every paragraph intact, and the page says so", async () => {
+    const before = await texts(ids.recoverable);
+    const slugsBefore = await slugs(ids.recoverable);
+    const entryBefore = await entryRow(ids.recoverable);
+    expect(before[0]).toMatchObject({ status: "private" });
+
+    const result = ok(
+      await call("restoreJournalAction", [ids.recoverable], {
+        cookie: cookie(),
+        routeId: ids.recoverable,
+      }),
+    );
+    expect(result).toEqual({ madePrivate: [] });
+
+    expect(await texts(ids.recoverable)).toEqual(before);
+    expect(await slugs(ids.recoverable)).toEqual(slugsBefore);
+    expect(await entryRow(ids.recoverable)).toEqual({
+      ...entryBefore,
+      deleted_at: null,
+    });
+
+    const html = await (
+      await get(`/studio/journals/${ids.recoverable}?restored=1`, {
+        cookie: cookie(),
+      })
+    ).text();
+    expect(html).toContain("Restored from Recently deleted");
+    expect(html).toContain("Recoverable second paragraph.");
+    expect(html).toContain("Recoverable third.");
+    expect(html).toContain("Edit this journal");
+    expect(html).not.toContain("until you restore it");
+
+    // It is among the live journals again, and out of Recently deleted.
+    const list = await (
+      await get("/studio/journals", { cookie: cookie() })
+    ).text();
+    expect(list).toContain("Recoverable second paragraph");
+    const deletedPage = await (
+      await get("/studio/journals/deleted", { cookie: cookie() })
+    ).text();
+    expect(deletedPage).not.toContain("Recoverable second paragraph");
+  });
+
+  it("answers a second restore with a fixed code and changes nothing", async () => {
+    const before = await snapshot();
+    expect(
+      await call("restoreJournalAction", [ids.recoverable], {
+        cookie: cookie(),
+        routeId: ids.recoverable,
+      }),
+    ).toEqual({ ok: false, code: "not_deleted" });
+    expect(await snapshot()).toEqual(before);
+  });
+
+  it("refuses malformed, unknown, and other-kind ids with fixed codes", async () => {
+    const before = await snapshot();
+    for (const [argument, code] of [
+      ["not-a-uuid", "invalid_input"],
+      ["", "invalid_input"],
+      [42, "invalid_input"],
+      [null, "invalid_input"],
+      [{ entryId: ids.recoverable }, "invalid_input"],
+      [NOWHERE, "not_found"],
+      // An artist's id is not a journal.
+      [ids.artist, "not_found"],
+    ] as const) {
+      const result = await call("restoreJournalAction", [argument], {
+        cookie: cookie(),
+        routeId: ids.recoverable,
+      });
+      expect(result, JSON.stringify(argument)).toMatchObject({
+        ok: false,
+        code,
+      });
+      expect(JSON.stringify(result)).not.toMatch(/uuid|select |constraint/i);
+    }
+    expect(await snapshot()).toEqual(before);
+  });
+
+  it("returns a journal that was published as private, and keeps its history and address", async () => {
+    // The studio cannot publish, so the published state is set directly in
+    // the disposable test database, as a later milestone's command would.
+    const entryId = String(
+      ok(
+        await call(
+          "createJournalAction",
+          [
+            {
+              albumId: ids.album,
+              locale: "en",
+              body: `${label} once published.\n\nSecond paragraph of it.`,
+            },
+          ],
+          { cookie: cookie() },
+        ),
+      ).entryId,
+    );
+    await db.query(
+      `update entry_texts set status = 'published',
+              published_at = timestamptz '2026-01-01 00:00:00+00',
+              first_published_at = timestamptz '2026-01-01 00:00:00+00'
+        where entry_id = $1`,
+      [entryId],
+    );
+    await db.query(
+      `update entries set first_published_at = timestamptz '2026-01-01 00:00:00+00'
+        where id = $1`,
+      [entryId],
+    );
+    await db.query(
+      "update entry_slugs set was_published = true where entry_id = $1 and is_current",
+      [entryId],
+    );
+    ok(
+      await call("deleteJournalAction", [entryId], {
+        cookie: cookie(),
+        routeId: entryId,
+      }),
+    );
+    // Deleted: the page says it was published, and that it returns private.
+    const deletedHtml = await (
+      await get("/studio/journals/deleted", { cookie: cookie() })
+    ).text();
+    expect(deletedHtml).toContain("English: published, returns as private");
+    const before = await texts(entryId);
+    const slugsBefore = await slugs(entryId);
+    expect(before[0]).toMatchObject({ status: "published" });
+
+    const result = ok(
+      await call("restoreJournalAction", [entryId], {
+        cookie: cookie(),
+        routeId: entryId,
+      }),
+    );
+    expect(result).toEqual({ madePrivate: ["en"] });
+
+    const [after] = await texts(entryId);
+    expect(after).toMatchObject({
+      status: "private",
+      published_at: null,
+      body_text: before[0].body_text,
+    });
+    expect(new Date(after.first_published_at).toISOString()).toBe(
+      "2026-01-01T00:00:00.000Z",
+    );
+    expect(after.body).toEqual(before[0].body);
+    expect(
+      new Date((await entryRow(entryId)).first_published_at).toISOString(),
+    ).toBe("2026-01-01T00:00:00.000Z");
+    expect(await slugs(entryId)).toEqual(slugsBefore);
+    expect((await entryRow(entryId)).deleted_at).toBeNull();
+    // Nothing published remains, and the page says why it is private.
+    expect(
+      await scalar<number>(
+        "select count(*)::int from entry_texts where entry_id = $1 and (status = 'published' or published_at is not null)",
+        [entryId],
+      ),
+    ).toBe(0);
+    const html = await (
+      await get(`/studio/journals/${entryId}?restored=private`, {
+        cookie: cookie(),
+      })
+    ).text();
+    expect(html).toContain("that part is now private");
+    expect(html).toContain("Nothing is published again until you choose to");
+  });
+
+  it("names a notice only from a fixed word, never from the query string", async () => {
+    const hostile = encodeURIComponent("<script>window.__xss=2</script>");
+    for (const value of [hostile, "yes", "private%00", "1&restored=private"]) {
+      const html = await (
+        await get(`/studio/journals/${ids.recoverable}?restored=${value}`, {
+          cookie: cookie(),
+        })
+      ).text();
+      expect(html).not.toContain("window.__xss=2");
+      expect(html).not.toContain("Restored from Recently deleted");
+    }
+    // A stale link does not claim a restore for a journal that is deleted.
+    ok(
+      await call("deleteJournalAction", [ids.recoverable], {
+        cookie: cookie(),
+        routeId: ids.recoverable,
+      }),
+    );
+    const stale = await (
+      await get(`/studio/journals/${ids.recoverable}?restored=1`, {
+        cookie: cookie(),
+      })
+    ).text();
+    expect(stale).not.toContain("Restored from Recently deleted");
+    expect(stale).toContain("until you restore it");
+  });
+
+  it("still refuses a restore with no Origin or a foreign one, with the author's session", async () => {
+    const before = await snapshot();
+    expect(
+      await call("restoreJournalAction", [ids.recoverable], {
+        cookie: cookie(),
+        routeId: ids.recoverable,
+        origin: null,
+      }),
+    ).toEqual({ ok: false, code: "unauthorized" });
+    const action = actions.restoreJournalAction!;
+    const foreign = await fetch(
+      `${base}${action.route.replace("[id]", ids.recoverable)}`,
+      {
+        method: "POST",
+        redirect: "manual",
+        headers: {
+          origin: "https://attacker.example",
+          "content-type": "text/plain;charset=UTF-8",
+          "next-action": action.id,
+          cookie: cookie(),
+        },
+        body: JSON.stringify([ids.recoverable]),
+      },
+    );
+    expect(foreign.status).not.toBe(200);
+    await foreign.body?.cancel();
+    expect(await snapshot()).toEqual(before);
+    expect((await entryRow(ids.recoverable)).deleted_at).not.toBeNull();
+  });
+
+  it("answers a malformed restore body with the framework's own error, writing nothing", async () => {
+    const before = await snapshot();
+    const action = actions.restoreJournalAction!;
+    for (const body of ['{"name":"$B1"}', '["$F1"]', "[", "\u0000"]) {
+      const response = await fetch(
+        `${base}${action.route.replace("[id]", ids.recoverable)}`,
+        {
+          method: "POST",
+          redirect: "manual",
+          headers: {
+            origin: base,
+            "content-type": "text/plain;charset=UTF-8",
+            "next-action": action.id,
+            cookie: cookie(),
+          },
+          body,
+        },
+      );
+      const text = await response.text();
+      expect(response.status, body).toBe(500);
+      expect(text).not.toContain(label);
+      expect(text).not.toMatch(/\sat\s|node_modules|select |update /i);
+    }
+    expect(await snapshot()).toEqual(before);
   });
 });
 
@@ -1467,19 +1814,20 @@ describe("the journey ends cleanly", () => {
     ).text();
     expect(list).toContain("Recently deleted");
     // The words say what happened and promise nothing that is not built: the
-    // writing is kept, nothing removes it, and there is no restore or
-    // permanent delete in the studio (INV-4).
+    // writing is kept, nothing removes it, restoring is offered, and there is
+    // no permanent delete in the studio (INV-4).
     expect(list).toContain("not erased");
     expect(list).toContain("nothing removes it automatically");
-    expect(list).toContain("cannot restore a journal");
+    expect(list).toContain("permanent deletion is not offered yet");
     expect(list).not.toMatch(/30 days|gone in|will be deleted|purged/i);
-    expect(list).not.toMatch(/Restore journal|Delete now|Restore this/);
+    expect(list).not.toMatch(/Delete now|Delete permanently|Delete forever/);
     // The deleted journal is not among the live ones, and its page says the same.
     const deletedPage = await (
       await get(`/studio/journals/${ids.journal}`, { cookie: author.cookie })
     ).text();
     expect(deletedPage).toContain("Its writing is kept in the database");
-    expect(deletedPage).toContain("cannot restore it yet");
+    expect(deletedPage).toContain("until you restore it");
+    expect(deletedPage).not.toMatch(/Delete now|Delete permanently/);
     expect(deletedPage).not.toMatch(
       /Edit this journal|Move to Recently deleted/,
     );
