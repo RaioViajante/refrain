@@ -350,7 +350,7 @@ pnpm db:backup --target=127.0.0.1:5432/refrain --output="$HOME/refrain-backups/r
 
 - It runs PostgreSQL 17's own `pg_dump` **inside the Compose container**, over its local socket: no host installation, and no password on any command line, in the environment of a command, or in any output.
 - The target must also be the container that publishes that port (`docker compose port`), so a different local PostgreSQL with a database of the same name is not mistaken for it.
-- The file must be a **new** path, absolute, in an existing directory **outside the repository** (a symbolic link into it is refused). It is created with permissions `0600`, next to a `.sha256` of the same mode. A failed or interrupted run removes only the file it created, and a checksum file that already exists makes the run refuse. Nothing is ever overwritten, cleaned, or dropped.
+- The file must be a **new** path, absolute, in an existing directory **outside the repository** (a symbolic link into it is refused). It is created with permissions `0600`, next to a `.sha256` of the same mode. A failed run, or one interrupted by Ctrl-C or SIGTERM, removes only the file it created (closing the terminal or killing the process outright can leave a partial `.dump`, owner-only, which is never valid and which the tool will not reuse: delete it by hand), and a checksum file that already exists makes the run refuse. Nothing is ever overwritten, cleaned, or dropped.
 - The command says **NOT verified**. A backup is not valid until it has been restored.
 
 **Prove it restores.** This restores into a **new scratch database on the disposable test container**, never over an existing database and never into the development database, and compares it with the source:
