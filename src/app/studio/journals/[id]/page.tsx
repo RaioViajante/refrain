@@ -56,19 +56,18 @@ async function Journal({ params }: { params: Promise<{ id: string }> }) {
       </p>
 
       <header className="space-y-2">
+        <h1 className="studio-title" style={{ fontSize: "42px" }}>
+          {journal.albumTitle}
+        </h1>
         <p className="studio-meta">
-          A journal about{" "}
+          {journal.artistNames ? `${journal.artistNames} · ` : ""}
           <Link
             href={`/studio/albums/${journal.albumId}`}
             className="studio-link"
           >
-            {journal.albumTitle}
+            The album
           </Link>
-          {journal.artistNames ? ` · ${journal.artistNames}` : ""}
         </p>
-        <h1 className="studio-title" style={{ fontSize: "42px" }}>
-          {journal.albumTitle}
-        </h1>
         <p className="studio-meta">
           <StatusMark status={journal.status} /> · written in{" "}
           {LANGUAGE_NAMES[journal.locale]} · {plural(journal.wordCount, "word")}{" "}
@@ -79,9 +78,9 @@ async function Journal({ params }: { params: Promise<{ id: string }> }) {
 
       {deleted ? (
         <p className="studio-panel">
-          This journal is in Recently deleted since{" "}
-          {formatDate(journal.deletedAt!)}. The writing is kept, and it cannot
-          be changed there. Restoring it is not available yet.
+          This journal has been in Recently deleted since{" "}
+          {formatDate(journal.deletedAt!)}. Its writing is kept in the database,
+          and it cannot be changed there. The studio cannot restore it yet.
         </p>
       ) : (
         <p>

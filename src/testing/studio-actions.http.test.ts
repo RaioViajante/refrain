@@ -465,6 +465,17 @@ describe("the author's complete journey, through real HTTP and PostgreSQL", () =
     expect(edit).toContain(`${label} first paragraph.`);
     expect(edit).not.toContain("<script>window.__xss=1</script>");
 
+    // The second save names only the body, and adds a paragraph to what the
+    // editor showed. Everything the author wrote first must still be there.
+    const before = await db.query<{
+      opening: string;
+      body_text: string;
+      body: { content: unknown[] };
+    }>("select opening, body_text, body from entry_texts where entry_id = $1", [
+      ids.journal,
+    ]);
+    const original = before.rows[0]!;
+    const added = `${label} Kept paragraph.`;
     const saved = ok(
       await call(
         "saveJournalAction",
@@ -472,8 +483,7 @@ describe("the author's complete journey, through real HTTP and PostgreSQL", () =
           {
             entryId: ids.journal,
             expectedVersion: 1,
-            opening: `${label} opening`,
-            body: `${label} edited.\n\nKept paragraph.`,
+            body: `${original.body_text}\n\n${added}`,
           },
         ],
         { cookie: cookie(), routeId: ids.journal },
@@ -481,19 +491,27 @@ describe("the author's complete journey, through real HTTP and PostgreSQL", () =
     );
     journalVersion = Number(saved.version);
     expect(journalVersion).toBe(2);
-    const body = await scalar<string>(
-      "select body_text from entry_texts where entry_id = $1",
-      [ids.journal],
+    const after = (
+      await db.query<{
+        opening: string;
+        body_text: string;
+        body: { content: unknown[] };
+      }>(
+        "select opening, body_text, body from entry_texts where entry_id = $1",
+        [ids.journal],
+      )
+    ).rows[0]!;
+    expect(after.body_text).toBe(`${original.body_text}\n\n${added}`);
+    // The opening sentence was not named, so it is unchanged.
+    expect(after.opening).toBe(original.opening);
+    // The paragraphs that were there are exactly as they were.
+    expect(after.body.content).toHaveLength(original.body.content.length + 1);
+    expect(after.body.content.slice(0, original.body.content.length)).toEqual(
+      original.body.content,
     );
-    expect(body).toBe(`${label} edited.\n\nKept paragraph.`);
-    const document = await scalar<{ content: { type: string }[] }>(
-      "select body from entry_texts where entry_id = $1",
-      [ids.journal],
-    );
-    expect(document.content.map((node) => node.type)).toEqual([
-      "paragraph",
-      "paragraph",
-    ]);
+    expect(
+      (after.body.content as { type: string }[]).map((node) => node.type),
+    ).toEqual(["paragraph", "paragraph", "paragraph"]);
   });
 
   it("refuses a stale save as a conflict and writes nothing", async () => {
@@ -539,6 +557,224 @@ describe("the author's complete journey, through real HTTP and PostgreSQL", () =
         ids.journal,
       ]),
     ).toBe(journalVersion);
+  });
+
+  it("treats every update as a patch: what is left out stays, what is named changes", async () => {
+    // Artist: sort name set, then a rename that does not mention it.
+    ok(
+      await call(
+        "updateArtistAction",
+        [ids.artist, { sortName: `${label} Sort` }],
+        { cookie: cookie(), routeId: ids.artist },
+      ),
+    );
+    ok(
+      await call("updateArtistAction", [ids.artist, { kind: "group" }], {
+        cookie: cookie(),
+        routeId: ids.artist,
+      }),
+    );
+    const artist = () =>
+      db.query<{ name: string; sort_name: string | null; kind: string }>(
+        "select name, sort_name, kind from artists where id = $1",
+        [ids.artist],
+      );
+    expect((await artist()).rows[0]).toEqual({
+      name: own("Artist"),
+      sort_name: `${label} Sort`,
+      kind: "group",
+    });
+    // Clearing is on purpose: null clears, and only that field.
+    ok(
+      await call("updateArtistAction", [ids.artist, { sortName: null }], {
+        cookie: cookie(),
+        routeId: ids.artist,
+      }),
+    );
+    expect((await artist()).rows[0]).toEqual({
+      name: own("Artist"),
+      sort_name: null,
+      kind: "group",
+    });
+    // Nothing named, or a required field cleared: refused, nothing written.
+    const before = await snapshot();
+    for (const patch of [{}, { name: "" }, { name: null }]) {
+      expect(
+        await call("updateArtistAction", [ids.artist, patch], {
+          cookie: cookie(),
+          routeId: ids.artist,
+        }),
+      ).toMatchObject({ ok: false, code: "invalid_input" });
+    }
+    expect(await snapshot()).toEqual(before);
+
+    // Album: a retitle keeps the credits, the year, and the reference edition.
+    const album = () =>
+      db.query<{
+        title: string;
+        year: number;
+        label: string;
+        country: string;
+        credits: number;
+        tracks: number;
+      }>(
+        `select al.title, al.first_release_year as year, ed.label, ed.country,
+                (select count(*)::int from album_artists where album_id = al.id) as credits,
+                (select count(*)::int from album_tracks where album_id = al.id) as tracks
+           from albums al join album_editions ed on ed.album_id = al.id and ed.is_reference
+          where al.id = $1`,
+        [ids.album],
+      );
+    const albumBefore = (await album()).rows[0]!;
+    ok(
+      await call(
+        "updateAlbumAction",
+        [ids.album, { title: `${own("Album")} (retitled)` }],
+        { cookie: cookie(), routeId: ids.album },
+      ),
+    );
+    expect((await album()).rows[0]).toEqual({
+      ...albumBefore,
+      title: `${own("Album")} (retitled)`,
+    });
+    ok(
+      await call(
+        "updateAlbumAction",
+        [ids.album, { edition: { label: null } }],
+        { cookie: cookie(), routeId: ids.album },
+      ),
+    );
+    expect((await album()).rows[0]).toEqual({
+      ...albumBefore,
+      title: `${own("Album")} (retitled)`,
+      label: null,
+    });
+    expect(
+      await call("updateAlbumAction", [ids.album, { edition: {} }], {
+        cookie: cookie(),
+        routeId: ids.album,
+      }),
+    ).toMatchObject({ ok: false, code: "invalid_input" });
+    expect(
+      await call("updateAlbumAction", [ids.album, { credits: [] }], {
+        cookie: cookie(),
+        routeId: ids.album,
+      }),
+    ).toMatchObject({ ok: false, code: "invalid_input" });
+    expect((await album()).rows[0]).toMatchObject({
+      credits: 1,
+      tracks: albumBefore.tracks,
+    });
+
+    // Track: a retitle keeps its length, credits, and place on the album.
+    const track = () =>
+      db.query<{
+        title: string;
+        length_ms: number | null;
+        credits: number;
+        albums: number;
+      }>(
+        `select t.title, t.length_ms,
+                (select count(*)::int from track_artists where track_id = t.id) as credits,
+                (select count(*)::int from album_tracks where track_id = t.id) as albums
+           from tracks t where t.id = $1`,
+        [ids.track],
+      );
+    const trackBefore = (await track()).rows[0]!;
+    ok(
+      await call(
+        "updateTrackAction",
+        [ids.track, { title: `${own("Track 1")} (retitled)` }],
+        { cookie: cookie(), routeId: ids.track },
+      ),
+    );
+    expect((await track()).rows[0]).toEqual({
+      ...trackBefore,
+      title: `${own("Track 1")} (retitled)`,
+    });
+    expect(
+      await call("updateTrackAction", [ids.track, {}], {
+        cookie: cookie(),
+        routeId: ids.track,
+      }),
+    ).toMatchObject({ ok: false, code: "invalid_input" });
+  });
+
+  it("saves a journal as a patch: an unrelated field never erases the writing", async () => {
+    const stored = () =>
+      db.query<{ opening: string | null; body_text: string }>(
+        "select opening, body_text from entry_texts where entry_id = $1",
+        [ids.journal],
+      );
+    const before = (await stored()).rows[0]!;
+    expect(before.body_text.length).toBeGreaterThan(20);
+
+    // Neither field named: refused, and the text and version are untouched.
+    const snapshotBefore = await snapshot();
+    expect(
+      await call(
+        "saveJournalAction",
+        [{ entryId: ids.journal, expectedVersion: journalVersion }],
+        { cookie: cookie(), routeId: ids.journal },
+      ),
+    ).toMatchObject({ ok: false, code: "invalid_input" });
+    expect(await snapshot()).toEqual(snapshotBefore);
+
+    // Only the opening sentence named: the body is exactly as it was.
+    const opening = ok(
+      await call(
+        "saveJournalAction",
+        [
+          {
+            entryId: ids.journal,
+            expectedVersion: journalVersion,
+            opening: `${label} new opening`,
+          },
+        ],
+        { cookie: cookie(), routeId: ids.journal },
+      ),
+    );
+    journalVersion = Number(opening.version);
+    expect((await stored()).rows[0]).toEqual({
+      opening: `${label} new opening`,
+      body_text: before.body_text,
+    });
+
+    // A stale patch is still refused by the version counter.
+    expect(
+      await call(
+        "saveJournalAction",
+        [
+          {
+            entryId: ids.journal,
+            expectedVersion: journalVersion - 1,
+            opening: `${label} stale opening`,
+          },
+        ],
+        { cookie: cookie(), routeId: ids.journal },
+      ),
+    ).toEqual({ ok: false, code: "conflict" });
+    expect((await stored()).rows[0]!.opening).toBe(`${label} new opening`);
+
+    // Clearing the opening on purpose clears only the opening.
+    const cleared = ok(
+      await call(
+        "saveJournalAction",
+        [
+          {
+            entryId: ids.journal,
+            expectedVersion: journalVersion,
+            opening: null,
+          },
+        ],
+        { cookie: cookie(), routeId: ids.journal },
+      ),
+    );
+    journalVersion = Number(cleared.version);
+    expect((await stored()).rows[0]).toEqual({
+      opening: null,
+      body_text: before.body_text,
+    });
   });
 
   it("manages the private status and never publishes", async () => {
@@ -712,6 +948,31 @@ describe("the author's complete journey, through real HTTP and PostgreSQL", () =
       await get("/studio/journals", { cookie: cookie() })
     ).text();
     expect(journals).toMatch(/1 (draft|journal)|private/);
+    // The album is the journal's heading, with the artist as context; the
+    // author's own words appear only as a preview, beside dates and status.
+    expect(journals).toContain(`${own("Album")} (retitled)`);
+    expect(journals).toContain(own("Artist"));
+    const currentBody = await scalar<string>(
+      "select body_text from entry_texts where entry_id = $1",
+      [ids.journal],
+    );
+    expect(journals).toContain(currentBody.slice(0, 40));
+    expect(journals.replaceAll("<!-- -->", "")).toMatch(
+      /started [A-Z][a-z]{2} \d{1,2}, \d{4}/,
+    );
+    const albumPage = await (
+      await get(`/studio/albums/${ids.album}`, { cookie: cookie() })
+    ).text();
+    expect(albumPage.replaceAll("<!-- -->", "")).toMatch(
+      /Journal started [A-Z][a-z]{2} \d{1,2}, \d{4}/,
+    );
+    // The journal page's heading is the album, and its <title> names neither.
+    const journalPage = await (
+      await get(`/studio/journals/${ids.journal}`, { cookie: cookie() })
+    ).text();
+    expect(/<h1[^>]*>([^<]*)<\/h1>/.exec(journalPage)?.[1]).toBe(
+      `${own("Album")} (retitled)`,
+    );
   });
 });
 
@@ -1056,6 +1317,10 @@ describe("what a request without the author's session can do", () => {
 
 describe("the journey ends cleanly", () => {
   it("moves the journal to Recently deleted and keeps it, then signs out for good", async () => {
+    const writtenBeforeDelete = await scalar<string>(
+      "select body_text from entry_texts where entry_id = $1",
+      [ids.journal],
+    );
     ok(
       await call("deleteJournalAction", [ids.journal], {
         cookie: author.cookie,
@@ -1094,8 +1359,30 @@ describe("the journey ends cleanly", () => {
       await get("/studio/journals", { cookie: author.cookie })
     ).text();
     expect(list).toContain("Recently deleted");
-    // Restoring and "Delete now" are not offered anywhere.
-    expect(list).not.toMatch(/Restore journal|Delete now/);
+    // The words say what happened and promise nothing that is not built: the
+    // writing is kept, nothing removes it, and there is no restore or
+    // permanent delete in the studio (INV-4).
+    expect(list).toContain("not erased");
+    expect(list).toContain("nothing removes it automatically");
+    expect(list).toContain("cannot restore a journal");
+    expect(list).not.toMatch(/30 days|gone in|will be deleted|purged/i);
+    expect(list).not.toMatch(/Restore journal|Delete now|Restore this/);
+    // The deleted journal is not among the live ones, and its page says the same.
+    const deletedPage = await (
+      await get(`/studio/journals/${ids.journal}`, { cookie: author.cookie })
+    ).text();
+    expect(deletedPage).toContain("Its writing is kept in the database");
+    expect(deletedPage).toContain("cannot restore it yet");
+    expect(deletedPage).not.toMatch(
+      /Edit this journal|Move to Recently deleted/,
+    );
+    // The writing is still in PostgreSQL, whole.
+    expect(
+      await scalar<string>(
+        "select body_text from entry_texts where entry_id = $1",
+        [ids.journal],
+      ),
+    ).toBe(writtenBeforeDelete);
 
     // Signing out ends the session: the same cookie then grants nothing.
     await db.query("delete from auth_sessions where token = $1", [

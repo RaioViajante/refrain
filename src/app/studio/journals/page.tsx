@@ -77,8 +77,9 @@ async function Journals() {
             Recently deleted ({deleted.length})
           </h2>
           <p className="studio-hint" style={{ maxWidth: "62ch" }}>
-            Kept, not erased. Restoring a journal from here is not available
-            yet, and nothing in the studio removes these permanently.
+            Moved here, not erased: the writing stays in the database, and
+            nothing removes it automatically. The studio cannot restore a
+            journal from here, or delete one permanently, yet.
           </p>
           <JournalList
             journals={deleted}
@@ -100,6 +101,9 @@ function JournalList({
   label: string;
   deleted?: boolean;
 }) {
+  // The album is the journal's subject and heading (ADR 0002); the author's own
+  // words appear only as a preview, so several journals about one album are
+  // told apart by their dates and status.
   return (
     <ul className="studio-list" aria-label={label}>
       {journals.map((journal) => (
@@ -115,20 +119,22 @@ function JournalList({
           <span
             className="studio-meta"
             style={{ flex: "2 1 280px" }}
-            lang={journal.locale}
+            lang={journal.excerpt ? journal.locale : undefined}
           >
-            {journal.opening ?? "No opening sentence yet"}
+            {journal.excerpt || "Nothing written yet"}
           </span>
           {deleted ? (
             <span className="studio-meta">
-              deleted {journal.deletedAt ? formatDate(journal.deletedAt) : ""}
+              started {formatDate(journal.createdAt)} · deleted{" "}
+              {journal.deletedAt ? formatDate(journal.deletedAt) : ""}
             </span>
           ) : (
             <>
               <StatusMark status={journal.status} />
               <span className="studio-meta">
-                {plural(journal.wordCount, "word")} · edited{" "}
-                {formatDate(journal.updatedAt)}
+                started {formatDate(journal.createdAt)} · edited{" "}
+                {formatDate(journal.updatedAt)} ·{" "}
+                {plural(journal.wordCount, "word")}
               </span>
             </>
           )}

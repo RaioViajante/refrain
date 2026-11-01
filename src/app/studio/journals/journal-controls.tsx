@@ -120,7 +120,7 @@ export function JournalControls({
           >
             <path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5M7 7v4M9 7v4" />
           </svg>
-          Delete journal…
+          Move to Recently deleted…
         </button>
       </div>
 
@@ -148,16 +148,18 @@ export function JournalControls({
 
       <ConfirmDialog
         open={asking === "delete"}
-        title="Delete this journal?"
+        title="Move this journal to Recently deleted?"
         confirmLabel="Move to Recently deleted"
         pending={pending}
         onConfirm={remove}
         onCancel={() => setAsking(undefined)}
       >
         <p>
-          The writing moves to Recently deleted and is kept. Restoring it from
-          there is not available yet. Albums, artists and tracks stay in your
-          catalog.
+          This does not erase the writing. It stays in your database, and
+          nothing removes it automatically. The journal leaves your lists, and
+          it cannot be edited while it is in Recently deleted. The studio cannot
+          restore a journal, or delete one permanently, yet. Albums, artists and
+          tracks stay in your catalog.
         </p>
       </ConfirmDialog>
     </div>

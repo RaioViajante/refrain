@@ -82,6 +82,17 @@ function parseTimestamp(value: string): Date {
   return new Date(value);
 }
 
+const EXCERPT_LENGTH = 160;
+
+// PostgreSQL returns one more character than the limit, so a cut can be told
+// from text that fits exactly.
+function toExcerpt(text: string): string {
+  const characters = [...text];
+  return characters.length > EXCERPT_LENGTH
+    ? `${characters.slice(0, EXCERPT_LENGTH).join("").trimEnd()}…`
+    : text;
+}
+
 export interface AlbumJournalSummary {
   entryId: string;
   albumId: string;
@@ -92,7 +103,15 @@ export interface AlbumJournalSummary {
   locale: Locale;
   /** Visibility of that original language version. */
   status: VisibilityStatus;
+  /** The author's opening sentence. It is writing, not the journal's title. */
   opening: string | null;
+  /**
+   * A preview of the reflection: its first words on one line, at most 160
+   * characters, with an ellipsis when cut. Empty when nothing is written. For
+   * Writing Studio lists only; it is derived from the stored text and never
+   * stored, and it must never reach public metadata or a public response.
+   */
+  excerpt: string;
   wordCount: number;
   version: number;
   createdAt: Date;
@@ -109,6 +128,7 @@ type SummaryRow = {
   locale: Locale;
   status: VisibilityStatus;
   opening: string | null;
+  excerpt: string;
   word_count: number;
   version: number;
   created_at: string;
@@ -125,6 +145,7 @@ function toSummary(row: SummaryRow): AlbumJournalSummary {
     locale: row.locale,
     status: row.status,
     opening: row.opening,
+    excerpt: toExcerpt(row.excerpt),
     wordCount: row.word_count,
     version: row.version,
     createdAt: parseTimestamp(row.created_at),
@@ -143,6 +164,8 @@ const journalSummarySql = sql`
                      join artists ar on ar.id = aa.artist_id
                     where aa.album_id = al.id), '') as artist_names,
          o.locale, o.status, o.opening,
+         left(regexp_replace(btrim(o.body_text, E' \t\n'), '[[:space:]]+', ' ', 'g'),
+              ${EXCERPT_LENGTH + 1}) as excerpt,
          coalesce(array_length(regexp_split_to_array(btrim(o.body_text, E' \t\n'), '[[:space:]]+'), 1), 0)
            * (btrim(o.body_text, E' \t\n') <> '')::int as word_count,
          e.version, e.created_at, e.updated_at, e.deleted_at

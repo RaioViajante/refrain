@@ -820,3 +820,256 @@ describe("journal queries", () => {
     });
   });
 });
+
+describe("saving is a patch: the author's text never disappears for an unrelated reason", () => {
+  const BODY =
+    "[Test] First paragraph.\nA second line.\n\n[Test] Second paragraph.";
+
+  async function written(tx: Transaction) {
+    const { albumId } = await setUp(tx);
+    const { entryId } = await createAlbumJournal(tx, author, {
+      albumId,
+      locale: "en",
+      opening: "[Test] An opening.",
+      body: BODY,
+    });
+    return entryId;
+  }
+
+  async function stored(tx: Transaction, entryId: string) {
+    const [text] = await tx
+      .select()
+      .from(schema.entryTexts)
+      .where(eq(schema.entryTexts.entryId, entryId));
+    return text!;
+  }
+
+  it("keeps the body exactly when only the opening sentence is saved", async () => {
+    await inScratchTransaction(async (tx) => {
+      const entryId = await written(tx);
+      const before = await stored(tx, entryId);
+      const saved = await saveAlbumJournal(tx, author, {
+        entryId,
+        expectedVersion: 1,
+        opening: "[Test] A new opening.",
+      });
+      expect(saved.version).toBe(2);
+      const after = await stored(tx, entryId);
+      expect(after.opening).toBe("[Test] A new opening.");
+      expect(after.body).toEqual(before.body);
+      expect(after.bodyText).toBe(BODY);
+    });
+  });
+
+  it("keeps the opening sentence when only the body is saved", async () => {
+    await inScratchTransaction(async (tx) => {
+      const entryId = await written(tx);
+      await saveAlbumJournal(tx, author, {
+        entryId,
+        expectedVersion: 1,
+        body: "[Test] Rewritten.",
+      });
+      const after = await stored(tx, entryId);
+      expect(after.opening).toBe("[Test] An opening.");
+      expect(after.bodyText).toBe("[Test] Rewritten.");
+    });
+  });
+
+  it("clears the body or the opening only when told to, and only that one", async () => {
+    await inScratchTransaction(async (tx) => {
+      const entryId = await written(tx);
+      await saveAlbumJournal(tx, author, {
+        entryId,
+        expectedVersion: 1,
+        body: "",
+      });
+      let after = await stored(tx, entryId);
+      expect(after).toMatchObject({
+        body: null,
+        bodyText: "",
+        opening: "[Test] An opening.",
+      });
+
+      const second = await written(tx);
+      await saveAlbumJournal(tx, author, {
+        entryId: second,
+        expectedVersion: 1,
+        opening: null,
+      });
+      after = await stored(tx, second);
+      expect(after.opening).toBeNull();
+      expect(after.bodyText).toBe(BODY);
+
+      const third = await written(tx);
+      await saveAlbumJournal(tx, author, {
+        entryId: third,
+        expectedVersion: 1,
+        body: null,
+      });
+      expect(await stored(tx, third)).toMatchObject({
+        body: null,
+        bodyText: "",
+        opening: "[Test] An opening.",
+      });
+    });
+  });
+
+  it("refuses a save that names neither field, and leaves the text and the version alone", async () => {
+    await inScratchTransaction(async (tx) => {
+      const entryId = await written(tx);
+      const before = await stored(tx, entryId);
+      for (const input of [
+        { entryId, expectedVersion: 1 },
+        { entryId, expectedVersion: 1, opening: undefined, body: undefined },
+        { entryId, expectedVersion: 1, status: "published", version: 9 },
+      ]) {
+        expect(
+          await failure(tx, (db) => saveAlbumJournal(db, author, input)),
+        ).toBe("invalid_input");
+      }
+      const after = await stored(tx, entryId);
+      expect(after.body).toEqual(before.body);
+      expect(after.bodyText).toBe(BODY);
+      expect((await getAlbumJournal(tx, author, entryId))?.version).toBe(1);
+    });
+  });
+
+  it("can still change the opening sentence of text the plain editor cannot show, and leaves that text alone", async () => {
+    await inScratchTransaction(async (tx) => {
+      const entryId = await written(tx);
+      const rich = {
+        type: "doc",
+        content: [
+          {
+            type: "heading",
+            attrs: { level: 2 },
+            content: [{ type: "text", text: "[Test] H" }],
+          },
+        ],
+      };
+      await tx
+        .update(schema.entryTexts)
+        .set({ body: rich, bodyText: "[Test] H" })
+        .where(eq(schema.entryTexts.entryId, entryId));
+      await saveAlbumJournal(tx, author, {
+        entryId,
+        expectedVersion: 1,
+        opening: "[Test] Changed",
+      });
+      const after = await stored(tx, entryId);
+      expect(after.opening).toBe("[Test] Changed");
+      expect(after.body).toEqual(rich);
+      // Replacing the body of that text is still refused.
+      expect(
+        await failure(tx, (db) =>
+          saveAlbumJournal(db, author, {
+            entryId,
+            expectedVersion: 2,
+            body: "x",
+          }),
+        ),
+      ).toBe("unsupported_content");
+    });
+  });
+
+  it("respects the version counter for a patch too", async () => {
+    await inScratchTransaction(async (tx) => {
+      const entryId = await written(tx);
+      await saveAlbumJournal(tx, author, {
+        entryId,
+        expectedVersion: 1,
+        opening: "[Test] First tab",
+      });
+      expect(
+        await failure(tx, (db) =>
+          saveAlbumJournal(db, author, {
+            entryId,
+            expectedVersion: 1,
+            opening: "[Test] Stale tab",
+          }),
+        ),
+      ).toBe("version_conflict");
+      expect((await stored(tx, entryId)).opening).toBe("[Test] First tab");
+    });
+  });
+
+  it("is not touched by changing who can see it, or by moving it to Recently deleted", async () => {
+    await inScratchTransaction(async (tx) => {
+      const entryId = await written(tx);
+      const before = await stored(tx, entryId);
+      await setAlbumJournalPrivacy(tx, author, {
+        entryId,
+        locale: "en",
+        status: "private",
+      });
+      await deleteAlbumJournal(tx, author, entryId);
+      const after = await stored(tx, entryId);
+      expect(after.body).toEqual(before.body);
+      expect(after.bodyText).toBe(BODY);
+      expect(after.opening).toBe("[Test] An opening.");
+      expect((await getAlbumJournal(tx, author, entryId))?.version).toBe(1);
+    });
+  });
+});
+
+describe("the preview of a journal", () => {
+  it("is drawn from the body on one line, cut with an ellipsis, and is not the opening sentence", async () => {
+    await inScratchTransaction(async (tx) => {
+      const { albumId } = await setUp(tx);
+      const long = `[Test] ${"word ".repeat(60)}end`;
+      const short = await createAlbumJournal(tx, author, {
+        albumId,
+        locale: "en",
+        opening: "[Test] Opening sentence",
+        body: "[Test] First line.\n\n  [Test]   Second\tparagraph.",
+      });
+      const cut = await createAlbumJournal(tx, author, {
+        albumId,
+        locale: "en",
+        body: long,
+      });
+      const empty = await createAlbumJournal(tx, author, {
+        albumId,
+        locale: "en",
+        opening: "[Test] Only an opening",
+      });
+
+      const byId = new Map(
+        (await listAlbumJournals(tx, author, { albumId })).map((j) => [
+          j.entryId,
+          j,
+        ]),
+      );
+      expect(byId.get(short.entryId)?.excerpt).toBe(
+        "[Test] First line. [Test] Second paragraph.",
+      );
+      const excerpt = byId.get(cut.entryId)!.excerpt;
+      expect([...excerpt]).toHaveLength(161);
+      expect(excerpt.endsWith("…")).toBe(true);
+      expect(excerpt.startsWith("[Test] word word")).toBe(true);
+      // An opening sentence is never a preview of nothing.
+      expect(byId.get(empty.entryId)?.excerpt).toBe("");
+      // The preview is derived: the stored body is exactly what was written.
+      const [text] = await tx
+        .select()
+        .from(schema.entryTexts)
+        .where(eq(schema.entryTexts.entryId, short.entryId));
+      expect(text?.bodyText).toBe(
+        "[Test] First line.\n\n  [Test]   Second\tparagraph.",
+      );
+    });
+  });
+
+  it("is an exact fit, not a cut, at 160 characters", async () => {
+    await inScratchTransaction(async (tx) => {
+      const { albumId } = await setUp(tx);
+      const exact = "x".repeat(160);
+      const { entryId } = await createAlbumJournal(tx, author, {
+        albumId,
+        locale: "en",
+        body: exact,
+      });
+      expect((await getAlbumJournal(tx, author, entryId))?.excerpt).toBe(exact);
+    });
+  });
+});

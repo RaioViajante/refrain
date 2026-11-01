@@ -152,12 +152,19 @@ async function Album({ params }: { params: Promise<{ id: string }> }) {
               <li key={journal.entryId} className="studio-row">
                 <span className="studio-row-title">
                   <Link href={`/studio/journals/${journal.entryId}`}>
-                    {journal.opening ?? "A journal with no opening yet"}
+                    Journal started {formatDate(journal.createdAt)}
                   </Link>
                 </span>
                 <StatusMark status={journal.status} />
                 <span className="studio-meta">
                   edited {formatDate(journal.updatedAt)}
+                </span>
+                <span
+                  className="studio-meta"
+                  style={{ flexBasis: "100%" }}
+                  lang={journal.excerpt ? journal.locale : undefined}
+                >
+                  {journal.excerpt || "Nothing written yet"}
                 </span>
               </li>
             ))}

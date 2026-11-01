@@ -166,10 +166,35 @@ After [the author account exists](#first-time-setup-of-the-author-account), `pnp
 4. **Journal.** Journals → *Write a journal* (or *Write a journal about this album* on the album page) → choose the language you write in, an opening sentence, and your reflection; a blank line starts a paragraph → *Save as draft*. Saving is explicit; Cmd or Ctrl+S works.
 5. **Come back.** Leave, reopen the journal from Journals, *Edit this journal*, and the text is as you left it. Saving again checks that nobody saved in between; if another tab did, nothing is overwritten and your text stays in the box.
 6. **Who can see it.** On the journal page, *Draft* or *Private*. Both are only yours; there is nothing to publish with yet.
-7. **Delete and archive.** *Delete journal…* moves it to Recently deleted and keeps the writing (restoring it is not built yet). An artist, album, or track can be archived (hidden from pickers) or, only if nothing refers to it, deleted; otherwise the page says what still depends on it.
+7. **Delete and archive.** *Move to Recently deleted…* keeps the journal's writing in the database and takes it off your lists; the studio cannot restore it or delete it permanently yet. An artist, album, or track can be archived (hidden from pickers) or, only if nothing refers to it, deleted; otherwise the page says what still depends on it.
 8. **Numbers.** The Desk and the lists show counts that PostgreSQL computed on that request ([evidence](evidence/m1-3b.md)).
 
 *Sign out* ends the session; the journal's address then shows nothing private.
+
+### Trying the Studio with synthetic data
+
+Do this to see the journey without touching your own writing. It uses the disposable test database and a synthetic author, so your development database and your real account are never involved. Every value that matters is set on the command line, because `.env` points at the development database and Next.js and the author command would otherwise read it.
+
+```sh
+pnpm db:test:up                                   # the disposable test database
+TESTURL=$(grep -E '^TEST_DATABASE_URL=' .env | cut -d= -f2-)   # read, never printed
+pnpm build                                        # needs no database
+
+# A synthetic author in the TEST database only (the password is a test value).
+echo "[Test] correct horse battery staple" | \
+  DATABASE_URL="$TESTURL" BETTER_AUTH_SECRET=$(openssl rand -base64 32) \
+  BETTER_AUTH_URL=http://127.0.0.1:3400 REFRAIN_AUTHOR_EMAIL=author@example.com \
+  pnpm --silent author:provision --target=127.0.0.1:5433/refrain_test
+
+# The production build, against the test database.
+DATABASE_URL="$TESTURL" BETTER_AUTH_SECRET=$(openssl rand -base64 32) \
+  BETTER_AUTH_URL=http://127.0.0.1:3400 REFRAIN_AUTHOR_EMAIL=author@example.com \
+  pnpm exec next start -H 127.0.0.1 -p 3400
+```
+
+Open `http://127.0.0.1:3400/studio`, sign in as `author@example.com` with that password, and follow [Using the Writing Studio](#using-the-writing-studio-m13b). When you are done, stop the server and discard everything with `pnpm db:test:down && pnpm db:test:up`.
+
+The same journey, without a browser and with its negative cases, is what `pnpm test:http` runs: create an artist, an album, and tracks; reorder them; write a journal of several paragraphs; save; leave and return; edit and save again with every earlier paragraph still there; and see that every action is refused without the author's session. A maintained browser test is a follow-up ([Roadmap](roadmap.md#follow-ups-from-the-m13b-review)).
 
 ### Commands
 
