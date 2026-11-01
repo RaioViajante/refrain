@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { copyFileSync } from "node:fs";
+import { copyFileSync, mkdirSync } from "node:fs";
 
 import { Client } from "pg";
 
@@ -59,7 +59,12 @@ export default async function setup() {
       // For diagnosis on one's own machine: the log can hold a stack trace
       // but, by the application's logging rules, no writing or credentials.
       if (process.env.E2E_KEEP_SERVER_LOG) {
-        copyFileSync(server.serverLog, "test-results/server.log");
+        try {
+          mkdirSync("test-results", { recursive: true });
+          copyFileSync(server.serverLog, "test-results/server.log");
+        } catch {
+          // Diagnosis only: it must never stop the server from being stopped.
+        }
       }
       await server.stop();
     }
@@ -67,8 +72,9 @@ export default async function setup() {
 }
 
 // Removes only the records whose names start with the E2E prefix, from the
-// verified disposable database, in dependency order. Published slugs would
-// stay reserved by design (ADR 0003), but these journals are never published.
+// verified disposable database, in dependency order. These journals are never published through the application, so no
+// published slug is retired here; a slug the tests marked published directly
+// in the database is simply deleted with its disposable row.
 async function removeSyntheticRecords(): Promise<void> {
   const client = new Client({
     connectionString: readTestDatabaseUrl(process.env),

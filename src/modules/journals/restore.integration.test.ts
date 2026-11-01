@@ -409,7 +409,77 @@ describe("restoring an album journal", () => {
   });
 });
 
+describe("a restore and the lists that show it", () => {
+  it("lists a deleted journal that has no language version at all, instead of failing", async () => {
+    await inScratchTransaction(async (tx) => {
+      const { albumId } = await setUp(tx);
+      const entryId = await createTestAlbumJournal(tx, {
+        albumId,
+        slug: "test-grace",
+        versions: [{ locale: "en", status: "private" }],
+        deletedAt: later,
+      });
+      await tx
+        .delete(schema.entryTexts)
+        .where(eq(schema.entryTexts.entryId, entryId));
+      // The summary joins the original version, so such a journal has no
+      // summary row; the version list of a journal that has one is empty
+      // rather than null.
+      expect(await listDeletedAlbumJournals(tx, author)).toEqual([]);
+    });
+  });
+
+  it("keeps a journal's versions listed with their statuses while it is deleted", async () => {
+    await inScratchTransaction(async (tx) => {
+      const { albumId } = await setUp(tx);
+      const entryId = await createTestAlbumJournal(tx, {
+        albumId,
+        slug: "test-grace",
+        versions: [
+          { locale: "en", status: "published", publishedAt: longAgo },
+          { locale: "pt-BR", isOriginal: false, status: "draft" },
+        ],
+        deletedAt: later,
+      });
+      const [listed] = (await listDeletedAlbumJournals(tx, author)).filter(
+        (journal) => journal.entryId === entryId,
+      );
+      expect(listed?.versions).toEqual([
+        { locale: "en", isOriginal: true, status: "published" },
+        { locale: "pt-BR", isOriginal: false, status: "draft" },
+      ]);
+    });
+  });
+});
+
 describe("what the public can see around a restore", () => {
+  it("lets a reflection that was flagged for publication go public with its version when the author publishes it again", async () => {
+    // Documented in ADR 0005: a restore leaves the reflection's own flag, and
+    // the flag only ever matters while its version is public.
+    await inScratchTransaction(async (tx) => {
+      const { albumId, trackIds } = await setUp(tx);
+      const entryId = await createTestAlbumJournal(tx, {
+        albumId,
+        slug: "test-grace",
+        versions: [{ locale: "en", status: "published", publishedAt: longAgo }],
+      });
+      await createTestTrackReflection(tx, {
+        albumJournalId: entryId,
+        albumId,
+        trackId: trackIds[0]!,
+        isPublished: true,
+        texts: { en: "[Test] Flagged" },
+      });
+      await deleteAlbumJournal(tx, author, entryId);
+      await restoreAlbumJournal(tx, author, entryId);
+      expect(await listPublicTrackReflections(tx, entryId, "en")).toEqual([]);
+      await publishLanguageVersion(tx, entryId, "en");
+      expect(await listPublicTrackReflections(tx, entryId, "en")).toHaveLength(
+        1,
+      );
+    });
+  });
+
   it("shows nothing while deleted, nothing after the restore, and the writing again only when the author publishes it", async () => {
     await inScratchTransaction(async (tx) => {
       const { albumId } = await setUp(tx);

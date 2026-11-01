@@ -12,6 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
   checkOutputPath,
+  checkSidecar,
   knownServices,
   OpsError,
   parseArguments,
@@ -93,6 +94,7 @@ describe("which database a target may name", () => {
     expect(targetOfUrl("mysql://u:p@127.0.0.1/db")).toBeUndefined();
     expect(targetOfUrl("not a url")).toBeUndefined();
     expect(targetOfUrl(undefined)).toBeUndefined();
+    expect(targetOfUrl("postgres://u:p@127.0.0.1/db%E0%A4%A")).toBeUndefined();
   });
 });
 
@@ -204,6 +206,45 @@ describe("the commands and their flags", () => {
       [],
     ]) {
       expect(() => parseArguments(argv), argv.join(" ")).toThrow(OpsError);
+    }
+  });
+});
+
+describe("more output-path edge cases", () => {
+  it("refuses a directory whose name starts with two dots inside the repository, and an existing checksum file", () => {
+    const root = mkdtempSync(join(tmpdir(), "refrain-ops-root2-"));
+    const outside = mkdtempSync(join(tmpdir(), "refrain-ops-out2-"));
+    try {
+      mkdirSync(join(root, "..backups"));
+      expect(() =>
+        checkOutputPath(join(root, "..backups", "x.dump"), root),
+      ).toThrow(OpsError);
+      writeFileSync(join(outside, "new.dump.sha256"), "x");
+      expect(() => checkOutputPath(join(outside, "new.dump"), root)).toThrow(
+        OpsError,
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("the checksum next to an archive", () => {
+  it("passes when it matches, is skipped when absent, and refuses a changed archive", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "refrain-ops-sum-"));
+    try {
+      const file = join(directory, "a.dump");
+      writeFileSync(file, "archive bytes");
+      expect(await checkSidecar(file)).toBe(false);
+      const { createHash } = await import("node:crypto");
+      const sum = createHash("sha256").update("archive bytes").digest("hex");
+      writeFileSync(`${file}.sha256`, `${sum}  a.dump\n`);
+      expect(await checkSidecar(file)).toBe(true);
+      writeFileSync(file, "archive bytes, changed");
+      await expect(checkSidecar(file)).rejects.toBeInstanceOf(OpsError);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
     }
   });
 });

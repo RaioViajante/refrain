@@ -46,8 +46,11 @@ async function main(): Promise<number> {
         `Restored into a new scratch database on the disposable test container: ${result.scratch}`,
         `  migrations applied: ${result.migrations}`,
         ...Object.entries(result.counts).map(([t, n]) => `  ${t}: ${n} rows`),
+        result.checksumChecked
+          ? "The archive matches its .sha256 file."
+          : "No .sha256 file was found next to the archive, so its integrity was not checked.",
         result.compared
-          ? "The restored tables and the text of every language version equal the source's."
+          ? "The row counts of the compared tables, the migration count, and a digest of every language version, entry, and slug equal the source's. Tables not listed above are not compared."
           : "Not compared with a source (no --compare-with): the archive restored without error, nothing more is claimed.",
         "The scratch database is discarded by pnpm db:test:down.",
       ].join("\n"),

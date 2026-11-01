@@ -1742,6 +1742,39 @@ describe("recovering a journal from Recently deleted, through real HTTP and Post
     expect((await entryRow(ids.recoverable)).deleted_at).not.toBeNull();
   });
 
+  it("answers a malformed restore body from a visitor with the framework's own error too: no session, no content, no change", async () => {
+    // Next.js decodes the body before any session check, so a visitor gets the
+    // framework's error (docs/security.md, deployment gate 3), never the
+    // application's. Both must reveal nothing and write nothing.
+    const before = await snapshot();
+    const action = actions.restoreJournalAction!;
+    for (const cookie of [undefined, "refrain.session_token=forged.value"]) {
+      for (const body of ['{"name":"$B1"}', "[", "", "\u0000"]) {
+        const response = await fetch(
+          `${base}${action.route.replace("[id]", ids.recoverable)}`,
+          {
+            method: "POST",
+            redirect: "manual",
+            headers: {
+              origin: base,
+              "content-type": "text/plain;charset=UTF-8",
+              "next-action": action.id,
+              ...(cookie ? { cookie } : {}),
+            },
+            body,
+          },
+        );
+        const text = await response.text();
+        expect(response.status, body).toBe(500);
+        expect(text).not.toContain(label);
+        expect(text).not.toMatch(
+          /\sat\s|node_modules|select |update |unauthorized/i,
+        );
+      }
+    }
+    expect(await snapshot()).toEqual(before);
+  });
+
   it("answers a malformed restore body with the framework's own error, writing nothing", async () => {
     const before = await snapshot();
     const action = actions.restoreJournalAction!;

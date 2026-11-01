@@ -1,10 +1,11 @@
 import { spawn } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import {
-  chmodSync,
+  fchmodSync,
   closeSync,
   createReadStream,
   existsSync,
+  readFileSync,
   fstatSync,
   lstatSync,
   openSync,
@@ -13,7 +14,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, isAbsolute, relative } from "node:path";
+import { dirname, isAbsolute, relative, sep } from "node:path";
 
 import { TEST_DATABASE_MARKER } from "@/testing/test-database";
 
@@ -77,7 +78,12 @@ export function targetOfUrl(value: string | undefined): string | undefined {
   }
   const host = url.hostname.replace(/^\[|\]$/g, "").toLowerCase();
   const port = url.port || "5432";
-  const database = decodeURIComponent(url.pathname.replace(/^\//, ""));
+  let database: string;
+  try {
+    database = decodeURIComponent(url.pathname.replace(/^\//, ""));
+  } catch {
+    return undefined;
+  }
   return `${host}:${port}/${database}`;
 }
 
@@ -138,7 +144,12 @@ export function checkOutputPath(output: string, repositoryRoot: string): void {
   if (/[\0\n\r]/.test(output)) {
     throw new OpsError("--output contains characters that are not allowed.");
   }
-  if (existsSync(output) || safeLstat(output)) {
+  if (
+    existsSync(output) ||
+    safeLstat(output) ||
+    existsSync(`${output}.sha256`) ||
+    safeLstat(`${output}.sha256`)
+  ) {
     throw new OpsError(
       "The output file already exists, so nothing was written. Backups are never overwritten; choose a new name.",
     );
@@ -148,10 +159,13 @@ export function checkOutputPath(output: string, repositoryRoot: string): void {
   if (!stat?.isDirectory()) {
     throw new OpsError("The directory for --output does not exist.");
   }
-  const real = realpathSync(directory);
-  const root = realpathSync(repositoryRoot);
+  // `.native` canonicalizes the case of a path on a case-insensitive file
+  // system, so a wrongly cased path into the repository is still inside it.
+  const real = realpathSync.native(directory);
+  const root = realpathSync.native(repositoryRoot);
   const inside = relative(root, real);
-  if (inside === "" || (!inside.startsWith("..") && !isAbsolute(inside))) {
+  const leavesRoot = inside === ".." || inside.startsWith(`..${sep}`);
+  if (!leavesRoot) {
     throw new OpsError(
       "--output is inside the repository. A backup holds private writing and authentication data and never belongs in it.",
     );
@@ -256,6 +270,9 @@ function inContainer(
     child.on("error", reject);
     child.on("close", (code) => resolvePromise({ code, stdout, stderr }));
     if (options.stdin && child.stdin) {
+      // The tool may exit before it has read the whole file (a file that is
+      // not an archive): that is its answer, not a crash here.
+      child.stdin.on("error", () => undefined);
       options.stdin.pipe(child.stdin);
     }
   });
@@ -306,6 +323,64 @@ function sha256OfFile(path: string): Promise<string> {
   });
 }
 
+/**
+ * If a `.sha256` sidecar sits next to the archive, the archive must match it.
+ * A mismatch means the file was changed or damaged after it was written.
+ * Returns whether a sidecar was found and matched.
+ */
+export async function checkSidecar(file: string): Promise<boolean> {
+  const sidecar = `${file}.sha256`;
+  if (!safeLstat(sidecar)?.isFile()) {
+    return false;
+  }
+  const expected = readFileSync(sidecar, "utf8").trim().split(/\s+/)[0];
+  if (expected !== (await sha256OfFile(file))) {
+    throw new OpsError(
+      "The archive does not match its .sha256 file: it was changed or damaged after it was written. Nothing was restored.",
+    );
+  }
+  return true;
+}
+
+function runHost(args: string[], cwd: string): Promise<Execution> {
+  return new Promise((resolvePromise, reject) => {
+    const child = spawn("docker", args, {
+      cwd,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => (stdout += String(chunk)));
+    child.stderr.on("data", (chunk) => (stderr += String(chunk)));
+    child.on("error", reject);
+    child.on("close", (code) => resolvePromise({ code, stdout, stderr }));
+  });
+}
+
+async function assertServicePort(service: Service, cwd: string): Promise<void> {
+  const port = service.target.split("/")[0]!.split(":").pop();
+  const published = await runHost(
+    [
+      "compose",
+      ...(service.name === "postgres-test" ? ["--profile", "test"] : []),
+      "port",
+      service.name,
+      "5432",
+    ],
+    cwd,
+  ).catch(() => undefined);
+  if (!published || published.code !== 0) {
+    throw new OpsError(
+      `Could not find the ${service.name} container. Is it running (pnpm db:up, or pnpm db:test:up)? Nothing was written.`,
+    );
+  }
+  if (published.stdout.trim().split(":").pop() !== port) {
+    throw new OpsError(
+      `The ${service.name} container does not publish port ${port}, so --target does not name it. Nothing was written.`,
+    );
+  }
+}
+
 export interface BackupResult {
   output: string;
   bytes: number;
@@ -323,6 +398,11 @@ export async function runBackup(options: {
   const service = resolveTarget(options.target, options.env);
   checkOutputPath(options.output, options.repositoryRoot);
   const database = service.target.split("/")[1]!;
+
+  // The Compose container is the one that answers on the target's port, so a
+  // different local PostgreSQL with a database of the same name is not
+  // mistaken for it.
+  await assertServicePort(service, options.repositoryRoot);
 
   // The database named is the one the container serves, and it exists.
   const served = await scalar(
@@ -344,9 +424,20 @@ export async function runBackup(options: {
   // `wx` fails if the file exists: a second guard behind checkOutputPath.
   // 0600: only the owner can read it, whatever the umask.
   const descriptor = openSync(options.output, "wx", 0o600);
-  chmodSync(options.output, 0o600);
   let finished = false;
+  // An interrupt mid-dump must not leave a partial archive behind.
+  const onInterrupt = () => {
+    try {
+      unlinkSync(options.output);
+    } catch {
+      // Already gone.
+    }
+    process.exit(130);
+  };
+  process.once("SIGINT", onInterrupt);
+  process.once("SIGTERM", onInterrupt);
   try {
+    fchmodSync(descriptor, 0o600);
     const excludes = EXCLUDED_DATA.map(
       (table) => `--exclude-table-data=public.${table}`,
     ).join(" ");
@@ -365,6 +456,8 @@ export async function runBackup(options: {
     }
     finished = true;
   } finally {
+    process.off("SIGINT", onInterrupt);
+    process.off("SIGTERM", onInterrupt);
     closeSync(descriptor);
     if (!finished) {
       // Only the file this run just created.
@@ -396,14 +489,34 @@ const COMPARED_TABLES = [
   "entry_texts",
   "album_journals",
   "entry_slugs",
+  "album_editions",
+  "edition_tracks",
+  "track_artists",
+  "track_reflections",
+  "track_reflection_texts",
+  "memories",
+  "memory_music",
+  "artist_journals",
   "auth_users",
   "auth_accounts",
 ];
 const COUNT_QUERY = COMPARED_TABLES.map(
   (table) => `select '${table}' as t, count(*)::text as n from public.${table}`,
 ).join(" union all ");
-const WRITING_DIGEST_QUERY =
-  "select coalesce(md5(string_agg(entry_id::text || ':' || locale || ':' || status || ':' || coalesce(opening,'') || ':' || body_text, '|' order by entry_id, locale)), 'empty') from public.entry_texts";
+// One digest over what a restore must not change: every language version's
+// text, status, and publication history, each entry's deletion, history, and
+// version, and every slug with its marks.
+const WRITING_DIGEST_QUERY = `select md5(
+  coalesce((select string_agg(concat_ws(':', entry_id, locale, is_original, status,
+              coalesce(opening,''), body_text, coalesce(published_at::text,''),
+              coalesce(first_published_at::text,'')), '|' order by entry_id, locale)
+              from public.entry_texts), '') || '#' ||
+  coalesce((select string_agg(concat_ws(':', id, kind, version,
+              coalesce(deleted_at::text,''), coalesce(first_published_at::text,'')),
+              '|' order by id) from public.entries), '') || '#' ||
+  coalesce((select string_agg(concat_ws(':', kind, slug, coalesce(entry_id::text,''),
+              is_current, was_published), '|' order by kind, slug)
+              from public.entry_slugs), ''))`;
 
 async function snapshotOf(
   service: Service["name"],
@@ -439,6 +552,7 @@ export interface VerifyResult {
   counts: Record<string, string>;
   migrations: string;
   compared: boolean;
+  checksumChecked: boolean;
 }
 
 /**
@@ -462,9 +576,16 @@ export async function runVerify(options: {
       "--file is not a regular file (symbolic links are refused).",
     );
   }
+  // `--file` must be a backup you made: restoring runs its contents as SQL on
+  // the disposable container. The checksum catches damage and edits, not a
+  // file that was hostile from the start.
+  const checked = await checkSidecar(options.file);
   const source = options.compareWith
     ? resolveTarget(options.compareWith, options.env)
     : undefined;
+  if (source) {
+    await assertServicePort(source, options.repositoryRoot);
+  }
 
   // The destination is always the disposable test container, which must carry
   // the disposable marker. It is not configurable.
@@ -542,7 +663,7 @@ export async function runVerify(options: {
       differences.push("migrations");
     }
     if (before.digest !== after.digest) {
-      differences.push("the text of the language versions");
+      differences.push("the writing, its status and history, or the slugs");
     }
     if (differences.length > 0) {
       throw new OpsError(
@@ -556,5 +677,6 @@ export async function runVerify(options: {
     counts: after.counts,
     migrations: after.migrations,
     compared,
+    checksumChecked: checked,
   };
 }

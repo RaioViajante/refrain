@@ -223,10 +223,10 @@ export async function listDeletedAlbumJournals(
     }
   >(sql`
     select s.*,
-           (select json_agg(json_build_object(
+           (select coalesce(json_agg(json_build_object(
                      'locale', t.locale, 'is_original', t.is_original,
                      'status', t.status)
-                   order by t.is_original desc, t.locale)
+                   order by t.is_original desc, t.locale), '[]'::json)
               from entry_texts t where t.entry_id = s.entry_id) as versions
       from (${journalSummarySql} where e.deleted_at is not null) s
      order by s.deleted_at desc, s.entry_id`);
