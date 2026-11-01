@@ -9,6 +9,7 @@ Significant architectural, data, and workflow decisions are recorded here as sho
 | [0003](0003-relational-schema-conventions.md) | Relational Schema Conventions | Accepted |
 | [0004](0004-single-author-identity.md) | Single-Author Identity and Access | Accepted |
 | [0005](0005-restoring-deleted-journals.md) | Restoring Deleted Journals | Accepted |
+| [0006](0006-publication-decision-and-acknowledgement.md) | Publication Decision and Acknowledgement | **Proposed** (owner review, issue #25) |
 
 ## Format
 
