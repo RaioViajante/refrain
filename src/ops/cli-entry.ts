@@ -1,0 +1,67 @@
+// Entry point of the local backup commands (./backup.ts), run through the
+// package scripts `db:backup` and `db:backup:verify`.
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+
+import { OpsError, parseArguments, runBackup, runVerify } from "./backup";
+
+const root = resolve(__dirname, "..", "..");
+
+async function main(): Promise<number> {
+  // Local configuration lives in .env; variables already set take precedence.
+  if (existsSync(resolve(root, ".env"))) {
+    process.loadEnvFile(resolve(root, ".env"));
+  }
+  try {
+    const command = parseArguments(process.argv.slice(2));
+    if (command.command === "backup") {
+      const result = await runBackup({
+        target: command.target,
+        output: command.output,
+        env: process.env,
+        repositoryRoot: root,
+      });
+      console.log(
+        [
+          `Backup written: ${result.output}`,
+          `  size: ${result.bytes} bytes, sha256: ${result.sha256}`,
+          `  source: the ${result.service} service (sessions and rate-limit data are not included)`,
+          "",
+          "This backup is NOT verified. It holds private writing and the author's",
+          "password hash. Keep it off this device's repository, and prove it can be",
+          "restored before relying on it:",
+          `  pnpm db:backup:verify --file=${result.output} --compare-with=${command.target}`,
+        ].join("\n"),
+      );
+      return 0;
+    }
+    const result = await runVerify({
+      file: command.file,
+      compareWith: command.compareWith,
+      env: process.env,
+      repositoryRoot: root,
+    });
+    console.log(
+      [
+        `Restored into a new scratch database on the disposable test container: ${result.scratch}`,
+        `  migrations applied: ${result.migrations}`,
+        ...Object.entries(result.counts).map(([t, n]) => `  ${t}: ${n} rows`),
+        result.compared
+          ? "The restored tables and the text of every language version equal the source's."
+          : "Not compared with a source (no --compare-with): the archive restored without error, nothing more is claimed.",
+        "The scratch database is discarded by pnpm db:test:down.",
+      ].join("\n"),
+    );
+    return 0;
+  } catch (error) {
+    // Only messages written for the person: never a connection string.
+    console.error(
+      error instanceof OpsError
+        ? error.message
+        : "The command failed unexpectedly. Nothing was printed that could hold a secret.",
+    );
+    return 1;
+  }
+}
+
+void main().then((code) => process.exit(code));

@@ -41,3 +41,9 @@ npm-debug.log*
 /playwright-report/
 /playwright/.auth/
 /blob-report/
+
+# Database backups hold private writing and authentication data (docs/development.md).
+# They are kept outside the repository; these are defense in depth.
+*.dump.sha256
+*.backup
+/backups/

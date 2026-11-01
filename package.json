@@ -26,6 +26,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:check": "drizzle-kit check",
+    "db:backup": "tsx src/ops/cli-entry.ts backup",
+    "db:backup:verify": "tsx src/ops/cli-entry.ts verify",
     "author:provision": "tsx --conditions=react-server src/modules/identity/cli-entry.ts provision",
     "author:reset-password": "tsx --conditions=react-server src/modules/identity/cli-entry.ts reset-password"
   },
