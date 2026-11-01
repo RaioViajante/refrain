@@ -234,7 +234,7 @@ export async function saveAlbumJournal(
  */
 export async function setAlbumJournalPrivacy(
   db: DatabaseExecutor,
-  _author: AuthorizedAuthor,
+  author: AuthorizedAuthor,
   input: unknown,
 ): Promise<void> {
   const data = parse(journalPrivacyInput, input);
@@ -246,6 +246,7 @@ export async function setAlbumJournalPrivacy(
       }
       await unpublishLanguageVersion(
         tx,
+        author,
         data.entryId,
         data.locale,
         data.status,

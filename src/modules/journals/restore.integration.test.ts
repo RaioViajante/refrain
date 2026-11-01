@@ -4,7 +4,6 @@ import { describe, expect, it } from "vitest";
 import { schema, type Transaction } from "@/db";
 import {
   changeEntrySlug,
-  publishLanguageVersion,
   resolvePublicSlug,
   restoreDeletedEntry,
   PublicationError,
@@ -20,6 +19,7 @@ import {
   createTestMemory,
   createTestTrackReflection,
   inScratchTransaction,
+  publishForTest,
   testAuthor,
   type TestVersion,
 } from "@/testing";
@@ -610,7 +610,7 @@ describe("what the public can see around a restore", () => {
       await deleteAlbumJournal(tx, author, entryId);
       await restoreAlbumJournal(tx, author, entryId);
       expect(await listPublicTrackReflections(tx, entryId, "en")).toEqual([]);
-      await publishLanguageVersion(tx, entryId, "en");
+      await publishForTest(tx, entryId, "en");
       expect(await listPublicTrackReflections(tx, entryId, "en")).toHaveLength(
         1,
       );
@@ -652,7 +652,7 @@ describe("what the public can see around a restore", () => {
       ).toEqual({ outcome: "not_found" });
 
       // Only an explicit publication makes it public again, per language.
-      await publishLanguageVersion(tx, entryId, "en");
+      await publishForTest(tx, entryId, "en");
       expect(
         (await listPublicLanguageVersions(tx, entryId)).map((v) => v.locale),
       ).toEqual(["en"]);
@@ -699,7 +699,7 @@ describe("what the public can see around a restore", () => {
         outcome: "not_found",
       });
 
-      await publishLanguageVersion(tx, entryId, "en");
+      await publishForTest(tx, entryId, "en");
       expect(
         await resolvePublicSlug(tx, "album_journal", "test-grace"),
       ).toEqual({ outcome: "redirect", currentSlug: "test-grace-renamed" });

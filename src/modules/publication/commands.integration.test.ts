@@ -9,13 +9,14 @@ import {
   createTestMemory,
   expectRejected,
   inRollbackTransaction,
+  publishForTest,
   SqlState,
+  testAuthor,
 } from "@/testing";
 
 import {
   changeEntrySlug,
   PublicationError,
-  publishLanguageVersion,
   retireEntrySlugs,
   unpublishLanguageVersion,
 } from "./commands";
@@ -128,7 +129,7 @@ describe("publication history per language version (ADR 0003)", () => {
       const memoryId = await draftMemory(tx);
       const now = await transactionNow(tx);
 
-      await publishLanguageVersion(tx, memoryId, "en");
+      await publishForTest(tx, memoryId, "en");
 
       expect(await version(tx, memoryId, "en")).toEqual({
         status: "published",
@@ -148,7 +149,7 @@ describe("publication history per language version (ADR 0003)", () => {
   it("keeps the entry's first publication equal to the earliest version's", async () => {
     await inRollbackTransaction(async (tx) => {
       const memoryId = await draftMemory(tx);
-      await publishLanguageVersion(tx, memoryId, "en");
+      await publishForTest(tx, memoryId, "en");
       // Only the version's history is older: the next publication must bring
       // the entry's first publication back to the earliest version's.
       await backdateFirstPublication(tx, memoryId, "en", { versionOnly: true });
@@ -156,7 +157,7 @@ describe("publication history per language version (ADR 0003)", () => {
       expect(await entryFirstPublishedAt(tx, memoryId)).toEqual(now);
 
       // Publishing the translation later gives it its own, later history.
-      await publishLanguageVersion(tx, memoryId, "pt-BR");
+      await publishForTest(tx, memoryId, "pt-BR");
       expect((await version(tx, memoryId, "pt-BR")).firstPublishedAt).toEqual(
         now,
       );
@@ -168,10 +169,16 @@ describe("publication history per language version (ADR 0003)", () => {
   it("keeps the history through unpublishing and republishing", async () => {
     await inRollbackTransaction(async (tx) => {
       const memoryId = await draftMemory(tx);
-      await publishLanguageVersion(tx, memoryId, "pt-BR");
+      await publishForTest(tx, memoryId, "pt-BR");
       await backdateFirstPublication(tx, memoryId, "pt-BR");
 
-      await unpublishLanguageVersion(tx, memoryId, "pt-BR", "private");
+      await unpublishLanguageVersion(
+        tx,
+        testAuthor(),
+        memoryId,
+        "pt-BR",
+        "private",
+      );
       expect(await version(tx, memoryId, "pt-BR")).toEqual({
         status: "private",
         publishedAt: null,
@@ -180,7 +187,7 @@ describe("publication history per language version (ADR 0003)", () => {
       expect(await entryFirstPublishedAt(tx, memoryId)).toEqual(longAgo);
 
       const now = await transactionNow(tx);
-      await publishLanguageVersion(tx, memoryId, "pt-BR");
+      await publishForTest(tx, memoryId, "pt-BR");
       expect(await version(tx, memoryId, "pt-BR")).toEqual({
         status: "published",
         publishedAt: now,
@@ -197,7 +204,7 @@ describe("publication history per language version (ADR 0003)", () => {
         slug: "test-memory",
       });
       const before = await version(tx, memoryId, "en");
-      await publishLanguageVersion(tx, memoryId, "en");
+      await publishForTest(tx, memoryId, "en");
       expect(await version(tx, memoryId, "en")).toEqual(before);
     });
   });
@@ -207,19 +214,16 @@ describe("publication history per language version (ADR 0003)", () => {
       const memoryId = await createTestMemory(tx, {
         versions: [{ locale: "en" }],
       });
+      await expect(publishForTest(tx, memoryId, "pt-BR")).rejects.toMatchObject(
+        { failure: "version_not_found" },
+      );
       await expect(
-        publishLanguageVersion(tx, memoryId, "pt-BR"),
-      ).rejects.toMatchObject({ failure: "version_not_found" });
-      await expect(
-        publishLanguageVersion(
-          tx,
-          "00000000-0000-4000-8000-000000000000",
-          "en",
-        ),
+        publishForTest(tx, "00000000-0000-4000-8000-000000000000", "en"),
       ).rejects.toMatchObject({ failure: "entry_not_found" });
       await expect(
         unpublishLanguageVersion(
           tx,
+          testAuthor(),
           memoryId,
           "en",
           "published" as unknown as "private",
@@ -228,8 +232,9 @@ describe("publication history per language version (ADR 0003)", () => {
 
       await softDelete(tx, memoryId);
       for (const attempt of [
-        () => publishLanguageVersion(tx, memoryId, "en"),
-        () => unpublishLanguageVersion(tx, memoryId, "en", "draft"),
+        () => publishForTest(tx, memoryId, "en"),
+        () =>
+          unpublishLanguageVersion(tx, testAuthor(), memoryId, "en", "draft"),
         () => changeEntrySlug(tx, memoryId, "test-renamed"),
       ]) {
         await expect(attempt()).rejects.toBeInstanceOf(PublicationError);
@@ -246,9 +251,9 @@ describe("publication history per language version (ADR 0003)", () => {
       const memoryId = await createTestMemory(tx, {
         versions: [{ locale: "en" }],
       });
-      await expect(
-        publishLanguageVersion(tx, memoryId, "en"),
-      ).rejects.toMatchObject({ failure: "no_current_slug" });
+      await expect(publishForTest(tx, memoryId, "en")).rejects.toMatchObject({
+        failure: "no_current_slug",
+      });
       expect(await version(tx, memoryId, "en")).toEqual({
         status: "draft",
         publishedAt: null,
@@ -268,7 +273,7 @@ describe("publication history per language version (ADR 0003)", () => {
         .set({ firstPublishedAt: new Date("2099-01-01T00:00:00Z") })
         .where(eq(schema.entryTexts.entryId, memoryId));
 
-      const error = await publishLanguageVersion(tx, memoryId, "en").then(
+      const error = await publishForTest(tx, memoryId, "en").then(
         () => undefined,
         (rejection: unknown) => rejection,
       );
@@ -327,7 +332,7 @@ describe("slug retention after permanent deletion (ADR 0003)", () => {
   it("retires a published slug: reserved, detached, and unresolvable", async () => {
     await inRollbackTransaction(async (tx) => {
       const memoryId = await draftMemory(tx, "test-was-public");
-      await publishLanguageVersion(tx, memoryId, "en");
+      await publishForTest(tx, memoryId, "en");
       await softDelete(tx, memoryId);
 
       await permanentlyDeleteEntry(tx, memoryId);
@@ -393,9 +398,15 @@ describe("slug retention after permanent deletion (ADR 0003)", () => {
   it("keeps the published slugs and releases the others of one entry", async () => {
     await inRollbackTransaction(async (tx) => {
       const memoryId = await draftMemory(tx, "test-first");
-      await publishLanguageVersion(tx, memoryId, "en");
+      await publishForTest(tx, memoryId, "en");
       await changeEntrySlug(tx, memoryId, "test-second"); // public at once
-      await unpublishLanguageVersion(tx, memoryId, "en", "private");
+      await unpublishLanguageVersion(
+        tx,
+        testAuthor(),
+        memoryId,
+        "en",
+        "private",
+      );
       await changeEntrySlug(tx, memoryId, "test-third"); // never public
       await softDelete(tx, memoryId);
 
@@ -413,11 +424,17 @@ describe("slug retention after permanent deletion (ADR 0003)", () => {
   it("never serves or reserves a previous slug that was never public", async () => {
     await inRollbackTransaction(async (tx) => {
       const memoryId = await draftMemory(tx, "test-a");
-      await publishLanguageVersion(tx, memoryId, "en");
-      await unpublishLanguageVersion(tx, memoryId, "en", "private");
+      await publishForTest(tx, memoryId, "en");
+      await unpublishLanguageVersion(
+        tx,
+        testAuthor(),
+        memoryId,
+        "en",
+        "private",
+      );
       await changeEntrySlug(tx, memoryId, "test-b"); // chosen while private
       await changeEntrySlug(tx, memoryId, "test-c");
-      await publishLanguageVersion(tx, memoryId, "en");
+      await publishForTest(tx, memoryId, "en");
 
       // test-b was never a public address, so it does not become one.
       expect(await resolvePublicSlug(tx, "memory", "test-b")).toEqual({
@@ -476,7 +493,7 @@ describe("slug retention after permanent deletion (ADR 0003)", () => {
   it("refuses to retire the slugs of an entry that is not in Recently deleted", async () => {
     await inRollbackTransaction(async (tx) => {
       const memoryId = await draftMemory(tx, "test-live");
-      await publishLanguageVersion(tx, memoryId, "en");
+      await publishForTest(tx, memoryId, "en");
       await expect(retireEntrySlugs(tx, memoryId)).rejects.toMatchObject({
         failure: "entry_not_deleted",
       });
@@ -516,7 +533,7 @@ describe("slug retention after permanent deletion (ADR 0003)", () => {
     await inRollbackTransaction(async (tx) => {
       await draftMemory(tx, "test-unpublished");
       const published = await draftMemory(tx, "test-published-current");
-      await publishLanguageVersion(tx, published, "en");
+      await publishForTest(tx, published, "en");
 
       for (const slug of ["test-unpublished", "test-published-current"]) {
         await expectRejected(
@@ -563,7 +580,7 @@ describe("slug changes and redirects (ADR 0002, D7.4 and D7.5)", () => {
   it("keeps a published URL as a redirect while the destination is public", async () => {
     await inRollbackTransaction(async (tx) => {
       const memoryId = await draftMemory(tx, "test-old");
-      await publishLanguageVersion(tx, memoryId, "en");
+      await publishForTest(tx, memoryId, "en");
       await changeEntrySlug(tx, memoryId, "test-new");
 
       expect(await slugRows(tx, "test-new")).toEqual([
@@ -575,7 +592,13 @@ describe("slug changes and redirects (ADR 0002, D7.4 and D7.5)", () => {
       });
 
       // The destination stops being public: the old URL stops redirecting.
-      await unpublishLanguageVersion(tx, memoryId, "en", "private");
+      await unpublishLanguageVersion(
+        tx,
+        testAuthor(),
+        memoryId,
+        "en",
+        "private",
+      );
       expect(await resolvePublicSlug(tx, "memory", "test-old")).toEqual({
         outcome: "not_found",
       });
@@ -584,7 +607,7 @@ describe("slug changes and redirects (ADR 0002, D7.4 and D7.5)", () => {
       });
 
       // Republished, it redirects again.
-      await publishLanguageVersion(tx, memoryId, "pt-BR");
+      await publishForTest(tx, memoryId, "pt-BR");
       expect(await resolvePublicSlug(tx, "memory", "test-old")).toEqual({
         outcome: "redirect",
         currentSlug: "test-new",
@@ -595,12 +618,12 @@ describe("slug changes and redirects (ADR 0002, D7.4 and D7.5)", () => {
   it("marks a slug chosen while unpublished as published only once it is", async () => {
     await inRollbackTransaction(async (tx) => {
       const memoryId = await draftMemory(tx, "test-old");
-      await publishLanguageVersion(tx, memoryId, "en");
-      await unpublishLanguageVersion(tx, memoryId, "en", "draft");
+      await publishForTest(tx, memoryId, "en");
+      await unpublishLanguageVersion(tx, testAuthor(), memoryId, "en", "draft");
       await changeEntrySlug(tx, memoryId, "test-new");
       expect((await slugRows(tx, "test-new"))[0]?.wasPublished).toBe(false);
 
-      await publishLanguageVersion(tx, memoryId, "en");
+      await publishForTest(tx, memoryId, "en");
       expect((await slugRows(tx, "test-new"))[0]?.wasPublished).toBe(true);
     });
   });
@@ -608,11 +631,17 @@ describe("slug changes and redirects (ADR 0002, D7.4 and D7.5)", () => {
   it("marks a previous, never-public slug as published when it returns while public", async () => {
     await inRollbackTransaction(async (tx) => {
       const memoryId = await draftMemory(tx, "test-a");
-      await publishLanguageVersion(tx, memoryId, "en");
-      await unpublishLanguageVersion(tx, memoryId, "en", "private");
+      await publishForTest(tx, memoryId, "en");
+      await unpublishLanguageVersion(
+        tx,
+        testAuthor(),
+        memoryId,
+        "en",
+        "private",
+      );
       await changeEntrySlug(tx, memoryId, "test-b"); // chosen while private
       await changeEntrySlug(tx, memoryId, "test-c");
-      await publishLanguageVersion(tx, memoryId, "en");
+      await publishForTest(tx, memoryId, "en");
       expect((await slugRows(tx, "test-b"))[0]?.wasPublished).toBe(false);
 
       await changeEntrySlug(tx, memoryId, "test-b");
@@ -626,7 +655,7 @@ describe("slug changes and redirects (ADR 0002, D7.4 and D7.5)", () => {
     await inRollbackTransaction(async (tx) => {
       const { albumId } = await createTestAlbum(tx);
       const memoryId = await draftMemory(tx, "test-a");
-      await publishLanguageVersion(tx, memoryId, "en");
+      await publishForTest(tx, memoryId, "en");
       await changeEntrySlug(tx, memoryId, "test-b");
       await changeEntrySlug(tx, memoryId, "test-a");
 

@@ -301,6 +301,18 @@ describe("a token is refused unless it is authentic and bound to the request", (
     ).toBe(false);
   });
 
+  it("refuses a publish token, with no locale, presented for a change_public save", () => {
+    // Everything but the purpose claim matches: only `p` can refuse it.
+    const withoutLocale: Partial<RawClaims> = { ...goodClaims };
+    delete withoutLocale.l;
+    expect(
+      verdict(
+        mintTestToken({ secret: SECRET, claims: withoutLocale as RawClaims }),
+        { purpose: "change_public", entryId: ENTRY, entryVersion: 3 },
+      ),
+    ).toEqual({ ok: false, reason: "invalid" });
+  });
+
   it("refuses another author and another session", () => {
     const otherUser = {
       ...author,

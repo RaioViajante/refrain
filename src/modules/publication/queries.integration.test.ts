@@ -10,10 +10,10 @@ import {
   createTestMemory,
   createTestTrackReflection,
   inRollbackTransaction,
+  publishForTest,
   type TestVersion,
 } from "@/testing";
 
-import { publishLanguageVersion } from "./commands";
 import {
   getPublicLanguageVersion,
   listPublicLanguageVersions,
@@ -518,7 +518,7 @@ describe("track reflections through the publication predicate (D5; INV-2, INV-3)
         entryId: journalId,
         isCurrent: true,
       });
-      await publishLanguageVersion(tx, journalId, "en");
+      await publishForTest(tx, journalId, "en");
       expect(await listPublicTrackReflections(tx, journalId, "en")).toEqual([]);
     });
   });
