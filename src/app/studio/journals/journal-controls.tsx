@@ -157,9 +157,9 @@ export function JournalControls({
         <p>
           This does not erase the writing. It stays in your database, and
           nothing removes it automatically. The journal leaves your lists, and
-          it cannot be edited while it is in Recently deleted. The studio cannot
-          restore a journal, or delete one permanently, yet. Albums, artists and
-          tracks stay in your catalog.
+          it cannot be edited while it is in Recently deleted. You can restore
+          it from there; permanent deletion is not offered yet. Albums, artists
+          and tracks stay in your catalog.
         </p>
       </ConfirmDialog>
     </div>

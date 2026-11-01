@@ -15,6 +15,7 @@ export const setAlbumJournalPrivacy = withDatabase(
   commands.setAlbumJournalPrivacy,
 );
 export const deleteAlbumJournal = withDatabase(commands.deleteAlbumJournal);
+export const restoreAlbumJournal = withDatabase(commands.restoreAlbumJournal);
 
 export const listAlbumJournals = withDatabase(queries.listAlbumJournals);
 export const listDeletedAlbumJournals = withDatabase(

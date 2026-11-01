@@ -164,6 +164,50 @@ export async function unpublishLanguageVersion(
 }
 
 /**
+ * Restores an entry from Recently deleted, in the caller's transaction, under
+ * the owner-accepted restoration policy (docs/roadmap.md):
+ *
+ * - every language version that is `published` returns as `private`, with
+ *   `published_at` cleared, so a restore never makes writing public. Versions
+ *   that are `draft` or `private` keep that status;
+ * - the publication history (`first_published_at` on each version and on the
+ *   entry), the writing, the slugs and their `was_published` marks, and the
+ *   entry's `version` are not touched, so every slug rule of ADR 0002 and
+ *   ADR 0003 stays in force and the current slug stays current;
+ * - `deleted_at` is cleared in the same transaction as the demotion, so no
+ *   other connection can ever see a live entry with a published version.
+ *
+ * Refused with `entry_not_deleted` when the entry is not in Recently deleted,
+ * which is also what a repeated or concurrent second restore receives: the
+ * entry row lock serializes them, and only the first finds it deleted.
+ * Returns the locales that were published and are now private.
+ *
+ * Must run inside a transaction that already holds the caller's own checks
+ * (the kind of entry, the author). It authorizes nothing by itself.
+ */
+export async function restoreDeletedEntry(
+  tx: Transaction,
+  entryId: string,
+): Promise<{ madePrivate: Locale[] }> {
+  const entry = await lockEntry(tx, entryId);
+  if (!entry.deleted) {
+    throw new PublicationError("entry_not_deleted");
+  }
+  // Demote first and undelete second. Both are in this transaction, so the
+  // order is invisible to other connections; it keeps the statement that can
+  // make the entry visible last.
+  const demoted = await tx.execute<{ locale: Locale }>(sql`
+    update entry_texts
+       set status = 'private', published_at = null, updated_at = now()
+     where entry_id = ${entryId} and status = 'published'
+    returning locale`);
+  await tx.execute(sql`
+    update entries set deleted_at = null, updated_at = now()
+     where id = ${entryId}`);
+  return { madePrivate: demoted.rows.map((row) => row.locale).sort() };
+}
+
+/**
  * Changes an entry's public slug (ADR 0002, D7.4 and D7.5).
  *
  * - Before the entry's first publication, the slug changes freely: the old,

@@ -19,6 +19,7 @@ export type {
   AlbumJournalDetail,
   AlbumJournalProgress,
   AlbumJournalSummary,
+  DeletedAlbumJournalSummary,
   JournalStatistics,
 } from "./queries";
 export {
@@ -29,6 +30,7 @@ export {
   listAlbumJournalProgress,
   listAlbumJournals,
   listDeletedAlbumJournals,
+  restoreAlbumJournal,
   saveAlbumJournal,
   setAlbumJournalPrivacy,
 } from "./studio";

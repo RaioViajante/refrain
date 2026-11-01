@@ -44,6 +44,8 @@ export function failureMessage(failure: Failure): string {
       return "This journal changed somewhere else since you opened it, so nothing was saved. Your text is still here: copy it, reload the page, and save again.";
     case "deleted":
       return "This journal is in Recently deleted, so it can’t be changed.";
+    case "not_deleted":
+      return "This journal is not in Recently deleted, so there is nothing to restore. It may already have been restored. Reload the page.";
     case "unsupported":
       return "This text has formatting that the plain editor can’t show without losing it, so it was left untouched.";
     case "failed":

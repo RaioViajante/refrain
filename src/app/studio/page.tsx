@@ -114,10 +114,7 @@ async function Desk() {
           </p>
           {journals.deleted > 0 ? (
             <p className="studio-meta">
-              <Link
-                href="/studio/journals#recently-deleted"
-                className="studio-link"
-              >
+              <Link href="/studio/journals/deleted" className="studio-link">
                 Recently deleted ({journals.deleted})
               </Link>
             </p>

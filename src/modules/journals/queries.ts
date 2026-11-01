@@ -196,16 +196,48 @@ export async function listAlbumJournals(
   return result.rows.map(toSummary);
 }
 
-/** Album journals in Recently deleted, most recently deleted first. */
+export interface DeletedAlbumJournalSummary extends AlbumJournalSummary {
+  /**
+   * Every language version with the status it had when the journal was
+   * deleted, which is the status it keeps in Recently deleted. A `published`
+   * version returns as `private` if the journal is restored.
+   */
+  versions: { locale: Locale; isOriginal: boolean; status: VisibilityStatus }[];
+}
+
+/**
+ * Album journals in Recently deleted, most recently deleted first, each with
+ * its language versions so the studio can say what a restore will do.
+ */
 export async function listDeletedAlbumJournals(
   db: DatabaseExecutor,
   _author: AuthorizedAuthor,
-): Promise<AlbumJournalSummary[]> {
-  const result = await db.execute<SummaryRow>(sql`
-    ${journalSummarySql}
-    where e.deleted_at is not null
-    order by e.deleted_at desc, e.id`);
-  return result.rows.map(toSummary);
+): Promise<DeletedAlbumJournalSummary[]> {
+  const result = await db.execute<
+    SummaryRow & {
+      versions: {
+        locale: Locale;
+        is_original: boolean;
+        status: VisibilityStatus;
+      }[];
+    }
+  >(sql`
+    select s.*,
+           (select json_agg(json_build_object(
+                     'locale', t.locale, 'is_original', t.is_original,
+                     'status', t.status)
+                   order by t.is_original desc, t.locale)
+              from entry_texts t where t.entry_id = s.entry_id) as versions
+      from (${journalSummarySql} where e.deleted_at is not null) s
+     order by s.deleted_at desc, s.entry_id`);
+  return result.rows.map((row) => ({
+    ...toSummary(row),
+    versions: row.versions.map((version) => ({
+      locale: version.locale,
+      isOriginal: version.is_original,
+      status: version.status,
+    })),
+  }));
 }
 
 export interface AlbumJournalDetail extends AlbumJournalSummary {
