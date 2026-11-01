@@ -28,7 +28,7 @@ Everything else the Studio uses is V4.3-era CSS carried into V4.4 unchanged, inc
 - **The footer: one possible conflict.** The Studio footer follows V4.4: a drawn line and the closing line, centered (the language selector is not built). V4.3's footer was a different arrangement ("the last line of the page, aligned to the margins", `.ft3`, a signature and the language control on a row). Its CSS is still in the files, but no page uses it, so **its content and markup cannot be recovered** from what is on this machine. If the author wants V4.3's footer, the V4.3 export is needed.
 - **The public pages** (not built) are where V4.3 and V4.4 really differ: the header, the homepage character, and the footer. No decision about them was made here.
 
-**Decision needed from the author:** confirm that V4.4 is the reference (the repository's standing instruction), or provide the V4.3 export. Until then, no Studio screen is described as matching "V4.3" except where the carried-over V4.3 rules are the same in both.
+**Decided by the author (PR #24 review):** V4.4 is the working visual source, because it keeps the V4.3-era Studio rules and adds only the items listed above. The footer question stays open in one respect: V4.3's footer cannot be recovered, so the Studio uses V4.4's. No Studio screen is described as matching "V4.3" except where the carried-over rules are the same in both.
 
 ## Sources inspected
 
@@ -113,10 +113,10 @@ The reference draws every control outline with Rough.js, pre-generated with fixe
 
 | Studio screen | Reference | Coverage | What is not in the reference's image |
 | --- | --- | --- | --- |
-| Header and footer | Every studio screen | Direct, with differences | Five sections instead of Desk and Catalog (the information architecture is preserved). "Sign out" stands where the reference has "Public pages", which does not exist yet. No language selector: the interface has one language until the i18n work |
-| Desk | `Desk` | **Partial.** The header, title, lede, action buttons, row geometry, thumbnails, drawn dividers, and footer follow the screen | The body is different: the reference shows a searchable, filterable list of all writing (journals, memories, artist journals) with a status on each row. The Studio has only album journals, so the Desk shows statistics as sentences in margin-titled sections (the documented notebook layout) and the in-progress journals as rows. Search, filter chips, and mixed rows were not built |
-| Catalog lists (artists, albums, tracks) | `Catalog`, `Albums`, `Artists` | Partial: thumbnails, Kalam titles, metadata, drawn rows | Margin tabs with counts, inline "Edit" and "Remove…" actions, "Add from MusicBrainz" (not built, by decision) |
-| Journal editor (new, edit) | `MemoryEditor`, `AlbumEditor` | Partial: writing column up to 760px, 300px margin, opening sentence as a drawn line, quiet writing frame, word count | The top bar (breadcrumb, status, Preview, Publish…), version tabs, ratings, track-by-track (none are built) |
+| Header and footer | Every studio screen | **Direct** for the arrangement: label left, **Desk and Catalog** centered with the drawn underline, the session control at the right edge, the footer's closing line | "Sign out" stands where the reference has "Public pages", which does not exist yet. No language selector: the interface has one language until the i18n work |
+| Desk | `Desk` | **Partial to direct.** Header, title ("Desk"), lede, primary action, rows (thumbnail, Kalam title, metadata, a status mark, an Edit link), dividers, "Recently deleted", and the footer follow the screen | The reference has three create buttons (memory, album journal, artist journal), a search field, filter chips, memories and artist journals, and a language selector. Only the album journal exists, so there is one "Write a journal" button and no search, filters, or filter chips; a plain count line stands where the chips are. The catalog is a quiet line at the bottom |
+| Catalog (overview and the artist, album, and track lists) | `Catalog`, `Albums`, `Artists` | **Direct** for the margin navigation (Overview, Artists, Albums, Tracks, with a drawn underline on the current one) and the page heading. **Partial** for the lists: thumbnails, Kalam titles, metadata, drawn rows | Counts in the margin tabs, a filter field, inline "Edit" and "Remove…" on each row, "Add from MusicBrainz" (not built, by decision). The overview page has no reference of its own |
+| Journal editor (new, edit) | `MemoryEditor`, `AlbumEditor` | **Design-language extension, partial for the album editor.** Writing column up to 760px, 300px margin, the album and artists as quiet context above, the opening sentence as a drawn line, a quiet writing frame, the journal's status and the save state in the margin | The reference's top bar (breadcrumb, status, Preview, Save, Publish…), version tabs, ratings, and track by track are not built. The reference edits a memory with its own title; the Studio's journal has no title of its own, so its heading is the album |
 | Dialogs and states | `States` | Direct for dialog geometry and type, the empty panel, and loading. The generated strokes are lighter and less rough than the reference's. Copy keeps the interim wording required by INV-4 | "Leave without saving" uses the browser's own prompt, as before |
 | Recently deleted | `States` (the last panel) | Direct for the row; extended into a list page | "Delete now…" is not built, by decision |
 | Journal reading | `Grace` (public) | **Faithful extension**: the album journal composition (5fr / 7fr, 88px gap, Kalam opening sentence, 62ch reading) used privately | No public page exists to compare against |
@@ -129,23 +129,57 @@ From the numbered comparisons (`visual-review/owner-review/`, local, synthetic d
 | Area | Reference | Studio, PR #24 |
 | --- | --- | --- |
 | Typography | Kalam title 58px (editors 52px) and Alegreya Sans body | Same families, sizes and weights. The editor title says "Edit: <album>", in black, where the reference shows a gray placeholder title for a memory |
-| Header alignment | Label left, navigation centered, "Public pages →" right, all at the 64px page edge | Same arrangement and the same vertical position. The edge is 60px at 1440 (the ecosystem contract), the right item is "Sign out", and the navigation has five items |
+| Header alignment | Label left, navigation centered, "Public pages →" right, all at the 64px page edge | Same arrangement, **the same two destinations (Desk, Catalog)**, and the same vertical position. The edge is 60px at 1440 (the ecosystem contract), and the right item is "Sign out" |
 | Spacing | Writing column offset 284px from the edge, rows about 92px | Same 284px offset and row structure. Rows are about 84px |
 | Component dimensions | Buttons 46px high, 20px side padding; fields 50px | Same |
 | Hand-drawn strokes | A heavier, more irregular double line with visible corner overshoot, on every outline | A lighter, straighter double line (generated, not the mockups' paths). The writing frame is darker gray than the mockup's (`#767676` against `#ABABAB`, for contrast) |
-| Responsiveness (390px) | The header stacks three short centered rows: the label, the two-item navigation, "Public pages →" | The label and "Sign out" share one row, and the five-item navigation wraps to two lines below it, so the header is a little taller |
-| Visual hierarchy | The Desk is one list of all writing; the buttons lead into it | Buttons, then "Your journals" and "Your catalog" in margin-titled sections. The journal rows have no status mark, because the existing Desk query does not return one and domain code was out of scope |
+| Responsiveness (390px) | The header stacks three short centered rows: the label, the two-item navigation, "Public pages →" | One row: the label (an icon below 480px, its words kept for assistive technology), Desk and Catalog, and Sign out. It is shorter than the reference's three rows |
+| Visual hierarchy | The Desk is one list of all writing; the buttons lead into it | One button, then the journals as the dominant list, each with its status mark and an Edit link, then Recently deleted and a quiet catalog line |
 | Editor | Top bar (breadcrumb, status, Preview, Save, Publish…), version tabs, settings blocks | Writing column and a small margin (Written in, Save, status). The Save button is in the margin, not a top bar |
 
-**Implemented:** the header and footer, the notebook layout, the Desk (statistics and journals in progress), artist, album and track lists and forms, journal reading, editing, deleting and restoring, dialogs, loading and empty states, and the hand-drawn controls.
+**Implemented:** the header and footer, the notebook layout, the Desk (the journals, with status), the Catalog overview and its navigation, artist, album and track lists and forms, journal reading, editing, deleting and restoring, dialogs, loading and empty states, and the hand-drawn controls.
 
 **In the mockups, not built (by decision or because the feature does not exist):** search and filter chips on the Desk, memories and artist journals, the entry rows' status marks, Preview, Publish… and Unpublish…, version tabs, ratings, track by track, "Add from MusicBrainz", the language selector, "Public pages", Edit and Remove… on catalog rows, and "Delete now…".
+
+## Navigation structure
+
+The header has **exactly two destinations: Desk and Catalog**, the same in the desktop and phone layouts, as in the V4.4 reference (decided by the author). The Studio's other sections are reached from them. Nothing depends on hover, and there is no menu to open.
+
+| Route | Header shows as current | What it is |
+| --- | --- | --- |
+| `/studio` | Desk | The Desk: the journals, Write a journal, Recently deleted |
+| `/studio/journals`, `/studio/journals/new`, `/studio/journals/[id]`, `/studio/journals/[id]/edit`, `/studio/journals/deleted` | Desk | The writing workflows (unchanged URLs) |
+| `/studio/catalog` | Catalog | **New:** the Catalog overview, with Overview, Artists, Albums, Tracks in the margin |
+| `/studio/artists`, `/studio/artists/new`, `/studio/artists/[id]` | Catalog | Unchanged URLs, now under the Catalog |
+| `/studio/albums`, `/studio/albums/new`, `/studio/albums/[id]` | Catalog | Unchanged URLs, now under the Catalog |
+| `/studio/tracks`, `/studio/tracks/new`, `/studio/tracks/[id]` | Catalog | Unchanged URLs, now under the Catalog |
+
+On the Catalog's pages, a second navigation, labelled "Catalog sections", lists Overview, Artists, Albums, and Tracks as plain links in the margin column (a row above the page on a narrow screen), and marks the current one with `aria-current` and the drawn underline. The Desk links to its journals, their editors, "All journals", and "Recently deleted (n)", and, quietly, to the catalog. The header is a single row at every width from 360px up; below 480px the label shows only its icon (its words stay for assistive technology), so the two destinations never wrap.
+
+**The authentication boundary is unchanged.** The header, the Catalog navigation, "Sign out", and the footer are rendered by `StudioFrame`, which each page renders only after its own `authorizeAuthor` succeeds; the new `/studio/catalog` page follows the same rule (the source-scanning test `studio-entry-points.test.ts` includes it). The loading placeholder, which is part of the static shell, still contains no studio furniture. The HTTP tests that require an anonymous response to contain no "Sign out", no studio text, and the sign-in redirect pass unchanged, except that the string they look for is now one that only the signed-in Desk contains ("Everything you are writing", the Desk's introduction, replacing "Your desk", the old heading).
+
+## Stroke fidelity
+
+The strokes are generated from the same technique as the reference's (Rough.js double-stroke outlines with fixed seeds), measured against its paths in the V4.4 Desk, Field, and States pages (read only):
+
+| Aspect | Reference | PR #24 | Assessment |
+| --- | --- | --- | --- |
+| Outline construction | 8 sub-paths per rectangle (two passes per edge) | 8 sub-paths | Same |
+| Stroke weight | 1.15 (buttons), 1.3 (fields), 1.6–1.9 (focus) | 1.15, 1.3, 1.6–1.9 | Same |
+| Reach | Runs to the box edge (x from −0.2 to 159.9 in a 160-unit box) | Now 0.8 from the edge (was 3: the outlines looked smaller and quieter) | Close |
+| Edge irregularity | Per-edge spread about 0.6–1.5 units | About 1–4 units (larger, because the same seed gives different roughness at a different size) | Rougher in places; not the same hand |
+| Navigation underline | A swoosh 2.8–6.7 units tall, clear of the word | A seeded swoosh 2.9–7.3, clear of the word (was a flat line hugging the text) | Close |
+| Divider rule | A single curve with about 2.0 of sag | About 2.2 of sag | Close |
+| Writing frame | `#ABABAB`, double line | `#767676` (for contrast), double line | **Deliberately darker** |
+| Dialog | Heavier, with visible corner overshoot | Same weight, less overshoot | Close, lighter at the corners |
+
+**Assessment:** the same technique, weights, and construction, and now close in size, underline, and rule. Not the same hand: the reference's corners overshoot and its edges skew more deliberately than a seeded generator produces, and the writing frame is darker for contrast. The close-ups are in `visual-review/stroke-comparison.png` (local). Determinism is unchanged: the drawings are generated once with fixed seeds, committed as CSS, and checked by a unit test, so nothing is re-randomized between server and client.
 
 ## Navigation investigation (issue #23)
 
 **Question.** Does clicking between Studio sections reload the page?
 
-**Method.** `e2e/navigation.spec.ts` sets a marker on `window`, records every request of resource type `document`, and activates Artists, Albums, Tracks, Journals, and Desk in turn, in the production build. It was first run against the unmodified `main` build.
+**Method.** `e2e/navigation.spec.ts` sets a marker on `window`, records every request of resource type `document`, and activates the sections in turn, in the production build. It was first run against the unmodified `main` build, when the header had five items; it now follows Desk, Catalog and the Catalog's sections.
 
 **Findings.**
 
@@ -188,7 +222,7 @@ Checked in the browser by tests, unless marked otherwise:
 
 1. **The layout.** The adopted margins differ by 2.4px at 390 and by 4px at 1440 from the V4.4 mockups, and at 768 the content is much wider than the mockups' 64px padding. Confirm that the ecosystem's contract is what is wanted, or whether the mockups' 64px margin should win above 1000px.
 2. **Focus rings on drawn controls.** A conservative ring plus a thicker stroke, against the mockup's thicker stroke alone. Say if the ring looks too heavy.
-3. **Header navigation.** Five items, as the studio already has, against the mockup's Desk and Catalog (with Artists, Albums, and Tracks as margin tabs). This is an information architecture change and was not made.
+3. ~~Header navigation~~ **Decided by the owner:** exactly two destinations, Desk and Catalog, as in the reference. Artists, Albums and Tracks are reached from the Catalog (its margin navigation), and the journals, the editor and Recently deleted from the Desk. See "Navigation structure".
 4. **The shared header** (see the investigation). Needs a decision about the authorization boundary.
 5. **The writing surface's outline.** Darkened from the mockups' `#ABABAB` to `#767676` to meet WCAG 2.2 1.4.11. It is a visible departure from the mockup (a quiet gray that is no longer as quiet). Say if the contrast or the look should change.
 6. **The reference version** (see above).
