@@ -92,10 +92,10 @@ The reference draws every control outline with Rough.js, pre-generated with fixe
 | Studio screen | Reference | Coverage | What is not in the reference's image |
 | --- | --- | --- | --- |
 | Header and footer | Every studio screen | Direct, with differences | Five sections instead of Desk and Catalog (the information architecture is preserved). "Sign out" stands where the reference has "Public pages", which does not exist yet. No language selector: the interface has one language until the i18n work |
-| Desk | `Desk` | Direct composition: title, lede, three action buttons, drawn-divider rows with thumbnails, "Recently deleted" with the trash icon | The reference's search field, filter chips, and mixed memory and artist rows describe features that do not exist, so they were not built. Statistics stay as sentences in margin-titled sections (the documented notebook layout) |
+| Desk | `Desk` | **Partial.** The header, title, lede, action buttons, row geometry, thumbnails, drawn dividers, and footer follow the screen | The body is different: the reference shows a searchable, filterable list of all writing (journals, memories, artist journals) with a status on each row. The Studio has only album journals, so the Desk shows statistics as sentences in margin-titled sections (the documented notebook layout) and the in-progress journals as rows. Search, filter chips, and mixed rows were not built |
 | Catalog lists (artists, albums, tracks) | `Catalog`, `Albums`, `Artists` | Partial: thumbnails, Kalam titles, metadata, drawn rows | Margin tabs with counts, inline "Edit" and "Remove…" actions, "Add from MusicBrainz" (not built, by decision) |
 | Journal editor (new, edit) | `MemoryEditor`, `AlbumEditor` | Partial: writing column up to 760px, 300px margin, opening sentence as a drawn line, quiet writing frame, word count | The top bar (breadcrumb, status, Preview, Publish…), version tabs, ratings, track-by-track (none are built) |
-| Dialogs and states | `States` | Direct for dialog geometry and type, the empty panel, and loading. Copy keeps the interim wording required by INV-4 | "Leave without saving" uses the browser's own prompt, as before |
+| Dialogs and states | `States` | Direct for dialog geometry and type, the empty panel, and loading. The generated strokes are lighter and less rough than the reference's. Copy keeps the interim wording required by INV-4 | "Leave without saving" uses the browser's own prompt, as before |
 | Recently deleted | `States` (the last panel) | Direct for the row; extended into a list page | "Delete now…" is not built, by decision |
 | Journal reading | `Grace` (public) | **Faithful extension**: the album journal composition (5fr / 7fr, 88px gap, Kalam opening sentence, 62ch reading) used privately | No public page exists to compare against |
 | Album, artist, and track forms; tracklist; sign-in | None | **Faithful extension** through the shared controls | Everything |
@@ -108,8 +108,8 @@ The reference draws every control outline with Rough.js, pre-generated with fixe
 
 **Findings.**
 
-1. **There is no full-document navigation.** No `document` request was made and the `window` marker survived all five navigations. Moving between sections is a client-side navigation. Sign-out is a full navigation, on purpose, so that nothing rendered under the old session can be shown again.
-2. **Why it can feel like a reload.** Each page renders its own header, so the header is a *new DOM node* on every navigation, keyboard focus returns to the top of the page, and the scroll position resets. The link just activated is destroyed. On a server round trip that takes longer than a moment, the old page stays frozen until the new one is ready, with no sign that the click was received.
+1. **There is no full-document navigation.** (Kept as a regression test.) No `document` request was made and the `window` marker survived all five navigations. Moving between sections is a client-side navigation. Sign-out is a full navigation, on purpose, so that nothing rendered under the old session can be shown again.
+2. **Why it can feel like a reload.** Measured in a temporary probe against the unmodified `main` build and **not kept as a test** (it would fail by design until the follow-up below): each page renders its own header, so the header is a *new DOM node* on every navigation, keyboard focus returns to the top of the page, and the scroll position resets. The link just activated is destroyed. On a server round trip that takes longer than a moment, the old page stays frozen until the new one is ready, with no sign that the click was received.
 3. **Next keeps recent routes in the DOM, hidden** (three `<header>`s were found at once), so any test about "the header" must use the visible one.
 4. **Not tested:** the development server (`next dev`), where compiling a route on first visit adds delay. That is a likely contributor on the author's machine and is not something the production build can show.
 
@@ -121,13 +121,14 @@ The reference draws every control outline with Rough.js, pre-generated with fixe
 
 Checked in the browser by tests, unless marked otherwise:
 
-- No horizontal overflow on every Studio screen at 390, 768, 1280, 1440, and 2560px (`e2e/layout.spec.ts`).
+- No horizontal overflow on 16 Studio pages (every list, `new`, and detail page for artists, albums, tracks, and journals, the journal reading and editing pages, and Recently deleted) at 390, 768, 1280, 1440, and 2560px, with long names (`e2e/layout.spec.ts`). Sign-in at 390px is covered by `mobile.spec.ts`. Open dialogs and the album tracklist editor with many rows are not measured.
 - The shell's width and centering match the contract at the same five widths, and the header, content, and footer share their edges.
-- A skip link ("Skip to the content") is the first tab stop. The navigation has 44px targets and the 2px focus ring (asserted). Dialogs keep the native `<dialog>` focus trap and Escape handling (unchanged).
+- A skip link ("Skip to the content") is the first tab stop. After client-side navigation, activating it focuses the *visible* page's `<main>` (asserted; Next keeps earlier routes in the DOM, hidden, with the same id). The navigation links are at least 44px tall and show the 2px focus ring (asserted). Dialogs keep the native `<dialog>` focus trap and Escape handling (unchanged).
 - `prefers-reduced-motion: reduce` removes every transition in the Studio (asserted on every visible link and button), and the underline simply appears.
 - Status is always a word with a mark. Problems still begin with "Problem:" and are announced. Nothing relies on color.
-- Contrast uses the documented tokens (text no lighter than `#5A5A5A`, hints `#4F4F4F`). **Not run: an automated contrast or axe audit.** No new dependency was added for it. This is a gap.
-- Not done: a screen reader pass, and Windows high-contrast mode. Backgrounds carry the drawn strokes, so in forced-colors mode they may not show. Native borders do not exist on the controls either, so that mode needs a check before public release.
+- Text is no lighter than `#5A5A5A` (placeholders use it; hints `#4F4F4F`). Two non-text values are below the 3:1 WCAG asks of a control boundary: the writing surface's `frame-quiet` outline (`#ABABAB`, about 2.2:1, a documented token, and it turns ink on focus) and the disabled outline `#C8C8C8` (disabled controls are exempt). The first is an open decision below. **Not run: an automated contrast or axe audit.** No new dependency was added for it. This is a gap.
+- Forced colors (Windows high contrast): the drawn outlines are background images, so under `forced-colors: active` real 1px borders in the system's colors replace them (primary buttons get 3px). **Written to the specification and reviewed, not tested in a forced-colors browser.**
+- Not done: a screen reader pass.
 
 ## Open decisions for the author
 
@@ -135,7 +136,8 @@ Checked in the browser by tests, unless marked otherwise:
 2. **Focus rings on drawn controls.** A conservative ring plus a thicker stroke, against the mockup's thicker stroke alone. Say if the ring looks too heavy.
 3. **Header navigation.** Five items, as the studio already has, against the mockup's Desk and Catalog (with Artists, Albums, and Tracks as margin tabs). This is an information architecture change and was not made.
 4. **The shared header** (see the investigation). Needs a decision about the authorization boundary.
-5. **The strokes' character.** They are generated, not copied. Compare the images and say whether the wobble, double line, and corner overshoot read as the same hand.
+5. **The writing surface's outline.** The design's `frame-quiet` (`#ABABAB`) is under the 3:1 contrast WCAG asks of a control boundary. It turns ink on focus. Say if it should be darker.
+6. **The strokes' character.** They are generated, not copied. Compare the images and say whether the wobble, double line, and corner overshoot read as the same hand.
 
 ## Reproducing the review
 
