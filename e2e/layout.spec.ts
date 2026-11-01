@@ -95,7 +95,7 @@ for (const width of WIDTHS) {
   test(`at ${width}px the shell is min(100% - 35.2px, 1320px), centered, and header, content and footer share its edges`, async ({
     page,
   }) => {
-    await open(page, width, "/studio", "Your desk");
+    await open(page, width, "/studio", "Desk");
     const expected = Math.min(width - GUTTER_TOTAL, SHELL_MAX);
     for (const selector of [
       ".studio-header-bar",
@@ -123,7 +123,8 @@ for (const width of WIDTHS) {
     page,
   }) => {
     for (const [path, heading] of [
-      ["/studio", "Your desk"],
+      ["/studio", "Desk"],
+      ["/studio/catalog", "Catalog"],
       ["/studio/artists", "Artists"],
       ["/studio/artists/new", "Add an artist"],
       [artistUrl, ARTIST],
@@ -137,7 +138,7 @@ for (const width of WIDTHS) {
       ["/studio/journals/new", "Write a journal"],
       [`/studio/journals/new?album=${albumId}`, `Write about ${ALBUM}`],
       [journalUrl, ALBUM],
-      [`${journalUrl}/edit`, `Edit: ${ALBUM}`],
+      [`${journalUrl}/edit`, ALBUM],
       ["/studio/journals/deleted", "Recently deleted"],
     ] as const) {
       await open(page, width, path, heading);
@@ -156,7 +157,7 @@ test("on an ultrawide screen the writing keeps a reading measure", async ({
   expect(reading.width).toBeLessThan(800);
   const shell = await box(page, ".studio-main");
   expect(shell.width).toBeCloseTo(SHELL_MAX, 0);
-  await open(page, 2560, `${journalUrl}/edit`, `Edit: ${ALBUM}`);
+  await open(page, 2560, `${journalUrl}/edit`, ALBUM);
   const writing = await box(page, ".studio-writing-column");
   expect(writing.width).toBeLessThanOrEqual(760);
 });
@@ -164,7 +165,7 @@ test("on an ultrawide screen the writing keeps a reading measure", async ({
 test("the navigation is operable by keyboard, with a visible focus ring and tall targets", async ({
   page,
 }) => {
-  await open(page, 1280, "/studio", "Your desk");
+  await open(page, 1280, "/studio", "Desk");
   await page.keyboard.press("Tab"); // the skip link
   await expect(
     page.getByRole("link", { name: "Skip to the content" }),
@@ -190,7 +191,7 @@ test("the navigation is operable by keyboard, with a visible focus ring and tall
 
 test("reduced motion stops every transition", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await open(page, 1280, "/studio", "Your desk");
+  await open(page, 1280, "/studio", "Desk");
   const durations = await page.evaluate(() =>
     [...document.querySelectorAll<HTMLElement>(".studio a, .studio button")]
       .filter((element) => element.checkVisibility())
@@ -205,14 +206,21 @@ test("reduced motion stops every transition", async ({ page }) => {
 test("the skip link works after client-side navigation, with earlier routes still in the DOM", async ({
   page,
 }) => {
-  await open(page, 1280, "/studio", "Your desk");
+  await open(page, 1280, "/studio", "Desk");
+  await page
+    .getByRole("navigation", { name: "Writing studio" })
+    .getByRole("link", { name: "Catalog", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Catalog", exact: true }),
+  ).toBeVisible();
   for (const section of ["Artists", "Albums"]) {
     await page
-      .getByRole("navigation", { name: "Writing studio" })
+      .getByRole("navigation", { name: "Catalog sections" })
       .getByRole("link", { name: section, exact: true })
       .click();
     await expect(
-      page.getByRole("heading", { level: 1, name: section }),
+      page.getByRole("heading", { level: 1, name: section, exact: true }),
     ).toBeVisible();
   }
   // Next keeps the earlier routes in the DOM, hidden, each with the same
@@ -227,3 +235,62 @@ test("the skip link works after client-side navigation, with earlier routes stil
   expect(focused.id).toBe("studio-content");
   expect(focused.visible, "focus landed on a hidden earlier route").toBe(true);
 });
+
+// The header is one row at every width: the label, the two destinations, and
+// the session control share a line, and the two destinations never wrap.
+for (const width of [...WIDTHS, 360]) {
+  test(`at ${width}px the header is a single row with two destinations`, async ({
+    page,
+  }) => {
+    await open(page, width, "/studio", "Desk");
+    const geometry = await page.evaluate(() => {
+      const center = (element: Element) => {
+        const rect = element.getBoundingClientRect();
+        return {
+          y: rect.top + rect.height / 2,
+          left: rect.left,
+          right: rect.right,
+        };
+      };
+      const bar = document.querySelector(".studio-header-bar:not([hidden])")!;
+      const visible = <T extends Element>(selector: string) =>
+        [...document.querySelectorAll<T>(selector)].find((element) =>
+          element.checkVisibility(),
+        )!;
+      const links = [
+        ...visible<HTMLElement>(".studio-nav").querySelectorAll("a"),
+      ];
+      return {
+        barHeight: visible(".studio-header-bar").getBoundingClientRect().height,
+        links: links.map((link) => center(link)),
+        label: center(visible(".studio-header-label")),
+        end: center(visible(".studio-header-end")),
+        bar: bar ? 1 : 0,
+      };
+    });
+    expect(geometry.links).toHaveLength(2);
+    // Both destinations are on one line, and the label and the session
+    // control are on that line too.
+    const [first, second] = geometry.links as [
+      { y: number; left: number; right: number },
+      { y: number; left: number; right: number },
+    ];
+    expect(
+      Math.abs(first.y - second.y),
+      "the two links share a row",
+    ).toBeLessThan(4);
+    expect(
+      Math.abs(geometry.label.y - first.y),
+      "the label shares the row",
+    ).toBeLessThan(14);
+    expect(
+      Math.abs(geometry.end.y - first.y),
+      "Sign out shares the row",
+    ).toBeLessThan(14);
+    expect(geometry.barHeight, "one row of header").toBeLessThan(76);
+    // Nothing overlaps: label, links, and Sign out are in order.
+    expect(geometry.label.right).toBeLessThanOrEqual(first.left + 1);
+    expect(second.right).toBeLessThanOrEqual(geometry.end.left + 1);
+    await expectNoHorizontalOverflow(page);
+  });
+}

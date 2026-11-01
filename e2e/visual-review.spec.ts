@@ -73,7 +73,7 @@ test.describe("anonymous", () => {
 });
 
 test("empty states", async ({ page }) => {
-  await visit(page, "/studio", "Your desk");
+  await visit(page, "/studio", "Desk");
   await shoot(page, "02-desk-empty");
   await visit(page, "/studio/artists", "Artists");
   await shoot(page, "03-artists-empty");
@@ -117,6 +117,8 @@ test("populated catalog", async ({ page }) => {
   await page.goto(albumUrl);
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await shoot(page, "09-album-detail");
+  await visit(page, "/studio/catalog", "Catalog");
+  await shoot(page, "22-catalog-overview");
   await visit(page, "/studio/albums/new", /Add an album/);
   await shoot(page, "10-album-new");
   await visit(page, "/studio/artists/new", /Add an artist/);
@@ -157,7 +159,7 @@ test("journal: write, read, edit", async ({ page }) => {
       await expect(page.getByText("Now private.")).toBeVisible();
     }
   }
-  await visit(page, "/studio", "Your desk");
+  await visit(page, "/studio", "Desk");
   await shoot(page, "16-desk-populated");
   await visit(page, "/studio/journals", "Journals");
   await shoot(page, "17-journals-list");
@@ -188,4 +190,57 @@ test("dialogs and Recently deleted", async ({ page }) => {
     .click();
   await expect(page).toHaveURL(/restored=1/);
   await shoot(page, "21-journal-restored");
+});
+
+// Close-ups of the drawn controls at 1x (the reference previews are 1x), for
+// comparing stroke weight and irregularity with the reference by eye and by
+// measurement. Synthetic data only.
+test("stroke samples", async ({ page }) => {
+  const directory = join(OUT, "strokes");
+  mkdirSync(directory, { recursive: true });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const sample = async (name: string, locator: ReturnType<Page["locator"]>) => {
+    await locator.first().screenshot({ path: join(directory, `${name}.png`) });
+  };
+  await page.goto("/studio");
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Desk", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("Loading…")).toHaveCount(0);
+  await sample(
+    "primary-button",
+    page.getByRole("link", { name: "Write a journal" }),
+  );
+  await sample(
+    "nav-underline",
+    page.getByRole("navigation", { name: "Writing studio" }),
+  );
+  // A strip of a list with its drawn dividers.
+  const list = page.getByRole("list", { name: "Journals" });
+  const box = (await list.boundingBox())!;
+  await page.screenshot({
+    path: join(directory, "rule.png"),
+    clip: {
+      x: box.x,
+      y: box.y - 6,
+      width: Math.min(box.width, 600),
+      height: 24,
+    },
+  });
+  await page.goto(journalUrl);
+  await expect(page.getByText("Loading…")).toHaveCount(0);
+  await sample(
+    "secondary-button",
+    page.getByRole("link", { name: "Edit this journal" }),
+  );
+  await page.goto("/studio/albums/new");
+  await expect(page.getByText("Loading…")).toHaveCount(0);
+  await sample("field", page.getByLabel("Title", { exact: true }));
+  await page.goto(`${journalUrl}/edit`);
+  await expect(page.getByText("Loading…")).toHaveCount(0);
+  await sample("textarea", page.getByLabel("Your reflection"));
+  await page.goto(journalUrl);
+  await page.getByRole("button", { name: "Move to Recently deleted…" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await sample("dialog", page.getByRole("dialog"));
 });

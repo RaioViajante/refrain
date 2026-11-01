@@ -83,6 +83,7 @@ for (const width of [1280, 390]) {
   }) => {
     const pages: [string, string][] = [
       ["the desk", "/studio"],
+      ["the catalog", "/studio/catalog"],
       ["artists", "/studio/artists"],
       ["a new artist", "/studio/artists/new"],
       ["an artist", artistUrl],

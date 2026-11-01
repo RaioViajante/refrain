@@ -28,7 +28,7 @@ test.describe("sessions the server does not accept", () => {
     await useSession(page, session);
     await page.goto("/studio");
     await expect(
-      page.getByRole("heading", { level: 1, name: "Your desk" }),
+      page.getByRole("heading", { level: 1, name: "Desk", exact: true }),
     ).toBeVisible();
     await revokeSession(session);
     await page.goto("/studio");
