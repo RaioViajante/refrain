@@ -1,3 +1,5 @@
+import { inspect } from "node:util";
+
 import { eq, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -515,6 +517,34 @@ describe("publishing needs a token for exactly this state (test 3)", () => {
       expect(JSON.stringify(error)).not.toContain("ct1.");
       expect(error.message).not.toContain("English");
       expect(await checksum(tx)).toEqual(before);
+    });
+  });
+
+  it("keeps the private disclosure out of anything that prints the error", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const { entryId } = await journal(tx);
+      const error = await failure(
+        publishLanguageVersion(tx, author, {
+          entryId,
+          locale: "en",
+          expectedVersion: 1,
+        }),
+      );
+      // The studio can still read it...
+      expect(error.disclosure?.version.body).toBeDefined();
+      // ...but a log line, an inspection, or a serialization cannot.
+      for (const printed of [
+        JSON.stringify(error),
+        inspect(error, { depth: 6 }),
+        String(error),
+        error.stack ?? "",
+        JSON.stringify({ ...error }),
+      ]) {
+        expect(printed).not.toContain("English words");
+        expect(printed).not.toContain("en 0");
+        expect(printed).not.toContain("ct1.");
+      }
+      expect(Object.keys(error)).not.toContain("disclosure");
     });
   });
 

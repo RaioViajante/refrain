@@ -35,11 +35,24 @@ export class PublicationError extends Error {
    * studio can show the author what is true now. It is private writing: it
    * goes only to a request that passed authorization, and is never logged.
    * No failure carries a token (ADR 0006 § 3, "Where tokens come from").
+   *
+   * It is a non-enumerable property on purpose, so that `console.error`,
+   * `util.inspect`, and `JSON.stringify` of the error cannot print the
+   * author's writing into a log by accident.
    */
+  declare readonly disclosure?: PublishDisclosure;
+
   constructor(
     readonly failure: PublicationFailure,
-    readonly disclosure?: PublishDisclosure,
+    disclosure?: PublishDisclosure,
   ) {
     super(`Publication refused: ${failure}`);
+    if (disclosure !== undefined) {
+      Object.defineProperty(this, "disclosure", {
+        value: disclosure,
+        enumerable: false,
+        writable: false,
+      });
+    }
   }
 }

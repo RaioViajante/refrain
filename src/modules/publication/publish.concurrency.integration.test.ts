@@ -16,7 +16,9 @@ import {
   createTestTrackReflection,
   publishForTest,
   raceAll,
+  claimsOf,
   reissueTestToken,
+  shiftedTestToken,
   testAuthor,
   withConnections,
   type TestAlbum,
@@ -171,6 +173,7 @@ async function publishBlockedBehind(
   entryId: string,
   token: { confirmation: string; entryVersion: number },
   mutate: (tx: Transaction) => Promise<void>,
+  afterBlocked: (tx: Transaction) => Promise<void> = async () => {},
 ): Promise<Outcome> {
   return withConnections(2, async ([a, b]) => {
     let pending:
@@ -187,6 +190,7 @@ async function publishBlockedBehind(
           ),
         ]).then(([settled]) => settled!);
         await waitUntilBlocked(tx);
+        await afterBlocked(tx);
       });
     } finally {
       await pending;
@@ -456,6 +460,38 @@ describe("publication against concurrent changes (test 6)", () => {
       expect(history.rows[0]!.first).toBeNull();
     },
   );
+
+  it("reads the expiry after the lock was granted, not when the transaction began (ADR 0006 L6)", async () => {
+    const ids = await fresh();
+    // The same token, valid for only about two and a half seconds more.
+    const short = shiftedTestToken(
+      ids.token.confirmation,
+      -(15 * 60 * 1000 - 2500),
+    );
+    const expiresAtMs = claimsOf(short).x;
+    const outcome = await publishBlockedBehind(
+      ids.entryId,
+      { confirmation: short, entryVersion: ids.token.entryVersion },
+      async () => {},
+      // The publication is now waiting for the lock, and its transaction has
+      // already begun. Hold the lock until the database clock is past the
+      // expiry: only a clock read after the lock was granted notices.
+      async (tx) => {
+        for (let attempt = 0; attempt < 200; attempt++) {
+          const clock = await tx.execute<{ past: boolean }>(sql`
+            select floor(extract(epoch from clock_timestamp()) * 1000)
+                   >= ${expiresAtMs} as past`);
+          if (clock.rows[0]!.past) {
+            return;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+        throw new Error("The database clock never passed the expiry.");
+      },
+    );
+    expect(outcome).toEqual({ ok: false, failure: "confirmation_expired" });
+    expect(await statusOf(ids.entryId, "en")).toBe("draft");
+  });
 
   it("refuses a token when another publication won while it waited", async () => {
     const ids = await fresh();

@@ -235,6 +235,119 @@ describe("the writer scan catches each way of writing what the public sees", () 
   });
 });
 
+describe("the scans resist the evasions an independent review found", () => {
+  it.each([
+    [
+      "a table aliased to a variable",
+      "const t = schema.entryTexts; await tx.update(t).set(x);",
+    ],
+    [
+      "a table destructured from the schema",
+      "const { entryTexts: t } = schema; await tx.update(t).set(x);",
+    ],
+    [
+      "a table named by element access",
+      "await tx.update(schema['entryTexts']).set(x);",
+    ],
+    [
+      "sql imported under another name",
+      "await tx.execute(q`update entry_texts set status = 'published'`);",
+    ],
+    [
+      "a plain string handed to query",
+      "await pool.query(\"update entry_texts set status = 'published'\");",
+    ],
+    [
+      "a plain string handed to execute",
+      'await tx.execute("delete from entry_texts");',
+    ],
+    [
+      "a table name built around a substitution",
+      "await tx.execute(sql`update entry_${part} set x = 1`);",
+    ],
+    [
+      "an upsert whose update half sets a status",
+      'await tx.insert(schema.entryTexts).values({ status: "draft" }).onConflictDoUpdate({ target: x, set: { status: "published" } });',
+    ],
+    [
+      "an upsert whose update half cannot be read",
+      "await tx.insert(schema.entryTexts).values({}).onConflictDoUpdate(config);",
+    ],
+  ])("catches %s", (_name, body) => {
+    const source = body.includes("q`")
+      ? `import { sql as q } from "drizzle-orm";\n`
+      : "";
+    expect(
+      writers(elsewhere, `${source}export async function evil(tx) { ${body} }`),
+      body,
+    ).not.toEqual([]);
+  });
+
+  it("catches an upsert inside the allowlisted create, which may insert only a draft", () => {
+    expect(
+      writers(
+        journals,
+        'export async function createAlbumJournal(tx) { await tx.insert(schema.entryTexts).values({ status: "draft" }).onConflictDoUpdate({ target: x, set: { status: s } }); }',
+      ),
+    ).not.toEqual([]);
+  });
+
+  it("holds the other Publication commands to not writing language versions at all", () => {
+    expect(
+      writers(
+        "src/modules/publication/commands.ts",
+        "export async function changeEntrySlug(tx, s) { await tx.execute(sql`update entry_texts set status = ${s}`); }",
+      ),
+    ).not.toEqual([]);
+    expect(
+      writers(
+        "src/modules/publication/commands.ts",
+        "export async function restoreDeletedEntry(tx, s) { await tx.execute(sql`update entry_texts set status = 'private'`); }",
+      ),
+    ).toEqual([]);
+    expect(
+      writers(
+        "src/modules/publication/commands.ts",
+        "export async function restoreDeletedEntry(tx, s) { await tx.execute(sql`update entry_texts set status = 'published'`); }",
+      ),
+    ).not.toEqual([]);
+  });
+
+  describe("in the mint-and-consume scan", () => {
+    const wrapper = "src/modules/journals/wrapper.ts";
+
+    it("sees through renamed imports", () => {
+      expect(
+        mintConsumeViolations([
+          file(
+            wrapper,
+            'import { previewPublication as pp, publishLanguageVersion as pl } from "@/modules/publication";\nexport async function f(db, a, i) { const p = await pp(db, a, i); return pl(db, a, p); }',
+          ),
+        ]),
+      ).not.toEqual([]);
+      expect(
+        mintConsumeViolations([
+          file(
+            "src/modules/publication/publish.ts",
+            'import { signConfirmation as sign } from "@/modules/identity";\nexport async function sneaky() { return sign(a, b); }',
+          ),
+        ]),
+      ).not.toEqual([]);
+    });
+
+    it("follows helpers more than one level deep", () => {
+      expect(
+        mintConsumeViolations([
+          file(
+            wrapper,
+            "async function one(db, a, i) { return previewPublication(db, a, i); }\nasync function two(db, a, i) { return one(db, a, i); }\nexport async function f(db, a, i) { await two(db, a, i); return publishLanguageVersion(db, a, i); }",
+          ),
+        ]),
+      ).not.toEqual([]);
+    });
+  });
+});
+
 describe("the export-surface scan catches each way of reaching the write", () => {
   const publish = "src/modules/publication/publish.ts";
   const index = "src/modules/publication/index.ts";

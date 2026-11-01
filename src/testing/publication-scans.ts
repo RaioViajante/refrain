@@ -113,12 +113,80 @@ export const WRITER_ALLOWLIST: ReadonlySet<string> = new Set([
   "src/modules/journals/commands.ts#permanentlyDeleteEntry",
 ]);
 
-/** Only the Publication commands may write a status or a publication time. */
-const STATUS_WRITERS: ReadonlySet<string> = new Set(
-  [...WRITER_ALLOWLIST].filter((key) =>
-    key.startsWith("src/modules/publication/"),
-  ),
-);
+/**
+ * The only functions that may write language versions in SQL: the three
+ * Publication commands that change a status. (Not every Publication
+ * command: `changeEntrySlug` has no business writing `entry_texts`.)
+ */
+const STATUS_WRITERS: ReadonlySet<string> = new Set([
+  "src/modules/publication/publish.ts#markVersionPublished",
+  "src/modules/publication/commands.ts#unpublishLanguageVersion",
+  "src/modules/publication/commands.ts#restoreDeletedEntry",
+]);
+
+/** The only function that may set a version to `published`. */
+const PUBLISH_WRITERS: ReadonlySet<string> = new Set([
+  "src/modules/publication/publish.ts#markVersionPublished",
+]);
+
+// Names bound in the file being scanned: `import { sql as q }`, `const t =
+// schema.entryTexts`, `const { entryTexts: t } = schema`, and aliases of any
+// imported function. Set by `prepare` before each file is scanned.
+interface FileContext {
+  sqlNames: Set<string>;
+  tables: Map<string, string>;
+  aliases: Map<string, string>;
+}
+let ctx: FileContext = {
+  sqlNames: new Set(["sql"]),
+  tables: new Map(),
+  aliases: new Map(),
+};
+
+function prepare(source: ts.SourceFile): void {
+  const next: FileContext = {
+    sqlNames: new Set(["sql"]),
+    tables: new Map(),
+    aliases: new Map(),
+  };
+  const visit = (node: ts.Node) => {
+    if (ts.isImportSpecifier(node) && node.propertyName) {
+      next.aliases.set(node.name.text, node.propertyName.text);
+      if (node.propertyName.text === "sql") {
+        next.sqlNames.add(node.name.text);
+      }
+    }
+    if (ts.isVariableDeclaration(node) && node.initializer) {
+      if (ts.isIdentifier(node.name)) {
+        const table = referencedTable(node.initializer);
+        if (table) {
+          next.tables.set(node.name.text, table);
+        }
+      } else if (ts.isObjectBindingPattern(node.name)) {
+        for (const element of node.name.elements) {
+          const original = (element.propertyName ?? element.name).getText();
+          if (original in TABLES && ts.isIdentifier(element.name)) {
+            next.tables.set(element.name.text, TABLES[original]!);
+          }
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  ctx = next;
+}
+
+/** What a call's callee is named, with import aliases resolved. */
+function calleeName(callee: ts.Expression): string | null {
+  if (ts.isIdentifier(callee)) {
+    return ctx.aliases.get(callee.text) ?? callee.text;
+  }
+  if (ts.isPropertyAccessExpression(callee)) {
+    return callee.name.text;
+  }
+  return null;
+}
 
 /** `sql.raw` builds constants for table definitions here, and nowhere else. */
 const SQL_RAW_ALLOWED_FILES: ReadonlySet<string> = new Set([
@@ -137,20 +205,30 @@ export interface Write {
 const WRITE_VERB =
   /\b(?:update\s+(?:only\s+)?|insert\s+into\s+|delete\s+from\s+)(?:"?public"?\.)?"?([a-z_]+)"?/gi;
 
-function tableOfReference(node: ts.Expression | undefined): string | null {
-  if (!node) {
-    return null;
-  }
+function referencedTable(node: ts.Expression): string | null {
   const name = ts.isIdentifier(node)
     ? node.text
     : ts.isPropertyAccessExpression(node)
       ? node.name.text
-      : null;
+      : ts.isElementAccessExpression(node) &&
+          ts.isStringLiteralLike(node.argumentExpression)
+        ? node.argumentExpression.text
+        : null;
   return name && name in TABLES ? TABLES[name]! : null;
 }
 
+function tableOfReference(node: ts.Expression | undefined): string | null {
+  if (!node) {
+    return null;
+  }
+  if (ts.isIdentifier(node) && ctx.tables.has(node.text)) {
+    return ctx.tables.get(node.text)!;
+  }
+  return referencedTable(node);
+}
+
 function isSqlTag(node: ts.Expression): boolean {
-  return ts.isIdentifier(node) && node.text === "sql";
+  return ts.isIdentifier(node) && ctx.sqlNames.has(node.text);
 }
 
 // The text of an SQL template, with each substitution replaced by `\0` so a
@@ -197,6 +275,15 @@ function chainArguments(call: ts.CallExpression): ts.Expression[] {
           outer.arguments[0]
         ) {
           found.push(outer.arguments[0]);
+        }
+        if (parent.name.text === "onConflictDoUpdate" && outer.arguments[0]) {
+          // The update half of an upsert: its `set`, or the whole argument
+          // when it cannot be read.
+          const argument = outer.arguments[0];
+          const set = ts.isObjectLiteralExpression(argument)
+            ? objectKeys(argument).get("set")
+            : undefined;
+          found.push(set ?? argument);
         }
         node = outer;
         continue;
@@ -294,6 +381,7 @@ export function writerViolations(files: SourceText[]): Write[] {
 
   for (const file of files) {
     const source = parse(file);
+    prepare(source);
     const record = (node: ts.Node, write: Omit<Write, "path" | "fn">) => {
       const fn = enclosingFunction(node);
       const allowed = WRITER_ALLOWLIST.has(`${file.path}#${fn}`);
@@ -305,6 +393,59 @@ export function writerViolations(files: SourceText[]): Write[] {
         });
       } else if (full.reason) {
         violations.push(full);
+      }
+    };
+
+    const checkSqlText = (node: ts.Node, text: string) => {
+      for (const match of text.matchAll(WRITE_VERB)) {
+        const table = match[1]!.toLowerCase();
+        if (!SQL_TABLES.has(table)) {
+          continue;
+        }
+        const statement = text.slice(match.index);
+        if (table === "entries" && !/deleted_at\s*=\s*null/i.test(statement)) {
+          continue;
+        }
+        if (
+          table === "album_journals" &&
+          !/rating_half_steps/i.test(statement)
+        ) {
+          continue;
+        }
+        let reason: string | undefined;
+        const fn = enclosingFunction(node);
+        if (
+          table === "entry_texts" &&
+          !STATUS_WRITERS.has(`${file.path}#${fn}`)
+        ) {
+          reason =
+            "writes language versions in SQL outside the Publication commands";
+        }
+        record(node, { table, form: "sql", reason });
+      }
+      // `update ${table}` or `update entry_${part}`: a dynamic table name
+      // cannot be resolved by reading.
+      if (
+        /(?:update|insert\s+into|delete\s+from)\s+(?:only\s+)?[a-z_"]*\0/i.test(
+          text,
+        )
+      ) {
+        record(node, {
+          table: "?",
+          form: "dynamic-sql",
+          reason: "writes to a table named by a substitution",
+        });
+      }
+      // A status assigned to 'published' in SQL anywhere else.
+      if (
+        /(?:\bset|,)\s+status\s*=\s*'published'/i.test(text) &&
+        !PUBLISH_WRITERS.has(`${file.path}#${enclosingFunction(node)}`)
+      ) {
+        record(node, {
+          table: "entry_texts",
+          form: "sql",
+          reason: "sets a version to published outside markVersionPublished",
+        });
       }
     };
 
@@ -367,46 +508,10 @@ export function writerViolations(files: SourceText[]): Write[] {
         }
       }
 
-      // SQL text in a template tagged `sql`.
+      // SQL text in a template tagged `sql`, or a plain string handed to
+      // `.query`, `.execute`, or `.raw`.
       if (ts.isTaggedTemplateExpression(node) && isSqlTag(node.tag)) {
-        const text = sqlTextOf(node.template);
-        for (const match of text.matchAll(WRITE_VERB)) {
-          const table = match[1]!.toLowerCase();
-          if (!SQL_TABLES.has(table)) {
-            continue;
-          }
-          const statement = text.slice(match.index);
-          if (
-            table === "entries" &&
-            !/deleted_at\s*=\s*null/i.test(statement)
-          ) {
-            continue;
-          }
-          if (
-            table === "album_journals" &&
-            !/rating_half_steps/i.test(statement)
-          ) {
-            continue;
-          }
-          let reason: string | undefined;
-          const fn = enclosingFunction(node);
-          if (
-            table === "entry_texts" &&
-            !STATUS_WRITERS.has(`${file.path}#${fn}`)
-          ) {
-            reason =
-              "writes language versions in SQL outside the Publication commands";
-          }
-          record(node, { table, form: "sql", reason });
-        }
-        // `update ${table}`: a dynamic table cannot be resolved by reading.
-        if (/(?:update|insert\s+into|delete\s+from)\s+\0/i.test(text)) {
-          record(node, {
-            table: "?",
-            form: "dynamic-sql",
-            reason: "writes to a table named by a substitution",
-          });
-        }
+        checkSqlText(node, sqlTextOf(node.template));
         // `update ${sql.identifier("entry_texts")}`.
         if (ts.isTemplateExpression(node.template)) {
           const spans = node.template.templateSpans;
@@ -432,17 +537,17 @@ export function writerViolations(files: SourceText[]): Write[] {
             }
           });
         }
-        // A status or publication time assigned in SQL anywhere else.
-        if (
-          /(?:\bset|,)\s+status\s*=\s*'published'/i.test(text) &&
-          !STATUS_WRITERS.has(`${file.path}#${enclosingFunction(node)}`)
-        ) {
-          record(node, {
-            table: "entry_texts",
-            form: "sql",
-            reason:
-              "sets a version to published outside the Publication commands",
-          });
+      }
+      if (
+        ts.isCallExpression(node) &&
+        ts.isPropertyAccessExpression(node.expression) &&
+        ["query", "execute", "raw"].includes(node.expression.name.text)
+      ) {
+        const argument = node.arguments[0];
+        if (argument && ts.isStringLiteralLike(argument)) {
+          checkSqlText(node, argument.text);
+        } else if (argument && ts.isTemplateExpression(argument)) {
+          checkSqlText(node, sqlTextOf(argument));
         }
       }
 
@@ -467,7 +572,7 @@ export function writerViolations(files: SourceText[]): Write[] {
         node.name.getText().replace(/^["']|["']$/g, "") === "status" &&
         ts.isStringLiteralLike(node.initializer) &&
         node.initializer.text === "published" &&
-        !STATUS_WRITERS.has(`${file.path}#${enclosingFunction(node)}`)
+        !PUBLISH_WRITERS.has(`${file.path}#${enclosingFunction(node)}`)
       ) {
         record(node, {
           table: "entry_texts",
@@ -525,11 +630,9 @@ function localCalls(body: ts.Node): Set<string> {
   const names = new Set<string>();
   const visit = (node: ts.Node) => {
     if (ts.isCallExpression(node)) {
-      const callee = node.expression;
-      if (ts.isIdentifier(callee)) {
-        names.add(callee.text);
-      } else if (ts.isPropertyAccessExpression(callee)) {
-        names.add(callee.name.text);
+      const name = calleeName(node.expression);
+      if (name) {
+        names.add(name);
       }
     }
     ts.forEachChild(node, visit);
@@ -578,6 +681,7 @@ export function exportSurfaceViolations(files: SourceText[]): string[] {
 
   for (const file of moduleFiles) {
     const source = parse(file);
+    prepare(source);
     const functions = topLevelFunctions(source);
 
     const exported = new Set<string>();
@@ -807,15 +911,13 @@ export function mintConsumeViolations(files: SourceText[]): string[] {
     const inPublication = file.path.startsWith("src/modules/publication/");
     const inIdentity = file.path.startsWith("src/modules/identity/");
     const source = parse(file);
+    prepare(source);
 
     // Only the Publication module signs a token, and only in a preview.
     const visitSign = (node: ts.Node) => {
       if (
         ts.isCallExpression(node) &&
-        ((ts.isIdentifier(node.expression) &&
-          node.expression.text === SIGNING) ||
-          (ts.isPropertyAccessExpression(node.expression) &&
-            node.expression.name.text === SIGNING))
+        calleeName(node.expression) === SIGNING
       ) {
         const fn = enclosingFunction(node);
         if (!inPublication || !MINTING_PREVIEWS.includes(fn)) {
@@ -869,9 +971,16 @@ export function mintConsumeViolations(files: SourceText[]): string[] {
     // No function previews and consumes: directly, or through a local helper.
     const direct = functionCalls(source);
     for (const [name, calls] of direct) {
+      // Everything it can reach through helpers defined in the same file.
       const reachable = new Set(calls);
-      for (const called of calls) {
-        direct.get(called)?.forEach((inner) => reachable.add(inner));
+      const queue = [...calls];
+      while (queue.length > 0) {
+        for (const inner of direct.get(queue.pop()!) ?? []) {
+          if (!reachable.has(inner)) {
+            reachable.add(inner);
+            queue.push(inner);
+          }
+        }
       }
       const minted = MINTING_PREVIEWS.filter((preview) =>
         reachable.has(preview),
