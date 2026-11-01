@@ -50,6 +50,32 @@ describe("hand-drawn strokes", () => {
     }
   });
 
+  it("stay inside their box, so a stretched drawing is never clipped", () => {
+    const sizes: Record<string, [number, number]> = {
+      button: [160, 44],
+      "button-hover": [160, 44],
+      "button-focus": [160, 44],
+      "button-primary": [160, 44],
+      field: [600, 48],
+      "field-hover": [600, 48],
+      area: [760, 440],
+      dialog: [540, 300],
+    };
+    for (const [name, [width, height]] of Object.entries(sizes)) {
+      const markup = strokes()[name]!;
+      const numbers = [...markup.matchAll(/ d='([^']+)'/g)].flatMap((match) =>
+        (match[1]!.match(/-?\d+\.?\d*/g) ?? []).map(Number),
+      );
+      numbers.forEach((value, index) => {
+        const limit = index % 2 === 0 ? width : height;
+        expect(value, `${name} leaves its box`).toBeGreaterThanOrEqual(-1.001);
+        expect(value, `${name} leaves its box`).toBeLessThanOrEqual(
+          limit + 1.001,
+        );
+      });
+    }
+  });
+
   it("use only the ink and gray tokens of the design system", () => {
     const colors = new Set(
       Object.values(strokes()).flatMap(

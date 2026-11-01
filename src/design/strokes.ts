@@ -36,28 +36,56 @@ function round(d: string): string {
   return d.replace(/-?\d+\.\d+/g, (n) => String(Number(Number(n).toFixed(1))));
 }
 
+/** The largest distance by which any coordinate of a path leaves its box. */
+function overshoot(d: string, width: number, height: number): number {
+  const numbers = (d.match(/-?\d+\.?\d*/g) ?? []).map(Number);
+  let worst = 0;
+  numbers.forEach((value, index) => {
+    const limit = index % 2 === 0 ? width : height;
+    worst = Math.max(worst, -value, value - limit);
+  });
+  return worst;
+}
+
+// How far a drawing may leave its box. The reference's outlines stay within
+// about 0.2 units of it; beyond a unit the stretched SVG would be clipped.
+const MAX_OVERSHOOT = 1;
+
+/**
+ * A hand-drawn rectangle. The outline runs close to the edge of its box, as
+ * the reference's does (its strokes span x -0.2 to 159.9 in a 160-unit box); a
+ * larger inset made every control look smaller and quieter than the design.
+ * Rough.js jitters the corners, so from the given seed the first drawing that
+ * stays within MAX_OVERSHOOT of the box is used: still fixed and reproducible,
+ * and never clipped.
+ */
 function rectangle(
   width: number,
   height: number,
   seed: number,
   roughness = 0.9,
 ): string {
-  // The outline runs close to the edge of its box, as the reference's does
-  // (its strokes span x -0.2 to 159.9 in a 160-unit box); a larger inset made
-  // every control look smaller and quieter than the design.
   const inset = 0.8;
-  const drawable = generator.rectangle(
-    inset,
-    inset,
-    width - inset * 2,
-    height - inset * 2,
-    { seed, roughness, bowing: 0.8 },
-  );
-  return round(
-    generator
-      .toPaths(drawable)
-      .map((path) => path.d)
-      .join(" "),
+  for (let attempt = seed; attempt < seed + 400; attempt += 1) {
+    const drawable = generator.rectangle(
+      inset,
+      inset,
+      width - inset * 2,
+      height - inset * 2,
+      { seed: attempt, roughness, bowing: 0.8 },
+    );
+    const d = round(
+      generator
+        .toPaths(drawable)
+        .map((path) => path.d)
+        .join(" "),
+    );
+    if (overshoot(d, width, height) <= MAX_OVERSHOOT) {
+      return d;
+    }
+  }
+  throw new Error(
+    `No ${width}x${height} outline fits its box from seed ${seed}.`,
   );
 }
 
