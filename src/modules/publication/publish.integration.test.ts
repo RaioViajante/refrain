@@ -1057,6 +1057,96 @@ describe("publishing needs a token for exactly this state (test 3)", () => {
   });
 });
 
+describe("a memory's details are bound to the token", () => {
+  async function memory(tx: Parameters<typeof journal>[0]) {
+    const album = await createTestAlbum(tx);
+    const memoryId = await createTestMemory(tx, {
+      slug: "test-memory-details",
+      music: [{ trackId: album.trackIds[0]! }, { trackId: album.trackIds[1]! }],
+    });
+    await tx.execute(
+      sql`update memories set remembered_when = '[Test] a summer' where entry_id = ${memoryId}`,
+    );
+    return { memoryId, album };
+  }
+
+  const changes: [
+    string,
+    (
+      tx: DatabaseExecutor,
+      f: { memoryId: string; album: { trackIds: string[] } },
+    ) => Promise<unknown>,
+  ][] = [
+    [
+      "the remembered-when text",
+      (tx, f) =>
+        tx.execute(
+          sql`update memories set remembered_when = '[Test] winter' where entry_id = ${f.memoryId}`,
+        ),
+    ],
+    [
+      "the remembered-when text cleared",
+      (tx, f) =>
+        tx.execute(
+          sql`update memories set remembered_when = null where entry_id = ${f.memoryId}`,
+        ),
+    ],
+    [
+      "the order of the links",
+      (tx, f) =>
+        tx.execute(
+          sql`update memory_music set position = 3 - position where memory_id = ${f.memoryId}`,
+        ),
+    ],
+    [
+      "a link added",
+      (tx, f) =>
+        tx.execute(
+          sql`insert into memory_music (memory_id, position, track_id)
+              values (${f.memoryId}, 3, ${f.album.trackIds[2]!})`,
+        ),
+    ],
+    [
+      "a link removed",
+      (tx, f) =>
+        tx.execute(
+          sql`delete from memory_music where memory_id = ${f.memoryId} and position = 2`,
+        ),
+    ],
+    [
+      "the title",
+      (tx, f) =>
+        tx.execute(
+          sql`update entry_texts set title = '[Test] New title' where entry_id = ${f.memoryId}`,
+        ),
+    ],
+  ];
+
+  it.each(changes)("%s makes it stale", async (_name, change) => {
+    await inRollbackTransaction(async (tx) => {
+      const fixture = await memory(tx);
+      const result = await preview(tx, fixture.memoryId);
+      await change(tx, fixture);
+      const error = await failure(publishWith(tx, fixture.memoryId, result));
+      expect(error.failure).toBe("confirmation_stale");
+      expect(error.disclosure?.kind).toBe("memory");
+    });
+  });
+
+  it("renumbering the links without reordering them changes nothing a reader sees", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const fixture = await memory(tx);
+      const result = await preview(tx, fixture.memoryId);
+      await tx.execute(
+        sql`update memory_music set position = position + 10 where memory_id = ${fixture.memoryId}`,
+      );
+      await expect(publishWith(tx, fixture.memoryId, result)).resolves.toEqual({
+        changed: true,
+      });
+    });
+  });
+});
+
 describe("the other refusals write nothing (test 8)", () => {
   it("a stale version is refused before the token is considered", async () => {
     await inRollbackTransaction(async (tx) => {
