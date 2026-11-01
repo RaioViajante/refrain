@@ -78,7 +78,7 @@ Kalam and Alegreya Sans are the only approved typefaces. The pages load Kalam (3
 | `text-2` | `#3A3A3A` / `#4A4A4A` | Secondary text and metadata (≥ 7:1 on white) |
 | `text-3` | `#5A5A5A` | Hints, "not written yet", credits (≈ 6.9:1) |
 | `rule` | `#CFCFCF` | Light ink dividers |
-| `frame-quiet` | `#ABABAB`, `#111111` on focus | Writing-surface outline |
+| `frame-quiet` | `#767676`, `#111111` on focus | Writing-surface outline and the opening sentence's line. The V4.4 mockups use `#ABABAB` (2.3:1 on white); the implementation darkens it to meet the 3:1 WCAG 2.2 asks of a control boundary ([Studio visual fidelity](design/studio-visual-fidelity.md#accessibility-notes)) |
 | `paper` | `#FFFFFF` | Page background |
 | `paper-2` | `#F4F4F2` · `#F6F6F4` · `#F7F7F5` | Image loading background · state panels · row hover |
 | artwork | original | Covers and photographs only |

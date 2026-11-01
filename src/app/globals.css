@@ -8,7 +8,9 @@
   --color-ink-2: #3a3a3a;
   --color-ink-3: #5a5a5a;
   --color-rule: #cfcfcf;
-  --color-frame-quiet: #ababab;
+  /* frame-quiet is #767676 here, not the mockups' #ABABAB: 4.5:1 instead of
+     2.3:1, to meet WCAG 2.2 1.4.11 for control boundaries. */
+  --color-frame-quiet: #767676;
   --color-paper: #ffffff;
   --color-paper-2: #f4f4f2;
   --color-paper-3: #f6f6f4;
@@ -632,7 +634,7 @@ select.studio-field[aria-invalid="true"] {
   padding: 4px 0 12px;
   border: 0;
   border-radius: 0;
-  background: var(--stroke-rule) 0 100% / 100% 8px no-repeat;
+  background: var(--stroke-opening-line) 0 100% / 100% 8px no-repeat;
   color: var(--color-ink);
   font-family: var(--font-kalam), cursive;
   font-weight: 300;

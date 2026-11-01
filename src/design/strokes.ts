@@ -12,8 +12,12 @@ import rough from "roughjs";
 // and its line keeps the same thickness at every size.
 
 const INK = "#111111";
-const QUIET = "#ABABAB"; // frame-quiet, the writing surface outline
-const RULE = "#CFCFCF"; // rule, the light divider
+// frame-quiet: the quiet outline of the writing surface and of the opening
+// sentence. 4.54:1 on white, so it clears the 3:1 that WCAG 2.2 (1.4.11 Non-text
+// Contrast) asks of a control boundary with room for a thin, anti-aliased line.
+// The V4.4 mockups used #ABABAB (2.3:1), which does not.
+const QUIET = "#767676";
+const RULE = "#CFCFCF"; // rule, the light divider (decorative, never a control)
 const DISABLED = "#C8C8C8";
 
 const generator = rough.generator();
@@ -183,6 +187,17 @@ export function strokes(): Record<string, string> {
         }),
         stroke: RULE,
         width: 1,
+      },
+    ]),
+    "opening-line": svg(1200, 8, [
+      {
+        d: line(2, 4, 1198, 4, 63, {
+          roughness: 0.6,
+          bowing: 0.5,
+          single: true,
+        }),
+        stroke: QUIET,
+        width: 1.2,
       },
     ]),
     "rule-focus": svg(1200, 8, [
