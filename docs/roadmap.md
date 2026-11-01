@@ -80,7 +80,9 @@ Not built, and not authorized: M1.3C has no publishing control, and nothing in t
 
 ### M2 increments (planned)
 
-M2 is split into increments, each authorized separately by the author. **Only M2.0 is authorized, and it is documentation.** The rest is a proposal that depends on the author's acceptance of [ADR 0006](decisions/0006-publication-decision-and-acknowledgement.md), and none of it is built.
+M2 is split into increments, each authorized separately by the author. **Only M2.0 is authorized, and it is documentation.** The rest is a proposal, a split of the M2 and M3 rows above (which stay the original plan until it is accepted), and it depends on the author's acceptance of [ADR 0006](decisions/0006-publication-decision-and-acknowledgement.md), and none of it is built.
+
+**M2 acceptance is for local use only.** ADR 0005 § 5.8 ("every caller") is met for application code in M2 but not for out-of-process writers (a script, `psql`, a migration, a backup restore) until the [public page release gates](decisions/0006-publication-decision-and-acknowledgement.md#14-public-page-release-gates) G3 and G4 are closed. No M2 or M3 work may be hosted publicly before then.
 
 | Increment | Scope | Depends on |
 | --- | --- | --- |

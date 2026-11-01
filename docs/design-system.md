@@ -212,6 +212,7 @@ Each of these is resolved by the [Authority](#authority) rules. The reference fi
 - Save on a published version first asks the server what would change. When anything on the public page would (any edit of the version's text, **including a shorter one** or clearing a field, and any reflection, rating, or link that appears or changes), the existing confirmation dialog names it and offers "Save and update the public page" and "Cancel". Cancelling writes nothing. Removing something from the public page (unflagging a reflection, clearing the rating, unpublishing) does not open this dialog; it keeps its ordinary confirmation.
 - Turning on "Show on the public page" for a reflection, or adding text to a reflection that is already set to show, in a language that is published, asks the same way.
 - There is no autosave of a published version. The text stays in the editor whatever happens.
+- Changing the address of a published entry always asks: the dialog names the new address and says that the old one will redirect to it.
 - Saving a draft, a private version, or a reflection that is not public never asks.
 
 ### Featured journal
