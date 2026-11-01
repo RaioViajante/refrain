@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { expect, test, type Page } from "@playwright/test";
 
-import { createAlbumThroughStudio, named } from "./support";
+import { createAlbumThroughStudio, named, withDatabase } from "./support";
 
 // The visual review package (`pnpm review:screens`). Not part of the normal
 // suite: it runs only when VISUAL_REVIEW=1, as its own Playwright project. It
@@ -72,7 +72,35 @@ test.describe("anonymous", () => {
   });
 });
 
+// A realistic sample, with the names the owner asked for. All of its text is
+// synthetic, and each paragraph says so.
+const GRACE = {
+  artist: "Jeff Buckley",
+  album: "Grace",
+  opening: "[Test] A synthetic opening sentence, short and quiet.",
+  body: [
+    "[Test] Synthetic paragraph one. It is written for the visual review and for nothing else: a few sentences of plain prose, long enough to show the measure, the line height and the space between paragraphs, and saying nothing about anyone.",
+    "[Test] Synthetic paragraph two. It stands in for the second thought of a journal, with a line break\nin the middle of it, and it is about the same length as the first so that the rhythm of the page can be judged.",
+    "[Test] Synthetic paragraph three. A closing paragraph, a little shorter than the others, so that the end of the writing and the space under it can be seen too.",
+  ].join("\n\n"),
+};
+let graceJournalUrl = "";
+let graceAlbumId = "";
+
 test("empty states", async ({ page }) => {
+  // The realistic sample uses exact names, and the teardown removes those names
+  // when the review ends: never start if they already exist.
+  const existing = await withDatabase(async (client) => {
+    const result = await client.query<{ count: string }>(
+      "select (select count(*) from albums where title = $1) + (select count(*) from artists where name = $2) as count",
+      [GRACE.album, GRACE.artist],
+    );
+    return Number(result.rows[0]!.count);
+  });
+  expect(
+    existing,
+    "the disposable database already has a record named like the review sample",
+  ).toBe(0);
   await visit(page, "/studio", "Desk");
   await shoot(page, "02-desk-empty");
   await visit(page, "/studio/artists", "Artists");
@@ -142,6 +170,20 @@ test("journal: write, read, edit", async ({ page }) => {
   await page.goto(`${journalUrl}/edit`);
   await expect(page.getByLabel("Your reflection")).toHaveValue(body);
   await shoot(page, "15-journal-edit");
+  // The realistic sample: Grace, by Jeff Buckley, with a short opening sentence
+  // and three paragraphs of synthetic text.
+  const grace = await createAlbumThroughStudio(page, {
+    artist: GRACE.artist,
+    album: GRACE.album,
+  });
+  graceAlbumId = grace.albumUrl.split("/").pop()!;
+  await page.goto(`/studio/journals/new?album=${graceAlbumId}`);
+  await page.getByLabel("Opening sentence (optional)").fill(GRACE.opening);
+  await page.getByLabel("Your reflection").fill(GRACE.body);
+  await page.getByRole("button", { name: "Save as draft" }).click();
+  await page.waitForURL(/\/studio\/journals\/[0-9a-f-]{36}$/);
+  graceJournalUrl = page.url();
+
   // Two more journals in other states, so the Desk shows a mix of drafts and
   // private writing, as the reference does.
   for (const { id, index } of extraAlbums) {
@@ -190,6 +232,26 @@ test("dialogs and Recently deleted", async ({ page }) => {
     .click();
   await expect(page).toHaveURL(/restored=1/);
   await shoot(page, "21-journal-restored");
+});
+
+test("realistic sample: Grace, by Jeff Buckley", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(graceJournalUrl);
+  await expect(
+    page.getByRole("heading", { level: 1, name: GRACE.album, exact: true }),
+  ).toBeVisible();
+  await shoot(page, "23-grace-reading");
+  await page.goto(`${graceJournalUrl}/edit`);
+  await expect(page.getByLabel("Your reflection")).toHaveValue(GRACE.body);
+  await shoot(page, "24-grace-edit");
+  await page.goto(`/studio/journals/new?album=${graceAlbumId}`);
+  await expect(page.getByLabel("Your reflection")).toBeVisible();
+  await shoot(page, "25-grace-new");
+  await page.goto("/studio/albums");
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Albums", exact: true }),
+  ).toBeVisible();
+  await shoot(page, "26-albums-with-grace");
 });
 
 // Close-ups of the drawn controls at 1x (the reference previews are 1x), for

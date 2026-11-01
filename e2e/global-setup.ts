@@ -22,6 +22,13 @@ import { PORT } from "./constants";
 
 const RECORD_PREFIX = "[Test] E2E";
 
+// The visual review (VISUAL_REVIEW=1) also builds a realistic sample with the
+// names the owner asked for. Those exact names are removed as well, and only
+// then, from the verified disposable database; the review refuses to start if
+// such records already exist, so it can never remove anything it did not make.
+const REVIEW_ALBUMS = ["Grace"];
+const REVIEW_ARTISTS = ["Jeff Buckley"];
+
 export default async function setup() {
   let server;
   try {
@@ -84,17 +91,24 @@ async function removeSyntheticRecords(): Promise<void> {
   try {
     await assertDisposableTestDatabase(client);
     const own = `${RECORD_PREFIX}%`;
+    const review = Boolean(process.env.VISUAL_REVIEW);
+    const albums = [own, ...(review ? REVIEW_ALBUMS : [])];
+    const artists = [own, ...(review ? REVIEW_ARTISTS : [])];
     const journals = `select aj.entry_id from album_journals aj
                         join albums a on a.id = aj.album_id
-                       where a.title like $1`;
+                       where a.title like any($1)`;
     await client.query(
       `delete from entry_slugs where entry_id in (${journals})`,
-      [own],
+      [albums],
     );
-    await client.query(`delete from entries where id in (${journals})`, [own]);
-    await client.query("delete from albums where title like $1", [own]);
+    await client.query(`delete from entries where id in (${journals})`, [
+      albums,
+    ]);
+    await client.query("delete from albums where title like any($1)", [albums]);
     await client.query("delete from tracks where title like $1", [own]);
-    await client.query("delete from artists where name like $1", [own]);
+    await client.query("delete from artists where name like any($1)", [
+      artists,
+    ]);
   } finally {
     await client.end();
   }

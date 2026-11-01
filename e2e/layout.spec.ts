@@ -236,61 +236,123 @@ test("the skip link works after client-side navigation, with earlier routes stil
   expect(focused.visible, "focus landed on a hidden earlier route").toBe(true);
 });
 
-// The header is one row at every width: the label, the two destinations, and
-// the session control share a line, and the two destinations never wrap.
-for (const width of [...WIDTHS, 360, 320]) {
-  test(`at ${width}px the header is a single row with two destinations`, async ({
+// The header follows the reference at both sizes. Above 720px it is one row:
+// the label, the two destinations centered, and the session control. At 720px
+// and below it is the reference's short vertical composition: the label and the
+// two destinations centered, and the session control, quiet, at the right. The
+// two destinations never wrap, at any width.
+for (const width of [...WIDTHS, 360, 320, 720, 721]) {
+  test(`at ${width}px the header follows the reference, with two destinations that never wrap`, async ({
     page,
   }) => {
     await open(page, width, "/studio", "Desk");
     const geometry = await page.evaluate(() => {
-      const center = (element: Element) => {
-        const rect = element.getBoundingClientRect();
+      const rect = (element: Element) => {
+        const box = element.getBoundingClientRect();
         return {
-          y: rect.top + rect.height / 2,
-          left: rect.left,
-          right: rect.right,
+          left: box.left,
+          right: box.right,
+          top: box.top,
+          bottom: box.bottom,
+          cx: box.left + box.width / 2,
+          cy: box.top + box.height / 2,
         };
       };
-      const bar = document.querySelector(".studio-header-bar:not([hidden])")!;
       const visible = <T extends Element>(selector: string) =>
         [...document.querySelectorAll<T>(selector)].find((element) =>
           element.checkVisibility(),
         )!;
-      const links = [
-        ...visible<HTMLElement>(".studio-nav").querySelectorAll("a"),
-      ];
       return {
-        barHeight: visible(".studio-header-bar").getBoundingClientRect().height,
-        links: links.map((link) => center(link)),
-        label: center(visible(".studio-header-label")),
-        end: center(visible(".studio-header-end")),
-        bar: bar ? 1 : 0,
+        viewport: document.documentElement.clientWidth,
+        label: rect(visible(".studio-header-label")),
+        links: [...visible(".studio-nav").querySelectorAll("a")].map(rect),
+        nav: rect(visible(".studio-nav")),
+        end: rect(visible(".studio-header-end")),
+        labelText: visible(".studio-header-label").textContent,
       };
     });
     expect(geometry.links).toHaveLength(2);
-    // Both destinations are on one line, and the label and the session
-    // control are on that line too.
     const [first, second] = geometry.links as [
-      { y: number; left: number; right: number },
-      { y: number; left: number; right: number },
+      (typeof geometry.links)[number],
+      (typeof geometry.links)[number],
     ];
     expect(
-      Math.abs(first.y - second.y),
-      "the two links share a row",
+      Math.abs(first.cy - second.cy),
+      "the two destinations share a row",
     ).toBeLessThan(4);
-    expect(
-      Math.abs(geometry.label.y - first.y),
-      "the label shares the row",
-    ).toBeLessThan(14);
-    expect(
-      Math.abs(geometry.end.y - first.y),
-      "Sign out shares the row",
-    ).toBeLessThan(14);
-    expect(geometry.barHeight, "one row of header").toBeLessThan(76);
-    // Nothing overlaps: label, links, and Sign out are in order.
-    expect(geometry.label.right).toBeLessThanOrEqual(first.left + 1);
-    expect(second.right).toBeLessThanOrEqual(geometry.end.left + 1);
+    expect(geometry.labelText, "the identity stays visible as words").toContain(
+      "Writing studio",
+    );
+    const middle = geometry.viewport / 2;
+    if (width <= 720) {
+      // Stacked: label, then the destinations, then the session control.
+      expect(geometry.label.bottom).toBeLessThanOrEqual(geometry.nav.top + 1);
+      expect(geometry.nav.bottom).toBeLessThanOrEqual(geometry.end.top + 1);
+      expect(
+        Math.abs(geometry.label.cx - middle),
+        "label centered",
+      ).toBeLessThan(8);
+      expect(
+        Math.abs(geometry.nav.cx - middle),
+        "destinations centered",
+      ).toBeLessThan(8);
+      expect(geometry.end.right, "Sign out at the right").toBeGreaterThan(
+        geometry.viewport - 40,
+      );
+    } else {
+      // One row: label, destinations, session control, in that order.
+      expect(Math.abs(geometry.label.cy - first.cy)).toBeLessThan(14);
+      expect(Math.abs(geometry.end.cy - first.cy)).toBeLessThan(14);
+      expect(geometry.label.right).toBeLessThanOrEqual(first.left + 1);
+      expect(second.right).toBeLessThanOrEqual(geometry.end.left + 1);
+      expect(
+        Math.abs(geometry.nav.cx - middle),
+        "destinations centered",
+      ).toBeLessThan(8);
+    }
+    await expectNoHorizontalOverflow(page);
+  });
+}
+
+// The editor's action bar: Save and the save state are one glance away while
+// writing, on a wide screen and on a phone, without covering the writing.
+for (const width of [1280, 390]) {
+  test(`at ${width}px Save and the save state stay reachable while writing a long text`, async ({
+    page,
+  }) => {
+    await open(page, width, `${journalUrl}/edit`, ALBUM);
+    const save = page.getByRole("button", { name: "Save", exact: true });
+    const body = page.getByLabel("Your reflection");
+    const longText = Array.from(
+      { length: 40 },
+      (_, index) => `[Test] Paragraph ${index + 1} of a long synthetic text.`,
+    ).join("\n\n");
+    await body.fill(longText);
+    // The save state appears beside Save as soon as the text changes.
+    await expect(page.getByText("Unsaved changes")).toBeVisible();
+    await expect(save).toBeVisible();
+    // Scroll to the end of the page: Save is still on screen.
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await expect(save).toBeInViewport();
+    // The bar must not cover the writing it belongs to: the text area's top is
+    // below the bar when the page is at the top again.
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const [bar, area] = await Promise.all([
+      page.locator(".studio-editorbar").first().boundingBox(),
+      body.boundingBox(),
+    ]);
+    expect(area!.y).toBeGreaterThanOrEqual(bar!.y + bar!.height - 1);
+    // Reading order: the bar (the way back, Save) comes before the fields.
+    const order = await page.evaluate(() => {
+      const bar = document.querySelector(".studio-editorbar");
+      const field = document.querySelector("textarea");
+      return Boolean(
+        bar &&
+        field &&
+        bar.compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+    });
+    expect(order).toBe(true);
     await expectNoHorizontalOverflow(page);
   });
 }
