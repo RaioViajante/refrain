@@ -31,6 +31,10 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Local-only design references (ignored by Git), not application code.
     "reference/**",
+    // Playwright output.
+    "test-results/**",
+    "playwright-report/**",
+    "playwright/**",
   ]),
   {
     rules: {

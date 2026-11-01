@@ -34,3 +34,10 @@ next-env.d.ts
 # Package manager logs
 npm-debug.log*
 .pnpm-debug.log*
+
+# Browser tests (Playwright): reports, traces, screenshots, and the signed-in
+# session of the synthetic author. Never committed.
+/test-results/
+/playwright-report/
+/playwright/.auth/
+/blob-report/
