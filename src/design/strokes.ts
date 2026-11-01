@@ -42,7 +42,10 @@ function rectangle(
   seed: number,
   roughness = 0.9,
 ): string {
-  const inset = 3;
+  // The outline runs close to the edge of its box, as the reference's does
+  // (its strokes span x -0.2 to 159.9 in a 160-unit box); a larger inset made
+  // every control look smaller and quieter than the design.
+  const inset = 0.8;
   const drawable = generator.rectangle(
     inset,
     inset,
@@ -102,6 +105,40 @@ function inkBlock(width: number, height: number, seed: number): string {
         .join(" ") +
       " Z",
   );
+}
+
+/** A small seeded random generator, so a drawing never changes between runs. */
+function seeded(seed: number): () => number {
+  let state = seed;
+  return () => {
+    state = (state * 1664525 + 1013904223) % 4294967296;
+    return state / 4294967296;
+  };
+}
+
+/**
+ * A hand-drawn underline: one stroke that rises and falls along its length,
+ * through points that wobble by a seeded amount. The reference's underline is
+ * a visible swoosh about 4 units tall in a 10-unit box, not a flat line.
+ */
+function swoosh(seed: number, baseY: number, amplitude: number): string {
+  const next = seeded(seed);
+  const xs = [2, 62, 132, 197];
+  const ys = [baseY + 0.5, baseY - 1, baseY + 0.6, baseY - 0.7].map(
+    (y, index) =>
+      y +
+      (index % 2 === 0 ? 1 : -1) * amplitude * (0.5 + next() * 0.5) * 0.4 +
+      (next() - 0.5) * 0.6,
+  );
+  const points = xs.map((x, i) => [x, ys[i]!] as const);
+  const at = (i: number) =>
+    points[Math.max(0, Math.min(points.length - 1, i))]!;
+  let d = `M${points[0]![0]} ${points[0]![1].toFixed(1)}`;
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const [p0, p1, p2, p3] = [at(i - 1), at(i), at(i + 1), at(i + 2)];
+    d += ` C${(p1[0] + (p2[0] - p0[0]) / 6).toFixed(1)} ${(p1[1] + (p2[1] - p0[1]) / 6).toFixed(1)}, ${(p2[0] - (p3[0] - p1[0]) / 6).toFixed(1)} ${(p2[1] - (p3[1] - p1[1]) / 6).toFixed(1)}, ${p2[0]} ${p2[1].toFixed(1)}`;
+  }
+  return round(d);
 }
 
 function svg(width: number, height: number, layers: Layer[]): string {
@@ -181,8 +218,8 @@ export function strokes(): Record<string, string> {
     rule: svg(1200, 8, [
       {
         d: line(2, 4, 1198, 4, 61, {
-          roughness: 0.6,
-          bowing: 0.5,
+          roughness: 0.9,
+          bowing: 1.1,
           single: true,
         }),
         stroke: RULE,
@@ -191,9 +228,9 @@ export function strokes(): Record<string, string> {
     ]),
     "opening-line": svg(1200, 8, [
       {
-        d: line(2, 4, 1198, 4, 63, {
-          roughness: 0.6,
-          bowing: 0.5,
+        d: line(2, 4, 1198, 4, 62, {
+          roughness: 0.9,
+          bowing: 1.1,
           single: true,
         }),
         stroke: QUIET,
@@ -203,8 +240,8 @@ export function strokes(): Record<string, string> {
     "rule-focus": svg(1200, 8, [
       {
         d: line(2, 4, 1198, 4, 62, {
-          roughness: 0.6,
-          bowing: 0.5,
+          roughness: 0.9,
+          bowing: 1.1,
           single: true,
         }),
         stroke: INK,
@@ -212,16 +249,8 @@ export function strokes(): Record<string, string> {
       },
     ]),
     underline: svg(200, 10, [
-      {
-        d: line(2, 6, 197, 5, 71, { roughness: 0.7, single: true }),
-        stroke: INK,
-        width: 1.6,
-      },
-      {
-        d: line(1, 7.5, 196, 6.5, 72, { roughness: 0.7, single: true }),
-        stroke: INK,
-        width: 1.2,
-      },
+      { d: swoosh(71, 5.2, 4), stroke: INK, width: 1.6 },
+      { d: swoosh(72, 6.6, 4), stroke: INK, width: 1.2 },
     ]),
   };
 }
