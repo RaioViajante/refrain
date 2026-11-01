@@ -49,7 +49,12 @@ export default async function setup() {
 
   return async () => {
     try {
-      await removeSyntheticRecords();
+      // Kept only when asked, to look at (or capture evidence from) what the
+      // run left in the disposable database; `pnpm db:test:down && pnpm
+      // db:test:up` discards it.
+      if (!process.env.E2E_KEEP_DATA) {
+        await removeSyntheticRecords();
+      }
     } finally {
       // For diagnosis on one's own machine: the log can hold a stack trace
       // but, by the application's logging rules, no writing or credentials.
