@@ -24,6 +24,7 @@ import {
   unpublishLanguageVersion,
 } from "./commands";
 import { PublicationError } from "./errors";
+import { disclosureOf, fingerprintOf, readPublishState } from "./disclosure";
 import { previewPublication, publishLanguageVersion } from "./publish";
 import {
   getPublicLanguageVersion,
@@ -1053,6 +1054,74 @@ describe("publishing needs a token for exactly this state (test 3)", () => {
         );
         expect(error.failure).toBe("confirmation_required");
       });
+    });
+  });
+});
+
+describe("the fingerprint itself covers what the claims also bind", () => {
+  // The token's claims bind the locale and the version a second time. These
+  // tests look at the fingerprint alone, so neither can be dropped from it
+  // without a test noticing.
+  async function fingerprintNow(
+    tx: DatabaseExecutor,
+    entryId: string,
+    locale: Locale,
+  ) {
+    const state = await readPublishState(tx, entryId, locale);
+    return fingerprintOf(state, disclosureOf(state, entryId, locale));
+  }
+
+  it("differs between languages whose content is identical", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const album = await createTestAlbum(tx);
+      const entryId = await createTestAlbumJournal(tx, {
+        albumId: album.albumId,
+        slug: "same-words",
+        versions: [
+          { locale: "en", text: "[Test] same" },
+          { locale: "pt-BR", isOriginal: false, text: "[Test] same" },
+        ],
+      });
+      expect(await fingerprintNow(tx, entryId, "en")).not.toBe(
+        await fingerprintNow(tx, entryId, "pt-BR"),
+      );
+    });
+  });
+
+  it("changes with the entry version alone", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const { entryId } = await journal(tx);
+      const before = await fingerprintNow(tx, entryId, "en");
+      await tx.execute(
+        sql`update entries set version = version + 1 where id = ${entryId}`,
+      );
+      expect(await fingerprintNow(tx, entryId, "en")).not.toBe(before);
+    });
+  });
+
+  it("compares the set of reflections, not how many there are", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const { entryId, both, hidden } = await journal(tx);
+      const before = await fingerprintNow(tx, entryId, "en");
+      // Two disclosed reflections before and after, but not the same two.
+      await tx.execute(
+        sql`update track_reflections set is_published = false where id = ${both}`,
+      );
+      await tx.execute(
+        sql`update track_reflections set is_published = true where id = ${hidden}`,
+      );
+      const state = await readPublishState(tx, entryId, "en");
+      expect(state.reflections).toHaveLength(2);
+      expect(await fingerprintNow(tx, entryId, "en")).not.toBe(before);
+    });
+  });
+
+  it("is stable for an unchanged state", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const { entryId } = await journal(tx);
+      expect(await fingerprintNow(tx, entryId, "en")).toBe(
+        await fingerprintNow(tx, entryId, "en"),
+      );
     });
   });
 });
