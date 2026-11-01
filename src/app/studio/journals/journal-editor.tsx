@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   useEffect,
+  useId,
   useRef,
   useState,
   type FormEvent,
@@ -68,6 +69,7 @@ export function JournalEditor({
   heading,
 }: JournalEditorProps) {
   const router = useRouter();
+  const languageNote = useId();
   const [opening, setOpening] = useState(initial.opening);
   const [body, setBody] = useState(initial.body);
   const [locale, setLocale] = useState<Language>(edit?.locale ?? "en");
@@ -155,7 +157,7 @@ export function JournalEditor({
               value={locale}
               onChange={(value) => edited(() => setLocale(value as Language))}
               options={LANGUAGES}
-              describedById="journal-language-note"
+              describedById={languageNote}
               problem={problemWith(failure, "locale")}
             />
           ) : null}
@@ -218,7 +220,7 @@ export function JournalEditor({
               </p>
             </>
           ) : (
-            <p className="studio-hint" id="journal-language-note">
+            <p className="studio-hint" id={languageNote}>
               The language you write this journal in. It is recorded with the
               journal, and nothing is translated for you.
             </p>

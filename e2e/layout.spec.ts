@@ -286,6 +286,11 @@ for (const width of [...WIDTHS, 360, 320, 720, 721]) {
     expect(geometry.labelText, "the identity stays visible as words").toContain(
       "Writing studio",
     );
+    // Text clipped to a pixel is still in the DOM, so measure the words.
+    expect(
+      geometry.labelWordsWidth,
+      "the words are shown, not hidden",
+    ).toBeGreaterThan(60);
     const middle = geometry.viewport / 2;
     if (width <= 720) {
       // Stacked: label, then the destinations, then the session control.
