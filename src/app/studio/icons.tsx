@@ -24,6 +24,13 @@ const SHAPES = {
       <path d="M5.5 19.5c.4-3.6 3-5.5 6.5-5.5s6.1 1.9 6.5 5.5" />
     </>
   ),
+  note: (
+    <>
+      <path d="M9 17.5V6l10-2v11.5" />
+      <circle cx="7" cy="17.5" r="2" />
+      <circle cx="17" cy="15.5" r="2" />
+    </>
+  ),
   trash: <path d="M5 7h14M10 7V5h4v2M7 7l.9 12h8.2L17 7M10.5 11v5M13.5 11v5" />,
   back: <path d="M19 12H5M11 6l-6 6 6 6" />,
 } as const;

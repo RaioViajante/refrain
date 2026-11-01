@@ -62,6 +62,23 @@
   margin-inline: auto;
 }
 
+.studio-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.studio-desk-list > * + * {
+  margin-top: 14px;
+}
+
+.studio-desk-catalog {
+  margin-top: 40px;
+}
+
 .studio-skip {
   position: fixed;
   z-index: 10;
@@ -133,19 +150,21 @@
   font-family: var(--font-kalam), cursive;
   font-size: 19.5px;
   text-decoration: none;
-  background: var(--stroke-underline) 0 calc(100% - 7px) / 0% 7px no-repeat;
+  /* The reference's underline is a swoosh that sits clear of the word. */
+  background: var(--stroke-underline) 0 100% / 0% 10px no-repeat;
   transition: background-size 350ms ease;
 }
 
 .studio-nav a:hover,
 .studio-nav a:has([data-pending]),
 .studio-nav a[aria-current="page"] {
-  background-size: 100% 7px;
+  background-size: 100% 10px;
 }
 
 /* ---------- Main: the notebook layout ---------- */
 
 .studio-main {
+  position: relative;
   width: min(calc(100% - var(--studio-gutter)), var(--studio-shell));
   margin-inline: auto;
   flex: 1 0 auto;
@@ -529,6 +548,45 @@
   background-size: calc(100% - 24px) 7px;
 }
 
+/* The Catalog's own navigation: always-visible links, never a menu. In the
+   margin column on a wide screen, a row above the page on a narrow one. */
+.studio-subnav {
+  /* Out of the flow, in the margin column: a tall item in grid row 1 would
+     push the page's own rows down. */
+  position: absolute;
+  grid-column: 1;
+  grid-row: 1;
+  top: 8px;
+  left: 0;
+  width: var(--studio-margin);
+  display: flex;
+  flex-direction: column;
+  padding-top: 8px;
+}
+
+.studio-subnav a {
+  display: flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 44px;
+  font-size: 17px;
+  color: #4a4a4a;
+  text-decoration: none;
+  background: var(--stroke-underline) 0 calc(100% - 7px) / 0% 7px no-repeat;
+  transition: background-size 300ms ease;
+}
+
+.studio-subnav a:hover,
+.studio-subnav a:has([data-pending]),
+.studio-subnav a[aria-current="page"] {
+  color: var(--color-ink);
+  background-size: 100% 7px;
+}
+
+.studio-subnav + * {
+  margin-top: 0;
+}
+
 .studio-link {
   text-decoration: underline;
   text-decoration-thickness: 1px;
@@ -638,7 +696,7 @@ select.studio-field[aria-invalid="true"] {
   color: var(--color-ink);
   font-family: var(--font-kalam), cursive;
   font-weight: 300;
-  font-size: 30px;
+  font-size: 32px;
   line-height: 1.35;
 }
 
@@ -756,6 +814,24 @@ select.studio-field[aria-invalid="true"] {
 .studio-margin-sticky {
   position: sticky;
   top: 24px;
+}
+
+/* The editor's heading: the album and its artists are context, so they stay
+   quiet beside the writing. */
+.studio-editor-head {
+  max-width: 760px;
+}
+
+.studio-editor-head > * + * {
+  margin-top: 0.4rem;
+}
+
+.studio-editor-head .studio-title-editor {
+  font-size: 44px;
+}
+
+.studio-editor-state {
+  min-height: 28px;
 }
 
 .studio-count {
@@ -940,12 +1016,15 @@ select.studio-field[aria-invalid="true"] {
     height: 0;
   }
 
-  .studio-nav a {
+  .studio-nav a,
+  .studio-subnav a {
     background-image: none;
   }
 
   .studio-nav a:hover,
-  .studio-nav a[aria-current="page"] {
+  .studio-nav a[aria-current="page"],
+  .studio-subnav a:hover,
+  .studio-subnav a[aria-current="page"] {
     text-decoration: underline;
     text-underline-offset: 6px;
   }
@@ -982,6 +1061,20 @@ select.studio-field[aria-invalid="true"] {
   .studio-main > *,
   .studio-main > .studio-notebook {
     grid-column: 1;
+  }
+
+  .studio-subnav {
+    position: static;
+    width: auto;
+    grid-column: 1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0 20px;
+    padding-top: 0;
+  }
+
+  .studio-subnav + * {
+    margin-top: 16px;
   }
 
   .studio-notebook {
@@ -1024,11 +1117,25 @@ select.studio-field[aria-invalid="true"] {
     display: none;
   }
 
+  /* Exactly two destinations fit beside the label and the session control, so
+     the header stays one row. */
   .studio-header-bar {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas:
-      "label end"
-      "nav nav";
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: "label nav end";
+    gap: 8px 12px;
+  }
+}
+
+/* On the narrowest screens the label is its icon (the words stay for
+   assistive technology), so the header keeps to one row. */
+@media (max-width: 480px) {
+  .studio-header-label-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
   }
 }
 
@@ -1080,6 +1187,10 @@ select.studio-field[aria-invalid="true"] {
 
   .studio-opening-field {
     font-size: 26px;
+  }
+
+  .studio-editor-head .studio-title-editor {
+    font-size: 30px;
   }
 
   .studio-reading,
