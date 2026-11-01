@@ -6,10 +6,7 @@ import { Suspense } from "react";
 import { accessDenied } from "@/app/studio/access";
 import { StudioFrame } from "@/app/studio/frame";
 import { StudioLoading } from "@/app/studio/studio-loading";
-import {
-  initialTrackValues,
-  TrackForm,
-} from "@/app/studio/tracks/track-form";
+import { initialTrackValues, TrackForm } from "@/app/studio/tracks/track-form";
 import { listAlbumTrackCounts, listArtists } from "@/modules/catalog";
 import { authorizeAuthor } from "@/modules/identity";
 

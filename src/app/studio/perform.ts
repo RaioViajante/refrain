@@ -45,7 +45,11 @@ function failed(error: unknown): ActionResult<never> {
   if (error instanceof CatalogError) {
     switch (error.failure) {
       case "invalid_input":
-        return { ok: false, code: "invalid_input", fields: error.details.fields };
+        return {
+          ok: false,
+          code: "invalid_input",
+          fields: error.details.fields,
+        };
       case "not_found":
         return { ok: false, code: "not_found" };
       case "archived_reference":
@@ -53,13 +57,21 @@ function failed(error: unknown): ActionResult<never> {
       case "duplicate_identifier":
         return { ok: false, code: "duplicate" };
       case "in_use":
-        return { ok: false, code: "in_use", blockedBy: error.details.blockedBy };
+        return {
+          ok: false,
+          code: "in_use",
+          blockedBy: error.details.blockedBy,
+        };
     }
   }
   if (error instanceof JournalError) {
     switch (error.failure) {
       case "invalid_input":
-        return { ok: false, code: "invalid_input", fields: error.details.fields };
+        return {
+          ok: false,
+          code: "invalid_input",
+          fields: error.details.fields,
+        };
       case "entry_not_found":
       case "album_not_found":
         return { ok: false, code: "not_found" };

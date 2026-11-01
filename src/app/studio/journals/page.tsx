@@ -80,7 +80,11 @@ async function Journals() {
             Kept, not erased. Restoring a journal from here is not available
             yet, and nothing in the studio removes these permanently.
           </p>
-          <JournalList journals={deleted} label="Recently deleted journals" deleted />
+          <JournalList
+            journals={deleted}
+            label="Recently deleted journals"
+            deleted
+          />
         </section>
       ) : null}
     </StudioFrame>
@@ -108,7 +112,11 @@ function JournalList({
               {journal.artistNames}
             </span>
           </span>
-          <span className="studio-meta" style={{ flex: "2 1 280px" }} lang={journal.locale}>
+          <span
+            className="studio-meta"
+            style={{ flex: "2 1 280px" }}
+            lang={journal.locale}
+          >
             {journal.opening ?? "No opening sentence yet"}
           </span>
           {deleted ? (

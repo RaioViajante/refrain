@@ -29,9 +29,7 @@ export function JournalControls({
 }) {
   const router = useRouter();
   const { pending, failure, run, clearFailure } = useSubmission();
-  const [asking, setAsking] = useState<
-    PrivateStatus | "delete" | undefined
-  >();
+  const [asking, setAsking] = useState<PrivateStatus | "delete" | undefined>();
   const [message, setMessage] = useState("");
 
   async function setStatus(next: PrivateStatus) {
@@ -41,9 +39,7 @@ export function JournalControls({
     );
     setAsking(undefined);
     if (result.ok) {
-      setMessage(
-        next === "private" ? "Now private." : "Back to a draft.",
-      );
+      setMessage(next === "private" ? "Now private." : "Back to a draft.");
       router.refresh();
     }
   }

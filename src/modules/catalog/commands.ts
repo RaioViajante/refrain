@@ -512,7 +512,10 @@ export async function updateTrack(
         artistIds,
         new Set(linked.map((row) => row.artistId)),
       );
-      await tx.update(schema.tracks).set(fields).where(eq(schema.tracks.id, id));
+      await tx
+        .update(schema.tracks)
+        .set(fields)
+        .where(eq(schema.tracks.id, id));
       await replaceTrackCredits(tx, id, artistIds);
     }),
   );
@@ -615,7 +618,10 @@ async function currentTracklist(
   tx: Transaction,
   albumId: string,
 ): Promise<TracklistItem[]> {
-  const result = await tx.execute<{ track_id: string; disc_number: number }>(sql`
+  const result = await tx.execute<{
+    track_id: string;
+    disc_number: number;
+  }>(sql`
     select m.track_id, coalesce(et.disc_number, 1) as disc_number
       from album_tracks m
       join tracks t on t.id = m.track_id

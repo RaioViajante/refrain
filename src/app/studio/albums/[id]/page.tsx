@@ -90,7 +90,9 @@ async function Album({ params }: { params: Promise<{ id: string }> }) {
         <div className="space-y-2">
           <h1 className="studio-title">{album.title}</h1>
           <p className="studio-meta">
-            {album.credits.map((credit) => credit.creditedAs ?? credit.artistName).join(", ")}
+            {album.credits
+              .map((credit) => credit.creditedAs ?? credit.artistName)
+              .join(", ")}
             {album.firstReleaseYear ? ` · ${album.firstReleaseYear}` : ""}
             {` · ${plural(album.tracklist.length, "track")}`}
           </p>

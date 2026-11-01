@@ -38,7 +38,10 @@ async function EditJournal({ params }: { params: Promise<{ id: string }> }) {
 
   const back = (
     <p>
-      <Link href={`/studio/journals/${journal.entryId}`} className="studio-link">
+      <Link
+        href={`/studio/journals/${journal.entryId}`}
+        className="studio-link"
+      >
         ← The journal
       </Link>
     </p>

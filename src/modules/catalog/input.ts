@@ -14,10 +14,7 @@ const singleLine = (value: string) =>
 
 /** Required single-line text of 1 to `max` characters. */
 const requiredText = (max: number) =>
-  z
-    .string()
-    .transform(singleLine)
-    .pipe(z.string().min(1).max(max));
+  z.string().transform(singleLine).pipe(z.string().min(1).max(max));
 
 /** Optional single-line text; blank becomes `null`. */
 const optionalText = (max: number) =>

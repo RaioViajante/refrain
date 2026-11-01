@@ -189,7 +189,9 @@ describe("creating an album journal", () => {
         locale: "en",
         body: "x",
       });
-      expect((await getAlbumJournal(tx, author, entryId))?.slug).toBe("journal");
+      expect((await getAlbumJournal(tx, author, entryId))?.slug).toBe(
+        "journal",
+      );
     });
   });
 
@@ -198,10 +200,16 @@ describe("creating an album journal", () => {
       const { albumId } = await setUp(tx);
       expect(
         await failure(tx, (db) =>
-          createAlbumJournal(db, author, { albumId: MISSING, locale: "en", body: "" }),
+          createAlbumJournal(db, author, {
+            albumId: MISSING,
+            locale: "en",
+            body: "",
+          }),
         ),
       ).toBe("album_not_found");
-      await tx.execute(sql`update albums set archived_at = now() where id = ${albumId}`);
+      await tx.execute(
+        sql`update albums set archived_at = now() where id = ${albumId}`,
+      );
       expect(
         await failure(tx, (db) =>
           createAlbumJournal(db, author, { albumId, locale: "en", body: "" }),
@@ -227,9 +235,13 @@ describe("creating an album journal", () => {
         const error = await captureFailure(tx, (db) =>
           createAlbumJournal(db, author, input),
         );
-        expect(error, JSON.stringify(input).slice(0, 80)).toBeInstanceOf(JournalError);
+        expect(error, JSON.stringify(input).slice(0, 80)).toBeInstanceOf(
+          JournalError,
+        );
         expect((error as JournalError).failure).toBe("invalid_input");
-        expect(Object.keys((error as JournalError).details.fields ?? {})).toContain(field);
+        expect(
+          Object.keys((error as JournalError).details.fields ?? {}),
+        ).toContain(field);
       }
       expect(await rows(tx, "entries")).toBe(0);
     });
@@ -238,7 +250,8 @@ describe("creating an album journal", () => {
   it("stores markup as plain text and never as structure", async () => {
     await inScratchTransaction(async (tx) => {
       const { albumId } = await setUp(tx);
-      const hostile = '<img src=x onerror=alert(1)>\n\n<script>1</script> "quoted" \'single\'';
+      const hostile =
+        "<img src=x onerror=alert(1)>\n\n<script>1</script> \"quoted\" 'single'";
       const { entryId } = await createAlbumJournal(tx, author, {
         albumId,
         locale: "en",
@@ -301,7 +314,8 @@ describe("saving an album journal", () => {
   it("edits the draft, bumps the version, and keeps paragraph breaks", async () => {
     await inScratchTransaction(async (tx) => {
       const entryId = await createDraft(tx);
-      const text = "[Test] One.\nStill one.\n\n[Test] Two.\n\n\n\n[Test] Three.  ";
+      const text =
+        "[Test] One.\nStill one.\n\n[Test] Two.\n\n\n\n[Test] Three.  ";
       const saved = await saveAlbumJournal(tx, author, {
         entryId,
         expectedVersion: 1,
@@ -325,7 +339,9 @@ describe("saving an album journal", () => {
         opening: journal!.opening,
         body: journal!.body,
       });
-      expect((await getAlbumJournal(tx, author, entryId))?.body).toBe(journal!.body);
+      expect((await getAlbumJournal(tx, author, entryId))?.body).toBe(
+        journal!.body,
+      );
     });
   });
 
@@ -365,7 +381,11 @@ describe("saving an album journal", () => {
       ).toBe("version_conflict");
       expect(
         await failure(tx, (db) =>
-          saveAlbumJournal(db, author, { entryId, expectedVersion: 99, body: "x" }),
+          saveAlbumJournal(db, author, {
+            entryId,
+            expectedVersion: 99,
+            body: "x",
+          }),
         ),
       ).toBe("version_conflict");
       const journal = await getAlbumJournal(tx, author, entryId);
@@ -377,8 +397,16 @@ describe("saving an album journal", () => {
   it("never changes visibility, the slug, or the featured state", async () => {
     await inScratchTransaction(async (tx) => {
       const entryId = await createDraft(tx);
-      await setAlbumJournalPrivacy(tx, author, { entryId, locale: "en", status: "private" });
-      await saveAlbumJournal(tx, author, { entryId, expectedVersion: 1, body: "[Test] x" });
+      await setAlbumJournalPrivacy(tx, author, {
+        entryId,
+        locale: "en",
+        status: "private",
+      });
+      await saveAlbumJournal(tx, author, {
+        entryId,
+        expectedVersion: 1,
+        body: "[Test] x",
+      });
       const journal = await getAlbumJournal(tx, author, entryId);
       expect(journal).toMatchObject({ status: "private", slug: "test-grace" });
     });
@@ -392,7 +420,11 @@ describe("saving an album journal", () => {
       for (const entryId of [MISSING, artistJournal, memory]) {
         expect(
           await failure(tx, (db) =>
-            saveAlbumJournal(db, author, { entryId, expectedVersion: 1, body: "x" }),
+            saveAlbumJournal(db, author, {
+              entryId,
+              expectedVersion: 1,
+              body: "x",
+            }),
           ),
         ).toBe("entry_not_found");
       }
@@ -407,7 +439,11 @@ describe("saving an album journal", () => {
       await deleteAlbumJournal(tx, author, entryId);
       expect(
         await failure(tx, (db) =>
-          saveAlbumJournal(db, author, { entryId, expectedVersion: 1, body: "x" }),
+          saveAlbumJournal(db, author, {
+            entryId,
+            expectedVersion: 1,
+            body: "x",
+          }),
         ),
       ).toBe("entry_deleted");
     });
@@ -433,7 +469,11 @@ describe("saving an album journal", () => {
 
       expect(
         await failure(tx, (db) =>
-          saveAlbumJournal(db, author, { entryId, expectedVersion: 1, body: "flattened" }),
+          saveAlbumJournal(db, author, {
+            entryId,
+            expectedVersion: 1,
+            body: "flattened",
+          }),
         ),
       ).toBe("unsupported_content");
       const [text] = await tx
@@ -457,9 +497,9 @@ describe("saving an album journal", () => {
         { entryId },
         { entryId, expectedVersion: 1, body: "x".repeat(100_001) },
       ]) {
-        expect(await failure(tx, (db) => saveAlbumJournal(db, author, input))).toBe(
-          "invalid_input",
-        );
+        expect(
+          await failure(tx, (db) => saveAlbumJournal(db, author, input)),
+        ).toBe("invalid_input");
       }
     });
   });
@@ -479,11 +519,23 @@ describe("journal privacy", () => {
   it("moves a version between draft and private, and keeps it out of public queries", async () => {
     await inScratchTransaction(async (tx) => {
       const entryId = await draft(tx);
-      await setAlbumJournalPrivacy(tx, author, { entryId, locale: "en", status: "private" });
-      expect((await getAlbumJournal(tx, author, entryId))?.status).toBe("private");
+      await setAlbumJournalPrivacy(tx, author, {
+        entryId,
+        locale: "en",
+        status: "private",
+      });
+      expect((await getAlbumJournal(tx, author, entryId))?.status).toBe(
+        "private",
+      );
       expect(await listPublicLanguageVersions(tx, entryId)).toEqual([]);
-      await setAlbumJournalPrivacy(tx, author, { entryId, locale: "en", status: "draft" });
-      expect((await getAlbumJournal(tx, author, entryId))?.status).toBe("draft");
+      await setAlbumJournalPrivacy(tx, author, {
+        entryId,
+        locale: "en",
+        status: "draft",
+      });
+      expect((await getAlbumJournal(tx, author, entryId))?.status).toBe(
+        "draft",
+      );
     });
   });
 
@@ -493,11 +545,17 @@ describe("journal privacy", () => {
       for (const status of ["published", "Published", "", null, 1, undefined]) {
         expect(
           await failure(tx, (db) =>
-            setAlbumJournalPrivacy(db, author, { entryId, locale: "en", status }),
+            setAlbumJournalPrivacy(db, author, {
+              entryId,
+              locale: "en",
+              status,
+            }),
           ),
         ).toBe("invalid_input");
       }
-      expect((await getAlbumJournal(tx, author, entryId))?.status).toBe("draft");
+      expect((await getAlbumJournal(tx, author, entryId))?.status).toBe(
+        "draft",
+      );
       expect(await listPublicLanguageVersions(tx, entryId)).toEqual([]);
     });
   });
@@ -507,13 +565,24 @@ describe("journal privacy", () => {
       const entryId = await draft(tx);
       expect(
         await failure(tx, (db) =>
-          setAlbumJournalPrivacy(db, author, { entryId, locale: "pt-BR", status: "private" }),
+          setAlbumJournalPrivacy(db, author, {
+            entryId,
+            locale: "pt-BR",
+            status: "private",
+          }),
         ),
       ).toBe("entry_not_found");
-      const memory = await createTestMemory(tx, { versions: [{ locale: "en", status: "published" }], slug: "a-memory" });
+      const memory = await createTestMemory(tx, {
+        versions: [{ locale: "en", status: "published" }],
+        slug: "a-memory",
+      });
       expect(
         await failure(tx, (db) =>
-          setAlbumJournalPrivacy(db, author, { entryId: memory, locale: "en", status: "private" }),
+          setAlbumJournalPrivacy(db, author, {
+            entryId: memory,
+            locale: "en",
+            status: "private",
+          }),
         ),
       ).toBe("entry_not_found");
       const [memoryText] = await tx
@@ -525,7 +594,11 @@ describe("journal privacy", () => {
       await deleteAlbumJournal(tx, author, entryId);
       expect(
         await failure(tx, (db) =>
-          setAlbumJournalPrivacy(db, author, { entryId, locale: "en", status: "private" }),
+          setAlbumJournalPrivacy(db, author, {
+            entryId,
+            locale: "en",
+            status: "private",
+          }),
         ),
       ).toBe("entry_deleted");
     });
@@ -541,18 +614,28 @@ describe("deleting an album journal", () => {
         locale: "en",
         body: "[Test] Kept words",
       });
-      await setAlbumJournalPrivacy(tx, author, { entryId, locale: "en", status: "private" });
+      await setAlbumJournalPrivacy(tx, author, {
+        entryId,
+        locale: "en",
+        status: "private",
+      });
       await deleteAlbumJournal(tx, author, entryId);
 
       expect(await listAlbumJournals(tx, author)).toEqual([]);
-      const deleted = await listDeletedAlbumJournals(tx, author);
-      expect(deleted.map((j) => j.entryId)).toEqual([entryId]);
+      const deleted = (await listDeletedAlbumJournals(tx, author)).filter(
+        (journal) => journal.entryId === entryId,
+      );
+      expect(deleted).toHaveLength(1);
       expect(deleted[0]?.deletedAt).toBeInstanceOf(Date);
 
       // Soft deletion is separate from visibility: the status is unchanged,
       // and the writing, slug, and subtype row are all still there.
       const journal = await getAlbumJournal(tx, author, entryId);
-      expect(journal).toMatchObject({ status: "private", body: "[Test] Kept words", slug: "test-grace" });
+      expect(journal).toMatchObject({
+        status: "private",
+        body: "[Test] Kept words",
+        slug: "test-grace",
+      });
       expect(await rows(tx, "album_journals")).toBe(1);
       expect(await listPublicLanguageVersions(tx, entryId)).toEqual([]);
     });
@@ -561,15 +644,30 @@ describe("deleting an album journal", () => {
   it("refuses to delete twice, or an unknown or other-kind entry", async () => {
     await inScratchTransaction(async (tx) => {
       const { albumId } = await setUp(tx);
-      const { entryId } = await createAlbumJournal(tx, author, { albumId, locale: "en", body: "x" });
+      const { entryId } = await createAlbumJournal(tx, author, {
+        albumId,
+        locale: "en",
+        body: "x",
+      });
       await deleteAlbumJournal(tx, author, entryId);
-      expect(await failure(tx, (db) => deleteAlbumJournal(db, author, entryId))).toBe("entry_deleted");
-      expect(await failure(tx, (db) => deleteAlbumJournal(db, author, MISSING))).toBe("entry_not_found");
-      expect(await failure(tx, (db) => deleteAlbumJournal(db, author, "nope"))).toBe("invalid_input");
+      expect(
+        await failure(tx, (db) => deleteAlbumJournal(db, author, entryId)),
+      ).toBe("entry_deleted");
+      expect(
+        await failure(tx, (db) => deleteAlbumJournal(db, author, MISSING)),
+      ).toBe("entry_not_found");
+      expect(
+        await failure(tx, (db) => deleteAlbumJournal(db, author, "nope")),
+      ).toBe("invalid_input");
 
       const memory = await createTestMemory(tx);
-      expect(await failure(tx, (db) => deleteAlbumJournal(db, author, memory))).toBe("entry_not_found");
-      const [entry] = await tx.select().from(schema.entries).where(eq(schema.entries.id, memory));
+      expect(
+        await failure(tx, (db) => deleteAlbumJournal(db, author, memory)),
+      ).toBe("entry_not_found");
+      const [entry] = await tx
+        .select()
+        .from(schema.entries)
+        .where(eq(schema.entries.id, memory));
       expect(entry?.deletedAt).toBeNull();
     });
   });
@@ -577,7 +675,11 @@ describe("deleting an album journal", () => {
   it("is recoverable data, and permanent deletion stays a separate command", async () => {
     await inScratchTransaction(async (tx) => {
       const { albumId } = await setUp(tx);
-      const { entryId } = await createAlbumJournal(tx, author, { albumId, locale: "en", body: "x" });
+      const { entryId } = await createAlbumJournal(tx, author, {
+        albumId,
+        locale: "en",
+        body: "x",
+      });
       // "Delete now" is refused until the journal is in Recently deleted.
       await expect(
         tx.transaction((sp) => permanentlyDeleteEntry(sp, entryId)),
@@ -603,15 +705,33 @@ describe("journal queries", () => {
         artistIds: artists,
         trackTitles: ["[Test] a", "[Test] b"],
       });
-      const first = await createAlbumJournal(tx, author, { albumId: album.albumId, locale: "en", body: "one two three" });
-      const second = await createAlbumJournal(tx, author, { albumId: album.albumId, locale: "pt-BR", body: "" });
-      await tx.execute(sql`update entries set updated_at = now() + interval '1 minute' where id = ${first.entryId}`);
+      const first = await createAlbumJournal(tx, author, {
+        albumId: album.albumId,
+        locale: "en",
+        body: "one two three",
+      });
+      const second = await createAlbumJournal(tx, author, {
+        albumId: album.albumId,
+        locale: "pt-BR",
+        body: "",
+      });
+      await tx.execute(
+        sql`update entries set updated_at = now() + interval '1 minute' where id = ${first.entryId}`,
+      );
 
       const list = await listAlbumJournals(tx, author);
-      expect(list.map((j) => j.entryId)).toEqual([first.entryId, second.entryId]);
-      expect(list[0]).toMatchObject({ artistNames: "[Test] A, [Test] B, [Test] C", wordCount: 3 });
+      expect(list.map((j) => j.entryId)).toEqual([
+        first.entryId,
+        second.entryId,
+      ]);
+      expect(list[0]).toMatchObject({
+        artistNames: "[Test] A, [Test] B, [Test] C",
+        wordCount: 3,
+      });
       expect(list[1]).toMatchObject({ locale: "pt-BR", wordCount: 0 });
-      expect(await listAlbumJournals(tx, author, { albumId: "nope" })).toEqual([]);
+      expect(await listAlbumJournals(tx, author, { albumId: "nope" })).toEqual(
+        [],
+      );
     });
   });
 
@@ -619,11 +739,31 @@ describe("journal queries", () => {
     await inScratchTransaction(async (tx) => {
       const before = await getJournalStatistics(tx, author);
       const { albumId } = await setUp(tx);
-      const a = await createAlbumJournal(tx, author, { albumId, locale: "en", body: "a" });
-      const b = await createAlbumJournal(tx, author, { albumId, locale: "en", body: "b" });
-      const c = await createAlbumJournal(tx, author, { albumId, locale: "en", body: "c" });
-      await createTestAlbumJournal(tx, { albumId, versions: [{ locale: "en", status: "published" }], slug: "published-one" });
-      await setAlbumJournalPrivacy(tx, author, { entryId: b.entryId, locale: "en", status: "private" });
+      const a = await createAlbumJournal(tx, author, {
+        albumId,
+        locale: "en",
+        body: "a",
+      });
+      const b = await createAlbumJournal(tx, author, {
+        albumId,
+        locale: "en",
+        body: "b",
+      });
+      const c = await createAlbumJournal(tx, author, {
+        albumId,
+        locale: "en",
+        body: "c",
+      });
+      await createTestAlbumJournal(tx, {
+        albumId,
+        versions: [{ locale: "en", status: "published" }],
+        slug: "published-one",
+      });
+      await setAlbumJournalPrivacy(tx, author, {
+        entryId: b.entryId,
+        locale: "en",
+        status: "private",
+      });
       await deleteAlbumJournal(tx, author, c.entryId);
       expect(a.entryId).toBeTruthy();
 

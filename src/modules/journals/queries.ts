@@ -2,11 +2,7 @@ import "server-only";
 
 import { sql } from "drizzle-orm";
 
-import type {
-  DatabaseExecutor,
-  Locale,
-  VisibilityStatus,
-} from "@/db";
+import type { DatabaseExecutor, Locale, VisibilityStatus } from "@/db";
 import type { AuthorizedAuthor } from "@/modules/identity";
 
 import { documentToText } from "./body";

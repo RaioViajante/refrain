@@ -1,6 +1,6 @@
 # Development
 
-**Status:** the application foundation (M1.1), the relational domain (M1.2), and identity and authorization (M1.3A) exist: a Next.js application, a local PostgreSQL 17 database through Docker Compose, a separate disposable test database, the domain schema with versioned migrations, single-author authentication with a minimal Writing Studio entry point, automated checks, and CI. There is no seed data: the development database holds only what you write into it ([Roadmap](roadmap.md)).
+**Status:** the application foundation (M1.1), the relational domain (M1.2), identity and authorization (M1.3A), and the catalog and album-journal screens (M1.3B) exist: a Next.js application, a local PostgreSQL 17 database through Docker Compose, a separate disposable test database, the domain schema with versioned migrations, single-author authentication, a Writing Studio with catalog and private-journal CRUD, automated checks, and CI. There is no seed data: the development database holds only what you write into it ([Roadmap](roadmap.md)).
 
 Every command in this document has been run successfully. Add a command only after it has run.
 
@@ -156,6 +156,21 @@ pnpm author:reset-password --target=127.0.0.1:5432/refrain
 
 It replaces the password and signs out every session. There is no password reset by email, and no recovery over HTTP.
 
+### Using the Writing Studio (M1.3B)
+
+After [the author account exists](#first-time-setup-of-the-author-account), `pnpm dev` and sign in at `http://localhost:3000/studio`. Everything is private: nothing publishes, and there are no public pages yet. Typical first session, which is also the manual acceptance test:
+
+1. **Artist.** Artists → *Add an artist* → a name, person or band → *Add artist*. (The MusicBrainz id is optional and only stored.)
+2. **Album.** Albums → *Add an album* → a title, credit the artist (add more rows for more artists, reorder with ↑ ↓), optionally a year and the reference edition's label, date, and country → *Add album*. Titles need not be unique.
+3. **Tracks.** On the album's page, under *Tracklist*: *Create and add* makes a new track at the end; *Add to album* links one you already have (a recording is never copied); ↑ ↓ reorder and *Remove* takes a track off this album only. Tracks can also be made on their own under Tracks.
+4. **Journal.** Journals → *Write a journal* (or *Write a journal about this album* on the album page) → choose the language you write in, an opening sentence, and your reflection; a blank line starts a paragraph → *Save as draft*. Saving is explicit; Cmd or Ctrl+S works.
+5. **Come back.** Leave, reopen the journal from Journals, *Edit this journal*, and the text is as you left it. Saving again checks that nobody saved in between; if another tab did, nothing is overwritten and your text stays in the box.
+6. **Who can see it.** On the journal page, *Draft* or *Private*. Both are only yours; there is nothing to publish with yet.
+7. **Delete and archive.** *Delete journal…* moves it to Recently deleted and keeps the writing (restoring it is not built yet). An artist, album, or track can be archived (hidden from pickers) or, only if nothing refers to it, deleted; otherwise the page says what still depends on it.
+8. **Numbers.** The Desk and the lists show counts that PostgreSQL computed on that request ([evidence](evidence/m1-3b.md)).
+
+*Sign out* ends the session; the journal's address then shows nothing private.
+
 ### Commands
 
 | Command | What it does |
@@ -168,7 +183,7 @@ It replaces the password and signs out every session. There is no password reset
 | `pnpm typecheck` | Generates Next.js route types, then runs `tsc --noEmit` (strict) |
 | `pnpm test` | Unit tests (Vitest). No database needed. |
 | `pnpm test:integration` | Integration tests against the disposable [test database](#test-database) in `TEST_DATABASE_URL`. Refuses to run if the safety checks fail, and fails if the database is not reachable; it never skips. |
-| `pnpm test:http` | HTTP tests of the production build. Needs `pnpm build` first and the test database. Starts `next start` on `127.0.0.1` against `TEST_DATABASE_URL` only ([HTTP tests](#http-tests)). |
+| `pnpm test:http` | HTTP tests of the production build: authentication, and every studio Server Action. Needs `pnpm build` first and the test database. Starts `next start` on `127.0.0.1` against `TEST_DATABASE_URL` only ([HTTP tests](#http-tests)). |
 | `pnpm author:provision --target=<host>:<port>/<database>` | Creates the single author account in the database in `DATABASE_URL` ([Authentication](#authentication)) |
 | `pnpm author:reset-password --target=<host>:<port>/<database>` | Replaces the author's password and signs out every session |
 | `pnpm db:up` / `pnpm db:down` | Start the development PostgreSQL and wait for health / stop it. Data is kept in the `refrain_postgres-data` volume. |
@@ -227,6 +242,8 @@ Each test worker then points the application's database client at the validated 
 
 **Clean state without resets.** Each test runs inside a transaction that is always rolled back ([`src/testing/database.ts`](../src/testing/database.ts)), so tests leave no rows behind and are repeatable. There is no reset or truncate command. Test files run one at a time.
 
+**Concurrency tests commit, and clean up after themselves.** A race cannot be shown inside one transaction, so the `*concurrency*` and `slug-race` integration tests open several real connections ([`src/testing/concurrency.ts`](../src/testing/concurrency.ts)), commit synthetic `[Test] …` rows, and remove them in `afterAll` with the domain's own delete commands. Every connection first passes the server-side disposable-database check, and the helper requires the URL the worker setup pinned: it does not repeat the checks that would refuse, by design, once `DATABASE_URL` is the test URL. Counts in the other suites are relative to the start of each test (`inScratchTransaction`), so committed rows from another file cannot break them. If a run is interrupted, `pnpm db:test:down && pnpm db:test:up` gives an empty database.
+
 **Lifecycle.**
 
 ```sh
@@ -247,6 +264,8 @@ pnpm db:test:down        # stop it and discard its data
 4. starts `next start` on `127.0.0.1` and a free port, in production mode, with a random secret, and with `DATABASE_URL` set to the test database's URL.
 
 The server uses its own connections, so these rows are committed, unlike the integration tests' rolled-back transactions. Teardown stops the server and deletes the identity rows. If a run is interrupted, reset the test database with `pnpm db:test:down && pnpm db:test:up`. Run the HTTP and integration tests one after the other, not at the same time: the database holds at most one account.
+
+[`src/testing/studio-actions.http.test.ts`](../src/testing/studio-actions.http.test.ts) calls each Server Action the way any client could, by its identifier from the build's manifest. It does not sign in, because sign-in is rate limited for all clients together and the authentication tests count their attempts: it mints sessions in the test database with the same HMAC signature the cookie carries ([`http-session.ts`](../src/testing/http-session.ts)), and removes them and its `[Test] HTTP …` rows when it finishes.
 
 ### Troubleshooting
 
@@ -360,6 +379,7 @@ The workflow has read-only `permissions` (`contents: read`), a concurrency group
 - **Invariants:** each of ADR 0002's INV-1 to INV-5 has database-level tests now; the HTTP-level parts are listed in [Security § Required tests](security.md#required-tests) and arrive with the routes.
 - **Privacy:** the tests listed in [Security § Required tests](security.md#required-tests).
 - **Authentication:** integration tests run the real Better Auth instance on the test transaction, through the real request handler, with real `Request` and `Response` objects ([`identity.integration.test.ts`](../src/modules/identity/identity.integration.test.ts)); the [HTTP tests](#http-tests) run the production server. Session checks are never mocked.
+- **Studio actions:** the HTTP suite above, plus the static check that every action authorizes first ([Security § Authorization contract](security.md#authorization-contract)). The screens were also driven once in a real headless browser against the production build (see the [evidence](evidence/m1-3b.md)); that script is not in the repository, and Playwright tests are still planned.
 - **UI:** Playwright for complete flows, including keyboard operation of the rating input, the language menu, and dialogs. Run at desktop width and at 390px.
 - **Fixtures:** synthetic and labeled `[Test]` ([`src/testing/fixtures.ts`](../src/testing/fixtures.ts)). They exist only inside rolled-back test transactions. Real writing never appears in tests, and nothing is seeded into the development database.
 

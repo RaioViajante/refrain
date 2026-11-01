@@ -127,7 +127,11 @@ export async function createAlbumJournal(
       // The slug follows the album's title (ADR 0002, D7.2). A title with no
       // usable characters falls back to "journal"; the address can be changed
       // until the first publication.
-      await reserveInitialSlug(tx, entryId, normalizeSlug(album.title) || "journal");
+      await reserveInitialSlug(
+        tx,
+        entryId,
+        normalizeSlug(album.title) || "journal",
+      );
       return { entryId, version: 1 };
     }),
   );
@@ -220,7 +224,12 @@ export async function setAlbumJournalPrivacy(
       if (journal.deleted) {
         throw new JournalError("entry_deleted");
       }
-      await unpublishLanguageVersion(tx, data.entryId, data.locale, data.status);
+      await unpublishLanguageVersion(
+        tx,
+        data.entryId,
+        data.locale,
+        data.status,
+      );
     }),
   );
 }

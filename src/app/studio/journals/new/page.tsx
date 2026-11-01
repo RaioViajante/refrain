@@ -84,12 +84,16 @@ async function NewJournal({
                 {choices.map((choice) => (
                   <li key={choice.albumId} className="studio-row">
                     <span className="studio-row-title">
-                      <Link href={`/studio/journals/new?album=${choice.albumId}`}>
+                      <Link
+                        href={`/studio/journals/new?album=${choice.albumId}`}
+                      >
                         {choice.title}
                       </Link>
                     </span>
                     {choice.firstReleaseYear ? (
-                      <span className="studio-meta">{choice.firstReleaseYear}</span>
+                      <span className="studio-meta">
+                        {choice.firstReleaseYear}
+                      </span>
                     ) : null}
                   </li>
                 ))}

@@ -114,7 +114,10 @@ async function Desk() {
           </p>
           {journals.deleted > 0 ? (
             <p className="studio-meta">
-              <Link href="/studio/journals#recently-deleted" className="studio-link">
+              <Link
+                href="/studio/journals#recently-deleted"
+                className="studio-link"
+              >
                 Recently deleted ({journals.deleted})
               </Link>
             </p>
@@ -131,8 +134,8 @@ async function Desk() {
                       </Link>
                     </span>
                     <span className="studio-meta">
-                      {journal.tracksWritten} of {plural(journal.trackCount, "track")}{" "}
-                      written
+                      {journal.tracksWritten} of{" "}
+                      {plural(journal.trackCount, "track")} written
                     </span>
                   </li>
                 ))}

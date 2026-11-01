@@ -34,7 +34,9 @@ export const moveTrackInAlbum = withDatabase(commands.moveTrackInAlbum);
 
 export const listArtists = withDatabase(queries.listArtists);
 export const getArtist = withDatabase(queries.getArtist);
-export const listAlbumsWithArtists = withDatabase(queries.listAlbumsWithArtists);
+export const listAlbumsWithArtists = withDatabase(
+  queries.listAlbumsWithArtists,
+);
 export const listAlbumUsage = withDatabase(queries.listAlbumUsage);
 export const listAlbumTrackCounts = withDatabase(queries.listAlbumTrackCounts);
 export const getAlbum = withDatabase(queries.getAlbum);

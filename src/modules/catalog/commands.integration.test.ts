@@ -127,13 +127,18 @@ describe("artists", () => {
         [{ name: "   ", kind: "person" }, { name: "required" }],
         [{ name: "x".repeat(201), kind: "person" }, { name: "too_long" }],
         [{ name: "[Test] A", kind: "robot" }, { kind: "invalid" }],
-        [{ name: "[Test] A", kind: "person", mbArtistId: "nope" }, { mbArtistId: "invalid" }],
+        [
+          { name: "[Test] A", kind: "person", mbArtistId: "nope" },
+          { mbArtistId: "invalid" },
+        ],
         [{ kind: "person" }, { name: "invalid" }],
         ["not an object", { _: "invalid" }],
         [null, { _: "invalid" }],
       ];
       for (const [input, fields] of cases) {
-        const error = await failure(tx, (db) => createArtist(db, author, input));
+        const error = await failure(tx, (db) =>
+          createArtist(db, author, input),
+        );
         expect(error?.failure).toBe("invalid_input");
         expect(error?.details.fields).toEqual(fields);
         // The submitted value is never echoed.
@@ -299,7 +304,11 @@ describe("albums", () => {
           { artistId: second },
           { artistId: first, creditedAs: "  The First  " },
         ],
-        edition: { label: "[Test] Label", releaseDate: "1994-08-23", country: "us" },
+        edition: {
+          label: "[Test] Label",
+          releaseDate: "1994-08-23",
+          country: "us",
+        },
       });
 
       expect(await getAlbum(tx, author, id)).toEqual({
@@ -309,10 +318,24 @@ describe("albums", () => {
         mbReleaseGroupId: MB_ID,
         archived: false,
         credits: [
-          { artistId: second, artistName: "[Test] Second", creditedAs: null, archived: false },
-          { artistId: first, artistName: "[Test] First", creditedAs: "The First", archived: false },
+          {
+            artistId: second,
+            artistName: "[Test] Second",
+            creditedAs: null,
+            archived: false,
+          },
+          {
+            artistId: first,
+            artistName: "[Test] First",
+            creditedAs: "The First",
+            archived: false,
+          },
         ],
-        edition: { label: "[Test] Label", releaseDate: "1994-08-23", country: "US" },
+        edition: {
+          label: "[Test] Label",
+          releaseDate: "1994-08-23",
+          country: "US",
+        },
         tracklist: [],
       });
 
@@ -341,20 +364,50 @@ describe("albums", () => {
       const credits = [{ artistId }];
       const cases: [Record<string, unknown>, string][] = [
         [{ title: "[Test] A", credits: [] }, "credits"],
-        [{ title: "[Test] A", credits: [{ artistId }, { artistId }] }, "credits"],
-        [{ title: "[Test] A", credits: [{ artistId: "nope" }] }, "credits.0.artistId"],
-        [{ title: "[Test] A", credits, firstReleaseYear: 1799 }, "firstReleaseYear"],
-        [{ title: "[Test] A", credits, firstReleaseYear: 2101 }, "firstReleaseYear"],
-        [{ title: "[Test] A", credits, firstReleaseYear: 1994.5 }, "firstReleaseYear"],
-        [{ title: "[Test] A", credits, edition: { releaseDate: "1994-02-30" } }, "edition.releaseDate"],
-        [{ title: "[Test] A", credits, edition: { releaseDate: "yesterday" } }, "edition.releaseDate"],
-        [{ title: "[Test] A", credits, edition: { country: "USA" } }, "edition.country"],
+        [
+          { title: "[Test] A", credits: [{ artistId }, { artistId }] },
+          "credits",
+        ],
+        [
+          { title: "[Test] A", credits: [{ artistId: "nope" }] },
+          "credits.0.artistId",
+        ],
+        [
+          { title: "[Test] A", credits, firstReleaseYear: 1799 },
+          "firstReleaseYear",
+        ],
+        [
+          { title: "[Test] A", credits, firstReleaseYear: 2101 },
+          "firstReleaseYear",
+        ],
+        [
+          { title: "[Test] A", credits, firstReleaseYear: 1994.5 },
+          "firstReleaseYear",
+        ],
+        [
+          {
+            title: "[Test] A",
+            credits,
+            edition: { releaseDate: "1994-02-30" },
+          },
+          "edition.releaseDate",
+        ],
+        [
+          { title: "[Test] A", credits, edition: { releaseDate: "yesterday" } },
+          "edition.releaseDate",
+        ],
+        [
+          { title: "[Test] A", credits, edition: { country: "USA" } },
+          "edition.country",
+        ],
         [{ title: "", credits }, "title"],
       ];
       for (const [input, field] of cases) {
         const error = await failure(tx, (db) => createAlbum(db, author, input));
         expect(error?.failure, JSON.stringify(input)).toBe("invalid_input");
-        expect(Object.keys(error?.details.fields ?? {}), field).toContain(field);
+        expect(Object.keys(error?.details.fields ?? {}), field).toContain(
+          field,
+        );
       }
       expect(await count(tx, "albums")).toBe(0);
     });
@@ -484,7 +537,8 @@ describe("albums", () => {
         (db: Transaction) => archiveAlbum(db, author, MISSING),
         (db: Transaction) => restoreAlbum(db, author, MISSING),
         (db: Transaction) => deleteAlbum(db, author, MISSING),
-        (db: Transaction) => setAlbumTracklist(db, author, MISSING, { tracks: [] }),
+        (db: Transaction) =>
+          setAlbumTracklist(db, author, MISSING, { tracks: [] }),
         (db: Transaction) => addTrackToAlbum(db, author, MISSING, MISSING),
       ]) {
         expect((await failure(tx, run))?.failure).toBe("not_found");
@@ -533,7 +587,9 @@ describe("albums", () => {
 
   it("refuses to delete an album with writing, and changes nothing", async () => {
     await inScratchTransaction(async (tx) => {
-      const withJournal = await createTestAlbum(tx, { title: "[Test] Journal" });
+      const withJournal = await createTestAlbum(tx, {
+        title: "[Test] Journal",
+      });
       const deletedJournal = await createTestAlbumJournal(tx, {
         albumId: withJournal.albumId,
         deletedAt: new Date("2026-01-01T00:00:00Z"),
@@ -544,10 +600,16 @@ describe("albums", () => {
       // Recoverable writing still counts: an entry in Recently deleted is kept.
       expect(
         await failure(tx, (db) => deleteAlbum(db, author, withJournal.albumId)),
-      ).toMatchObject({ failure: "in_use", details: { blockedBy: "journals" } });
+      ).toMatchObject({
+        failure: "in_use",
+        details: { blockedBy: "journals" },
+      });
       expect(
         await failure(tx, (db) => deleteAlbum(db, author, withMemory.albumId)),
-      ).toMatchObject({ failure: "in_use", details: { blockedBy: "memories" } });
+      ).toMatchObject({
+        failure: "in_use",
+        details: { blockedBy: "memories" },
+      });
 
       expect(await getAlbum(tx, author, withJournal.albumId)).not.toBeNull();
       expect(await getAlbum(tx, author, withMemory.albumId)).not.toBeNull();
@@ -617,7 +679,9 @@ describe("tracks", () => {
       for (const [input, field] of cases) {
         const error = await failure(tx, (db) => createTrack(db, author, input));
         expect(error?.failure, JSON.stringify(input)).toBe("invalid_input");
-        expect(Object.keys(error?.details.fields ?? {}), field).toContain(field);
+        expect(Object.keys(error?.details.fields ?? {}), field).toContain(
+          field,
+        );
       }
       expect(await count(tx, "tracks")).toBe(0);
     });
@@ -669,7 +733,9 @@ describe("tracks", () => {
         "[Test] Live",
         "[Test] Studio",
       ]);
-      const listed = (await listTracks(tx, author)).find((t) => t.id === sharedId);
+      const listed = (await listTracks(tx, author)).find(
+        (t) => t.id === sharedId,
+      );
       // Two albums, not two times however many credits the track has.
       expect(listed?.albumCount).toBe(2);
     });
@@ -691,12 +757,17 @@ describe("tracks", () => {
       await archiveTrack(tx, author, id);
       expect((await getTrack(tx, author, id))?.archived).toBe(true);
       expect(
-        (await failure(tx, (db) => addTrackToAlbum(db, author, album.albumId, id)))
-          ?.failure,
+        (
+          await failure(tx, (db) =>
+            addTrackToAlbum(db, author, album.albumId, id),
+          )
+        )?.failure,
       ).toBe("archived_reference");
       await restoreTrack(tx, author, id);
       await addTrackToAlbum(tx, author, album.albumId, id);
-      expect((await getAlbum(tx, author, album.albumId))?.tracklist).toHaveLength(1);
+      expect(
+        (await getAlbum(tx, author, album.albumId))?.tracklist,
+      ).toHaveLength(1);
     });
   });
 
@@ -711,19 +782,27 @@ describe("tracks", () => {
         await failure(tx, (db) => deleteTrack(db, author, album.trackIds[0]!)),
       ).toMatchObject({ failure: "in_use", details: { blockedBy: "albums" } });
 
-      const inMemory = await createTrack(tx, author, { title: "[Test] Memory" });
+      const inMemory = await createTrack(tx, author, {
+        title: "[Test] Memory",
+      });
       await createTestMemory(tx, { music: [{ trackId: inMemory.id }] });
       expect(
         await failure(tx, (db) => deleteTrack(db, author, inMemory.id)),
-      ).toMatchObject({ failure: "in_use", details: { blockedBy: "memories" } });
-      expect((await getTrack(tx, author, inMemory.id))?.title).toBe("[Test] Memory");
+      ).toMatchObject({
+        failure: "in_use",
+        details: { blockedBy: "memories" },
+      });
+      expect((await getTrack(tx, author, inMemory.id))?.title).toBe(
+        "[Test] Memory",
+      );
     });
   });
 
   it("reports missing tracks", async () => {
     await inScratchTransaction(async (tx) => {
       for (const run of [
-        (db: Transaction) => updateTrack(db, author, MISSING, { title: "[Test] x" }),
+        (db: Transaction) =>
+          updateTrack(db, author, MISSING, { title: "[Test] x" }),
         (db: Transaction) => archiveTrack(db, author, MISSING),
         (db: Transaction) => restoreTrack(db, author, MISSING),
         (db: Transaction) => deleteTrack(db, author, MISSING),
@@ -794,7 +873,10 @@ describe("album tracklists", () => {
 
       const attempts: [unknown, string][] = [
         [{ tracks: [{ trackId: b }, { trackId: MISSING }] }, "not_found"],
-        [{ tracks: [{ trackId: b }, { trackId: archived.id }] }, "archived_reference"],
+        [
+          { tracks: [{ trackId: b }, { trackId: archived.id }] },
+          "archived_reference",
+        ],
         [{ tracks: [{ trackId: a }, { trackId: a }] }, "invalid_input"],
         [{ tracks: [{ trackId: "nope" }] }, "invalid_input"],
         [{ tracks: [{ trackId: a, discNumber: 0 }] }, "invalid_input"],
@@ -831,17 +913,30 @@ describe("album tracklists", () => {
       });
 
       expect(
-        await failure(tx, (db) => removeTrackFromAlbum(db, author, album.albumId, a)),
-      ).toMatchObject({ failure: "in_use", details: { blockedBy: "reflections" } });
+        await failure(tx, (db) =>
+          removeTrackFromAlbum(db, author, album.albumId, a),
+        ),
+      ).toMatchObject({
+        failure: "in_use",
+        details: { blockedBy: "reflections" },
+      });
       expect(
         await failure(tx, (db) =>
-          setAlbumTracklist(db, author, album.albumId, { tracks: [{ trackId: b }] }),
+          setAlbumTracklist(db, author, album.albumId, {
+            tracks: [{ trackId: b }],
+          }),
         ),
-      ).toMatchObject({ failure: "in_use", details: { blockedBy: "reflections" } });
-      expect((await getAlbum(tx, author, album.albumId))?.tracklist).toHaveLength(2);
+      ).toMatchObject({
+        failure: "in_use",
+        details: { blockedBy: "reflections" },
+      });
       expect(
-        (await getAlbum(tx, author, album.albumId))?.tracklist.find((t) => t.trackId === a)
-          ?.hasReflection,
+        (await getAlbum(tx, author, album.albumId))?.tracklist,
+      ).toHaveLength(2);
+      expect(
+        (await getAlbum(tx, author, album.albumId))?.tracklist.find(
+          (t) => t.trackId === a,
+        )?.hasReflection,
       ).toBe(true);
 
       // Reordering is fine: the reflection refers to the album and recording,
@@ -878,14 +973,25 @@ describe("album tracklists", () => {
 
   it("never touches another album's tracklist", async () => {
     await inScratchTransaction(async (tx) => {
-      const one = await createTestAlbum(tx, { title: "[Test] One", trackTitles: ["[Test] a", "[Test] b"] });
-      const two = await createTestAlbum(tx, { title: "[Test] Two", trackTitles: ["[Test] c"] });
+      const one = await createTestAlbum(tx, {
+        title: "[Test] One",
+        trackTitles: ["[Test] a", "[Test] b"],
+      });
+      const two = await createTestAlbum(tx, {
+        title: "[Test] Two",
+        trackTitles: ["[Test] c"],
+      });
       await removeTrackFromAlbum(tx, author, one.albumId, one.trackIds[0]!);
-      expect(titles(await getAlbum(tx, author, two.albumId))).toEqual(["[Test] c"]);
+      expect(titles(await getAlbum(tx, author, two.albumId))).toEqual([
+        "[Test] c",
+      ]);
       // A track that is not on the album cannot be removed from it.
       expect(
-        (await failure(tx, (db) => removeTrackFromAlbum(db, author, one.albumId, two.trackIds[0]!)))
-          ?.failure,
+        (
+          await failure(tx, (db) =>
+            removeTrackFromAlbum(db, author, one.albumId, two.trackIds[0]!),
+          )
+        )?.failure,
       ).toBe("not_found");
     });
   });
@@ -904,10 +1010,15 @@ describe("catalog queries", () => {
         artistIds: artists,
         trackTitles: ["[Test] a", "[Test] b", "[Test] c", "[Test] d"],
       });
-      const empty = await createTestAlbum(tx, { title: "[Test] Empty", trackTitles: [] });
+      const empty = await createTestAlbum(tx, {
+        title: "[Test] Empty",
+        trackTitles: [],
+      });
 
       const rows = await listAlbumTrackCounts(tx, author);
-      expect(rows.find((r) => r.albumId === credited.albumId)?.trackCount).toBe(4);
+      expect(rows.find((r) => r.albumId === credited.albumId)?.trackCount).toBe(
+        4,
+      );
       expect(rows.find((r) => r.albumId === empty.albumId)?.trackCount).toBe(0);
     });
   });
@@ -927,7 +1038,10 @@ describe("catalog queries", () => {
     await inScratchTransaction(async (tx) => {
       const before = await getCatalogStatistics(tx, author);
       const artistId = await createTestArtist(tx);
-      await createTestAlbum(tx, { artistIds: [artistId], trackTitles: ["[Test] a", "[Test] b"] });
+      await createTestAlbum(tx, {
+        artistIds: [artistId],
+        trackTitles: ["[Test] a", "[Test] b"],
+      });
       await createTestAlbum(tx, { trackTitles: [] });
       await createTrack(tx, author, { title: "[Test] loose" });
       const archived = await createTestAlbum(tx, { trackTitles: [] });

@@ -24,7 +24,9 @@ export function parseDuration(text: string): number | null | undefined {
   if (trimmed === "") {
     return null;
   }
-  const match = /^(?:(\d{1,2}):)?(\d{1,3}):([0-5]\d)$|^(\d{1,6})$/.exec(trimmed);
+  const match = /^(?:(\d{1,2}):)?(\d{1,3}):([0-5]\d)$|^(\d{1,6})$/.exec(
+    trimmed,
+  );
   if (!match) {
     return undefined;
   }
@@ -45,6 +47,10 @@ export function formatDate(date: Date): string {
   return dateFormat.format(date);
 }
 
-export function plural(count: number, singular: string, plural = `${singular}s`) {
+export function plural(
+  count: number,
+  singular: string,
+  plural = `${singular}s`,
+) {
   return `${count} ${count === 1 ? singular : plural}`;
 }

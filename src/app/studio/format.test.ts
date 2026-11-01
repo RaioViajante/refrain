@@ -27,12 +27,19 @@ describe("parseDuration", () => {
     expect(parseDuration(text)).toBe(ms);
   });
 
-  it.each(["abc", "3:60", "3:4", "-1", "0", "0:00", "1:2:3:4", "3.5", "99999999"])(
-    "refuses %j",
-    (text) => {
-      expect(parseDuration(text)).toBeUndefined();
-    },
-  );
+  it.each([
+    "abc",
+    "3:60",
+    "3:4",
+    "-1",
+    "0",
+    "0:00",
+    "1:2:3:4",
+    "3.5",
+    "99999999",
+  ])("refuses %j", (text) => {
+    expect(parseDuration(text)).toBeUndefined();
+  });
 
   it("round-trips what it formats", () => {
     for (const ms of [1_000, 61_000, 222_000, 3_600_000, 5_999_000]) {

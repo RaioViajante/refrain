@@ -37,23 +37,25 @@ describe("textToDocument", () => {
   });
 
   it("makes one paragraph per blank-line-separated block, with hard breaks", () => {
-    expect(textToDocument("First line\nsecond line\n\nNext paragraph")).toEqual({
-      type: "doc",
-      content: [
-        {
-          type: "paragraph",
-          content: [
-            { type: "text", text: "First line" },
-            { type: "hardBreak" },
-            { type: "text", text: "second line" },
-          ],
-        },
-        {
-          type: "paragraph",
-          content: [{ type: "text", text: "Next paragraph" }],
-        },
-      ],
-    });
+    expect(textToDocument("First line\nsecond line\n\nNext paragraph")).toEqual(
+      {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [
+              { type: "text", text: "First line" },
+              { type: "hardBreak" },
+              { type: "text", text: "second line" },
+            ],
+          },
+          {
+            type: "paragraph",
+            content: [{ type: "text", text: "Next paragraph" }],
+          },
+        ],
+      },
+    );
   });
 
   it("never produces an empty text node, which ProseMirror rejects", () => {
@@ -62,7 +64,8 @@ describe("textToDocument", () => {
   });
 
   it("keeps markup characters as plain text", () => {
-    const text = '<script>alert("x")</script>\n\n**not bold** [link](javascript:1)';
+    const text =
+      '<script>alert("x")</script>\n\n**not bold** [link](javascript:1)';
     expect(documentToText(textToDocument(text))).toBe(text);
   });
 });
@@ -75,26 +78,75 @@ describe("documentToText", () => {
       "  leading spaces are kept\n\nÃ§ accents ✓ 日本語 🎵",
       "a\n\nb\n\nc",
     ]) {
-      expect(documentToText(textToDocument(text))).toBe(normalizeBodyText(text));
+      expect(documentToText(textToDocument(text))).toBe(
+        normalizeBodyText(text),
+      );
     }
   });
 
   it("reads an empty body as empty text", () => {
     expect(documentToText(null)).toBe("");
     expect(documentToText({ type: "doc" })).toBe("");
-    expect(documentToText({ type: "doc", content: [{ type: "paragraph" }] })).toBe("");
+    expect(
+      documentToText({ type: "doc", content: [{ type: "paragraph" }] }),
+    ).toBe("");
   });
 
   it.each([
-    ["a heading", { type: "doc", content: [{ type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "x" }] }] }],
-    ["bold text", { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "x", marks: [{ type: "bold" }] }] }] }],
-    ["a paragraph with attributes", { type: "doc", content: [{ type: "paragraph", attrs: { textAlign: "center" }, content: [] }] }],
+    [
+      "a heading",
+      {
+        type: "doc",
+        content: [
+          {
+            type: "heading",
+            attrs: { level: 1 },
+            content: [{ type: "text", text: "x" }],
+          },
+        ],
+      },
+    ],
+    [
+      "bold text",
+      {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [{ type: "text", text: "x", marks: [{ type: "bold" }] }],
+          },
+        ],
+      },
+    ],
+    [
+      "a paragraph with attributes",
+      {
+        type: "doc",
+        content: [
+          { type: "paragraph", attrs: { textAlign: "center" }, content: [] },
+        ],
+      },
+    ],
     ["a list", { type: "doc", content: [{ type: "bulletList", content: [] }] }],
-    ["a node of an unknown kind", { type: "doc", content: [{ type: "paragraph", content: [{ type: "mention", text: "x" }] }] }],
+    [
+      "a node of an unknown kind",
+      {
+        type: "doc",
+        content: [
+          { type: "paragraph", content: [{ type: "mention", text: "x" }] },
+        ],
+      },
+    ],
     ["a non-document", { type: "paragraph" }],
     ["a string", "text"],
     ["an array", []],
-    ["text that is not a string", { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: 5 }] }] }],
+    [
+      "text that is not a string",
+      {
+        type: "doc",
+        content: [{ type: "paragraph", content: [{ type: "text", text: 5 }] }],
+      },
+    ],
     ["content that is not an array", { type: "doc", content: "x" }],
     ["extra properties", { type: "doc", content: [], extra: true }],
   ])("refuses %s rather than flatten it", (_name, document) => {

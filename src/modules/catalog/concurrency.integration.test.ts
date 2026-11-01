@@ -21,7 +21,11 @@ import { getAlbum } from "./queries";
 // are committed and removed at the end; everything is synthetic.
 
 const author = testAuthor();
-const created = { albums: [] as string[], artists: [] as string[], tracks: [] as string[] };
+const created = {
+  albums: [] as string[],
+  artists: [] as string[],
+  tracks: [] as string[],
+};
 
 afterAll(async () => {
   const db = getDb();
@@ -37,7 +41,10 @@ afterAll(async () => {
 });
 
 async function artist(): Promise<string> {
-  const { id } = await createArtist(getDb(), author, { name: uniqueLabel("Artist"), kind: "group" });
+  const { id } = await createArtist(getDb(), author, {
+    name: uniqueLabel("Artist"),
+    kind: "group",
+  });
   created.artists.push(id);
   return id;
 }
@@ -51,7 +58,9 @@ async function album(trackCount: number) {
   created.albums.push(albumId);
   const trackIds: string[] = [];
   for (let index = 0; index < trackCount; index++) {
-    const { id } = await createTrack(getDb(), author, { title: uniqueLabel(`Track ${index}`) });
+    const { id } = await createTrack(getDb(), author, {
+      title: uniqueLabel(`Track ${index}`),
+    });
     created.tracks.push(id);
     trackIds.push(id);
   }
@@ -64,7 +73,10 @@ function reasons(outcomes: PromiseSettledResult<unknown>[]): unknown[] {
 
 async function storedOrder(albumId: string): Promise<string[]> {
   const rows = await getDb()
-    .select({ trackId: schema.editionTracks.trackId, position: schema.editionTracks.position })
+    .select({
+      trackId: schema.editionTracks.trackId,
+      position: schema.editionTracks.position,
+    })
     .from(schema.editionTracks)
     .where(eq(schema.editionTracks.albumId, albumId));
   return rows.sort((a, b) => a.position - b.position).map((row) => row.trackId);
@@ -73,7 +85,9 @@ async function storedOrder(albumId: string): Promise<string[]> {
 describe("concurrent tracklist edits", () => {
   it("serializes simultaneous reorderings: the result is exactly one of them", async () => {
     const { albumId, trackIds } = await album(5);
-    await setAlbumTracklist(getDb(), author, albumId, { tracks: trackIds.map((trackId) => ({ trackId })) });
+    await setAlbumTracklist(getDb(), author, albumId, {
+      tracks: trackIds.map((trackId) => ({ trackId })),
+    });
 
     const orders = [
       [...trackIds].reverse(),
@@ -85,8 +99,11 @@ describe("concurrent tracklist edits", () => {
     ];
     const outcomes = await withConnections(orders.length, (dbs) =>
       raceAll(
-        orders.map((order, index) => () =>
-          setAlbumTracklist(dbs[index]!, author, albumId, { tracks: order.map((trackId) => ({ trackId })) }),
+        orders.map(
+          (order, index) => () =>
+            setAlbumTracklist(dbs[index]!, author, albumId, {
+              tracks: order.map((trackId) => ({ trackId })),
+            }),
         ),
       ),
     );
@@ -108,13 +125,22 @@ describe("concurrent tracklist edits", () => {
   it("keeps every track when several are added at the same moment", async () => {
     const { albumId, trackIds } = await album(6);
     const outcomes = await withConnections(trackIds.length, (dbs) =>
-      raceAll(trackIds.map((trackId, index) => () => addTrackToAlbum(dbs[index]!, author, albumId, trackId))),
+      raceAll(
+        trackIds.map(
+          (trackId, index) => () =>
+            addTrackToAlbum(dbs[index]!, author, albumId, trackId),
+        ),
+      ),
     );
     expect(reasons(outcomes)).toEqual([]);
     const detail = await getAlbum(getDb(), author, albumId);
     expect(detail?.tracklist).toHaveLength(6);
-    expect(new Set(detail?.tracklist.map((t) => t.trackId))).toEqual(new Set(trackIds));
-    expect(detail?.tracklist.map((t) => t.position)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(new Set(detail?.tracklist.map((t) => t.trackId))).toEqual(
+      new Set(trackIds),
+    );
+    expect(detail?.tracklist.map((t) => t.position)).toEqual([
+      1, 2, 3, 4, 5, 6,
+    ]);
   });
 });
 
@@ -123,12 +149,19 @@ describe("concurrent identifiers", () => {
     const mbArtistId = crypto.randomUUID();
     const outcomes = await withConnections(4, (dbs) =>
       raceAll(
-        dbs.map((db, index) => () =>
-          createArtist(db, author, { name: uniqueLabel(`Same id ${index}`), kind: "person", mbArtistId }),
+        dbs.map(
+          (db, index) => () =>
+            createArtist(db, author, {
+              name: uniqueLabel(`Same id ${index}`),
+              kind: "person",
+              mbArtistId,
+            }),
         ),
       ),
     );
-    const winners = outcomes.flatMap((o) => (o.status === "fulfilled" ? [o.value.id] : []));
+    const winners = outcomes.flatMap((o) =>
+      o.status === "fulfilled" ? [o.value.id] : [],
+    );
     created.artists.push(...winners);
     expect(winners).toHaveLength(1);
     for (const reason of reasons(outcomes)) {
@@ -143,16 +176,19 @@ describe("concurrent identifiers", () => {
     const mbReleaseGroupId = crypto.randomUUID();
     const outcomes = await withConnections(4, (dbs) =>
       raceAll(
-        dbs.map((db, index) => () =>
-          createAlbum(db, author, {
-            title: uniqueLabel(`Same group ${index}`),
-            mbReleaseGroupId,
-            credits: [{ artistId }],
-          }),
+        dbs.map(
+          (db, index) => () =>
+            createAlbum(db, author, {
+              title: uniqueLabel(`Same group ${index}`),
+              mbReleaseGroupId,
+              credits: [{ artistId }],
+            }),
         ),
       ),
     );
-    const winners = outcomes.flatMap((o) => (o.status === "fulfilled" ? [o.value.id] : []));
+    const winners = outcomes.flatMap((o) =>
+      o.status === "fulfilled" ? [o.value.id] : [],
+    );
     created.albums.push(...winners);
     expect(winners).toHaveLength(1);
     for (const reason of reasons(outcomes)) {

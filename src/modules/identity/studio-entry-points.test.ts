@@ -97,7 +97,9 @@ const HTTP_METHODS = new Set([
 ]);
 // The authentication handler is the only route handler that does not call the
 // authorization: it IS the sign-in surface, and it allow-lists three endpoints.
-const ROUTE_ALLOW_LIST = new Set([join("src", "app", "api", "auth", "[...all]", "route.ts")]);
+const ROUTE_ALLOW_LIST = new Set([
+  join("src", "app", "api", "auth", "[...all]", "route.ts"),
+]);
 
 function isAwaitedAuthorizationCall(expression: ts.Expression): boolean {
   return (
@@ -221,19 +223,27 @@ function exportedFunctions(source: ts.SourceFile): ExportedFunction[] {
  * Describes every entry point in `source` that does not start with an awaited
  * requireAuthor or authorizeAuthor, or that cannot be checked.
  */
-function authorizationViolations(source: ts.SourceFile, file: string): string[] {
+function authorizationViolations(
+  source: ts.SourceFile,
+  file: string,
+): string[] {
   const violations: string[] = [];
   const normalized = file.split("\\").join("/");
   const inStudio = normalized.startsWith("src/app/studio/");
   const isRouteFile =
-    normalized.startsWith("src/app/") && /(^|\/)route\.(m?[jt]sx?)$/.test(normalized);
+    normalized.startsWith("src/app/") &&
+    /(^|\/)route\.(m?[jt]sx?)$/.test(normalized);
   const useServerFile = isServerActionFile(source);
 
   const check = (label: string, exported: ExportedFunction) => {
     if (!exported.fn) {
-      violations.push(`${file}: ${label} "${exported.name}" is not a function literal, so it cannot be checked`);
+      violations.push(
+        `${file}: ${label} "${exported.name}" is not a function literal, so it cannot be checked`,
+      );
     } else if (!startsWithAuthorization(exported.fn)) {
-      violations.push(`${file}: ${label} "${exported.name}" does not start with an awaited requireAuthor or authorizeAuthor`);
+      violations.push(
+        `${file}: ${label} "${exported.name}" does not start with an awaited requireAuthor or authorizeAuthor`,
+      );
     }
   };
 
@@ -249,7 +259,9 @@ function authorizationViolations(source: ts.SourceFile, file: string): string[] 
     }
   }
   if (isRouteFile && !ROUTE_ALLOW_LIST.has(normalized)) {
-    for (const entry of exported.filter((e) => HTTP_METHODS.has(e.name) || e.name === "(re-export)")) {
+    for (const entry of exported.filter(
+      (e) => HTTP_METHODS.has(e.name) || e.name === "(re-export)",
+    )) {
       check("route handler", entry);
     }
   }
@@ -261,7 +273,9 @@ function authorizationViolations(source: ts.SourceFile, file: string): string[] 
       hasUseServerDirective(node) &&
       !startsWithAuthorization(node)
     ) {
-      violations.push(`${file}: an inline server action does not start with an awaited requireAuthor or authorizeAuthor`);
+      violations.push(
+        `${file}: an inline server action does not start with an awaited requireAuthor or authorizeAuthor`,
+      );
     }
     ts.forEachChild(node, visit);
   };
@@ -337,7 +351,9 @@ describe("every entry point authorizes first", () => {
   it("finds the Studio's server actions, so the check is not vacuous", () => {
     const actionFiles = files.filter((file) => isServerActionFile(parse(file)));
     expect(actionFiles.length).toBeGreaterThan(0);
-    const actions = actionFiles.flatMap((file) => exportedFunctions(parse(file)));
+    const actions = actionFiles.flatMap((file) =>
+      exportedFunctions(parse(file)),
+    );
     expect(actions.length).toBeGreaterThan(10);
     expect(actions.every((action) => action.fn !== undefined)).toBe(true);
   });
@@ -392,10 +408,16 @@ export async function bad() { await somethingElse(); await authorizeAuthor(h); }
 
     it("an action that is a re-export or a wrapped function", () => {
       expect(
-        check('"use server";\nexport { save } from "./impl";\n', "src/app/x/actions.ts"),
+        check(
+          '"use server";\nexport { save } from "./impl";\n',
+          "src/app/x/actions.ts",
+        ),
       ).toHaveLength(1);
       expect(
-        check('"use server";\nexport const save = wrap(async () => 1);\n', "src/app/x/actions.ts"),
+        check(
+          '"use server";\nexport const save = wrap(async () => 1);\n',
+          "src/app/x/actions.ts",
+        ),
       ).toHaveLength(1);
     });
 
@@ -416,7 +438,8 @@ export async function bad() { await somethingElse(); await authorizeAuthor(h); }
     });
 
     it("a generateMetadata without the check in the studio, but not elsewhere", () => {
-      const code = "export async function generateMetadata() { return { title: 'x' }; }";
+      const code =
+        "export async function generateMetadata() { return { title: 'x' }; }";
       expect(check(code, "src/app/studio/journals/page.tsx")).toHaveLength(1);
       expect(check(code, "src/app/public/page.tsx")).toEqual([]);
       const guarded =
@@ -427,8 +450,12 @@ export async function bad() { await somethingElse(); await authorizeAuthor(h); }
     it("a route handler outside the studio, but not the allow-listed one", () => {
       const code = "export async function POST() { return new Response(); }";
       expect(check(code, "src/app/api/export/route.ts")).toHaveLength(1);
-      expect(check(code, join("src", "app", "api", "auth", "[...all]", "route.ts"))).toEqual([]);
-      expect(check("export const GET = handler;", "src/app/api/x/route.ts")).toHaveLength(1);
+      expect(
+        check(code, join("src", "app", "api", "auth", "[...all]", "route.ts")),
+      ).toEqual([]);
+      expect(
+        check("export const GET = handler;", "src/app/api/x/route.ts"),
+      ).toHaveLength(1);
       const guarded =
         "export async function POST(request) { const a = await requireAuthor(request.headers); }";
       expect(check(guarded, "src/app/api/export/route.ts")).toEqual([]);
@@ -436,7 +463,10 @@ export async function bad() { await somethingElse(); await authorizeAuthor(h); }
 
     it("ignores modules that are not entry points", () => {
       expect(
-        check("export async function helper() { return 1; }", "src/modules/x/helper.ts"),
+        check(
+          "export async function helper() { return 1; }",
+          "src/modules/x/helper.ts",
+        ),
       ).toEqual([]);
     });
   });

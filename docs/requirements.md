@@ -1,7 +1,7 @@
 # Requirements
 
 **Presentation:** November 16, 2026.
-**Status:** planned. No requirement is verified yet. M1.2 implemented the related tables (with primary and foreign keys) and the JOIN and aggregate queries, tested against real PostgreSQL; CRUD and the user interface that shows them arrive in M1.3. The evidence column describes what must be captured. The *Verified* column is filled in only after the evidence exists.
+**Status:** M1.3B implemented CRUD and the screens that show the JOIN, aggregate, and subquery results, tested against real PostgreSQL and through the production build; [the evidence](evidence/m1-3b.md) records a run. The *Verified* column stays empty until the author reviews that evidence and the demonstration has been rehearsed on a clean database (M4). The evidence column describes what must be captured. The *Verified* column is filled in only after the evidence exists.
 
 This document covers the **mandatory academic requirements** only. Product behavior is defined in [Product](product.md). Architectural qualities such as module boundaries, internationalization, and the hand-drawn interface are project goals, not academic requirements, and must not be presented as substitutes for them.
 

@@ -244,7 +244,11 @@ export function TracklistEditor({
             </form>
           ) : null}
 
-          <form onSubmit={createNew} className="space-y-4 max-w-[620px]" noValidate>
+          <form
+            onSubmit={createNew}
+            className="space-y-4 max-w-[620px]"
+            noValidate
+          >
             <p className="studio-label">Create a new track on this album</p>
             <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_140px]">
               <div className="studio-field-group">
@@ -283,11 +287,16 @@ export function TracklistEditor({
                 {lengthProblem}
               </p>
             ) : null}
-            <label className="flex items-center gap-3" style={{ minHeight: 44 }}>
+            <label
+              className="flex items-center gap-3"
+              style={{ minHeight: 44 }}
+            >
               <input
                 type="checkbox"
                 checked={creditAlbumArtists}
-                onChange={(event) => setCreditAlbumArtists(event.target.checked)}
+                onChange={(event) =>
+                  setCreditAlbumArtists(event.target.checked)
+                }
                 style={{ width: 20, height: 20 }}
               />
               <span>Credit the album’s artists on this track</span>

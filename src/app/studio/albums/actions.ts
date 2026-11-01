@@ -78,9 +78,7 @@ export async function addTrackToAlbumAction(
   if (!authorization.ok) {
     return denied(authorization.reason);
   }
-  return perform(() =>
-    addTrackToAlbum(authorization.author, albumId, trackId),
-  );
+  return perform(() => addTrackToAlbum(authorization.author, albumId, trackId));
 }
 
 export async function removeTrackFromAlbumAction(

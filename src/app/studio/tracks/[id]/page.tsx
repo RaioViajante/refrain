@@ -13,10 +13,7 @@ import {
   deleteTrackAction,
   restoreTrackAction,
 } from "@/app/studio/tracks/actions";
-import {
-  initialTrackValues,
-  TrackForm,
-} from "@/app/studio/tracks/track-form";
+import { initialTrackValues, TrackForm } from "@/app/studio/tracks/track-form";
 import { getTrack, listArtists } from "@/modules/catalog";
 import { authorizeAuthor } from "@/modules/identity";
 

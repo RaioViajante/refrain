@@ -16,7 +16,10 @@ import { getAlbumJournal, textToParagraphs } from "@/modules/journals";
 // A fixed title: the journal's own words never reach page metadata.
 export const metadata: Metadata = { title: "Journal · refrain" };
 
-const LANGUAGE_NAMES = { en: "English", "pt-BR": "Português (Brasil)" } as const;
+const LANGUAGE_NAMES = {
+  en: "English",
+  "pt-BR": "Português (Brasil)",
+} as const;
 
 export default function JournalPage({
   params,
@@ -41,7 +44,8 @@ async function Journal({ params }: { params: Promise<{ id: string }> }) {
     notFound();
   }
   const deleted = journal.deletedAt !== null;
-  const paragraphs = journal.body === null ? null : textToParagraphs(journal.body);
+  const paragraphs =
+    journal.body === null ? null : textToParagraphs(journal.body);
 
   return (
     <StudioFrame current="journals">
@@ -54,7 +58,10 @@ async function Journal({ params }: { params: Promise<{ id: string }> }) {
       <header className="space-y-2">
         <p className="studio-meta">
           A journal about{" "}
-          <Link href={`/studio/albums/${journal.albumId}`} className="studio-link">
+          <Link
+            href={`/studio/albums/${journal.albumId}`}
+            className="studio-link"
+          >
             {journal.albumTitle}
           </Link>
           {journal.artistNames ? ` · ${journal.artistNames}` : ""}
@@ -64,8 +71,8 @@ async function Journal({ params }: { params: Promise<{ id: string }> }) {
         </h1>
         <p className="studio-meta">
           <StatusMark status={journal.status} /> · written in{" "}
-          {LANGUAGE_NAMES[journal.locale]} · {plural(journal.wordCount, "word")} ·
-          started {formatDate(journal.createdAt)} · edited{" "}
+          {LANGUAGE_NAMES[journal.locale]} · {plural(journal.wordCount, "word")}{" "}
+          · started {formatDate(journal.createdAt)} · edited{" "}
           {formatDate(journal.updatedAt)} (UTC dates)
         </p>
       </header>
@@ -73,12 +80,15 @@ async function Journal({ params }: { params: Promise<{ id: string }> }) {
       {deleted ? (
         <p className="studio-panel">
           This journal is in Recently deleted since{" "}
-          {formatDate(journal.deletedAt!)}. The writing is kept, and it cannot be
-          changed there. Restoring it is not available yet.
+          {formatDate(journal.deletedAt!)}. The writing is kept, and it cannot
+          be changed there. Restoring it is not available yet.
         </p>
       ) : (
         <p>
-          <Link href={`/studio/journals/${journal.entryId}/edit`} className="studio-button">
+          <Link
+            href={`/studio/journals/${journal.entryId}/edit`}
+            className="studio-button"
+          >
             Edit this journal
           </Link>
         </p>
@@ -134,7 +144,9 @@ async function Journal({ params }: { params: Promise<{ id: string }> }) {
           </div>
           <div>
             <dt className="inline font-medium">Deleted: </dt>
-            <dd className="inline">{deleted ? "yes, in Recently deleted" : "no"}</dd>
+            <dd className="inline">
+              {deleted ? "yes, in Recently deleted" : "no"}
+            </dd>
           </div>
         </dl>
       </section>

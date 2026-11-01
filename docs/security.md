@@ -4,7 +4,7 @@
 
 - **M1.1 and M1.2 implement the database layer's protections.** They are tested against real PostgreSQL.
 - **M1.3A implements authentication and the studio's authorization boundary** ([ADR 0004](decisions/0004-single-author-identity.md)). One author account, created by a local command; sign-in, database sessions, and sign-out; a sign-in page and a protected studio placeholder. They are tested against real PostgreSQL and over HTTP against the production build.
-- **No route or server action reads or writes writing yet.** The only HTTP surface is the development page, the authentication endpoints, and the two studio pages. There are no public journal routes.
+- **M1.3B adds the first server actions and studio pages that read and write private writing.** Each action authorizes first and is tested over HTTP with and without a session. The HTTP surface is the development page, the authentication endpoints, the studio pages, and the studio's Server Actions. There are no public journal routes, no publishing control, and no administrative route handler.
 - **Passing tests do not make the application secure.** They show that the rules they test hold, and nothing about surfaces that do not exist yet.
 - **The remaining controls arrive with the features they protect.**
 
@@ -109,11 +109,11 @@ This contract applies to every administrative operation from M1.3B on: every stu
 
 Each new action or route gets a test that an unauthenticated request, a forged cookie, and a non-author session are refused (Required test 1).
 
-A static test ([`studio-entry-points.test.ts`](../src/modules/identity/studio-entry-points.test.ts)) checks today, per file, that each studio page and each server-action file calls the authorization. The first server action or administrative route handler extends it to check each exported action, each inline (function-level) action, `generateMetadata`, and each route handler under `src/app`, each starting with an awaited `requireAuthor` or `authorizeAuthor`. The authentication handler is explicitly allowed.
+A static test ([`studio-entry-points.test.ts`](../src/modules/identity/studio-entry-points.test.ts)) checks per file that each studio page calls the authorization, and per entry point that each exported function of a `"use server"` file, each inline (function-level) action, each `generateMetadata` in the studio, and each route handler under `src/app` starts with an awaited `requireAuthor` or `authorizeAuthor`. Anything it cannot read as a function literal (a re-export, a wrapped function) is reported, not skipped. The authentication handler is the one explicit exception. Probes show that each known bypass is caught. It is defense in depth: the HTTP tests call every action, and a mutation test (removing one action's check) was seen to fail them.
 
 ## Caching
 
-- Studio responses use `Cache-Control: no-store` and are never statically generated.
+- Studio pages and router payloads use `Cache-Control: no-store` and are never statically generated with data. Next.js also prerenders a static shell for each studio route (a loading line only), which a cache may keep when it answers a router prefetch; it holds no data and is identical whether or not a record exists, and tests assert both. The router's request without a session is a 307 that Next.js sends without a cache header (not cacheable by default), recorded with the redirect review in issue #11. Page titles are fixed and carry no catalog or writing.
 - Public pages may be cached or statically generated only from data that satisfies the publication predicate.
 - Any change that affects the predicate revalidates the affected public pages and listings: a visibility change, deletion or restore, a change to a track's publication flag, featuring a journal, or a slug change.
 - Verify that no private content is rendered at build time.
@@ -181,14 +181,20 @@ This matrix records what exists on `main` today and what is still a requirement.
 | Origin checks on every state-changing request; request body limit; `no-store` and anti-framing headers on authentication responses and studio pages | `handler.ts`, [`next.config.ts`](../next.config.ts) | Integration tests of cross-origin, missing, and opaque origins, and of Better Auth's own check under `NODE_ENV=test`; HTTP tests of the headers |
 | Sign-in rate limiting that a spoofed `X-Forwarded-For` does not bypass | `auth.ts`, `auth_rate_limits` | Integration and HTTP tests with a different spoofed address on each attempt; sign-out stays available |
 | Validated authentication configuration that fails closed; no secret in errors or logs | [`src/modules/identity/config.ts`](../src/modules/identity/config.ts), [`logging.ts`](../src/modules/identity/logging.ts) | Unit tests of every refusal; an integration test that a failing query logs no token, hash, or parameter; an HTTP test that the server log contains no password, token, or secret |
+| Authorization first in every studio Server Action; commands that take the `AuthorizedAuthor` only Identity can create; one implementation of each mutation (no administrative route handlers) | [`src/app/studio/*/actions.ts`](../src/app/studio/), catalog and journals commands | `studio-actions.http.test.ts` calls all actions with no cookie, a forged cookie, a wrong signature, an expired and a revoked session, with a row checksum proving nothing was written; `studio-entry-points.test.ts`; a mutation check that removing one action's authorization fails the HTTP suite |
+| Zod validation inside every catalog and journal command, with fixed field codes and no echo of the input; database errors mapped to fixed domain failures | [`src/modules/catalog/input.ts`](../src/modules/catalog/input.ts), [`journals/input.ts`](../src/modules/journals/input.ts), `perform.ts` | Integration tests of invalid input, duplicates, `in_use`, and missing records; HTTP tests that no response contains SQL, constraint names, or stack traces |
+| Optimistic concurrency on album-journal saves; slug reservation safe under concurrency; tracklist and credit rewrites serialized by a row lock | `saveAlbumJournal`, `reserveInitialSlug`, `changeEntrySlug`, `lockAlbum` | Real multi-connection tests (issue #6): one winner, domain failures only, no partial entries or corrupted order; the lock was removed once to see the test fail |
+| Nothing in the studio can publish, change an address, or delete permanently; privacy changes reach only `draft` or `private` | `setAlbumJournalPrivacy`, `no-publishing.test.ts` | Integration and HTTP tests that `published` is refused; a static test that `src/app` cannot reach those commands |
+| Writing stored and shown as text: plain text becomes paragraphs and hard breaks only, React escapes it, no HTML is rendered; stored formatting the plain editor cannot show is left untouched | [`src/modules/journals/body.ts`](../src/modules/journals/body.ts) | Unit tests of the conversion; an HTTP test that markup in a journal is escaped in the view and edit pages; the browser run |
+| Studio pages stream private data only after authorization, with fixed titles and `noindex`; the static shells and prefetch payloads contain none of it | `src/app/studio/**/page.tsx` | HTTP tests of every page with no cookie, a forged cookie, and the router's RSC and prefetch requests |
 | Supply chain: exact versions, a frozen lockfile, a seven-day minimum release age, and install scripts blocked unless allowed | `package.json`, [`pnpm-workspace.yaml`](../pnpm-workspace.yaml) | `pnpm install --frozen-lockfile` in CI proves that the lockfile matches `package.json`. Exact versions, the release age, and `allowBuilds` are checked by review. |
 
 ### Planned (not implemented)
 
 | Control | Arrives with | State today |
 | --- | --- | --- |
-| Authorization in every administrative action and route, following the [Authorization contract](#authorization-contract) | M1.3B and later | The contract and `requireAuthor` exist; no server action or route reads or changes writing yet |
-| Zod validation at every administrative server boundary | M1.3B and later | Zod is installed and validates the authentication configuration. Better Auth validates its own endpoints. No other boundary exists yet. |
+| Authorization in every administrative action and route, following the [Authorization contract](#authorization-contract) | Each later milestone | Done for every M1.3B action (above). Each action or route added later extends the HTTP test's table, which fails if an action is missing from it |
+| Zod validation at every administrative server boundary | Each later milestone | Done for the M1.3B commands (above); the Tiptap node and mark schema arrives with Tiptap |
 | Client-aware sign-in abuse protection from a trustworthy network identity | Before any public deployment ([Deployment gate](#deployment-gate), issue #11) | All clients share one bucket ([Authentication and sessions](#authentication-and-sessions)). Accepted for local development only. |
 | Redirect status and indexing of the unauthorized studio response | Before any public deployment ([Deployment gate](#deployment-gate), issue #11) | HTTP 200 with a streamed redirect and a `noindex` meta tag; no studio content is sent |
 | Browser end-to-end authentication tests; behavior over real HTTPS | Before any public deployment (issue #11) | Not verified. HTTP tests use `fetch`, and the HTTPS cookies are covered by integration tests only. |
@@ -198,7 +204,7 @@ This matrix records what exists on `main` today and what is still a requirement.
 | Public caching only from predicate data; revalidation on every visibility change; `no-store` studio responses | M2, M3 | Nothing is cached; Cache Components makes data dynamic by default |
 | Predicate applied to metadata, sitemaps, feeds, and search | M3 | None of these exists; the only metadata is the static site title and description |
 | HTTP-level privacy tests (404 versus 308, metadata, caches) | M2, M3 | Only the database-level parts exist ([Required tests](#required-tests)) |
-| Optimistic concurrency on saves | M2 | `entries.version` exists; no save command uses it yet |
+| Optimistic concurrency on saves | M2 for other entry kinds and track reflections | Done for album-journal text (M1.3B) |
 | Backups and a tested restore | Before any hosted database holds real writing | Local `pg_dump` commands only ([Development](development.md#local-database)) |
 | Private vulnerability reporting channel | Before the repository becomes public | Not available while the repository is private ([`SECURITY.md`](../SECURITY.md)) |
 | Branch protection | When the plan allows it, or when the repository becomes public | Followed by convention ([Development § Repository protection](development.md#repository-protection)) |
@@ -219,7 +225,7 @@ These must exist before the public journal ships (M3). The *Done so far* column 
 
 | Test | Done so far | Remaining |
 | --- | --- | --- |
-| 1. Unauthenticated studio requests rejected | The studio page and the authentication endpoints: anonymous requests, forged and tampered cookies, expired, revoked, signed-out, and non-author sessions, tested in integration and over HTTP (M1.3A) | Every studio action and route added from M1.3B on |
+| 1. Unauthenticated studio requests rejected | The studio pages and the authentication endpoints (M1.3A), and every M1.3B Server Action over HTTP with no cookie, a forged cookie, a wrong signature, an expired and a revoked session | Every action or route added later; the non-author case has no HTTP test because the database holds one account (it is tested in integration) |
 | 2. Draft, private, deleted content hidden per language version (INV-3) | Public queries return nothing for draft, private, or deleted entries, and never a private translation | 404 from every public route, metadata, sitemaps, caches (M3) |
 | 3. Unpublished track reflections absent, with their ratings and favourites (INV-2, INV-3) | Absent whatever their "still writing" state; toggling the flag changes nothing public; publishing a journal publishes no reflection | Rendered public pages (M3) |
 | 4. Changes take effect immediately, revalidation verified | Queries reflect a visibility change at once | Cache revalidation (M3) |

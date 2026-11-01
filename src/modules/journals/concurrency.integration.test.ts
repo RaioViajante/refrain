@@ -2,8 +2,17 @@ import { eq } from "drizzle-orm";
 import { afterAll, describe, expect, it } from "vitest";
 
 import { getDb, schema } from "@/db";
-import { createAlbum, createArtist, deleteAlbum, deleteArtist } from "@/modules/catalog";
-import { changeEntrySlug, normalizeSlug, PublicationError } from "@/modules/publication";
+import {
+  createAlbum,
+  createArtist,
+  deleteAlbum,
+  deleteArtist,
+} from "@/modules/catalog";
+import {
+  changeEntrySlug,
+  normalizeSlug,
+  PublicationError,
+} from "@/modules/publication";
 import { raceAll, testAuthor, uniqueLabel, withConnections } from "@/testing";
 
 import {
@@ -40,15 +49,25 @@ afterAll(async () => {
 });
 
 async function newAlbum(title: string): Promise<string> {
-  const artist = await createArtist(author, { name: uniqueLabel("Artist"), kind: "person" });
+  const artist = await createArtist(author, {
+    name: uniqueLabel("Artist"),
+    kind: "person",
+  });
   created.artists.push(artist.id);
-  const { id } = await createAlbum(author, { title, credits: [{ artistId: artist.id }] });
+  const { id } = await createAlbum(author, {
+    title,
+    credits: [{ artistId: artist.id }],
+  });
   created.albums.push(id);
   return id;
 }
 
 async function newJournal(albumId: string, body = "[Test] x"): Promise<string> {
-  const { entryId } = await createAlbumJournal(getDb(), author, { albumId, locale: "en", body });
+  const { entryId } = await createAlbumJournal(getDb(), author, {
+    albumId,
+    locale: "en",
+    body,
+  });
   created.entries.push(entryId);
   return entryId;
 }
@@ -69,12 +88,13 @@ describe("creating journals at the same moment", () => {
 
     const outcomes = await withConnections(8, (dbs) =>
       raceAll(
-        dbs.map((db, index) => () =>
-          createAlbumJournal(db, author, {
-            albumId,
-            locale: "en",
-            body: `[Test] Journal ${index}`,
-          }),
+        dbs.map(
+          (db, index) => () =>
+            createAlbumJournal(db, author, {
+              albumId,
+              locale: "en",
+              body: `[Test] Journal ${index}`,
+            }),
         ),
       ),
     );
@@ -84,10 +104,15 @@ describe("creating journals at the same moment", () => {
     expect(new Set(entryIds).size).toBe(8);
 
     const slugs = await getDb()
-      .select({ slug: schema.entrySlugs.slug, isCurrent: schema.entrySlugs.isCurrent })
+      .select({
+        slug: schema.entrySlugs.slug,
+        isCurrent: schema.entrySlugs.isCurrent,
+      })
       .from(schema.entrySlugs)
       .where(eq(schema.entrySlugs.kind, "album_journal"));
-    const mine = slugs.filter((row) => row.slug === base || row.slug.startsWith(`${base}-`));
+    const mine = slugs.filter(
+      (row) => row.slug === base || row.slug.startsWith(`${base}-`),
+    );
     expect(mine.map((row) => row.slug).sort()).toEqual(
       [base, ...Array.from({ length: 7 }, (_, i) => `${base}-${i + 2}`)].sort(),
     );
@@ -111,16 +136,30 @@ describe("creating journals at the same moment", () => {
 
       const outcomes = await withConnections(2, (dbs) =>
         raceAll([
-          () => createAlbumJournal(dbs[0]!, author, { albumId, locale: "en", body: "[Test] new" }),
+          () =>
+            createAlbumJournal(dbs[0]!, author, {
+              albumId,
+              locale: "en",
+              body: "[Test] new",
+            }),
           () => changeEntrySlug(dbs[1]!, existing, base),
         ]),
       );
       const [create, change] = outcomes;
       expect(create?.status, `round ${round}`).toBe("fulfilled");
-      created.entries.push((create as PromiseFulfilledResult<{ entryId: string }>).value.entryId);
+      created.entries.push(
+        (create as PromiseFulfilledResult<{ entryId: string }>).value.entryId,
+      );
 
-      const slugOfNew = (await getAlbumJournal(getDb(), author, (create as PromiseFulfilledResult<{ entryId: string }>).value.entryId))?.slug;
-      const slugOfExisting = (await getAlbumJournal(getDb(), author, existing))?.slug;
+      const slugOfNew = (
+        await getAlbumJournal(
+          getDb(),
+          author,
+          (create as PromiseFulfilledResult<{ entryId: string }>).value.entryId,
+        )
+      )?.slug;
+      const slugOfExisting = (await getAlbumJournal(getDb(), author, existing))
+        ?.slug;
       expect(slugOfNew).not.toBe(slugOfExisting);
       if (change?.status === "fulfilled") {
         // The change won the slug, so the new journal moved on to the next one.
@@ -143,12 +182,13 @@ describe("saving a journal from two editors at the same moment", () => {
 
     const outcomes = await withConnections(5, (dbs) =>
       raceAll(
-        dbs.map((db, index) => () =>
-          saveAlbumJournal(db, author, {
-            entryId,
-            expectedVersion: 1,
-            body: `[Test] Editor ${index}`,
-          }),
+        dbs.map(
+          (db, index) => () =>
+            saveAlbumJournal(db, author, {
+              entryId,
+              expectedVersion: 1,
+              body: `[Test] Editor ${index}`,
+            }),
         ),
       ),
     );
@@ -173,7 +213,12 @@ describe("saving a journal from two editors at the same moment", () => {
       const entryId = await newJournal(albumId, "[Test] Before");
       const outcomes = await withConnections(2, (dbs) =>
         raceAll([
-          () => saveAlbumJournal(dbs[0]!, author, { entryId, expectedVersion: 1, body: "[Test] After" }),
+          () =>
+            saveAlbumJournal(dbs[0]!, author, {
+              entryId,
+              expectedVersion: 1,
+              body: "[Test] After",
+            }),
           () => deleteAlbumJournal(dbs[1]!, author, entryId),
         ]),
       );

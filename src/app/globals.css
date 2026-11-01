@@ -338,6 +338,8 @@ a.studio-button {
 }
 
 .studio-dialog {
+  /* Tailwind's reset zeroes margins, which would pin a modal to the corner. */
+  margin: auto;
   max-width: min(520px, calc(100vw - 32px));
   padding: 28px;
   border: 1.5px solid var(--color-ink);

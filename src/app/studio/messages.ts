@@ -8,12 +8,18 @@ import type { ActionResult, FieldProblem } from "./results";
 type Failure = Extract<ActionResult<unknown>, { ok: false }>;
 
 const BLOCKED_BY = {
-  album_credits: "It is credited on an album. Remove those credits first, or archive it instead.",
-  track_credits: "It is credited on a track. Remove those credits first, or archive it instead.",
-  journals: "Journals are written about it, so it stays in your catalog. Archive it instead.",
-  memories: "A memory links to it, so it stays in your catalog. Archive it instead.",
-  albums: "It is on an album. Remove it from the album first, or archive it instead.",
-  reflections: "A track reflection is written about it, so it stays on the album.",
+  album_credits:
+    "It is credited on an album. Remove those credits first, or archive it instead.",
+  track_credits:
+    "It is credited on a track. Remove those credits first, or archive it instead.",
+  journals:
+    "Journals are written about it, so it stays in your catalog. Archive it instead.",
+  memories:
+    "A memory links to it, so it stays in your catalog. Archive it instead.",
+  albums:
+    "It is on an album. Remove it from the album first, or archive it instead.",
+  reflections:
+    "A track reflection is written about it, so it stays on the album.",
 } as const;
 
 export function failureMessage(failure: Failure): string {

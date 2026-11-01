@@ -159,7 +159,10 @@ export function JournalEditor({ create, edit, initial }: JournalEditorProps) {
           {create ? "Save as draft" : "Save"}
         </button>
         {edit ? (
-          <Link href={`/studio/journals/${edit.entryId}`} className="studio-link">
+          <Link
+            href={`/studio/journals/${edit.entryId}`}
+            className="studio-link"
+          >
             Back to the journal
           </Link>
         ) : null}

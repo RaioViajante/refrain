@@ -59,7 +59,9 @@ export function ArtistRows({
             className="studio-field"
             aria-label={`${legend}: artist ${index + 1}`}
             value={row.artistId}
-            onChange={(event) => update(index, { artistId: event.target.value })}
+            onChange={(event) =>
+              update(index, { artistId: event.target.value })
+            }
           >
             <option value="">Choose an artist</option>
             {options.map((option) => (

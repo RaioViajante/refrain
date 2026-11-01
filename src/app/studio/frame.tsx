@@ -4,11 +4,7 @@ import type { ReactNode } from "react";
 import { SignOutButton } from "@/app/studio/sign-out-button";
 
 export type StudioSection =
-  | "desk"
-  | "artists"
-  | "albums"
-  | "tracks"
-  | "journals";
+  "desk" | "artists" | "albums" | "tracks" | "journals";
 
 const SECTIONS: { id: StudioSection; label: string; href: string }[] = [
   { id: "desk", label: "Desk", href: "/studio" },

@@ -8,7 +8,12 @@ import {
   permanentlyDeleteEntry,
 } from "@/modules/journals";
 import { raceAll, testAuthor, uniqueLabel, withConnections } from "@/testing";
-import { createArtist, createAlbum, deleteAlbum, deleteArtist } from "@/modules/catalog";
+import {
+  createArtist,
+  createAlbum,
+  deleteAlbum,
+  deleteArtist,
+} from "@/modules/catalog";
 
 import { changeEntrySlug, PublicationError } from "./commands";
 import { normalizeSlug } from "./slug";
@@ -39,15 +44,25 @@ afterAll(async () => {
 });
 
 async function album(title: string): Promise<string> {
-  const artist = await createArtist(author, { name: uniqueLabel("Artist"), kind: "person" });
+  const artist = await createArtist(author, {
+    name: uniqueLabel("Artist"),
+    kind: "person",
+  });
   created.artists.push(artist.id);
-  const { id } = await createAlbum(author, { title, credits: [{ artistId: artist.id }] });
+  const { id } = await createAlbum(author, {
+    title,
+    credits: [{ artistId: artist.id }],
+  });
   created.albums.push(id);
   return id;
 }
 
 async function journal(albumId: string): Promise<string> {
-  const { entryId } = await createAlbumJournal(author, { albumId, locale: "en", body: "[Test] x" });
+  const { entryId } = await createAlbumJournal(author, {
+    albumId,
+    locale: "en",
+    body: "[Test] x",
+  });
   created.entries.push(entryId);
   return entryId;
 }
@@ -61,13 +76,16 @@ describe("concurrent slug reservation", () => {
       const target = normalizeSlug(`${uniqueLabel("shared")} round ${round}`);
       const outcomes = await withConnections(2, (dbs) =>
         raceAll(
-          entries.map((entryId, index) => () =>
-            changeEntrySlug(dbs[index]!, entryId, target),
+          entries.map(
+            (entryId, index) => () =>
+              changeEntrySlug(dbs[index]!, entryId, target),
           ),
         ),
       );
 
-      const refused = outcomes.filter((outcome) => outcome.status === "rejected");
+      const refused = outcomes.filter(
+        (outcome) => outcome.status === "rejected",
+      );
       expect(
         outcomes.filter((outcome) => outcome.status === "fulfilled"),
         `round ${round}`,
@@ -79,7 +97,9 @@ describe("concurrent slug reservation", () => {
       expect((reason as PublicationError).failure).toBe("slug_taken");
 
       const holders = await Promise.all(
-        entries.map(async (entryId) => (await getAlbumJournal(author, entryId))?.slug),
+        entries.map(
+          async (entryId) => (await getAlbumJournal(author, entryId))?.slug,
+        ),
       );
       expect(holders.filter((slug) => slug === target)).toHaveLength(1);
     }
