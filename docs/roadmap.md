@@ -74,16 +74,30 @@ Required by the owner in the M1.3C review, clarified on 2026-11-01, and recorded
 8. apply to **every caller**, with no path around it;
 9. never expose a previously published reflection as an undisclosed side effect of publishing the parent version.
 
-Versioned acknowledgements or an equivalent concurrency-safe mechanism may be used; no command signature is fixed yet, and the design is reviewed with M2.
+Versioned acknowledgements or an equivalent concurrency-safe mechanism may be used; no command signature is fixed yet, and the design is reviewed with M2. **Proposed design (not accepted, not built):** [ADR 0006](decisions/0006-publication-decision-and-acknowledgement.md) (issue #25) specifies a stateless acknowledgement token bound to the entry version, the locale, and the disclosed set, with a table showing how each of the nine requirements is met. ADR 0005 § 5 remains the authoritative requirement either way.
 
 Not built, and not authorized: M1.3C has no publishing control, and nothing in the studio can set a reflection's flag. M2 is not done until this is. Tests must show, at the command boundary and not only through the UI, that a reflection flagged before a restore does not become public without a matching acknowledgement, and that a stale or mismatched acknowledgement is refused.
+
+### M2 increments (planned)
+
+M2 is split into increments, each authorized separately by the author. **Only M2.0 is authorized, and it is documentation.** The rest is a proposal that depends on the author's acceptance of [ADR 0006](decisions/0006-publication-decision-and-acknowledgement.md), and none of it is built.
+
+| Increment | Scope | Depends on |
+| --- | --- | --- |
+| **M2.0 — Publication contract** (issue #25; in review) | ADR 0006 (Proposed) and the documentation it changes. No code, migration, UI, or API. | The author's review |
+| **M2.1 — Command boundary** | `previewPublication` and the checked `publishLanguageVersion` (author, version, locale, acknowledgement); the unchecked signature removed; the one-writer test; command-level tests, concurrency tests, and mutation checks. No UI. | ADR 0006 accepted |
+| **M2.2 — Reflections** | Commands for track-reflection text, flags, still-writing, favourite, ratings, and the album rating, with the version rule and confirmed saves; the track-by-track editor in plain text. | ADR 0006 accepted |
+| **M2.3 — Publish in the studio** | Publish and Unpublish dialogs that list the disclosed reflections, confirmation for changes to a public version, Server Actions, HTTP and browser tests. | M2.1, M2.2 |
+| **M2.4 — Delete now** | The studio control and its author-bound command, with the interim copy (INV-4). | M2.1 |
+| **First public slice (M3.1)** | One public album-journal page by address, redirects, and identical `404`s, through the Publication queries only, with `no-store` ([ADR 0006 § 11](decisions/0006-publication-decision-and-acknowledgement.md#11-public-reads-and-caches)). | M2.3 |
+| After November 16, or if time allows | Author-written translations, featuring and address-change controls, memories and artist journals, the full `en` and `pt-BR` interface, Tiptap. Translations stay on the roadmap but do not block the first public demonstration. | Scoped individually |
 
 ## Critical path
 
 AC-01 to AC-06 depend only on **M1**. M2 and M3 deliver the product, but the academic presentation must not depend on them. If time runs short, cut in this order:
 
 1. External integrations (catalog entry remains manual).
-2. Author translations and artist journals.
+2. Author translations and artist journals (translations are not a blocker for the first public demonstration, by the author's decision of 2026-11-01).
 3. Visual polish beyond the core layout and typography.
 4. Rich-text editing. A plain textarea storing the same structured format is acceptable temporarily.
 
