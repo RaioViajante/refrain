@@ -256,7 +256,7 @@ These rules hold through transactions, module functions, and tests, not through 
 | Action | Behavior | Mechanism |
 | --- | --- | --- |
 | Delete an entry | Moves to Recently deleted; hidden from public pages and from Desk listings | `UPDATE entries SET deleted_at = now()` |
-| Restore an entry | Returns with each language version's stored status | `deleted_at = NULL`. Whether the restore command should also make published versions private is decided in M2 (ADR 0003). |
+| Restore an entry | **Not built.** Owner-accepted policy ([Roadmap](roadmap.md#follow-ups-from-the-m13b-review)): draft versions return as draft, private as private, and published as **private**; restoring never republishes, and keeps the content, `first_published_at`, and the slug rules | `deleted_at = NULL` plus moving published versions to `private` in the same transaction. The studio cannot restore yet. |
 | Permanent delete ("Delete now") | Explicit author action with its own confirmation, only for an entry already in Recently deleted | `permanentlyDeleteEntry`: releases never-published slugs, retires published ones, then `DELETE FROM entries`, cascading only to rows the entry owns: language versions, subtype row, track reflections and their texts, memory links. See [Retention after permanent deletion](#entry_slugs). |
 | Automatic purge | **Disabled** (ADR 0002, D4.4). Entries stay in Recently deleted indefinitely. The database has no trigger or rule that removes them (a test asserts it), and no purge job exists. | Enabled only after backups exist, a restore has been tested, and a tested purge mechanism exists |
 | Archive a catalog record | All writing stays; links render as plain text; re-importing restores the record | `UPDATE … SET archived_at = now()` |
@@ -464,7 +464,7 @@ Permanently deleting an entry removes only the rows it owns, retires its publish
 
 ## Open questions
 
-1. Whether published language versions return as private when an entry is restored (deferred to M2 by ADR 0003; no schema impact).
+1. ~~Whether published language versions return as private when an entry is restored.~~ Decided by the owner at the M1.3B merge: they return as private, and restoring never republishes ([Roadmap](roadmap.md#follow-ups-from-the-m13b-review)). The restore command is not built yet (M1.3C); there is no schema impact.
 2. How the automatic purge will run once enabled: a scheduled job or an on-access check (it stays disabled).
 
 Enum representation, publication history, and slug retention after permanent deletion are settled by [ADR 0003](decisions/0003-relational-schema-conventions.md).
