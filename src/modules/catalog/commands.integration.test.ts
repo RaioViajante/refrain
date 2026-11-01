@@ -1476,3 +1476,43 @@ describe("tracklist replacement is complete, and keeps what it is not told to ch
     });
   });
 });
+
+describe("moving a track on a multi-disc album", () => {
+  it("moves within its disc, and treats a disc boundary as an end", async () => {
+    await inScratchTransaction(async (tx) => {
+      const album = await createTestAlbum(tx, { trackTitles: [] });
+      const ids: string[] = [];
+      for (const title of ["[Test] 1", "[Test] 2", "[Test] 3", "[Test] 4"]) {
+        ids.push((await createTrack(tx, author, { title })).id);
+      }
+      await setAlbumTracklist(tx, author, album.albumId, {
+        tracks: [
+          { trackId: ids[0]!, discNumber: 1 },
+          { trackId: ids[1]!, discNumber: 1 },
+          { trackId: ids[2]!, discNumber: 2 },
+          { trackId: ids[3]!, discNumber: 2 },
+        ],
+      });
+      const layout = async () =>
+        (await getAlbum(tx, author, album.albumId))?.tracklist.map((t) => [
+          t.trackId,
+          t.discNumber,
+          t.position,
+        ]);
+      const before = await layout();
+      // Up from the first track of disc 2, and down from the last of disc 1,
+      // would cross the boundary: nothing changes, and it is not an error.
+      await moveTrackInAlbum(tx, author, album.albumId, ids[2]!, "up");
+      await moveTrackInAlbum(tx, author, album.albumId, ids[1]!, "down");
+      expect(await layout()).toEqual(before);
+      // Within a disc it moves, and keeps its disc.
+      await moveTrackInAlbum(tx, author, album.albumId, ids[3]!, "up");
+      expect(await layout()).toEqual([
+        [ids[0], 1, 1],
+        [ids[1], 1, 2],
+        [ids[3], 2, 1],
+        [ids[2], 2, 2],
+      ]);
+    });
+  });
+});

@@ -235,6 +235,28 @@ function authorizationViolations(
     /(^|\/)route\.(m?[jt]sx?)$/.test(normalized);
   const useServerFile = isServerActionFile(source);
 
+  // Every Server Action runs its command through `perform`, which requires the
+  // request's own Origin: Next.js accepts an action call without an Origin
+  // header, so this is the studio's check, and an action that skipped it would
+  // leave only SameSite=Strict (docs/security.md).
+  const callsPerform = (fn: FunctionLike) => {
+    let found = false;
+    const look = (node: ts.Node) => {
+      if (
+        ts.isCallExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        node.expression.text === "perform"
+      ) {
+        found = true;
+      }
+      if (!found) {
+        ts.forEachChild(node, look);
+      }
+    };
+    look(fn);
+    return found;
+  };
+
   const check = (label: string, exported: ExportedFunction) => {
     if (!exported.fn) {
       violations.push(
@@ -251,6 +273,11 @@ function authorizationViolations(
   if (useServerFile) {
     for (const entry of exported) {
       check("server action", entry);
+      if (entry.fn && !callsPerform(entry.fn)) {
+        violations.push(
+          `${file}: server action "${entry.name}" does not run its command through perform(), which checks the request's Origin`,
+        );
+      }
     }
   }
   if (inStudio) {
@@ -374,17 +401,37 @@ describe("every entry point authorizes first", () => {
     it("an exported action without the check", () => {
       expect(
         check(
-          '"use server";\nexport async function save() { return 1; }\n',
+          '"use server";\nexport async function save() { return perform(() => 1); }\n',
           "src/app/anywhere/actions.ts",
         ),
       ).toHaveLength(1);
     });
 
+    it("an authorized action that skips perform(), and so the Origin check", () => {
+      const code = `"use server";
+export async function save() {
+  const a = await authorizeAuthor(await headers());
+  return writeDirectly(a);
+}
+`;
+      expect(check(code, "src/app/x/actions.ts")).toEqual([
+        expect.stringContaining("perform()"),
+      ]);
+      const good = `"use server";
+export async function save() {
+  const a = await authorizeAuthor(await headers());
+  if (!a.ok) return denied(a.reason);
+  return perform(() => write(a.author));
+}
+`;
+      expect(check(good, "src/app/x/actions.ts")).toEqual([]);
+    });
+
     it("one unchecked action among checked ones", () => {
       const code = `"use server";
 import { authorizeAuthor } from "@/modules/identity";
-export async function good() { const a = await authorizeAuthor(await headers()); return a; }
-export async function bad() { await somethingElse(); await authorizeAuthor(h); }
+export async function good() { const a = await authorizeAuthor(await headers()); return perform(() => a); }
+export async function bad() { await somethingElse(); await authorizeAuthor(h); return perform(() => 1); }
 `;
       expect(check(code, "src/app/x/actions.ts")).toEqual([
         expect.stringContaining('"bad"'),
@@ -394,13 +441,13 @@ export async function bad() { await somethingElse(); await authorizeAuthor(h); }
     it("a check that comes after other work, or is not awaited", () => {
       expect(
         check(
-          '"use server";\nexport async function a() { log(); await requireAuthor(h); }\n',
+          '"use server";\nexport async function a() { log(); await requireAuthor(h); return perform(() => 1); }\n',
           "src/app/x/actions.ts",
         ),
       ).toHaveLength(1);
       expect(
         check(
-          '"use server";\nexport async function a() { const x = requireAuthor(h); }\n',
+          '"use server";\nexport async function a() { const x = requireAuthor(h); return perform(() => 1); }\n',
           "src/app/x/actions.ts",
         ),
       ).toHaveLength(1);

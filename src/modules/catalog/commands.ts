@@ -895,7 +895,11 @@ export async function removeTrackFromAlbum(
   );
 }
 
-/** Moves a track one place up or down in an album's tracklist. */
+/**
+ * Moves a track one place up or down in an album's tracklist, within its disc.
+ * At the start or end of the list or of its disc it stays where it is, which is
+ * not an error.
+ */
 export async function moveTrackInAlbum(
   db: DatabaseExecutor,
   _author: AuthorizedAuthor,
@@ -915,7 +919,13 @@ export async function moveTrackInAlbum(
         throw new CatalogError("not_found");
       }
       const target = way === "up" ? index - 1 : index + 1;
-      if (target < 0 || target >= tracklist.length) {
+      // The start, the end, and a disc boundary are all ends: a track moves
+      // within its own disc, so there is nothing to change.
+      if (
+        target < 0 ||
+        target >= tracklist.length ||
+        tracklist[target]!.discNumber !== tracklist[index]!.discNumber
+      ) {
         return;
       }
       const moved = [...tracklist];

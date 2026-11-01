@@ -123,7 +123,7 @@ A static test ([`studio-entry-points.test.ts`](../src/modules/identity/studio-en
 - Validate all input with Zod at the server boundary: lengths, enums, rating range, locale values, and slug format.
 - Rich text is stored as Tiptap JSON and rendered through an allow-listed node and mark schema. Raw HTML from the editor is never rendered.
 - Limit request body sizes. Rate-limit sign-in attempts. (Both done for the authentication endpoints: 4 KiB, five attempts a minute.)
-- Use the CSRF and cookie protections of the authentication library and of Next.js server actions. Next.js accepts a Server Action call that has no `Origin` header, so every studio action also requires `Origin` equal to `BETTER_AUTH_URL` (`hasTrustedOrigin`, checked in `perform`; a call without it is `unauthorized`). Session cookies are `HttpOnly`, `Secure` in production, and `SameSite=Lax` or stricter. (Implemented: `SameSite=Strict`, `Secure` over HTTPS.)
+- Use the CSRF and cookie protections of the authentication library and of Next.js server actions. Next.js accepts a Server Action call that has no `Origin` header, so every studio action also requires `Origin` equal to `BETTER_AUTH_URL` (`hasTrustedOrigin`, checked in `perform`; a call without it is `unauthorized`). A static test requires every exported action to call `perform`, and the HTTP suite sends a missing and a trailing-slash `Origin` to all of them with a valid session. Session cookies are `HttpOnly`, `Secure` in production, and `SameSite=Lax` or stricter. (Implemented: `SameSite=Strict`, `Secure` over HTTPS.)
 - Image hosts are allow-listed: Cover Art Archive, Wikimedia Commons, and the application's own assets.
 
 ## Secrets
@@ -243,12 +243,13 @@ INV-4 (truthful recovery copy) has a database-level test that deleted entries ar
 
 The application must not be reachable from the public internet until authentication and the tests above are in place. Until then, academic demonstrations run locally.
 
-Authentication exists since M1.3A, but these conditions also hold before any public deployment. Each one is tracked in issue #11.
+Authentication exists since M1.3A, but these conditions also hold before any public deployment. Items 1, 2, 4, and 5 are tracked in issue #11. Item 3 was found in the M1.3B review and is recorded here; it is not in the issue yet.
 
 1. **Client-aware sign-in abuse protection.** Today all clients share one bucket of five sign-in attempts a minute, so anyone can keep sign-in throttled. That is accepted only for local development ([ADR 0004 § 6](decisions/0004-single-author-identity.md#6-rate-limiting)). Before deployment, abuse protection must recognize clients through a trustworthy network identity, and that must be tested. Examples are the connection's address, or a header set only by a proxy that the application can be reached through exclusively. A client-controlled forwarding header such as `X-Forwarded-For` never counts. The mechanism is chosen with the deployment target, and no provider is assumed.
 2. **Redirect status and indexing reviewed.** Without the author's session, `/studio` answers **HTTP 200**: an empty static shell, then a streamed redirect to `/studio/sign-in` (Cache Components). It is not a 307. The private studio content is never sent, and the HTTP tests assert that. The shells of `/studio` and `/studio/sign-in` carry `<meta name="robots" content="noindex, nofollow">`, and no `X-Robots-Tag` header is sent. Before deployment, review the status code, crawler behavior, and whether a header-level `noindex` or a 307 is needed. A 307 would be a convenience, never the authorization control.
-3. **Real HTTPS verified.** `Secure` and `__Secure-` session cookies, and the HTTPS-only `BETTER_AUTH_URL` rule, are covered by integration tests only. They have not been verified in a browser over real HTTPS.
-4. **Browser end-to-end tests** of sign-in, sign-out, and studio access (Playwright), at desktop width and at 390px. The HTTP tests use `fetch`, not a browser.
+3. **Malformed action bodies.** Next.js decodes a Server Action's arguments before the action, and so before any session check. An unauthenticated POST whose body is not valid Flight data (for example `{"name":"$B1"}`) answers HTTP 500 and logs a framework error with no private data. The server stays up, nothing is written, and the HTTP tests pin that down. It is framework behavior, recorded here for the deployment review (issue #11).
+4. **Real HTTPS verified.** `Secure` and `__Secure-` session cookies, and the HTTPS-only `BETTER_AUTH_URL` rule, are covered by integration tests only. They have not been verified in a browser over real HTTPS.
+5. **Browser end-to-end tests** of sign-in, sign-out, and studio access (Playwright), at desktop width and at 390px. The HTTP tests use `fetch`, not a browser.
 
 ## Public-release gate
 

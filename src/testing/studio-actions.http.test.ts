@@ -1148,6 +1148,106 @@ describe("what a request without the author's session can do", () => {
     ).toBeNull();
   });
 
+  it("requires the request's own Origin for every action, even with the author's session", async () => {
+    // Next.js accepts an action call that has no Origin header, so each action
+    // goes through perform(), which refuses it. The call below is made for
+    // all of them, with valid arguments for records that exist, so a missing
+    // check would write. (A foreign Origin is stopped by Next.js itself.)
+    const before = await snapshot();
+    for (const [name, { args, routeId }] of Object.entries(attempts())) {
+      for (const origin of [null, `${base}/`]) {
+        const result = await call(name, args, {
+          cookie: author.cookie,
+          routeId,
+          origin,
+        });
+        expect(result, `${name} with Origin ${String(origin)}`).toEqual({
+          ok: false,
+          code: "unauthorized",
+        });
+      }
+    }
+    expect(await snapshot()).toEqual(before);
+  });
+
+  it("ignores prototype-pollution keys, and still applies the fields it is given", async () => {
+    // JSON.parse makes `__proto__` an own key, as a hostile client could send.
+    const before = await snapshot();
+    for (const polluted of [
+      '{"__proto__":{"sortName":"POLLUTED"},"constructor":{"prototype":{"kind":"person"}}}',
+      '{"__proto__":{"name":"POLLUTED"}}',
+    ]) {
+      const result = await call(
+        "updateArtistAction",
+        [ids.artist, JSON.parse(polluted)],
+        { cookie: author.cookie, routeId: ids.artist },
+      );
+      expect(result).toMatchObject({ ok: false, code: "invalid_input" });
+    }
+    expect(await snapshot()).toEqual(before);
+    // Beside a real field, only that field changes.
+    const current = await scalar<string | null>(
+      "select sort_name from artists where id = $1",
+      [ids.artist],
+    );
+    const withReal = JSON.parse(
+      '{"__proto__":{"sortName":"POLLUTED"},"kind":"group"}',
+    );
+    ok(
+      await call("updateArtistAction", [ids.artist, withReal], {
+        cookie: author.cookie,
+        routeId: ids.artist,
+      }),
+    );
+    expect(
+      await scalar<string | null>(
+        "select sort_name from artists where id = $1",
+        [ids.artist],
+      ),
+    ).toBe(current);
+    // The server's own objects were not polluted.
+    const after = await get("/studio/sign-in");
+    expect(after.status).toBe(200);
+    await after.body?.cancel();
+  });
+
+  it("answers a malformed action body, before any session check, without leaking or falling over", async () => {
+    // Next.js decodes an action's arguments before the action runs, so a body
+    // that is not valid Flight data fails there. It must reveal nothing, write
+    // nothing, and leave the server up (docs/security.md, issue #11).
+    const before = await snapshot();
+    const action = actions.deleteJournalAction!;
+    for (const body of [
+      '{"name":"$B1"}',
+      '["$F1"]',
+      '["$Q9"]',
+      "[",
+      "\u0000",
+    ]) {
+      const response = await fetch(
+        `${base}${action.route.replace("[id]", ids.journal)}`,
+        {
+          method: "POST",
+          redirect: "manual",
+          headers: {
+            origin: base,
+            "content-type": "text/plain;charset=UTF-8",
+            "next-action": action.id,
+          },
+          body,
+        },
+      );
+      const text = await response.text();
+      expect(response.status, body).toBeGreaterThanOrEqual(400);
+      expect(text).not.toContain(label);
+      expect(text).not.toMatch(/\sat\s|node_modules|select |insert /i);
+    }
+    expect(await snapshot()).toEqual(before);
+    const alive = await get("/studio/sign-in");
+    expect(alive.status).toBe(200);
+    await alive.body?.cancel();
+  });
+
   it("is refused from another origin, even with the author's cookie", async () => {
     const before = await snapshot();
     const action = actions.deleteJournalAction!;
