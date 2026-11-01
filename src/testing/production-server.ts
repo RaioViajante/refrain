@@ -160,7 +160,9 @@ async function waitUntilReady(
     try {
       const response = await fetch(url, { redirect: "manual" });
       // An answer counts only once the server this run started has said it
-      // is ready: another process on the same port could answer first, and a
+      // is ready (Next.js prints "Ready in …" after it has bound the port; if
+      // a Next.js upgrade renames that line, the setup fails closed after 30 s
+      // and shows the log): another process on the same port could answer first, and a
       // child that lost the bind race never prints it.
       if (
         response.status === 200 &&

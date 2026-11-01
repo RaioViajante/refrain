@@ -19,6 +19,7 @@ import {
   OpsError,
   parseArguments,
   resolveTarget,
+  runVerify,
   targetOfUrl,
   unaccountedTables,
 } from "./backup";
@@ -281,5 +282,56 @@ describe("every table is accounted for", () => {
     // The account and its credential are compared, never excluded.
     expect(COMPARED_TABLES).toContain("auth_users");
     expect(COMPARED_TABLES).toContain("auth_accounts");
+  });
+});
+
+describe("checking a private copy against the original's checksum", () => {
+  it("reads the checksum that sits next to the original, not next to the copy", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "refrain-ops-copy-"));
+    try {
+      const { createHash } = await import("node:crypto");
+      const original = join(directory, "a.dump");
+      const copy = join(directory, "copy.dump");
+      writeFileSync(original, "archive bytes");
+      writeFileSync(copy, "archive bytes");
+      const sum = createHash("sha256").update("archive bytes").digest("hex");
+      writeFileSync(`${original}.sha256`, `${sum}  a.dump\n`);
+      // The copy has no checksum file of its own: only the original's counts.
+      expect(await checkSidecar(copy, original)).toBe(true);
+      writeFileSync(copy, "archive bytes, damaged");
+      await expect(checkSidecar(copy, original)).rejects.toBeInstanceOf(
+        OpsError,
+      );
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("verify refuses, before it touches anything", () => {
+  const env = {
+    DATABASE_URL: "postgres://u:p@127.0.0.1:5432/refrain",
+    TEST_DATABASE_URL: "postgres://u:p@127.0.0.1:5433/refrain_test",
+  };
+  it("refuses a relative path, a missing file, a directory, and a symbolic link", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "refrain-ops-verify-"));
+    try {
+      writeFileSync(join(directory, "real.dump"), "x");
+      symlinkSync(join(directory, "real.dump"), join(directory, "link.dump"));
+      mkdirSync(join(directory, "folder.dump"));
+      for (const file of [
+        "relative.dump",
+        join(directory, "missing.dump"),
+        join(directory, "folder.dump"),
+        join(directory, "link.dump"),
+      ]) {
+        await expect(
+          runVerify({ file, env, repositoryRoot: directory }),
+          file,
+        ).rejects.toBeInstanceOf(OpsError);
+      }
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 });
