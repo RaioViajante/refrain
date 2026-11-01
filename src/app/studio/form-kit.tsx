@@ -187,6 +187,8 @@ interface SelectFieldProps {
   required?: boolean;
   /** "inline" puts the label beside the select, for a bar. */
   variant?: "inline";
+  /** The id of text elsewhere on the page that also describes the select. */
+  describedById?: string;
 }
 
 export function SelectField({
@@ -199,6 +201,7 @@ export function SelectField({
   problem,
   required,
   variant,
+  describedById,
 }: SelectFieldProps) {
   const id = useId();
   const describedBy = `${id}-note`;
@@ -218,7 +221,9 @@ export function SelectField({
         onChange={(event) => onChange(event.target.value)}
         required={required}
         aria-invalid={problem ? true : undefined}
-        aria-describedby={describedBy}
+        aria-describedby={
+          describedById ? `${describedBy} ${describedById}` : describedBy
+        }
       >
         {placeholder !== undefined ? (
           <option value="">{placeholder}</option>

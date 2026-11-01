@@ -847,7 +847,19 @@ select.studio-field[aria-invalid="true"] {
   gap: 4px 20px;
   padding: 8px 0;
   margin-bottom: 20px;
-  background: rgb(255 255 255 / 0.97);
+  background: var(--color-paper);
+}
+
+/* A field that takes focus must not end up under the sticky bar (WCAG 2.2,
+   2.4.11 Focus Not Obscured). The scrolling root keeps the bar's height out of
+   the area it counts as visible, so the browser scrolls a field that is half
+   under the bar; scroll-margin also leaves room when it scrolls to one. */
+html:has(.studio-editor) {
+  scroll-padding-top: 96px;
+}
+
+.studio-editor :is(textarea, input, select, a, button) {
+  scroll-margin-top: 96px;
 }
 
 .studio-editorbar-start,
@@ -1277,6 +1289,16 @@ select.studio-field[aria-invalid="true"] {
 
   .studio-editorbar[data-mode="create"] {
     position: static;
+  }
+
+  /* Not sticky while creating, so nothing needs to be cleared. */
+  html:has(.studio-editorbar[data-mode="create"]) {
+    scroll-padding-top: 0;
+  }
+
+  .studio-editor:has(.studio-editorbar[data-mode="create"])
+    :is(textarea, input, select, a, button) {
+    scroll-margin-top: 0;
   }
 
   .studio-editorbar-end {

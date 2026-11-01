@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 
 import { defineConfig } from "@playwright/test";
 
-import { AUTH_FILE, BASE_URL } from "./e2e/constants";
+import { AUTH_FILE, BASE_URL, VISUAL_REVIEW } from "./e2e/constants";
 
 // Browser tests of the Writing Studio (`pnpm test:e2e`). They drive the real
 // production build (`next start`) in Chromium, against the disposable test
@@ -78,7 +78,7 @@ export default defineConfig({
       dependencies: ["setup", "anonymous"],
     },
     // The visual review package: only with VISUAL_REVIEW=1 (`pnpm review:screens`).
-    ...(process.env.VISUAL_REVIEW
+    ...(VISUAL_REVIEW
       ? [
           {
             name: "visual-review",

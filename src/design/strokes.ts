@@ -104,7 +104,9 @@ function strokeEnds(d: string): [number[], number[]][] {
 function characterOf(d: string, width: number, height: number): Character {
   const strokes = strokeEnds(d);
   if (strokes.length !== 8) {
-    return { separation: 0, cornerGap: 0, spread: 0 };
+    throw new Error(
+      `A rectangle outline has 8 strokes (two per edge); this one has ${strokes.length}.`,
+    );
   }
   let separation = 0;
   let cornerGap = 0;

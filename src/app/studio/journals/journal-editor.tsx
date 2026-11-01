@@ -155,6 +155,7 @@ export function JournalEditor({
               value={locale}
               onChange={(value) => edited(() => setLocale(value as Language))}
               options={LANGUAGES}
+              describedById="journal-language-note"
               problem={problemWith(failure, "locale")}
             />
           ) : null}
@@ -217,7 +218,7 @@ export function JournalEditor({
               </p>
             </>
           ) : (
-            <p className="studio-hint">
+            <p className="studio-hint" id="journal-language-note">
               The language you write this journal in. It is recorded with the
               journal, and nothing is translated for you.
             </p>

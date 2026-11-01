@@ -269,6 +269,9 @@ for (const width of [...WIDTHS, 360, 320, 720, 721]) {
         nav: rect(visible(".studio-nav")),
         end: rect(visible(".studio-header-end")),
         labelText: visible(".studio-header-label").textContent,
+        labelWordsWidth: visible(
+          ".studio-header-label-text",
+        ).getBoundingClientRect().width,
       };
     });
     expect(geometry.links).toHaveLength(2);
@@ -356,3 +359,23 @@ for (const width of [1280, 390]) {
     await expectNoHorizontalOverflow(page);
   });
 }
+
+// WCAG 2.2, 2.4.11: a focused field must not be hidden under the sticky bar.
+test("the sticky action bar never hides the field that takes focus", async ({
+  page,
+}) => {
+  await open(page, 1280, `${journalUrl}/edit`, ALBUM);
+  const body = page.getByLabel("Your reflection");
+  // Scroll the writing out of sight below, then move focus back to it.
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await page.getByRole("link", { name: /^← The journal/ }).focus();
+  await body.focus();
+  const [bar, area] = await Promise.all([
+    page.locator(".studio-editorbar").first().boundingBox(),
+    body.boundingBox(),
+  ]);
+  expect(
+    area!.y,
+    "the focused field starts below the bar",
+  ).toBeGreaterThanOrEqual(bar!.y + bar!.height - 1);
+});
