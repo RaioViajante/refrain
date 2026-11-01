@@ -17,6 +17,8 @@ import {
   saveJournalAction,
 } from "@/app/studio/journals/actions";
 import { problemWith } from "@/app/studio/messages";
+import { StatusMark } from "@/app/studio/status-mark";
+import type { VisibilityStatus } from "@/modules/journals";
 
 const LANGUAGES = [
   { value: "en", label: "English" },
@@ -33,7 +35,13 @@ interface JournalEditorProps {
   /** Writing a new journal about this album. */
   create?: { albumId: string };
   /** Editing an existing journal. */
-  edit?: { entryId: string; version: number; locale: Language };
+  edit?: {
+    entryId: string;
+    version: number;
+    locale: Language;
+    /** The journal's visibility, shown beside the save state. */
+    status: VisibilityStatus;
+  };
   initial: { opening: string; body: string };
 }
 
@@ -147,6 +155,11 @@ export function JournalEditor({ create, edit, initial }: JournalEditorProps) {
       </div>
 
       <div className="studio-margin studio-margin-sticky">
+        {edit ? (
+          <p className="studio-meta studio-editor-state">
+            <StatusMark status={edit.status} />
+          </p>
+        ) : null}
         {create ? (
           <SelectField
             label="Written in"
