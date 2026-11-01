@@ -4,9 +4,29 @@
 
 This is the working specification behind the Studio's visual layer. [Design System](../design-system.md) stays the tracked design specification. This document records what was measured, what was built from it, which screens a reference covers, and what still needs the author's eyes. It does not claim pixel-perfect fidelity anywhere.
 
-## Version note
+## Reference versions: V4.3 and V4.4
 
-The request that started this work calls the approved design "V4.3". The repository, its handoff, and the local references are all **V4.4** (October 31, 2026). The V4.4 screens contain the V4.3 studio rules, as the exported stylesheet's own section headings show ("V4.3 system: listings + studio"). V4.4 is used throughout.
+The request that started this work asked for fidelity to **V4.3**. The repository and the references are **V4.4**. The first pass used V4.4 without checking, which was a mistake of process. This section records what the source material does and does not establish. **The final decision belongs to the author.**
+
+**Is V4.3 available?** No. The only export on this machine is V4.4: the 33 pages in `reference/refrain/pages/` (every `<title>` says "(v4.4)"), their previews, and the Handoff ("refrain v4.4 — design handoff … How the approved V4.4 language is built"). `LEIA-ME.txt` says "design final (V4.4), 31 out. 2026". The author's own backup, `~/refrain-reference-backup-20261031-164328`, is byte-identical to it. A search of the home folder for names containing "v4.3" or "v43" found only that backup's V4.4 files. The text "V4.3" appears inside every V4.4 page, but only as comment headings in its CSS.
+
+**Is V4.4 documented as an approved replacement?** The repository says so: commit `24ccad7` (October 31, 2026) is titled "add approved design references" and describes them as "the approved V4.4 Refrain design"; `AGENTS.md` says "Implement the approved V4.4 design"; this project's design system says "visual identity approved (design V4.4, October 31, 2026)". Those commits are under the author's git identity but were written with AI co-authorship, so they are **statements in the repository, not independent proof** that the author chose V4.4 over V4.3. Nothing in the material records V4.3 being rejected or replaced.
+
+**What changed between them.** Each V4.4 page carries its own layered stylesheet: "V4.2 refinements", then "V4.3 polish" (type scale, contrast, a notebook layout, the footer), then "V4.3 system: listings + studio" (the 58px page title, the lede, filters, status marks, the editor bar, the 760px + 300px studio layout, dialogs, rows), then a final "V4.4" block. That block contains **only three things**:
+
+1. a centered public header without a brand or wordmark (`.hdr4`, replacing the older `.hdr` with `.brand`);
+2. the homepage's centered character illustration (`.opening`);
+3. a centered footer with the closing line and the language selector (`.ft4`).
+
+Everything the Studio uses besides the footer is V4.3-era CSS carried into V4.4 unchanged, including the Studio's header (`.hdr`, which no `.hdr4` replaced).
+
+**Do any implementation decisions conflict with V4.3?**
+
+- **Header, titles, controls, rows, dialogs, editor layout:** no conflict. They come from the V4.3-era rules.
+- **The footer: one possible conflict.** The Studio footer follows V4.4: a drawn line and the closing line, centered (the language selector is not built). V4.3's footer was a different arrangement ("the last line of the page, aligned to the margins", `.ft3`, a signature and the language control on a row). Its CSS is still in the files, but no page uses it, so **its content and markup cannot be recovered** from what is on this machine. If the author wants V4.3's footer, the V4.3 export is needed.
+- **The public pages** (not built) are where V4.3 and V4.4 really differ: the header, the homepage character, and the footer. No decision about them was made here.
+
+**Decision needed from the author:** confirm that V4.4 is the reference (the repository's standing instruction), or provide the V4.3 export. Until then, no Studio screen is described as matching "V4.3" except where the carried-over V4.3 rules are the same in both.
 
 ## Sources inspected
 
@@ -58,7 +78,7 @@ The author asked for the ecosystem behavior, so it wins. The notebook layout's o
 
 ## Typography, color, and geometry
 
-All values come from the V4.4 stylesheet's final overrides or the rendered screens. Fonts are the two already loaded with `next/font` (Kalam 300/400/700, Alegreya Sans 400/500/700). No font was added.
+All values come from the V4.4 pages' final CSS overrides (which, for the Studio, are the V4.3-era rules) or the rendered screens. Fonts are the two already loaded with `next/font` (Kalam 300/400/700, Alegreya Sans 400/500/700). No font was added.
 
 | Role | Value |
 | --- | --- |
@@ -100,6 +120,25 @@ The reference draws every control outline with Rough.js, pre-generated with fixe
 | Journal reading | `Grace` (public) | **Faithful extension**: the album journal composition (5fr / 7fr, 88px gap, Kalam opening sentence, 62ch reading) used privately | No public page exists to compare against |
 | Album, artist, and track forms; tracklist; sign-in | None | **Faithful extension** through the shared controls | Everything |
 
+## Observable differences from the references
+
+From the numbered comparisons (`visual-review/owner-review/`, local, synthetic data). The reference is V4.4. "Not built" means the feature does not exist in the Studio, not that the styling is missing.
+
+| Area | Reference | Studio, PR #24 |
+| --- | --- | --- |
+| Typography | Kalam title 58px (editors 52px) and Alegreya Sans body | Same families, sizes and weights. The editor title says "Edit: <album>", in black, where the reference shows a gray placeholder title for a memory |
+| Header alignment | Label left, navigation centered, "Public pages →" right, all at the 64px page edge | Same arrangement and the same vertical position. The edge is 60px at 1440 (the ecosystem contract), the right item is "Sign out", and the navigation has five items |
+| Spacing | Writing column offset 284px from the edge, rows about 92px | Same 284px offset and row structure. Rows are about 84px |
+| Component dimensions | Buttons 46px high, 20px side padding; fields 50px | Same |
+| Hand-drawn strokes | A heavier, more irregular double line with visible corner overshoot, on every outline | A lighter, straighter double line (generated, not the mockups' paths). The writing frame is darker gray than the mockup's (`#767676` against `#ABABAB`, for contrast) |
+| Responsiveness (390px) | The header stacks three short centered rows: the label, the two-item navigation, "Public pages →" | The label and "Sign out" share one row, and the five-item navigation wraps to two lines below it, so the header is a little taller |
+| Visual hierarchy | The Desk is one list of all writing; the buttons lead into it | Buttons, then "Your journals" and "Your catalog" in margin-titled sections. The journal rows have no status mark, because the existing Desk query does not return one and domain code was out of scope |
+| Editor | Top bar (breadcrumb, status, Preview, Save, Publish…), version tabs, settings blocks | Writing column and a small margin (Written in, Save, status). The Save button is in the margin, not a top bar |
+
+**Implemented:** the header and footer, the notebook layout, the Desk (statistics and journals in progress), artist, album and track lists and forms, journal reading, editing, deleting and restoring, dialogs, loading and empty states, and the hand-drawn controls.
+
+**In the mockups, not built (by decision or because the feature does not exist):** search and filter chips on the Desk, memories and artist journals, the entry rows' status marks, Preview, Publish… and Unpublish…, version tabs, ratings, track by track, "Add from MusicBrainz", the language selector, "Public pages", Edit and Remove… on catalog rows, and "Delete now…".
+
 ## Navigation investigation (issue #23)
 
 **Question.** Does clicking between Studio sections reload the page?
@@ -117,6 +156,16 @@ The reference draws every control outline with Rough.js, pre-generated with fixe
 
 **What did not, and why.** Moving the header into the shared layout would fix points 1 and 2, but a layout is rendered in the static shell, so an anonymous request would receive the studio's furniture, including "Sign out". [`studio.http.test.ts`](../../src/modules/identity/studio.http.test.ts) requires the opposite, and [Security § Authorization contract](../security.md#authorization-contract) treats the layout as presentation only. Changing that is a decision about the authorization boundary, so it is **a follow-up that needs the author's decision (and probably an ADR)**, not part of a visual task. One option is a layout that checks the session itself before it renders the header, accepting one more session lookup per request.
 
+### A shared, authenticated header (future, not built)
+
+The fix for the remount and the lost focus is a header that persists across sections. It was **not** implemented, and must not be done by moving "Sign out" and the navigation into `app/studio/layout.tsx` as it is today. If it is built later, these protections are required:
+
+- The layout renders the studio's furniture only inside a dynamic part of its tree that has asked Identity whether the request is the author's (`authorizeAuthor`), under `<Suspense fallback={null}>`. The static shell must contain no navigation, no "Sign out", and no label that is not already public.
+- That lookup is for presentation only. Every page, route handler, and Server Action keeps its own `authorizeAuthor` (the source-scanning test `studio-entry-points.test.ts` stays as it is). A layout does not re-run on a soft navigation, so a session that ends while the author browses is noticed by the next page's own check, which redirects; nothing may rely on the layout.
+- The sign-in page stays outside the authenticated layout, and sign-out stays a full navigation.
+- `studio.http.test.ts` (an anonymous response contains no "Sign out", no studio words, and the sign-in redirect) is unchanged and must pass. New tests: an anonymous request's body has no header; a session revoked while browsing ends at sign-in with no header left; and the known-limitation test in `e2e/navigation.spec.ts` flips to assert that focus stays on the activated link.
+- Cost: one more session lookup per full request. This is a change to the authorization boundary's presentation and needs the author's decision and, probably, an ADR.
+
 ## Accessibility notes
 
 Checked in the browser by tests, unless marked otherwise:
@@ -126,7 +175,9 @@ Checked in the browser by tests, unless marked otherwise:
 - A skip link ("Skip to the content") is the first tab stop. After client-side navigation, activating it focuses the *visible* page's `<main>` (asserted; Next keeps earlier routes in the DOM, hidden, with the same id). The navigation links are at least 44px tall and show the 2px focus ring (asserted). Dialogs keep the native `<dialog>` focus trap and Escape handling (unchanged).
 - `prefers-reduced-motion: reduce` removes every transition in the Studio (asserted on every visible link and button), and the underline simply appears.
 - Status is always a word with a mark. Problems still begin with "Problem:" and are announced. Nothing relies on color.
-- Text is no lighter than `#5A5A5A` (placeholders use it; hints `#4F4F4F`). Two non-text values are below the 3:1 WCAG asks of a control boundary: the writing surface's `frame-quiet` outline (`#ABABAB`, about 2.2:1, a documented token, and it turns ink on focus) and the disabled outline `#C8C8C8` (disabled controls are exempt). The first is an open decision below. **Not run: an automated contrast or axe audit.** No new dependency was added for it. This is a gap.
+- Text is no lighter than `#5A5A5A` (placeholders use it; hints `#4F4F4F`).
+- **Control boundaries (WCAG 2.2, 1.4.11, 3:1 against white).** The writing surface's quiet outline and the opening sentence's resting line were `#ABABAB` (2.3:1) and `#CFCFCF` (1.6:1). Both are now `#767676` (4.54:1, which leaves room for a thin, anti-aliased line), and the `frame-quiet` token in the design system says so. Inputs, selects, the dialog and buttons are drawn in ink. The remaining light grays are not control boundaries: row dividers (decorative), the disabled outline `#C8C8C8` (disabled controls are exempt), and the placeholders' artwork box. A unit test fails if any stroke that is a control boundary falls below 3:1 (`src/design/strokes.test.ts`, shown to fail with the old color), and a browser test reads the drawn boundary of every input at rest, on hover and in focus (`e2e/accessibility.spec.ts`).
+- **axe-core 4.14.0** (`@axe-core/playwright`, a dev dependency) runs WCAG 2.0/2.1/2.2 A and AA on 16 Studio pages at 1280 and 390px, on the open delete dialog, and on sign-in, with no violation. A canary test proves the scanner reports a deliberately broken element. axe is a floor: it cannot judge reading order or meaning, it cannot measure a boundary drawn as a background image (hence the check above), and it did not run in forced-colors mode.
 - Forced colors (Windows high contrast): the drawn outlines are background images, so under `forced-colors: active` real 1px borders in the system's colors replace them (primary buttons get 3px). **Written to the specification and reviewed, not tested in a forced-colors browser.**
 - Not done: a screen reader pass.
 
@@ -136,8 +187,9 @@ Checked in the browser by tests, unless marked otherwise:
 2. **Focus rings on drawn controls.** A conservative ring plus a thicker stroke, against the mockup's thicker stroke alone. Say if the ring looks too heavy.
 3. **Header navigation.** Five items, as the studio already has, against the mockup's Desk and Catalog (with Artists, Albums, and Tracks as margin tabs). This is an information architecture change and was not made.
 4. **The shared header** (see the investigation). Needs a decision about the authorization boundary.
-5. **The writing surface's outline.** The design's `frame-quiet` (`#ABABAB`) is under the 3:1 contrast WCAG asks of a control boundary. It turns ink on focus. Say if it should be darker.
-6. **The strokes' character.** They are generated, not copied. Compare the images and say whether the wobble, double line, and corner overshoot read as the same hand.
+5. **The writing surface's outline.** Darkened from the mockups' `#ABABAB` to `#767676` to meet WCAG 2.2 1.4.11. It is a visible departure from the mockup (a quiet gray that is no longer as quiet). Say if the contrast or the look should change.
+6. **The reference version** (see above).
+7. **The strokes' character.** They are generated, not copied. Compare the images and say whether the wobble, double line, and corner overshoot read as the same hand.
 
 ## Reproducing the review
 
@@ -146,4 +198,4 @@ pnpm db:test:up
 pnpm review:screens        # builds, then captures 21 screens at 390, 768, 1280, 1440, 2560
 ```
 
-The screens are written to `visual-review/` (ignored by Git, about 105 images). They show only synthetic `[Test] E2E …` text, created through the real forms against the disposable test database, which the global teardown removes. The side-by-side comparisons use the author's local `reference/previews` captures and are made by hand, outside the repository.
+The screens are written to `visual-review/` (ignored by Git, about 105 images). They show only synthetic `[Test] E2E …` text, created through the real forms against the disposable test database, which the global teardown removes. The numbered side-by-side comparisons (`visual-review/owner-review/`) use the author's local `reference/previews` captures, so they are made by a local script outside the repository (the repository's tests and tools never read `reference/`) and are not committed.
