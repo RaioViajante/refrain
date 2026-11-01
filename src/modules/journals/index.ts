@@ -10,6 +10,7 @@ export { JournalError, type JournalFailure } from "./errors";
 export {
   MAX_BODY_LENGTH,
   MAX_OPENING_LENGTH,
+  MAX_REFLECTION_LENGTH,
   type CreateAlbumJournalInput,
   type JournalPrivacyInput,
   type SaveAlbumJournalInput,
@@ -17,6 +18,9 @@ export {
 export { textToParagraphs } from "./body";
 export type {
   AlbumJournalDetail,
+  TrackByTrack,
+  TrackByTrackItem,
+  TrackReflectionState,
   AlbumJournalProgress,
   AlbumJournalSummary,
   DeletedAlbumJournalSummary,
@@ -27,6 +31,7 @@ export {
   deleteAlbumJournal,
   getAlbumJournal,
   getJournalStatistics,
+  getTrackByTrack,
   listAlbumJournalProgress,
   listAlbumJournals,
   listDeletedAlbumJournals,

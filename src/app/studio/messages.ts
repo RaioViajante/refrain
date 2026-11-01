@@ -48,6 +48,10 @@ export function failureMessage(failure: Failure): string {
       return "This journal is not in Recently deleted, so there is nothing to restore. It may already have been restored. Reload the page.";
     case "unsupported":
       return "This text has formatting that the plain editor can’t show without losing it, so it was left untouched.";
+    case "published":
+      return "This change would alter a page that is public, and confirming changes to published writing isn’t available in the studio yet. Nothing was saved, and your text is still here. Make the journal private first, then save.";
+    case "published_empty":
+      return "A published version has to keep an opening sentence or some text, so nothing was saved. Make the journal private first if you want to empty it.";
     case "failed":
       return "Something went wrong, and nothing was changed. Try again.";
   }
