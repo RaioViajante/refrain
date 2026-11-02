@@ -661,6 +661,10 @@ export const PUBLICATION_INDEX_EXPORTS: ReadonlySet<string> = new Set([
   "MAX_SLUG_LENGTH",
   "normalizeSlug",
   "suffixSlug",
+  // M3.2: reads of the predicate for the catalog's artwork guard (gate G8).
+  // They write nothing; the second only adds a FOR SHARE lock.
+  "isAlbumOnPublicPage",
+  "lockAlbumPublicExposure",
 ]);
 
 function localCalls(body: ts.Node): Set<string> {

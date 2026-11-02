@@ -3,6 +3,7 @@ import "server-only";
 import { withDatabase } from "@/db";
 
 import * as commands from "./commands";
+import * as music from "./music";
 import * as queries from "./queries";
 
 // The Writing Studio's interface to the catalog: every command and query,
@@ -43,3 +44,20 @@ export const getAlbum = withDatabase(queries.getAlbum);
 export const listTracks = withDatabase(queries.listTracks);
 export const getTrack = withDatabase(queries.getTrack);
 export const getCatalogStatistics = withDatabase(queries.getCatalogStatistics);
+
+// Adding music from MusicBrainz and artwork from the Cover Art Archive (M3.2).
+// Each fetches from the provider first, then writes, if at all, in its own
+// transaction.
+export const searchMusic = withDatabase(music.searchMusic);
+export const listMusicEditions = withDatabase(music.listMusicEditions);
+export const reviewMusicRelease = withDatabase(music.reviewMusicRelease);
+export const importMusicRelease = withDatabase(music.importMusicRelease);
+export const linkAlbumToMusic = withDatabase(music.linkAlbumToMusic);
+export const reviewMusicArtist = withDatabase(music.reviewMusicArtist);
+export const importMusicArtist = withDatabase(music.importMusicArtist);
+export const linkArtistToMusic = withDatabase(music.linkArtistToMusic);
+export const listAlbumArtworkChoices = withDatabase(
+  music.listAlbumArtworkChoices,
+);
+export const setAlbumArtwork = withDatabase(music.setAlbumArtwork);
+export const removeAlbumArtwork = withDatabase(music.removeAlbumArtwork);
