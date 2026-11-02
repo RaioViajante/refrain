@@ -53,7 +53,7 @@ async function RecentlyDeleted() {
         A journal that was published when it was deleted comes back as private.
         Restoring never publishes anything; publishing it again shows you
         everything it would publish first, including any track reflections you
-        had set to show.
+        had set to be included when published.
       </p>
 
       {deleted.length === 0 ? (

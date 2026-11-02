@@ -257,7 +257,7 @@ test("a journal that was published returns private, never published, with its hi
   await expect(dialog).toContainText("comes back as private");
   await expect(dialog).toContainText("Restoring publishes nothing");
   await expect(dialog).toContainText(
-    "including any track reflections you had set to show",
+    "including any track reflections you had set to be included when published",
   );
   await dialog.getByRole("button", { name: "Restore journal" }).click();
 

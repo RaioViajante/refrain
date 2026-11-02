@@ -133,9 +133,9 @@ test("writes a reflection privately, with a rating and marks, and finds it exact
   await page.getByLabel("Mark as favourite").check();
   await page.getByLabel("Still writing").check();
   // The mark alone is not publication, and the screen says so before saving.
-  await page.getByLabel("Show on the public page").check();
+  await page.getByLabel("Include when published").check();
   await expect(
-    page.getByText(/does not make it public by itself/),
+    page.getByText(/That publishes nothing by itself/),
   ).toBeVisible();
   await save(page);
   await expect(page.getByText("Saved just now")).toBeVisible();
@@ -165,13 +165,15 @@ test("writes a reflection privately, with a rating and marks, and finds it exact
       .getByLabel("3.5 stars"),
   ).toBeChecked();
   await expect(page.getByLabel("Mark as favourite")).toBeChecked();
-  await expect(page.getByLabel("Show on the public page")).toBeChecked();
+  await expect(page.getByLabel("Include when published")).toBeChecked();
   await expect(
-    page.getByText(/Set to show, and not public: the English version/),
+    page.getByText(
+      /Included when published, not published yet: the English version/,
+    ),
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: literal(tracks[1]!) }),
-  ).toContainText("still writing · set to show");
+  ).toContainText("still writing · included when published");
 });
 
 test("rates the album on its own, and clearing one rating leaves the others", async ({
@@ -303,7 +305,7 @@ test("a published journal asks before a change to the public page, and keeps the
   // A change that exposes nothing is saved: a reflection that is not set to
   // show.
   await text.fill(reflection);
-  await page.getByLabel("Show on the public page").uncheck();
+  await page.getByLabel("Include when published").uncheck();
   await save(page);
   await expect(page.getByText("Saved just now")).toBeVisible();
   expect((await stored())[0]!.is_published).toBe(false);

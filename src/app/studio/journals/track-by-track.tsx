@@ -8,10 +8,10 @@ import type { TrackByTrackItem } from "@/modules/journals";
 
 // Track by track (docs/design-system.md, AlbumEditor): each track of the
 // album, in the reference edition's order, opens to a reflection, a rating,
-// and three marks. A reflection saved privately, one set to show on the public
-// page, and one a reader can actually see are three different things, and
-// this screen says which it is in words (ADR 0002, D5.2): the mark alone never
-// makes anything public, a published version of the journal does that for the
+// and three marks. A reflection saved privately, one included when published,
+// and one that is actually published are three different things, and this
+// screen says which it is in words (ADR 0002, D5.2): the mark alone never
+// publishes anything, a published version of the journal does that for the
 // language it is in.
 
 /** What the author can change on one track's reflection. */
@@ -65,8 +65,8 @@ function writingState(
   return draft.isStillWriting ? "still writing" : "written";
 }
 
-// What is true of this reflection now, as saved: public, selected to show but
-// not public, or private. The mark alone is never described as enough.
+// What is true of this reflection now, as saved: public, included when
+// published but not public yet, or private. The mark alone is never described as enough.
 function visibilityWord(item: TrackByTrackItem, locale: Language) {
   const saved = item.reflection;
   if (!saved) {
@@ -76,7 +76,7 @@ function visibilityWord(item: TrackByTrackItem, locale: Language) {
     return "public";
   }
   if (saved.isPublished && saved.texts[locale] !== undefined) {
-    return "set to show";
+    return "included when published";
   }
   return "private";
 }
@@ -103,14 +103,14 @@ function visibilitySentence(
     return {
       lead: "Private",
       rest: saved.isPublished
-        ? ". Saving stops it being set to show on the public page. Only you can see it."
-        : ". It is not set to show on the public page. Only you can see it.",
+        ? ". Saving stops it being included when published. Only you can see it."
+        : ". It is not included when published. Only you can see it.",
     };
   }
   if (!saved?.isPublished) {
     return {
-      lead: "Set to show once you save",
-      rest: `. That does not make it public by itself: the ${language} version of the journal has to be published too.`,
+      lead: "Included when published, once you save",
+      rest: `. That publishes nothing by itself: the ${language} version of the journal has to be published too.`,
     };
   }
   if (saved.publicIn.includes(locale)) {
@@ -121,13 +121,13 @@ function visibilitySentence(
   }
   if (draft.text.trim() === "" || saved.texts[locale] === undefined) {
     return {
-      lead: "Set to show",
-      rest: `, but there is no text in ${language} yet, so there is nothing to show.`,
+      lead: "Included when published",
+      rest: `, but there is no text in ${language} yet, so there is nothing to publish.`,
     };
   }
   return {
-    lead: "Set to show, and not public",
-    rest: `: the ${language} version of this journal is not published (it is ${status === "draft" ? "a draft" : status}). It appears only while that version is published.`,
+    lead: "Included when published, not published yet",
+    rest: `: the ${language} version of this journal is not published (it is ${status === "draft" ? "a draft" : status}). It is published only with that version.`,
   };
 }
 
@@ -307,8 +307,8 @@ function TrackPanel({
         <p className="studio-hint">
           Also written in{" "}
           {otherLocales.map((other) => LANGUAGE_NAMES[other]).join(", ")}. It is
-          kept as it is, and stays private unless it is set to show and that
-          version is published.
+          kept as it is, and stays private unless it is included when published
+          and that version is published.
         </p>
       ) : null}
 
@@ -322,7 +322,7 @@ function TrackPanel({
       <div className="studio-checks">
         <Check
           label="Mark as favourite"
-          hint="Shown as a small circle on the public page."
+          hint="Shown as a small circle once published."
           checked={draft.isFavourite}
           onChange={(isFavourite) => onEdit({ isFavourite })}
         />
@@ -333,8 +333,8 @@ function TrackPanel({
           onChange={(isStillWriting) => onEdit({ isStillWriting })}
         />
         <Check
-          label="Show on the public page"
-          hint="Shown only while this journal is published."
+          label="Include when published"
+          hint="Publishes nothing by itself: it counts once this language version is published. Public web pages are not available yet."
           checked={draft.isPublished}
           onChange={(isPublished) => onEdit({ isPublished })}
         />

@@ -281,7 +281,7 @@ function OpenPublishDialog({
               {ready.reflections.length === 0 ? (
                 <p lang="en">
                   No track reflection will be shown. Publishing never sets a
-                  track to show; you do that on each track.
+                  track to be included; you do that on each track.
                 </p>
               ) : (
                 <ul className="studio-review-list">
@@ -329,8 +329,8 @@ function OpenPublishDialog({
             <ReviewSection title="What stays private">
               <p lang="en">
                 {ready.stayingPrivate.length === 0
-                  ? "Every track reflection you wrote in this language is set to show, or you haven’t written any."
-                  : `Track reflections you wrote in ${language} that are not set to show (${ready.stayingPrivate.length}): ${ready.stayingPrivate
+                  ? "Every track reflection you wrote in this language is included when published, or you haven’t written any."
+                  : `Track reflections you wrote in ${language} that are not included when published (${ready.stayingPrivate.length}): ${ready.stayingPrivate
                       .map((item) => item.trackTitle)
                       .join(", ")}. They stay private.`}
               </p>
@@ -338,8 +338,8 @@ function OpenPublishDialog({
                 <p lang="en">
                   {ready.flaggedWithoutText}{" "}
                   {ready.flaggedWithoutText === 1
-                    ? "track is set to show but has"
-                    : "tracks are set to show but have"}{" "}
+                    ? "track is included when published but has"
+                    : "tracks are included when published but have"}{" "}
                   no text in {language}, so nothing of{" "}
                   {ready.flaggedWithoutText === 1 ? "it" : "them"} is public in
                   this language.

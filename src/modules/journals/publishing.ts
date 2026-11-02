@@ -71,7 +71,7 @@ export interface PublicationReview {
   /** Flagged to show, but with no text in this language, so not public in it. */
   flaggedWithoutText: number;
   /**
-   * Reflections written in this language that are not set to show. They stay
+   * Reflections written in this language that are not included when published. They stay
    * private. Titles only: their writing is not part of this review.
    */
   stayingPrivate: { trackId: string; trackTitle: string }[];

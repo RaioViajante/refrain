@@ -191,7 +191,12 @@ test("set up: an album with tracks, a private journal, and two track reflections
   await openEditor(page);
   // Track 1 is set to show; track 2 is written and stays private.
   await (await openTrack(page, names.tracks[0])).fill(shown);
-  await page.getByLabel("Show on the public page").check();
+  await page.getByLabel("Include when published").check();
+  await expect(
+    page.getByText(/That publishes nothing by itself/),
+  ).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+  await shoot(page, "track-setting");
   await (await openTrack(page, names.tracks[1])).fill(kept);
   await page
     .getByRole("group", { name: /Your rating for the album/ })
@@ -296,7 +301,7 @@ test("a change made after the review stops the publication and shows the new sta
   const other = await page.context().newPage();
   await openEditor(other);
   await openTrack(other, names.tracks[1]);
-  await other.getByLabel("Show on the public page").check();
+  await other.getByLabel("Include when published").check();
   await other.getByRole("button", { name: "Save", exact: true }).click();
   await expect(other.getByText("Saved just now")).toBeVisible();
   await other.close();
@@ -330,7 +335,7 @@ test("a change made after the review stops the publication and shows the new sta
   // Put the second track back to private for the rest of the run.
   await openEditor(page);
   await openTrack(page, names.tracks[1]);
-  await page.getByLabel("Show on the public page").uncheck();
+  await page.getByLabel("Include when published").uncheck();
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText("Saved just now")).toBeVisible();
 });
@@ -469,7 +474,7 @@ test("a change that only takes something away asks nothing, and a repeated Save 
 
   // Unflagging a reflection removes it from the public page: no dialog.
   await openTrack(page, names.tracks[0]);
-  await page.getByLabel("Show on the public page").uncheck();
+  await page.getByLabel("Include when published").uncheck();
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText("Saved just now")).toBeVisible();
   await expect(changeDialog(page)).toHaveCount(0);
@@ -603,7 +608,7 @@ test("a published journal that is deleted and restored comes back private, and p
   // is flagged when the journal is deleted.
   await openEditor(page);
   await openTrack(page, names.tracks[0]);
-  await page.getByLabel("Show on the public page").check();
+  await page.getByLabel("Include when published").check();
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText("Saved just now")).toBeVisible();
 
@@ -632,7 +637,7 @@ test("a published journal that is deleted and restored comes back private, and p
   // The promise matches what the flow really does.
   await expect(restore).toContainText("Restoring publishes nothing");
   await expect(restore).toContainText(
-    "including any track reflections you had set to show",
+    "including any track reflections you had set to be included when published",
   );
   await restore.getByRole("button", { name: "Restore journal" }).click();
   await expect(page).toHaveURL(/\?restored=private$/);
@@ -703,7 +708,7 @@ test("closing a review never changes anything, and the way to change what is sho
   // There the author unflags the track and saves, on purpose; then a new
   // review lists the set as it now stands, and confirming publishes that.
   await openTrack(page, names.tracks[0]);
-  await page.getByLabel("Show on the public page").uncheck();
+  await page.getByLabel("Include when published").uncheck();
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText("Saved just now")).toBeVisible();
   await page.goto(journalUrl);

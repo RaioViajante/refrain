@@ -54,7 +54,7 @@ async function Journal({ params, searchParams }: JournalProps) {
   const restoredNotice = deleted
     ? null
     : restored === "private"
-      ? "Restored from Recently deleted. A language version that was published when it was deleted is now private. Restoring publishes nothing: to publish it again you will first be shown everything it would publish, including any track reflections you had set to show."
+      ? "Restored from Recently deleted. A language version that was published when it was deleted is now private. Restoring publishes nothing: to publish it again you will first be shown everything it would publish, including any track reflections you had set to be included when published."
       : restored === "1"
         ? "Restored from Recently deleted, with its writing exactly as you left it."
         : null;
