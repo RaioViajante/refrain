@@ -196,3 +196,36 @@ describe("the studio cannot publish, re-address, or permanently delete", () => {
     ).toEqual([]);
   });
 });
+
+describe("a preview refreshes nothing", () => {
+  // A preview reads. If it asked Next.js to refresh the studio it would also
+  // re-render the author's page for nothing, and a visibility effect would
+  // suggest that it had changed something.
+  it.each([
+    "src/app/studio/journals/preview-publication-action.ts",
+    "src/app/studio/journals/preview-change-action.ts",
+  ])("%s runs its command with the effect none", (file) => {
+    const source = ts.createSourceFile(
+      file,
+      readFileSync(file, "utf8"),
+      ts.ScriptTarget.Latest,
+      true,
+    );
+    const effects: string[] = [];
+    const visit = (node: ts.Node) => {
+      if (
+        ts.isCallExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        node.expression.text === "perform"
+      ) {
+        const effect = node.arguments[1];
+        effects.push(
+          effect && ts.isStringLiteralLike(effect) ? effect.text : "missing",
+        );
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+    expect(effects).toEqual(["none"]);
+  });
+});

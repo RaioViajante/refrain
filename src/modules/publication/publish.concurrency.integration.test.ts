@@ -202,6 +202,15 @@ async function publishBlockedBehind(
 describe("every command that changes what is public moves the state stamp (test 4)", () => {
   it("save, publish, unpublish, delete, and restore each move it", async () => {
     const { entryId } = await committedJournal();
+    // Which timestamp each command owns (ADR 0006 § 3): publishing and
+    // unpublishing set the version's own, deleting and restoring the entry's.
+    const owns: Record<string, "version" | "entry" | "either"> = {
+      save: "either",
+      publish: "version",
+      unpublish: "version",
+      delete: "entry",
+      restore: "entry",
+    };
     const steps: [string, () => Promise<unknown>][] = [
       [
         "save",
@@ -232,10 +241,15 @@ describe("every command that changes what is public moves the state stamp (test 
       expect(after, name).not.toEqual(before);
       // The timestamps alone must move, whatever the status did: a command
       // that forgot to set `updated_at` would otherwise pass on its status.
+      const moved = {
+        version: after.version !== before.version,
+        entry: after.entry !== before.entry,
+      };
+      const rule = owns[name]!;
       expect(
-        { entry: after.entry, version: after.version },
-        `${name} moves a timestamp`,
-      ).not.toEqual({ entry: before.entry, version: before.version });
+        rule === "either" ? moved.version || moved.entry : moved[rule],
+        `${name} moves the ${rule} timestamp`,
+      ).toBe(true);
     }
   });
 
