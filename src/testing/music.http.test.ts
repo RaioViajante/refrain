@@ -131,8 +131,15 @@ afterAll(async () => {
 
 describe("Add music without the author's session", () => {
   it("shows nothing and asks no provider anything", async () => {
+    // A linked album, so the artwork page would ask the archive if it let
+    // the request through.
+    const linked = await scalar<string>(
+      "insert into albums (title, mb_release_group_id) values ('[Test] HTTP linked', $1) returning id",
+      [FIXTURE.paperMoonCover],
+    );
     const before = (await recorded()).length;
     for (const path of [
+      `/studio/albums/${linked}/artwork`,
       "/studio/catalog/add?q=paper%20moon",
       `/studio/catalog/add/album/${FIXTURE.paperMoon}`,
       `/studio/catalog/add/release/${FIXTURE.firstPressing}`,
@@ -141,6 +148,7 @@ describe("Add music without the author's session", () => {
       const { html } = await page(path);
       expect(html, path).not.toContain("[Test] Paper Moon");
       expect(html, path).not.toContain("[Test] Ink Quartet");
+      expect(html, path).not.toContain("[Test] HTTP linked");
       expect(html, path).toContain(
         "NEXT_REDIRECT;replace;/studio/sign-in;307;",
       );

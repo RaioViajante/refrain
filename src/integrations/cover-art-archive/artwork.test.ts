@@ -146,6 +146,15 @@ describe("the archive listing", () => {
     expect(calls).toHaveLength(1);
   });
 
+  it("lists again when a fresh answer is required", async () => {
+    const { caa, calls } = archive();
+    await caa.listReleaseImages(RELEASE);
+    await caa.listReleaseImages(RELEASE);
+    expect(calls).toHaveLength(2); // the listing and its redirect
+    await caa.listReleaseImages(RELEASE, { fresh: true });
+    expect(calls).toHaveLength(4);
+  });
+
   it("names the release each image of a release group belongs to", async () => {
     const { caa } = archive();
     const images = await caa.listReleaseGroupImages(FIXTURE.paperMoon);

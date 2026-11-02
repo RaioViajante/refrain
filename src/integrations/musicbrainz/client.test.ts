@@ -178,6 +178,19 @@ describe("release groups and releases", () => {
     expect(calls).toHaveLength(1);
   });
 
+  it("asks again when a fresh answer is required, and caches it anew", async () => {
+    const { mb, calls } = client();
+    await mb.getRelease(FIXTURE.firstPressing);
+    await mb.getRelease(FIXTURE.firstPressing);
+    expect(calls).toHaveLength(1);
+    await mb.getRelease(FIXTURE.firstPressing, { fresh: true });
+    await mb.getArtist(FIXTURE.inkQuartet);
+    await mb.getArtist(FIXTURE.inkQuartet, { fresh: true });
+    expect(calls).toHaveLength(4);
+    await mb.getRelease(FIXTURE.firstPressing);
+    expect(calls).toHaveLength(4);
+  });
+
   it("looks up an artist", async () => {
     const { mb } = client();
     const artist = await mb.getArtist(FIXTURE.paperSinger);

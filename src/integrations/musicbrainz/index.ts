@@ -7,6 +7,7 @@ export {
   musicBrainzId,
   searchText,
   USER_AGENT,
+  type Freshness,
   type MusicBrainzClient,
   type MusicBrainzOptions,
 } from "./client";

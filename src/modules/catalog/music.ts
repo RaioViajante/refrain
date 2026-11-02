@@ -840,7 +840,7 @@ export async function importMusicRelease(
 
   // Every external call happens before the transaction (docs/data-model.md).
   const release = await provided(() =>
-    providers.musicBrainz.getRelease(releaseId),
+    providers.musicBrainz.getRelease(releaseId, { fresh: true }),
   );
   const planned = planReleaseImport(release);
   if (!planned.ok) {
@@ -853,7 +853,7 @@ export async function importMusicRelease(
   let coverUrl: string | null = null;
   if (coverImageId !== null) {
     const images = await provided(() =>
-      providers.coverArt.listReleaseImages(plan.releaseId),
+      providers.coverArt.listReleaseImages(plan.releaseId, { fresh: true }),
     );
     const chosen = images.find(
       (image) => image.imageId === coverImageId && isFront(image),
@@ -1051,7 +1051,7 @@ export async function linkAlbumToMusic(
 ): Promise<void> {
   const { albumId, releaseId, review } = parse(linkAlbumInput, input);
   const release = await provided(() =>
-    providers.musicBrainz.getRelease(releaseId),
+    providers.musicBrainz.getRelease(releaseId, { fresh: true }),
   );
   const link = linkPlanOf(release);
   if (reviewOf(link) !== review) {
@@ -1181,7 +1181,7 @@ export async function importMusicArtist(
 ): Promise<{ id: string }> {
   const { mbArtistId, review } = parse(importArtistInput, input);
   const artist = await provided(() =>
-    providers.musicBrainz.getArtist(mbArtistId),
+    providers.musicBrainz.getArtist(mbArtistId, { fresh: true }),
   );
   const plan = artistPlanOf(artist);
   if (plan.name === null) {
@@ -1222,7 +1222,7 @@ export async function linkArtistToMusic(
 ): Promise<void> {
   const { artistId, mbArtistId, review } = parse(linkArtistInput, input);
   const artist = await provided(() =>
-    providers.musicBrainz.getArtist(mbArtistId),
+    providers.musicBrainz.getArtist(mbArtistId, { fresh: true }),
   );
   if (reviewOf(artistPlanOf(artist)) !== review) {
     throw new CatalogError("review_stale");
@@ -1293,7 +1293,7 @@ async function albumIdentity(
              where ed.album_id = a.id and ed.is_reference) as mb_release_id
       from albums a
      where a.id = ${albumId}
-     ${lock ? sql`for update of a` : sql``}`);
+     ${lock ? sql`for no key update of a` : sql``}`);
   const row = result.rows[0];
   return row
     ? {
@@ -1405,7 +1405,7 @@ export async function setAlbumArtwork(
   // The release must be the album's own edition, or of its release group.
   if (releaseId !== before.mbReleaseId) {
     const release = await provided(() =>
-      providers.musicBrainz.getRelease(releaseId),
+      providers.musicBrainz.getRelease(releaseId, { fresh: true }),
     );
     if (
       !before.mbReleaseGroupId ||
@@ -1415,7 +1415,7 @@ export async function setAlbumArtwork(
     }
   }
   const images = await provided(() =>
-    providers.coverArt.listReleaseImages(releaseId),
+    providers.coverArt.listReleaseImages(releaseId, { fresh: true }),
   );
   const chosen = images.find(
     (image) => image.imageId === imageId && isFront(image),
@@ -1427,6 +1427,13 @@ export async function setAlbumArtwork(
 
   await guarded(() =>
     db.transaction(async (tx) => {
+      // The entries first, then the album (ADR 0006 § 7, L3: catalog locks
+      // come after the entry lock): every journal entry about the album is
+      // locked FOR SHARE and the predicate decides, so a publish waits for
+      // this change, or this change sees the publish.
+      if (await lockAlbumPublicExposure(tx, albumId)) {
+        throw new CatalogError("public_page");
+      }
       const album = await albumIdentity(tx, albumId, true);
       if (!album) {
         throw new CatalogError("not_found");
@@ -1440,9 +1447,6 @@ export async function setAlbumArtwork(
         album.coverUrl !== expectedCoverUrl
       ) {
         throw new CatalogError("review_stale");
-      }
-      if (await lockAlbumPublicExposure(tx, albumId)) {
-        throw new CatalogError("public_page");
       }
       if (
         album.coverUrl === coverUrl &&
@@ -1472,6 +1476,13 @@ export async function removeAlbumArtwork(
   const { albumId, expectedCoverUrl } = parse(removeArtworkInput, input);
   await guarded(() =>
     db.transaction(async (tx) => {
+      // The entries first, then the album (ADR 0006 § 7, L3: catalog locks
+      // come after the entry lock): every journal entry about the album is
+      // locked FOR SHARE and the predicate decides, so a publish waits for
+      // this change, or this change sees the publish.
+      if (await lockAlbumPublicExposure(tx, albumId)) {
+        throw new CatalogError("public_page");
+      }
       const album = await albumIdentity(tx, albumId, true);
       if (!album) {
         throw new CatalogError("not_found");
@@ -1481,9 +1492,6 @@ export async function removeAlbumArtwork(
       }
       if (album.coverUrl !== expectedCoverUrl) {
         throw new CatalogError("review_stale");
-      }
-      if (await lockAlbumPublicExposure(tx, albumId)) {
-        throw new CatalogError("public_page");
       }
       if (album.coverUrl === null && album.coverSource === null) {
         return;

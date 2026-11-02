@@ -69,6 +69,48 @@ describe("createLimiter", () => {
   });
 });
 
+describe("a bounded queue", () => {
+  it("refuses at once a request that would wait longer than it may", async () => {
+    const { runtime } = virtualRuntime(() => json({}));
+    const schedule = createLimiter(1000, runtime);
+    const started: number[] = [];
+    const outcomes = await Promise.allSettled(
+      [0, 1, 2, 3].map(() =>
+        schedule(async () => {
+          started.push(runtime.now());
+        }, 2500),
+      ),
+    );
+    expect(outcomes.map((outcome) => outcome.status)).toEqual([
+      "fulfilled",
+      "fulfilled",
+      "fulfilled",
+      "rejected",
+    ]);
+    expect(started).toEqual([0, 1000, 2000]);
+  });
+
+  it("counts the wait in the queue against the deadline", async () => {
+    const { runtime, calls } = virtualRuntime(() => json({ ok: true }));
+    const limiter = createLimiter(1100, runtime);
+    const requests = Array.from({ length: 13 }, () =>
+      requestJson({ ...baseRequest(runtime), limiter }).then(
+        () => "ok",
+        (error: unknown) =>
+          error instanceof ProviderError ? error.failure : "other",
+      ),
+    );
+    // 20 s deadline, 8 s per attempt: at most 12 s in the queue, so the
+    // twelfth and thirteenth requests (12.1 s and 13.2 s away) are refused.
+    expect(await Promise.all(requests)).toEqual([
+      ...Array.from({ length: 11 }, () => "ok"),
+      "unavailable",
+      "unavailable",
+    ]);
+    expect(calls).toHaveLength(11);
+  });
+});
+
 describe("TtlCache", () => {
   it("expires entries and keeps a fixed size, dropping the oldest", () => {
     let time = 0;

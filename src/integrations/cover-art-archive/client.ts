@@ -72,7 +72,10 @@ export interface ArtworkImage {
 
 export interface CoverArtArchiveClient {
   /** A release's images; empty when it has none. */
-  listReleaseImages(releaseId: string): Promise<ArtworkImage[]>;
+  listReleaseImages(
+    releaseId: string,
+    options?: { fresh?: boolean },
+  ): Promise<ArtworkImage[]>;
   /** The images of the release the archive uses for a release group. */
   listReleaseGroupImages(releaseGroupId: string): Promise<ArtworkImage[]>;
 }
@@ -110,7 +113,11 @@ export function createCoverArtArchiveClient(
     );
   }
 
-  async function list(kind: "release" | "release-group", id: string) {
+  async function list(
+    kind: "release" | "release-group",
+    id: string,
+    fresh = false,
+  ) {
     if (!base) {
       throw new ProviderError("cover_art_archive", "not_configured");
     }
@@ -120,7 +127,7 @@ export function createCoverArtArchiveClient(
     }
     const url = new URL(`${kind}/${normalized}`, base);
     const key = url.toString();
-    const cached = cache.get(key);
+    const cached = fresh ? undefined : cache.get(key);
     if (cached) {
       return cached;
     }
@@ -169,7 +176,8 @@ export function createCoverArtArchiveClient(
   }
 
   return {
-    listReleaseImages: (releaseId) => list("release", releaseId),
+    listReleaseImages: (releaseId, options = {}) =>
+      list("release", releaseId, options.fresh),
     listReleaseGroupImages: (releaseGroupId) =>
       list("release-group", releaseGroupId),
   };

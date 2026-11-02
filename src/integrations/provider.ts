@@ -65,9 +65,25 @@ export function createLimiter(
   runtime: Pick<ProviderRuntime, "now" | "sleep">,
 ) {
   let nextStart = Number.NEGATIVE_INFINITY;
+  // When the last request already queued will start, so a new one knows its
+  // wait before it joins the queue.
+  let reservedUntil = Number.NEGATIVE_INFINITY;
   let queue: Promise<unknown> = Promise.resolve();
 
-  return function schedule<Result>(work: () => Promise<Result>) {
+  /**
+   * Runs `work` in turn. With `maxWaitMs`, a request that would wait longer
+   * than that is refused at once (`LimiterBusy`) and does not join the queue.
+   */
+  return function schedule<Result>(
+    work: () => Promise<Result>,
+    maxWaitMs = Number.POSITIVE_INFINITY,
+  ) {
+    const now = runtime.now();
+    const projected = Math.max(now, reservedUntil);
+    if (projected - now > maxWaitMs) {
+      return Promise.reject(new LimiterBusy());
+    }
+    reservedUntil = projected + minIntervalMs;
     const slot = queue.then(async () => {
       const wait = nextStart - runtime.now();
       if (wait > 0) {
@@ -82,6 +98,11 @@ export function createLimiter(
 }
 
 export type Limiter = ReturnType<typeof createLimiter>;
+
+/** The queue is longer than the caller can wait. */
+export class LimiterBusy extends Error {
+  override name = "LimiterBusy";
+}
 
 /**
  * A small in-memory cache with a time to live and a fixed size (the oldest
@@ -211,8 +232,14 @@ export async function requestJson(request: JsonRequest): Promise<unknown> {
 
   for (;;) {
     let retryAfter: number | null = null;
+    // Waiting in the queue counts against the deadline too.
+    const canWait =
+      request.deadlineMs - (runtime.now() - started) - request.timeoutMs;
     try {
-      const response = await request.limiter(() => fetchFollowing(request));
+      const response = await request.limiter(
+        () => fetchFollowing(request),
+        Math.max(0, canWait),
+      );
       if (response.status === 200) {
         return await readJson(response, request);
       }
@@ -231,6 +258,9 @@ export async function requestJson(request: JsonRequest): Promise<unknown> {
     } catch (error) {
       if (error instanceof ProviderError) {
         throw error;
+      }
+      if (error instanceof LimiterBusy) {
+        throw new ProviderError(provider, "unavailable");
       }
       // A network failure or a timeout: transient, retried below.
     }

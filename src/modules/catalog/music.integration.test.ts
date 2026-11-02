@@ -16,6 +16,8 @@ import { FIXTURE, releaseLookup, SCENARIO } from "@/testing/provider-fixtures";
 import { providerResponse } from "@/testing/provider-mock";
 import { fixtureProviders } from "@/testing/provider-runtime";
 
+import { lockAlbumPublicExposure } from "@/modules/publication";
+
 import { CatalogError } from "./errors";
 import {
   importMusicArtist,
@@ -421,6 +423,40 @@ describe("importing a release (boundary 1)", () => {
           ),
         ),
       ).toBe("duplicate_identifier");
+      expect(await catalogCounts(tx)).toEqual(counts);
+    });
+  });
+
+  it("asks MusicBrainz again on approval, even when the review came from its cache", async () => {
+    await inRollbackTransaction(async (tx) => {
+      let edited = false;
+      const changed = releaseLookup(FIXTURE.firstPressing)!;
+      changed.media[0]!.tracks[0]!.title = "[Test] Opening Line (edited)";
+      // One client for the review and the approval, as in the server.
+      const { providers } = fixtureProviders((url) =>
+        edited &&
+        new URL(url).pathname === `/ws/2/release/${FIXTURE.firstPressing}`
+          ? new Response(JSON.stringify(changed))
+          : providerResponse(url),
+      );
+      const { review } = await reviewMusicRelease(
+        tx,
+        author,
+        FIXTURE.firstPressing,
+        providers,
+      );
+      edited = true;
+      const counts = await catalogCounts(tx);
+      expect(
+        await failure(() =>
+          importMusicRelease(
+            tx,
+            author,
+            { releaseId: FIXTURE.firstPressing, review },
+            providers,
+          ),
+        ),
+      ).toBe("review_stale");
       expect(await catalogCounts(tx)).toEqual(counts);
     });
   });
@@ -1189,6 +1225,19 @@ describe("artwork", () => {
 });
 
 describe("the artwork guard and publishing, over real connections", () => {
+  const raced: { albumId?: string; entryId?: string } = {};
+  afterAll(async () => {
+    const db = getDb();
+    if (raced.entryId) {
+      await db
+        .delete(schema.entries)
+        .where(eq(schema.entries.id, raced.entryId));
+    }
+    if (raced.albumId) {
+      await db.delete(schema.albums).where(eq(schema.albums.id, raced.albumId));
+    }
+  });
+
   const created: { albumId?: string; entryId?: string; artistIds: string[] } = {
     artistIds: [],
   };
@@ -1231,7 +1280,6 @@ describe("the artwork guard and publishing, over real connections", () => {
       .insert(schema.albumJournals)
       .values({ entryId: entry!.id, albumId: album!.id });
 
-    const { lockAlbumPublicExposure } = await import("@/modules/publication");
     await withConnections(2, async ([first, second]) => {
       let release!: () => void;
       const held = new Promise<void>((resolve) => (release = resolve));
@@ -1261,5 +1309,86 @@ describe("the artwork guard and publishing, over real connections", () => {
       await guard;
       expect(blocked).toBe("55P03");
     });
+  });
+
+  it("refuses the change once a publish that held the entry has committed", async () => {
+    const db = getDb();
+    const [album] = await db
+      .insert(schema.albums)
+      .values({
+        title: uniqueLabel("Raced"),
+        mbReleaseGroupId: FIXTURE.paperMoon,
+      })
+      .returning({ id: schema.albums.id });
+    raced.albumId = album!.id;
+    await db.insert(schema.albumEditions).values({
+      albumId: album!.id,
+      isReference: true,
+      mbReleaseId: FIXTURE.firstPressing,
+    });
+    const [entry] = await db
+      .insert(schema.entries)
+      .values({ kind: "album_journal" })
+      .returning({ id: schema.entries.id });
+    raced.entryId = entry!.id;
+    await db
+      .insert(schema.entryTexts)
+      .values({ entryId: entry!.id, locale: "en", isOriginal: true });
+    await db
+      .insert(schema.albumJournals)
+      .values({ entryId: entry!.id, albumId: album!.id });
+
+    const { providers } = fixtureProviders();
+    await withConnections(2, async ([first, second]) => {
+      let commit!: () => void;
+      const committing = new Promise<void>((resolve) => (commit = resolve));
+      let locked!: () => void;
+      const isLocked = new Promise<void>((resolve) => (locked = resolve));
+      // A publish in progress: the entry locked, the version published.
+      const publish = first!.transaction(async (tx) => {
+        await tx.execute(
+          sql`select id from entries where id = ${entry!.id} for update`,
+        );
+        await tx.execute(sql`
+          update entry_texts
+             set status = 'published', published_at = now(),
+                 first_published_at = now()
+           where entry_id = ${entry!.id}`);
+        locked();
+        await committing;
+      });
+      await isLocked;
+      const change = setAlbumArtwork(
+        second!,
+        author,
+        {
+          albumId: album!.id,
+          releaseId: FIXTURE.firstPressing,
+          imageId: FIXTURE.frontImage,
+          expectedCoverUrl: null,
+        },
+        providers,
+      ).then(
+        () => "changed",
+        (error: unknown) => failureOf(error),
+      );
+      // Wait until the artwork change is queued behind the publish's lock.
+      for (let tries = 0; tries < 100; tries++) {
+        const waiting = await db.execute<{ n: number }>(sql`
+          select count(*)::int as n from pg_stat_activity
+           where application_name = 'refrain-concurrency-tests'
+             and wait_event_type = 'Lock'`);
+        if (waiting.rows[0]!.n > 0) break;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      commit();
+      await publish;
+      expect(await change).toBe("public_page");
+    });
+    const [row] = await db
+      .select({ coverUrl: schema.albums.coverUrl })
+      .from(schema.albums)
+      .where(eq(schema.albums.id, album!.id));
+    expect(row!.coverUrl).toBeNull();
   });
 });

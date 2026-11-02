@@ -98,8 +98,17 @@ export interface MusicBrainzClient {
   listReleases(
     releaseGroupId: string,
   ): Promise<{ releases: ReleaseSummary[]; total: number }>;
-  getRelease(releaseId: string): Promise<Release>;
-  getArtist(artistId: string): Promise<Artist>;
+  getRelease(releaseId: string, options?: Freshness): Promise<Release>;
+  getArtist(artistId: string, options?: Freshness): Promise<Artist>;
+}
+
+/**
+ * `fresh: true` asks the provider again instead of answering from the cache
+ * (the answer is cached anew). The approval of a review uses it, so what is
+ * written is what MusicBrainz says at that moment.
+ */
+export interface Freshness {
+  fresh?: boolean;
 }
 
 export interface MusicBrainzOptions {
@@ -124,6 +133,7 @@ export function createMusicBrainzClient(
     params: Record<string, string>,
     parse: (body: unknown) => Result,
     ttlMs: number,
+    fresh = false,
   ): Promise<Result> {
     if (!base) {
       throw new ProviderError("musicbrainz", "not_configured");
@@ -133,7 +143,7 @@ export function createMusicBrainzClient(
       url.searchParams.set(key, value);
     }
     const key = url.toString();
-    const cached = cache.get(key);
+    const cached = fresh ? undefined : cache.get(key);
     if (cached !== undefined) {
       return cached as Result;
     }
@@ -229,20 +239,22 @@ export function createMusicBrainzClient(
         LOOKUP_TTL_MS,
       );
     },
-    async getRelease(releaseId) {
+    async getRelease(releaseId, options = {}) {
       return get(
         `release/${idOf(releaseId)}`,
         { inc: "recordings artist-credits labels release-groups" },
         validated(releaseLookupResponse, toRelease),
         LOOKUP_TTL_MS,
+        options.fresh,
       );
     },
-    async getArtist(artistId) {
+    async getArtist(artistId, options = {}) {
       return get(
         `artist/${idOf(artistId)}`,
         {},
         validated(artistLookupResponse, toArtist),
         LOOKUP_TTL_MS,
+        options.fresh,
       );
     },
   };
