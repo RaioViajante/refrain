@@ -699,7 +699,9 @@ test("closing a review never changes anything, and the way to change what is sho
   // it leaves the review (and its token) behind and still changes nothing.
   await panel.getByRole("button", { name: "Publish…", exact: true }).click();
   await dialog
-    .getByRole("link", { name: "Change what is shown, on the tracks" })
+    .getByRole("link", {
+      name: "Change which reflections are included, on the tracks",
+    })
     .click();
   await expect(page).toHaveURL(/\/edit$/);
   expect(await state()).toEqual(before);

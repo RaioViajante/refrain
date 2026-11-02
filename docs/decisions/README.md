@@ -9,7 +9,7 @@ Significant architectural, data, and workflow decisions are recorded here as sho
 | [0003](0003-relational-schema-conventions.md) | Relational Schema Conventions | Accepted |
 | [0004](0004-single-author-identity.md) | Single-Author Identity and Access | Accepted |
 | [0005](0005-restoring-deleted-journals.md) | Restoring Deleted Journals | Accepted |
-| [0006](0006-publication-decision-and-acknowledgement.md) | Publication Decision and Acknowledgement | Accepted; amended 2026-11-02 (A1). Built in M2.1 to M2.3 (M2.3 awaiting merge) |
+| [0006](0006-publication-decision-and-acknowledgement.md) | Publication Decision and Acknowledgement | Accepted; amended 2026-11-02 (A1) |
 
 ## Format
 

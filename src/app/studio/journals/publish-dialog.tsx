@@ -280,8 +280,8 @@ function OpenPublishDialog({
             >
               {ready.reflections.length === 0 ? (
                 <p lang="en">
-                  No track reflection will be shown. Publishing never sets a
-                  track to be included; you do that on each track.
+                  No track reflection is included. Publishing never changes
+                  which tracks are included; you do that on each track.
                 </p>
               ) : (
                 <ul className="studio-review-list">
@@ -312,7 +312,7 @@ function OpenPublishDialog({
                 </ul>
               )}
               <p className="studio-hint">
-                Nothing here changes which reflections are shown. To change
+                Nothing here changes which reflections are included. To change
                 that, close this review, change it on the track, and review
                 again.
               </p>
@@ -321,7 +321,7 @@ function OpenPublishDialog({
                   href={`/studio/journals/${entryId}/edit`}
                   className="studio-button"
                 >
-                  Change what is shown, on the tracks
+                  Change which reflections are included, on the tracks
                 </Link>
               </p>
             </ReviewSection>
