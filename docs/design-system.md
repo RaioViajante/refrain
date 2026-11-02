@@ -190,6 +190,11 @@ Where the approved screen shows something that does not exist yet, or that the d
 | Section headings as `h3` in the writing | `h2` in the writing, `h3` in a track's reflection | The outline stays in order under the `h1` and the "Track by track" `h2` |
 | A track with no reflection says "not written yet" | The same, also for a track whose reflection is not public | The page never says that a private reflection exists |
 | A track's credit under its name (a cover, for example) | Shown when the catalog has one | It is catalog metadata of a track in a public journal |
+| Stars drawn with a sketchy double stroke | Geometric stars, filled or outlined, in half steps | Not yet drawn in the hand-drawn style; the rating reads correctly and its name is spoken as a sentence. Revisit with the visual refinement |
+| The margin note is hidden at 720px and below | Shown on a phone, after the facts | The author's writing should not disappear on a small screen |
+| Links in the writing are ordinary underlined words | A link mark shows its text and no link | No address allow-list exists yet; a link would be an unchecked outbound address |
+| A track's panel starts "Written [DATE] · my rating" | The reflection's text only (the rating is in the row) | A reflection has no public date of its own, and the rating is already in the row |
+| A hand line under a favourite ("[favourite — …]") | Not shown | It is a placeholder for the author's own words; the model has no favourite note |
 
 The public pages are monochrome with the design's own paper tints, use only Kalam and Alegreya Sans, request nothing from another origin, and have no author control. A request for an address that is not served shows one view, "Nothing here", for every reason, so no case can be told from another. These properties are tested in a browser at 1440px and 390px (`e2e/public.spec.ts`).
 
