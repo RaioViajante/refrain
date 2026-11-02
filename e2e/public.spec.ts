@@ -246,16 +246,28 @@ test("fits the screen without horizontal scrolling, and keeps the reading measur
       page.locator(".pj-head").boundingBox(),
     ]);
     expect(head!.x).toBeGreaterThan(art!.x + art!.width);
-    expect(Math.abs(head!.y - art!.y)).toBeLessThan(20);
+    // The heading sits on the artwork's lower edge, as in the approved screen.
+    expect(
+      Math.abs(head!.y + head!.height - (art!.y + art!.height)),
+    ).toBeLessThan(20);
+    // The facts and the writing start together, one row below.
+    const [meta, body] = await Promise.all([
+      page.locator(".pj-meta").boundingBox(),
+      page.locator(".pj-body").boundingBox(),
+    ]);
+    expect(Math.abs(meta!.y - body!.y)).toBeLessThan(4);
+    expect(meta!.y).toBeGreaterThan(art!.y + art!.height);
+    // The opening sentence keeps its measure instead of running the full column.
+    const opening = await page.locator(".pj-opening").boundingBox();
+    expect(opening!.width).toBeLessThan(head!.width * 0.95);
     const ratio = art!.width / head!.width;
     expect(ratio).toBeGreaterThan(5 / 7 - 0.1);
     expect(ratio).toBeLessThan(5 / 7 + 0.1);
   }
 });
 
-test("every control is at least 44px", async ({ page }) => {
-  await openJournal(page);
-  const small = await page.evaluate(() => {
+const smallControls = (page: Page) =>
+  page.evaluate(() => {
     const found: string[] = [];
     for (const element of document.querySelectorAll("a, summary, button")) {
       const rect = element.getBoundingClientRect();
@@ -267,7 +279,34 @@ test("every control is at least 44px", async ({ page }) => {
     }
     return found;
   });
-  expect(small).toEqual([]);
+
+test("every control is at least 44px, on the journal and on the not-found view", async ({
+  page,
+}) => {
+  await openJournal(page);
+  expect(await smallControls(page)).toEqual([]);
+  await page.goto(`${base}/albums/e2e-no-such-journal`);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "Nothing here",
+  );
+  expect(await smallControls(page)).toEqual([]);
+});
+
+test("reflows at 320 px and at 200% text without scrolling sideways", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 700 });
+  await openJournal(page);
+  await page.locator("summary.pj-track-row").first().click();
+  const overflow = () =>
+    page.evaluate(
+      () =>
+        document.documentElement.scrollWidth -
+        document.documentElement.clientWidth,
+    );
+  expect(await overflow()).toBeLessThanOrEqual(0);
+  await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+  expect(await overflow()).toBeLessThanOrEqual(0);
 });
 
 test("a track opens and closes with the keyboard, and focus is always visible", async ({
@@ -420,6 +459,8 @@ test("unpublishing is seen at once, including when going back", async ({
 test("screenshots, when asked for", async ({ page }, testInfo) => {
   test.skip(process.env.E2E_SCREENSHOTS !== "1", "set E2E_SCREENSHOTS=1");
   mkdirSync("visual-review/m3-1", { recursive: true });
+  // Settled frames: no transition is caught half way.
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await openJournal(page);
   const name = testInfo.project.name;
   await page.screenshot({

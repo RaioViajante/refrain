@@ -57,26 +57,27 @@ export function ratingText(halfSteps: number): string {
 export function Stars({
   halfSteps,
   label,
-}: Readonly<{ halfSteps: number; label: string }>) {
+  size,
+}: Readonly<{ halfSteps: number; label: string; size: number }>) {
   return (
     <span className="pj-stars" role="img" aria-label={label}>
       {fills(halfSteps).map((fill, index) => (
         <svg
           key={index}
-          width="22"
-          height="22"
+          width={size}
+          height={size}
           viewBox={`0 0 ${SIZE} ${SIZE}`}
           aria-hidden="true"
           focusable="false"
         >
           <path
             d={FULL_PATH}
-            fill={fill === "full" ? "#111111" : "none"}
-            stroke="#111111"
+            fill={fill === "full" ? "currentColor" : "none"}
+            stroke="currentColor"
             strokeWidth="1.5"
             strokeLinejoin="round"
           />
-          {fill === "half" ? <path d={HALF_PATH} fill="#111111" /> : null}
+          {fill === "half" ? <path d={HALF_PATH} fill="currentColor" /> : null}
         </svg>
       ))}
     </span>

@@ -20,7 +20,7 @@ export function PublicFrame({
     <div className={`${publicFontClasses} public`}>
       <header className="public-shell public-header">
         <nav aria-label="Main">
-          <ul className="public-nav">
+          <ul className="public-nav" role="list">
             <li>
               <Link className="public-link" href="/">
                 Home

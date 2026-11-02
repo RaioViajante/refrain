@@ -132,15 +132,21 @@ describe("ratings", () => {
 
   it("draws full, half, and empty stars, and names the rating in words", () => {
     const out = renderToStaticMarkup(
-      createElement(Stars, { halfSteps: 9, label: "My rating: 4.5 out of 5" }),
+      createElement(Stars, {
+        halfSteps: 9,
+        label: "My rating: 4.5 out of 5",
+        size: 22,
+      }),
     );
     expect(out).toContain('aria-label="My rating: 4.5 out of 5"');
     expect(out.match(/<svg/g)).toHaveLength(5);
     // Four filled stars, and a half drawn on the fifth.
-    expect(out.match(/<path d="[^"]+" fill="#111111"/g)).toHaveLength(4 + 1);
-    const none = renderToStaticMarkup(
-      createElement(Stars, { halfSteps: 0, label: "x" }),
+    expect(out.match(/<path d="[^"]+" fill="currentColor"/g)).toHaveLength(
+      4 + 1,
     );
-    expect(none).not.toContain('fill="#111111"');
+    const none = renderToStaticMarkup(
+      createElement(Stars, { halfSteps: 0, label: "x", size: 15 }),
+    );
+    expect(none).not.toContain('fill="currentColor"');
   });
 });

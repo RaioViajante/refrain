@@ -97,66 +97,65 @@ export function JournalView({
   return (
     <main className="public-shell pj" id="main">
       <article className="pj-grid">
-        <div className="pj-col pj-col-a">
-          <div className="pj-art">
-            <Artwork title={album.title} />
-          </div>
-          <div className="pj-meta">
-            <p>
-              Published{" "}
-              <time dateTime={journal.publishedAt.toISOString()}>
-                {date.format(journal.publishedAt)}
-              </time>
-            </p>
-            <p>{`Written in ${LANGUAGE_NAMES[locale] ?? locale}`}</p>
-            {tracks.length > 0 ? (
-              <a className="pj-button" href="#tracks">
-                <span>Go to the tracks</span>
-                <Chevron className="pj-chevron-down" />
-              </a>
-            ) : null}
-            {journal.marginNote?.trim() ? (
-              <aside className="pj-margin-note" lang={locale}>
-                <p>{journal.marginNote}</p>
-              </aside>
-            ) : null}
-          </div>
+        <div className="pj-art">
+          <Artwork title={album.title} />
         </div>
-
-        <div className="pj-col pj-col-b">
-          <header className="pj-head">
-            <p className="pj-kind">
-              <RecordIcon />
-              Album journal
-            </p>
-            <h1 className="pj-title">{album.title}</h1>
-            {artist ? <p className="pj-artist">{artist}</p> : null}
-            {facts.length > 0 ? (
-              <p className="pj-facts">{facts.join(" · ")}</p>
-            ) : null}
-            {journal.opening?.trim() ? (
-              <p className="pj-opening" lang={locale}>
-                {journal.opening}
-              </p>
-            ) : null}
-            {journal.ratingHalfSteps !== null ? (
-              <p className="pj-rating">
-                <span>My rating</span>
-                <Stars
-                  halfSteps={journal.ratingHalfSteps}
-                  label={`My rating: ${ratingValue} out of 5`}
-                />
-                <span className="pj-rating-value">{`[${ratingValue}] / 5`}</span>
-              </p>
-            ) : null}
-          </header>
-
-          {body ? (
-            <div className="pj-body" lang={locale}>
-              {body}
-            </div>
+        <div className="pj-meta">
+          <p>
+            Published{" "}
+            <time dateTime={journal.publishedAt.toISOString()}>
+              {date.format(journal.publishedAt)}
+            </time>
+          </p>
+          <p>{`Written in ${LANGUAGE_NAMES[locale] ?? locale}`}</p>
+          {tracks.length > 0 ? (
+            <a className="pj-button" href="#tracks">
+              <span>Go to the tracks</span>
+              <Chevron className="pj-chevron-down" />
+            </a>
+          ) : null}
+          {journal.marginNote?.trim() ? (
+            <aside className="pj-margin-note" lang={locale}>
+              <p>{journal.marginNote}</p>
+            </aside>
           ) : null}
         </div>
+
+        <header className="pj-head">
+          <p className="pj-kind">
+            <RecordIcon />
+            Album journal
+          </p>
+          <h1 className="pj-title">{album.title}</h1>
+          {artist ? <p className="pj-artist">{artist}</p> : null}
+          {facts.length > 0 ? (
+            <p className="pj-facts">{facts.join(" · ")}</p>
+          ) : null}
+          {journal.opening?.trim() ? (
+            <p className="pj-opening" lang={locale}>
+              {journal.opening}
+            </p>
+          ) : null}
+          {journal.ratingHalfSteps !== null ? (
+            <p className="pj-rating">
+              <span aria-hidden="true">My rating</span>
+              <Stars
+                halfSteps={journal.ratingHalfSteps}
+                label={`My rating: ${ratingValue} out of 5`}
+                size={22}
+              />
+              <span className="pj-rating-value" aria-hidden="true">
+                {`[${ratingValue}] / 5`}
+              </span>
+            </p>
+          ) : null}
+        </header>
+
+        {body ? (
+          <div className="pj-body" lang={locale}>
+            {body}
+          </div>
+        ) : null}
       </article>
 
       {tracks.length > 0 ? (
@@ -172,7 +171,7 @@ export function JournalView({
               reflection.
             </p>
           </div>
-          <ol className="pj-tracks">
+          <ol className="pj-tracks" role="list">
             {tracks.map((track) => {
               const number = String(track.number).padStart(2, "0");
               const reflection = track.reflection;
@@ -199,7 +198,10 @@ export function JournalView({
                 return (
                   <li key={track.trackId} className="pj-track">
                     <div className="pj-track-row pj-track-unwritten">
-                      <span className="pj-track-number">{number}</span>
+                      <span className="pj-visually-hidden">{`Track ${track.number}: `}</span>
+                      <span className="pj-track-number" aria-hidden="true">
+                        {number}
+                      </span>
                       <span className="pj-track-name">
                         <span className="pj-track-title">{track.title}</span>
                         {credit}
@@ -219,7 +221,10 @@ export function JournalView({
                 <li key={track.trackId} className="pj-track">
                   <details>
                     <summary className="pj-track-row">
-                      <span className="pj-track-number">{number}</span>
+                      <span className="pj-visually-hidden">{`Track ${track.number}: `}</span>
+                      <span className="pj-track-number" aria-hidden="true">
+                        {number}
+                      </span>
                       <span className="pj-track-name">
                         <span className="pj-track-title">{name}</span>
                         {credit}
@@ -229,8 +234,11 @@ export function JournalView({
                           <Stars
                             halfSteps={reflection.ratingHalfSteps ?? 0}
                             label={`My rating: ${rating} out of 5`}
+                            size={15}
                           />
-                          <span className="pj-rating-value">{`[${rating}]`}</span>
+                          <span className="pj-rating-value" aria-hidden="true">
+                            {`[${rating}]`}
+                          </span>
                         </span>
                       ) : (
                         <span />
