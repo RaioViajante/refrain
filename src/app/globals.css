@@ -1025,6 +1025,31 @@ html:has(.studio-editorbar[data-mode="edit"]) {
   color: #2e2e2e;
 }
 
+/* A dialog that shows what will become public: wider, with its text scrolling
+   inside it so the controls stay in view on a phone. */
+.studio-dialog-review {
+  width: min(680px, calc(100vw - 32px));
+}
+
+.studio-dialog-review[open] {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 32px);
+}
+
+.studio-dialog-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+}
+
+.studio-dialog-body:focus-visible,
+.studio-dialog h2:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 3px;
+}
+
 .studio-dialog::backdrop {
   background: rgb(17 17 17 / 0.4);
 }

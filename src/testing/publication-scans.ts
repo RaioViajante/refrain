@@ -846,12 +846,15 @@ export function exportSurfaceViolations(files: SourceText[]): string[] {
 const MINTING_PREVIEWS = [
   "previewPublication",
   "previewPublicChange",
-  // The Journals wrapper of previewPublicChange (ADR 0006 § 9: the wrapper
-  // is a preview too, and no action reaches it until M2.3).
+  // The Journals wrappers (ADR 0006 § 9: a wrapper of a preview is a preview
+  // too). Only the two preview actions reach them (M2.3).
   "previewAlbumJournalChange",
+  "previewAlbumJournalPublicChange",
+  "previewAlbumJournalPublication",
 ];
 const CONSUMERS = [
   "publishLanguageVersion",
+  "publishAlbumJournalVersion",
   "saveAlbumJournal",
   "requirePublicChangeConfirmation",
 ];
@@ -869,12 +872,19 @@ export const TESTING_IMPORT_ALLOWLIST: Readonly<Record<string, string>> = {
 
 /**
  * Files allowed to import a preview. The Journals commands wrap
- * `previewPublicChange` in `previewAlbumJournalChange`, which no function
- * there calls together with the save, and which no Server Action reaches
- * until M2.3 adds the actions. Adding a file needs review.
+ * `previewPublicChange` in `previewAlbumJournalChange`, and `publishing.ts`
+ * wraps the two previews for the studio; no function there calls a preview
+ * together with a consumer. Each Server Action that mints a token is alone in
+ * its own file (M2.3), so nothing else in a "use server" file can reach it.
+ * Adding a file needs review.
  */
 export const PREVIEW_IMPORTERS: ReadonlySet<string> = new Set<string>([
   "src/modules/journals/commands.ts",
+  "src/modules/journals/publishing.ts",
+  "src/modules/journals/studio.ts",
+  "src/modules/journals/index.ts",
+  "src/app/studio/journals/preview-publication-action.ts",
+  "src/app/studio/journals/preview-change-action.ts",
 ]);
 
 function importsOf(

@@ -15,8 +15,13 @@ export type StudioFailure =
   | "deleted"
   | "not_deleted"
   | "unsupported"
-  | "published"
-  | "published_empty"
+  // ADR 0006 § 12. None carries a token, a disclosure, or any writing.
+  | "confirmation_required"
+  | "confirmation_invalid"
+  | "confirmation_expired"
+  | "confirmation_stale"
+  | "nothing_to_publish"
+  | "no_address"
   | "failed";
 
 export type FieldProblem = "required" | "too_long" | "invalid";

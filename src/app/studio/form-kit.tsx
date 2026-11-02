@@ -293,6 +293,19 @@ interface ConfirmDialogProps {
   onConfirm: () => void;
   onCancel: () => void;
   children: ReactNode;
+  /** The confirm control cannot be used yet, for example while text loads. */
+  confirmDisabled?: boolean;
+  /** Removes the confirm control, when the dialog has nothing to confirm. */
+  hideConfirm?: boolean;
+  /** Controls that sit beside the confirm control, such as "Review again". */
+  extraActions?: ReactNode;
+  cancelLabel?: string;
+  /**
+   * A dialog that shows the author what will become public. It is wider, its
+   * text scrolls, and focus starts on its title, not on the confirm control,
+   * so a keypress cannot confirm before anything has been read.
+   */
+  review?: boolean;
 }
 
 /**
@@ -307,26 +320,39 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
   children,
+  confirmDisabled,
+  hideConfirm,
+  extraActions,
+  cancelLabel = "Cancel",
+  review,
 }: ConfirmDialogProps) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
   const titleId = useId();
 
   useEffect(() => {
     const element = dialog.current;
-    if (!element) {
+    if (!element || !open) {
       return;
     }
-    if (open && !element.open) {
+    if (!element.open) {
       element.showModal();
-    } else if (!open && element.open) {
-      element.close();
     }
-  }, [open]);
+    if (review) {
+      heading.current?.focus();
+    }
+    // Closing (or unmounting) hands focus back to the control that opened it.
+    return () => {
+      if (element.open) {
+        element.close();
+      }
+    };
+  }, [open, review]);
 
   return (
     <dialog
       ref={dialog}
-      className="studio-dialog"
+      className={`studio-dialog ${review ? "studio-dialog-review" : ""}`}
       aria-labelledby={titleId}
       onCancel={(event) => {
         event.preventDefault();
@@ -335,26 +361,45 @@ export function ConfirmDialog({
         }
       }}
     >
-      <h2 id={titleId} className="studio-section-title">
+      <h2
+        id={titleId}
+        ref={heading}
+        className="studio-section-title"
+        tabIndex={review ? -1 : undefined}
+      >
         {title}
       </h2>
-      <div>{children}</div>
-      <div className="studio-actions">
-        <button
-          type="button"
-          className="studio-button studio-button-primary"
-          onClick={onConfirm}
-          disabled={pending}
+      {review ? (
+        <div
+          className="studio-dialog-body"
+          role="region"
+          aria-labelledby={titleId}
+          tabIndex={0}
         >
-          {pending ? "Working…" : confirmLabel}
-        </button>
+          {children}
+        </div>
+      ) : (
+        <div>{children}</div>
+      )}
+      <div className="studio-actions">
+        {hideConfirm ? null : (
+          <button
+            type="button"
+            className="studio-button studio-button-primary"
+            onClick={onConfirm}
+            disabled={pending || confirmDisabled}
+          >
+            {pending ? "Working…" : confirmLabel}
+          </button>
+        )}
+        {extraActions}
         <button
           type="button"
           className="studio-button"
           onClick={onCancel}
           disabled={pending}
         >
-          Cancel
+          {cancelLabel}
         </button>
       </div>
     </dialog>
@@ -391,7 +436,14 @@ export function useSubmission() {
     [],
   );
 
-  return { pending, failure, run, clearFailure: () => setFailure(undefined) };
+  return {
+    pending,
+    failure,
+    run,
+    clearFailure: () => setFailure(undefined),
+    /** Shows a failure that a dialog met, in the form's own words. */
+    report: (reported: Failure) => setFailure(reported),
+  };
 }
 
 /** The outcome of the last save, in words, announced politely. */

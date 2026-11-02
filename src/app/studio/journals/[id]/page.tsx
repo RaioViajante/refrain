@@ -198,8 +198,7 @@ async function Journal({ params, searchParams }: JournalProps) {
               </h2>
               <JournalControls
                 entryId={journal.entryId}
-                locale={journal.locale}
-                status={journal.status}
+                versions={journal.versions}
               />
             </section>
           )}

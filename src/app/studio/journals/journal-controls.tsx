@@ -3,53 +3,81 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { ConfirmDialog, useSubmission } from "@/app/studio/form-kit";
+import {
+  ConfirmDialog,
+  SelectField,
+  useSubmission,
+} from "@/app/studio/form-kit";
 import {
   deleteJournalAction,
   setJournalPrivacyAction,
 } from "@/app/studio/journals/actions";
+import { PublishDialog } from "@/app/studio/journals/publish-dialog";
+import { LANGUAGE_NAMES } from "@/app/studio/journals/review-parts";
 import { failureMessage } from "@/app/studio/messages";
+import { StatusMark } from "@/app/studio/status-mark";
 import type { VisibilityStatus } from "@/modules/journals";
 
 type PrivateStatus = "draft" | "private";
+type Language = "en" | "pt-BR";
+
+interface VersionState {
+  locale: Language;
+  isOriginal: boolean;
+  status: VisibilityStatus;
+}
 
 /**
- * Who can see this journal, and moving it to Recently deleted. Only the two
- * private states can be chosen here: publishing is not offered yet, and the
- * server would refuse it anyway. Deleting asks first, and keeps the writing.
+ * Who can see each language version, and moving the journal to Recently
+ * deleted. Each version has its own panel: Publish… shows the author what
+ * readers would see and publishes only on their confirmation; Unpublish…
+ * asks first, removes the version from publication, and deletes nothing. A
+ * version never changes another version's state. Deleting asks first, and
+ * keeps the writing.
  */
 export function JournalControls({
   entryId,
-  locale,
-  status,
+  versions,
 }: {
   entryId: string;
-  locale: "en" | "pt-BR";
-  status: VisibilityStatus;
+  versions: VersionState[];
 }) {
   const router = useRouter();
   const { pending, failure, run, clearFailure } = useSubmission();
-  const [asking, setAsking] = useState<PrivateStatus | "delete" | undefined>();
+  const [asking, setAsking] = useState<
+    | { kind: "unpublish"; locale: Language }
+    | { kind: "publish"; locale: Language }
+    | { kind: "delete" }
+    | undefined
+  >();
+  const [after, setAfter] = useState<PrivateStatus>("private");
   const [message, setMessage] = useState("");
 
-  async function setStatus(next: PrivateStatus) {
+  async function setStatus(locale: Language, next: PrivateStatus) {
     setMessage("");
     const result = await run(() =>
       setJournalPrivacyAction({ entryId, locale, status: next }),
     );
     setAsking(undefined);
     if (result.ok) {
-      setMessage(next === "private" ? "Now private." : "Back to a draft.");
+      setMessage(
+        `${LANGUAGE_NAMES[locale]}: ${next === "private" ? "now private." : "back to a draft."}`,
+      );
       router.refresh();
     }
   }
 
-  function choose(next: PrivateStatus) {
-    clearFailure();
-    if (status === "published") {
-      setAsking(next);
-    } else {
-      void setStatus(next);
+  async function unpublish(locale: Language) {
+    setMessage("");
+    const result = await run(() =>
+      setJournalPrivacyAction({ entryId, locale, status: after }),
+    );
+    setAsking(undefined);
+    if (result.ok) {
+      setMessage(
+        `The ${LANGUAGE_NAMES[locale]} version is no longer published. It is ${after === "private" ? "private" : "a draft"} now. Nothing was deleted.`,
+      );
+      router.refresh();
     }
   }
 
@@ -61,42 +89,102 @@ export function JournalControls({
     }
   }
 
+  const unpublishing = asking?.kind === "unpublish" ? asking.locale : undefined;
+  const publishing = asking?.kind === "publish" ? asking.locale : undefined;
+
   return (
     <div className="space-y-5">
-      <div className="space-y-2">
-        <p className="studio-label" id="privacy-label">
-          Who can see this
-        </p>
-        <div
-          className="studio-actions"
-          role="group"
-          aria-labelledby="privacy-label"
-        >
-          <button
-            type="button"
-            className={`studio-button ${status === "draft" ? "studio-button-primary" : ""}`}
-            aria-pressed={status === "draft"}
-            disabled={pending}
-            onClick={() => choose("draft")}
+      {versions.map((version) => {
+        const name = LANGUAGE_NAMES[version.locale];
+        const heading = `Visibility · ${name}${version.isOriginal ? " (original)" : ""}`;
+        return (
+          <section
+            key={version.locale}
+            aria-labelledby={`visibility-${version.locale}`}
+            className="space-y-2"
           >
-            Draft
-          </button>
-          <button
-            type="button"
-            className={`studio-button ${status === "private" ? "studio-button-primary" : ""}`}
-            aria-pressed={status === "private"}
-            disabled={pending}
-            onClick={() => choose("private")}
-          >
-            Private
-          </button>
-        </div>
-        <p className="studio-hint" style={{ maxWidth: "52ch" }}>
-          A draft is still being written; private is finished for now. Both are
-          only yours. Publishing is not available yet, so nothing you write here
-          is public.
-        </p>
-      </div>
+            <p className="studio-label" id={`visibility-${version.locale}`}>
+              {heading}
+            </p>
+            <p className="studio-meta">
+              <StatusMark status={version.status} />
+            </p>
+            {version.status === "published" ? (
+              <>
+                <div className="studio-actions">
+                  <button
+                    type="button"
+                    className="studio-button"
+                    disabled={pending}
+                    onClick={() => {
+                      clearFailure();
+                      setMessage("");
+                      setAfter("private");
+                      setAsking({ kind: "unpublish", locale: version.locale });
+                    }}
+                  >
+                    Unpublish…
+                  </button>
+                </div>
+                <p className="studio-hint" style={{ maxWidth: "52ch" }}>
+                  Published means this version is marked for readers. Public web
+                  pages are not built yet, so nothing opens on the web.
+                </p>
+              </>
+            ) : (
+              <>
+                <div
+                  className="studio-actions"
+                  role="group"
+                  aria-label={`Private state of the ${name} version`}
+                >
+                  <button
+                    type="button"
+                    className={`studio-button ${version.status === "draft" ? "studio-button-primary" : ""}`}
+                    aria-pressed={version.status === "draft"}
+                    disabled={pending}
+                    onClick={() => {
+                      clearFailure();
+                      void setStatus(version.locale, "draft");
+                    }}
+                  >
+                    Draft
+                  </button>
+                  <button
+                    type="button"
+                    className={`studio-button ${version.status === "private" ? "studio-button-primary" : ""}`}
+                    aria-pressed={version.status === "private"}
+                    disabled={pending}
+                    onClick={() => {
+                      clearFailure();
+                      void setStatus(version.locale, "private");
+                    }}
+                  >
+                    Private
+                  </button>
+                  <button
+                    type="button"
+                    className="studio-button"
+                    disabled={pending}
+                    onClick={() => {
+                      clearFailure();
+                      setMessage("");
+                      setAsking({ kind: "publish", locale: version.locale });
+                    }}
+                  >
+                    Publish…
+                  </button>
+                </div>
+                <p className="studio-hint" style={{ maxWidth: "52ch" }}>
+                  A draft is still being written; private is finished for now.
+                  Both are only yours. Publish… shows you exactly what readers
+                  would see before anything changes.
+                </p>
+              </>
+            )}
+          </section>
+        );
+      })}
 
       <div>
         <button
@@ -105,7 +193,7 @@ export function JournalControls({
           disabled={pending}
           onClick={() => {
             clearFailure();
-            setAsking("delete");
+            setAsking({ kind: "delete" });
           }}
         >
           <svg
@@ -132,22 +220,52 @@ export function JournalControls({
         {failure ? failureMessage(failure) : message}
       </p>
 
+      <PublishDialog
+        entryId={entryId}
+        locale={publishing ?? versions[0]?.locale ?? "en"}
+        open={publishing !== undefined}
+        onClose={() => setAsking(undefined)}
+        onPublished={() => {
+          const locale = publishing;
+          setAsking(undefined);
+          if (locale) {
+            setMessage(
+              `The ${LANGUAGE_NAMES[locale]} version is now published in your journal. Public web pages are not built yet, so nothing opens on the web.`,
+            );
+          }
+          router.refresh();
+        }}
+      />
+
       <ConfirmDialog
-        open={asking === "draft" || asking === "private"}
-        title="Make this version unpublished?"
-        confirmLabel={asking === "private" ? "Make private" : "Make a draft"}
+        open={unpublishing !== undefined}
+        title={`Unpublish the ${unpublishing ? LANGUAGE_NAMES[unpublishing] : ""} version?`}
+        confirmLabel="Unpublish"
         pending={pending}
-        onConfirm={() => asking && asking !== "delete" && setStatus(asking)}
+        onConfirm={() => unpublishing && unpublish(unpublishing)}
         onCancel={() => setAsking(undefined)}
       >
-        <p>
-          This version is published. Readers will no longer see it. Nothing is
-          deleted, and you can change it back later.
-        </p>
+        <div className="space-y-3">
+          <p>
+            Readers will no longer see this version. Nothing is deleted: your
+            writing, the track reflections, and the address stay as they are,
+            and other language versions are not touched. You can publish it
+            again later; that will show you what readers would see first.
+          </p>
+          <SelectField
+            label="After unpublishing, it is"
+            value={after}
+            onChange={(value) => setAfter(value as PrivateStatus)}
+            options={[
+              { value: "private", label: "Private (finished for now)" },
+              { value: "draft", label: "A draft (still being written)" },
+            ]}
+          />
+        </div>
       </ConfirmDialog>
 
       <ConfirmDialog
-        open={asking === "delete"}
+        open={asking?.kind === "delete"}
         title="Move this journal to Recently deleted?"
         confirmLabel="Move to Recently deleted"
         pending={pending}

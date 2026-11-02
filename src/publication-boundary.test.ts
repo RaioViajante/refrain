@@ -353,6 +353,80 @@ describe("the scans resist the evasions an independent review found", () => {
   });
 });
 
+describe("the mint-and-consume scan covers the studio's wrappers (M2.3)", () => {
+  const action = "src/app/studio/journals/some-action.ts";
+  const previewAction = "src/app/studio/journals/preview-publication-action.ts";
+  const imports = (...names: string[]) =>
+    `import { ${names.join(", ")} } from "@/modules/journals";\n`;
+
+  it("catches an action that previews and publishes in one operation", () => {
+    expect(
+      mintConsumeViolations([
+        file(
+          previewAction,
+          imports(
+            "previewAlbumJournalPublication",
+            "publishAlbumJournalVersion",
+          ) +
+            "export async function both(a, i) { const p = await previewAlbumJournalPublication(a, i); return publishAlbumJournalVersion(a, { ...i, confirmation: p.confirmation }); }",
+        ),
+      ]),
+    ).not.toEqual([]);
+  });
+
+  it("catches a save that previews its own change and saves it", () => {
+    expect(
+      mintConsumeViolations([
+        file(
+          "src/app/studio/journals/preview-change-action.ts",
+          imports("previewAlbumJournalPublicChange", "saveAlbumJournal") +
+            "export async function both(a, i) { const p = await previewAlbumJournalPublicChange(a, i); return saveAlbumJournal(a, { ...i, confirmation: p.confirmation }); }",
+        ),
+      ]),
+    ).not.toEqual([]);
+  });
+
+  it("catches a publish action that catches a refusal and tries again", () => {
+    expect(
+      mintConsumeViolations([
+        file(
+          action,
+          imports("publishAlbumJournalVersion") +
+            "export async function again(a, i) { try { return await publishAlbumJournalVersion(a, i); } catch { return publishAlbumJournalVersion(a, i); } }",
+        ),
+      ]),
+    ).not.toEqual([]);
+  });
+
+  it("lets only the two preview actions import a preview wrapper", () => {
+    for (const name of [
+      "previewAlbumJournalPublication",
+      "previewAlbumJournalPublicChange",
+    ]) {
+      expect(
+        mintConsumeViolations([file(action, imports(name))]),
+        name,
+      ).not.toEqual([]);
+      expect(
+        mintConsumeViolations([file(previewAction, imports(name))]),
+        name,
+      ).toEqual([]);
+    }
+  });
+
+  it("keeps a plain consumer in its own file without complaint", () => {
+    expect(
+      mintConsumeViolations([
+        file(
+          "src/app/studio/journals/actions.ts",
+          imports("publishAlbumJournalVersion") +
+            "export async function publish(a, i) { return publishAlbumJournalVersion(a, i); }",
+        ),
+      ]),
+    ).toEqual([]);
+  });
+});
+
 describe("the export-surface scan catches each way of reaching the write", () => {
   const publish = "src/modules/publication/publish.ts";
   const index = "src/modules/publication/index.ts";
