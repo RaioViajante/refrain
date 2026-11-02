@@ -45,6 +45,24 @@ async function shoot(page: Page, name: string, fullPage = true) {
     await page.setViewportSize({ width: size.width, height: size.height });
     // Let fonts and layout settle; the pages have no animation to wait for.
     await page.evaluate(() => document.fonts.ready);
+    if (fullPage) {
+      // Neutral state for a full-page capture: nothing focused, the page at
+      // the top, and no transition running. A full-page capture paints fixed
+      // and sticky elements (the sticky action bar, the skip link that waits
+      // above the screen) where the last scroll left them, so a page that a
+      // click had scrolled down showed them in the middle of the writing. The
+      // page itself is correct: e2e/editor-journal.spec.ts tests that.
+      await page.evaluate(async () => {
+        (document.activeElement as HTMLElement | null)?.blur();
+        window.scrollTo(0, 0);
+        await Promise.all(
+          document
+            .getAnimations()
+            .map((animation) => animation.finished.catch(() => undefined)),
+        );
+      });
+      expect(await page.evaluate(() => window.scrollY)).toBe(0);
+    }
     const directory = join(OUT, size.name);
     mkdirSync(directory, { recursive: true });
     await page.screenshot({
