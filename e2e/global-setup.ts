@@ -139,7 +139,16 @@ async function removeSyntheticRecords(): Promise<void> {
       albums,
     ]);
     await client.query("delete from albums where title like any($1)", [albums]);
-    await client.query("delete from tracks where title like $1", [own]);
+    // The review's sample tracks carry the catalog's own titles, so they are
+    // found by the artists they are credited to, as well as by the prefix.
+    await client.query(
+      `delete from tracks
+        where title like $1
+           or id in (select ta.track_id from track_artists ta
+                       join artists ar on ar.id = ta.artist_id
+                      where ar.name like any($2))`,
+      [own, artists],
+    );
     await client.query("delete from artists where name like any($1)", [
       artists,
     ]);

@@ -107,6 +107,24 @@ for (const width of [1280, 390]) {
   });
 }
 
+for (const width of [1280, 390]) {
+  test(`axe finds no violation in an open track panel at ${width}px`, async ({
+    page,
+  }) => {
+    await open(page, width, `${journalUrl}/edit`);
+    await page.getByRole("button", { name: /^Track 1:/ }).click();
+    await expect(page.getByLabel(/^Your reflection on /)).toBeVisible();
+    await scan(page, `an open track panel at ${width}px`);
+    // The keyboard reaches the rating and the three marks, in order.
+    await page.getByLabel(/^Your reflection on /).focus();
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Tab");
+    await expect(
+      page.getByRole("group", { name: /Rating for this track/ }),
+    ).toBeVisible();
+  });
+}
+
 test("the scanner is live: it reports a deliberately broken element", async ({
   page,
 }) => {

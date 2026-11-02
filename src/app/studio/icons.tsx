@@ -33,6 +33,8 @@ const SHAPES = {
   ),
   trash: <path d="M5 7h14M10 7V5h4v2M7 7l.9 12h8.2L17 7M10.5 11v5M13.5 11v5" />,
   back: <path d="M19 12H5M11 6l-6 6 6 6" />,
+  // Opens and closes a track: it turns a quarter when the track is open.
+  chevron: <path d="m9 6 6 6-6 6" />,
 } as const;
 
 export type IconName = keyof typeof SHAPES;

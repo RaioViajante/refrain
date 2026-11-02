@@ -1349,3 +1349,261 @@ html:has(.studio-editorbar[data-mode="edit"]) {
     font-size: 36px;
   }
 }
+
+/* ---------- Track by track ---------- */
+
+.studio-tracks {
+  display: grid;
+  gap: 14px;
+}
+
+.studio-tracks > .studio-section-title {
+  font-size: 32px;
+}
+
+.studio-tracklist {
+  display: block;
+  margin: 0;
+}
+
+/* A track is a row of the notebook: its number, its name in Kalam, its state in
+   words, and a chevron. The whole head is one button, 44px tall at least. */
+.studio-track {
+  display: block;
+  padding: 0;
+}
+
+.studio-track-head {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto 24px;
+  align-items: center;
+  gap: 2px 14px;
+  width: 100%;
+  min-height: 52px;
+  padding: 10px 6px;
+  border: 0;
+  background: none;
+  color: var(--color-ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.studio-track-number {
+  font-family: var(--font-kalam), cursive;
+  font-style: italic;
+  font-size: 18px;
+  color: var(--color-ink-2);
+}
+
+.studio-track-title {
+  min-width: 0;
+  font-family: var(--font-kalam), cursive;
+  font-size: 22px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.studio-track-title[data-state="empty"] {
+  color: var(--color-ink-3);
+}
+
+.studio-track-note {
+  font-family: var(--font-alegreya-sans), sans-serif;
+  font-size: 15px;
+  color: var(--color-ink-3);
+}
+
+.studio-track-state {
+  font-size: 15.5px;
+  color: #2e2e2e;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.studio-track-chevron {
+  display: inline-flex;
+  justify-content: center;
+  transition: transform 200ms ease;
+}
+
+.studio-track-chevron[data-open] {
+  transform: rotate(90deg);
+}
+
+.studio-track-panel {
+  padding: 4px 6px 22px 52px;
+}
+
+.studio-track-fields {
+  display: grid;
+  gap: 18px;
+}
+
+.studio-track-fields .studio-textarea {
+  min-height: 150px;
+  padding: 18px 22px;
+  font-size: 19px;
+}
+
+.studio-optional {
+  font-family: var(--font-alegreya-sans), sans-serif;
+  font-size: 15.5px;
+  color: var(--color-ink-3);
+}
+
+.studio-checks {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px 24px;
+}
+
+/* A checkbox is a drawn square; the whole label is a target at least 44px
+   tall. */
+.studio-check {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  column-gap: 12px;
+  align-items: center;
+}
+
+.studio-check input {
+  appearance: none;
+  position: relative;
+  width: 24px;
+  height: 24px;
+  margin: 10px 0 10px 0;
+  border: 0;
+  background: var(--stroke-field) 0 0 / 100% 100% no-repeat;
+  cursor: pointer;
+}
+
+.studio-check input:checked {
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23111111' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5.5 12.5 4.2 4.4 8.8-10'/%3E%3C/svg%3E"),
+    var(--stroke-field);
+  background-size:
+    18px 18px,
+    100% 100%;
+  background-position:
+    center,
+    0 0;
+}
+
+.studio-check input:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 4px;
+}
+
+.studio-check label {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.studio-check .studio-hint {
+  grid-column: 2;
+  margin-top: -8px;
+}
+
+.studio-track-visibility {
+  max-width: 62ch;
+  color: #2e2e2e;
+}
+
+/* The rating: five ink stars in halves, one radio group, a row 44px tall. */
+.studio-rating {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.studio-rating[data-compact] .studio-label {
+  font-family: var(--font-alegreya-sans), sans-serif;
+  font-size: 17px;
+}
+
+.studio-rating-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 14px;
+  min-height: 44px;
+}
+
+.studio-stars {
+  display: inline-flex;
+}
+
+.studio-star {
+  display: inline-flex;
+}
+
+.studio-star-half {
+  position: relative;
+  display: inline-flex;
+}
+
+.studio-star-half label {
+  display: inline-flex;
+  align-items: center;
+  height: 44px;
+  cursor: pointer;
+}
+
+.studio-star-half svg path {
+  fill: none;
+  stroke: var(--color-ink);
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+}
+
+.studio-star-half svg[data-on] path {
+  fill: var(--color-ink);
+}
+
+.studio-star-half input:focus-visible + label {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 2px;
+}
+
+.studio-rating-words {
+  font-size: 16px;
+  color: #2e2e2e;
+}
+
+@media (max-width: 720px) {
+  .studio-track-head {
+    grid-template-columns: 30px minmax(0, 1fr) 24px;
+  }
+
+  .studio-track-state {
+    grid-column: 2;
+    grid-row: 2;
+    text-align: left;
+    white-space: normal;
+  }
+
+  .studio-track-chevron {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .studio-track-panel {
+    padding-left: 4px;
+  }
+
+  .studio-checks {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (forced-colors: active) {
+  .studio-check input {
+    appearance: auto;
+    background: none;
+  }
+}

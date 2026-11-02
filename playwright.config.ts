@@ -69,7 +69,7 @@ export default defineConfig({
     {
       name: "desktop",
       testMatch:
-        /(catalog|journal|recovery|academic|navigation|layout|accessibility)\.spec\.ts/,
+        /(catalog|journal|tracks|recovery|academic|navigation|layout|accessibility)\.spec\.ts/,
       use: {
         browserName: "chromium",
         viewport: { width: 1280, height: 900 },
