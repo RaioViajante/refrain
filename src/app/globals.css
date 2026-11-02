@@ -1373,6 +1373,16 @@ html:has(.studio-editorbar[data-mode="edit"]) {
   padding: 0;
 }
 
+/* The hover tint belongs to the head, so an open panel (and the text being
+   written in it) is never tinted. */
+.studio-row.studio-track:hover {
+  background: none;
+}
+
+.studio-track-head:hover {
+  background: var(--color-hover);
+}
+
 .studio-track-head {
   display: grid;
   grid-template-columns: 38px minmax(0, 1fr) auto 24px;
@@ -1508,7 +1518,19 @@ html:has(.studio-editorbar[data-mode="edit"]) {
 
 .studio-track-visibility {
   max-width: 62ch;
+  padding-top: 10px;
+  background: var(--stroke-rule) 0 0 / 100% 8px no-repeat;
+  font-size: 16.5px;
   color: #2e2e2e;
+}
+
+/* The lead word answers the three boxes above it: private, set to show, or
+   public. Type only. */
+.studio-track-lead {
+  font-family: var(--font-kalam), cursive;
+  font-style: italic;
+  font-size: 18px;
+  color: var(--color-ink);
 }
 
 /* The rating: five ink stars in halves, one radio group, a row 44px tall. */
@@ -1573,6 +1595,31 @@ html:has(.studio-editorbar[data-mode="edit"]) {
 .studio-rating-words {
   font-size: 16px;
   color: #2e2e2e;
+}
+
+/* "No rating" is a real radio too. It is hidden like the others, so its focus
+   is drawn on the words. */
+.studio-rating-row:has(> input:focus-visible) .studio-rating-words {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 4px;
+}
+
+/* In the track panel the label, the stars, and the value sit on one line, as
+   in the V4.4 editor. */
+.studio-rating[data-compact] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 14px;
+}
+
+.studio-rating[data-compact] .studio-hint {
+  flex-basis: 100%;
+}
+
+.studio-rating[data-compact] legend {
+  float: left;
+  padding: 0;
 }
 
 @media (max-width: 720px) {

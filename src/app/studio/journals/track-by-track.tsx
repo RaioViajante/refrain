@@ -65,48 +65,54 @@ function writingState(
   return draft.isStillWriting ? "still writing" : "written";
 }
 
-// What is true of this reflection now, as saved: public, selected to show but
-// not public, or private. The mark alone is never described as enough.
-function visibilityWord(item: TrackByTrackItem, locale: Language) {
-  const saved = item.reflection;
-  if (!saved) {
-    return null;
-  }
-  if (saved.publicIn.length > 0) {
-    return "public";
-  }
-  if (saved.isPublished && saved.texts[locale] !== undefined) {
-    return "set to show";
-  }
-  return "private";
-}
-
+// What is true of this reflection, in a lead word and the rest of the sentence:
+// the lead says which of the three it is. The saved row decides what is
+// public; the draft only says what saving will do. The mark alone is never
+// described as enough.
 function visibilitySentence(
   item: TrackByTrackItem,
   draft: TrackDraft,
   locale: Language,
   status: string,
-): string {
+): { lead: string; rest: string } {
   const saved = item.reflection;
   const language = LANGUAGE_NAMES[locale];
   if (!draft.isPublished) {
-    return saved?.isPublished
-      ? "Not set to show any more once you save. Only you can see it."
-      : "Saved privately. Only you can see it.";
+    if (!saved) {
+      return {
+        lead: "Nothing saved yet",
+        rest: ". Once you save it, it stays private: only you can see it.",
+      };
+    }
+    return {
+      lead: "Private",
+      rest: saved.isPublished
+        ? ". Saving stops it being set to show on the public page. Only you can see it."
+        : ". It is not set to show on the public page. Only you can see it.",
+    };
   }
   if (!saved?.isPublished) {
-    return (
-      "Set to show on the public page once you save. That does not make it public by itself: the " +
-      `${language} version of the journal has to be published too.`
-    );
+    return {
+      lead: "Set to show once you save",
+      rest: `. That does not make it public by itself: the ${language} version of the journal has to be published too.`,
+    };
   }
   if (saved.publicIn.includes(locale)) {
-    return `Public. Readers of the published ${language} version can read it.`;
+    return {
+      lead: "Public",
+      rest: `. Readers of the published ${language} version can read it.`,
+    };
   }
   if (draft.text.trim() === "" || saved.texts[locale] === undefined) {
-    return `Set to show, but there is no text in ${language} yet, so there is nothing to show.`;
+    return {
+      lead: "Set to show",
+      rest: `, but there is no text in ${language} yet, so there is nothing to show.`,
+    };
   }
-  return `Set to show, and not public: the ${language} version of this journal is not published (it is ${status === "draft" ? "a draft" : status}). It appears only while that version is published.`;
+  return {
+    lead: "Set to show, and not public",
+    rest: `: the ${language} version of this journal is not published (it is ${status === "draft" ? "a draft" : status}). It appears only while that version is published.`,
+  };
 }
 
 interface TrackByTrackProps {
@@ -179,7 +185,7 @@ export function TrackByTrack({
                   type="button"
                   className="studio-track-head"
                   aria-expanded={isOpen}
-                  aria-controls={panelId}
+                  aria-controls={isOpen ? panelId : undefined}
                   onClick={() => toggle(item.trackId)}
                 >
                   <span className="studio-track-number" aria-hidden="true">
@@ -253,6 +259,7 @@ function TrackPanel({
   onEdit: (patch: Partial<TrackDraft>) => void;
 }) {
   const id = useId();
+  const sentence = visibilitySentence(item, draft, locale, status);
   const otherLocales = (
     Object.keys(item.reflection?.texts ?? {}) as Language[]
   ).filter((other) => other !== locale);
@@ -284,7 +291,7 @@ function TrackPanel({
         <p className="studio-hint">
           Also written in{" "}
           {otherLocales.map((other) => LANGUAGE_NAMES[other]).join(", ")}. It is
-          kept as it is, and stays private until that version is published.
+          kept as it is, and stays private unless it is set to show and that version is published.
         </p>
       ) : null}
 
@@ -315,8 +322,9 @@ function TrackPanel({
           onChange={(isPublished) => onEdit({ isPublished })}
         />
       </div>
-      <p className="studio-hint studio-track-visibility" aria-live="polite">
-        {visibilitySentence(item, draft, locale, status)}
+      <p className="studio-track-visibility" aria-live="polite">
+        <span className="studio-track-lead">{sentence.lead}</span>
+        {sentence.rest}
       </p>
     </div>
   );

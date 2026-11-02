@@ -55,11 +55,15 @@ export type CreateAlbumJournalInput = z.input<typeof createAlbumJournalInput>;
 export const MAX_REFLECTION_LENGTH = 20_000;
 export const MAX_REFLECTIONS_PER_SAVE = 500;
 
+// Unicode white space only, and the zero-width characters that render as
+// nothing, is blank (ADR 0006 § 4, step 6): a text row always means text.
+const INVISIBLE_ONLY = /^[\p{White_Space}\u200B-\u200D\u2060\uFEFF]*$/u;
+
 const reflectionText = z
   .string()
   .transform(normalizeBodyText)
   .pipe(z.string().max(MAX_REFLECTION_LENGTH))
-  .transform((value) => (value === "" ? null : value))
+  .transform((value) => (INVISIBLE_ONLY.test(value) ? null : value))
   .nullable();
 
 /** A rating in half steps (docs/data-model.md § Ratings): 1 to 10, `null` clears. */
