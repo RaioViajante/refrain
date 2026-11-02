@@ -69,7 +69,7 @@ export default defineConfig({
     {
       name: "desktop",
       testMatch:
-        /(catalog|journal|tracks|recovery|publication|academic|navigation|layout|accessibility)\.spec\.ts/,
+        /(catalog|journal|tracks|recovery|publication|academic|navigation|layout|accessibility|music)\.spec\.ts/,
       use: {
         browserName: "chromium",
         viewport: { width: 1280, height: 900 },
@@ -111,7 +111,7 @@ export default defineConfig({
       // The public album journal, anonymous, from the second server that has
       // public reads switched on (e2e/global-setup.ts): desktop and 390 px.
       name: "public-desktop",
-      testMatch: /public\.spec\.ts/,
+      testMatch: /public(-artwork)?\.spec\.ts/,
       use: {
         browserName: "chromium",
         viewport: { width: 1440, height: 900 },
@@ -120,7 +120,7 @@ export default defineConfig({
     },
     {
       name: "public-390",
-      testMatch: /public\.spec\.ts/,
+      testMatch: /public(-artwork)?\.spec\.ts/,
       use: {
         browserName: "chromium",
         viewport: { width: 390, height: 844 },
@@ -129,6 +129,20 @@ export default defineConfig({
         deviceScaleFactor: 2,
         storageState: undefined,
       },
+    },
+    {
+      // Add music and artwork (M3.2) again at a phone width.
+      name: "music-390",
+      testMatch: /music\.spec\.ts/,
+      use: {
+        browserName: "chromium",
+        viewport: { width: 390, height: 844 },
+        isMobile: true,
+        hasTouch: true,
+        deviceScaleFactor: 2,
+        storageState: AUTH_FILE,
+      },
+      dependencies: ["desktop"],
     },
     {
       name: "mobile-390",

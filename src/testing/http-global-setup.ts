@@ -22,6 +22,8 @@ declare module "vitest" {
     studioCommandEnv: Record<string, string>;
     /** File that receives the server's standard output and error. */
     studioServerLog: string;
+    /** The local MusicBrainz and Cover Art Archive mock (M3.2). */
+    providerMockOrigin: string;
   }
 }
 
@@ -49,5 +51,6 @@ async function prepare({ provide }: TestProject) {
   provide("studioDatabaseTarget", server.databaseTarget);
   provide("studioCommandEnv", server.commandEnv);
   provide("studioServerLog", server.serverLog);
+  provide("providerMockOrigin", server.providerMockOrigin);
   return server.stop;
 }

@@ -15,6 +15,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Client } from "pg";
 
+import { startProviderMock, type ProviderMock } from "./provider-mock";
 import {
   assertDisposableTestDatabase,
   effectiveTarget,
@@ -38,6 +39,8 @@ import {
 // 3. A synthetic author is created with the real provisioning command
 //    (`pnpm author:provision`), the password on standard input.
 // 4. `next start` runs on 127.0.0.1, in production mode, with a random secret.
+//    It reaches MusicBrainz and the Cover Art Archive only through a local
+//    mock of both (./provider-mock.ts), never the real services.
 //    With a fixed port, the port must be free: an existing server (a
 //    development server, an earlier run) is refused, never reused.
 //
@@ -66,6 +69,8 @@ export interface ProductionServer {
   commandEnv: Record<string, string>;
   /** File that receives the server's standard output and error. */
   serverLog: string;
+  /** The local MusicBrainz and Cover Art Archive mock the server uses. */
+  providerMockOrigin: string;
   /** Stops the server and removes the synthetic identity rows. */
   stop: () => Promise<void>;
 }
@@ -218,6 +223,8 @@ export async function startProductionServer(
     }
   });
 
+  const providers: ProviderMock = await startProviderMock();
+
   const target = effectiveTarget(connectionString, "TEST_DATABASE_URL");
   const databaseTarget = `${target.host}:${target.port}/${target.database}`;
   const port = await choosePort(options.port);
@@ -240,6 +247,10 @@ export async function startProductionServer(
   // The public-reads switch is never inherited from the shell that runs the
   // tests: a server has it only if the test sets it (ADR 0006, D4).
   delete env.REFRAIN_PUBLIC_READS_ENABLED;
+  // The music providers are always the local mock: a test never calls the
+  // real MusicBrainz or Cover Art Archive (M3.2).
+  env.REFRAIN_MUSICBRAINZ_BASE_URL = providers.musicBrainzBaseUrl;
+  env.REFRAIN_COVER_ART_ARCHIVE_BASE_URL = providers.coverArtArchiveBaseUrl;
   for (const [key, value] of Object.entries(options.env ?? {})) {
     if (value === undefined) {
       delete env[key];
@@ -287,6 +298,7 @@ export async function startProductionServer(
       await exited;
     }
     logStream.end();
+    await providers.stop();
     if (withAuthor) {
       // Only the rows this run created: the tables were empty when it began.
       await withVerifiedClient(connectionString, async (client) => {
@@ -319,6 +331,7 @@ export async function startProductionServer(
     databaseTarget,
     commandEnv,
     serverLog,
+    providerMockOrigin: providers.origin,
     stop,
   };
 }

@@ -317,6 +317,7 @@ describe("albums", () => {
         firstReleaseYear: 1994,
         mbReleaseGroupId: MB_ID,
         archived: false,
+        artwork: null,
         credits: [
           {
             artistId: second,
@@ -335,6 +336,7 @@ describe("albums", () => {
           label: "[Test] Label",
           releaseDate: "1994-08-23",
           country: "US",
+          mbReleaseId: null,
         },
         tracklist: [],
       });
@@ -1285,18 +1287,21 @@ describe("album updates are patches", () => {
         label: "[Test] New label",
         releaseDate: "1994-08-23",
         country: "US",
+        mbReleaseId: null,
       });
       await updateAlbum(tx, author, id, { edition: { country: null } });
       expect((await getAlbum(tx, author, id))?.edition).toEqual({
         label: "[Test] New label",
         releaseDate: "1994-08-23",
         country: null,
+        mbReleaseId: null,
       });
       await updateAlbum(tx, author, id, { edition: { releaseDate: "" } });
       expect((await getAlbum(tx, author, id))?.edition).toEqual({
         label: "[Test] New label",
         releaseDate: null,
         country: null,
+        mbReleaseId: null,
       });
       expect(await count(tx, "album_editions")).toBe(1);
     });

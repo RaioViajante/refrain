@@ -23,6 +23,8 @@ import {
   tamperedCookie,
   type MintedSession,
 } from "@/testing/http-session";
+import { artistReview, releaseReviews } from "@/testing/music-reviews";
+import { FIXTURE } from "@/testing/provider-fixtures";
 import { assertDisposableTestDatabase } from "@/testing/test-database";
 
 const base = inject("studioBaseURL");
@@ -2013,11 +2015,71 @@ describe("publishing from the studio, through real HTTP and PostgreSQL", () => {
 });
 
 describe("what a request without the author's session can do", () => {
+  // The fingerprints a review page would carry for the fixture records
+  // (M3.2), so an approval that got past the checks would really import.
+  const music = { review: "", linkReview: "", artistReview: "" };
+  beforeAll(async () => {
+    const reviews = await releaseReviews(FIXTURE.firstPressing);
+    music.review = reviews.review!;
+    music.linkReview = reviews.linkReview;
+    music.artistReview = await artistReview(FIXTURE.paperSinger);
+  });
+
   // Every action, called with valid arguments for records that exist, so a
   // missing check would visibly write. Each is listed by the name the build
   // gives it; a new action without an entry here fails the first test.
   function attempts(): Record<string, { args: unknown[]; routeId: string }> {
     return {
+      // Add music and artwork (M3.2).
+      importMusicReleaseAction: {
+        args: [
+          {
+            releaseId: FIXTURE.firstPressing,
+            review: music.review,
+            coverImageId: FIXTURE.frontImage,
+          },
+        ],
+        routeId: FIXTURE.firstPressing,
+      },
+      linkAlbumToMusicAction: {
+        args: [
+          {
+            albumId: ids.album,
+            releaseId: FIXTURE.firstPressing,
+            review: music.linkReview,
+          },
+        ],
+        routeId: FIXTURE.firstPressing,
+      },
+      importMusicArtistAction: {
+        args: [{ mbArtistId: FIXTURE.paperSinger, review: music.artistReview }],
+        routeId: FIXTURE.paperSinger,
+      },
+      linkArtistToMusicAction: {
+        args: [
+          {
+            artistId: ids.artist,
+            mbArtistId: FIXTURE.paperSinger,
+            review: music.artistReview,
+          },
+        ],
+        routeId: FIXTURE.paperSinger,
+      },
+      setAlbumArtworkAction: {
+        args: [
+          {
+            albumId: ids.album,
+            releaseId: FIXTURE.firstPressing,
+            imageId: FIXTURE.frontImage,
+            expectedCoverUrl: null,
+          },
+        ],
+        routeId: ids.album,
+      },
+      removeAlbumArtworkAction: {
+        args: [{ albumId: ids.album, expectedCoverUrl: null }],
+        routeId: ids.album,
+      },
       createArtistAction: {
         args: [{ name: `${label} Intruder`, kind: "person" }],
         routeId: NOWHERE,
@@ -2158,7 +2220,7 @@ describe("what a request without the author's session can do", () => {
 
   it("covers every server action in the build", () => {
     expect(Object.keys(attempts()).sort()).toEqual(Object.keys(actions).sort());
-    expect(Object.keys(actions).length).toBeGreaterThanOrEqual(26);
+    expect(Object.keys(actions).length).toBeGreaterThanOrEqual(32);
   });
 
   async function credentials(): Promise<[string, string | undefined][]> {
