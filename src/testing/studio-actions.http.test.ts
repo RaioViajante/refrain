@@ -123,6 +123,34 @@ async function call(
   return parseResult(await response.text());
 }
 
+// Like `call`, and also returns the response text and headers, for the checks
+// about what a response carries (no-store, no token, no writing).
+async function callRaw(
+  name: string,
+  args: unknown[],
+  options: { cookie?: string; routeId?: string } = {},
+): Promise<{ result: Result; text: string; headers: Headers }> {
+  const action = actions[name];
+  if (!action) {
+    throw new Error(`The build has no server action named ${name}.`);
+  }
+  const route = action.route.replace("[id]", options.routeId ?? NOWHERE);
+  const response = await fetch(`${base}${route}`, {
+    method: "POST",
+    redirect: "manual",
+    headers: {
+      origin: base,
+      accept: "text/x-component",
+      "content-type": "text/plain;charset=UTF-8",
+      "next-action": action.id,
+      ...(options.cookie ? { cookie: options.cookie } : {}),
+    },
+    body: JSON.stringify(args),
+  });
+  const text = await response.text();
+  return { result: parseResult(text), text, headers: response.headers };
+}
+
 function get(path: string, headers: Record<string, string> = {}) {
   return fetch(`${base}${path}`, { redirect: "manual", headers });
 }
@@ -226,6 +254,14 @@ const ids = {
   recoverable: "",
 };
 let journalVersion = 1;
+
+// The data of a successful result, for the checks that read nested fields.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function dataOf(result: Result): Record<string, any> {
+  expect(result, JSON.stringify(result)).toMatchObject({ ok: true });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (result as { data: Record<string, any> }).data;
+}
 
 function ok(result: Result): Record<string, unknown> {
   expect(result, JSON.stringify(result)).toMatchObject({ ok: true });
@@ -423,7 +459,14 @@ describe("the author's complete journey, through real HTTP and PostgreSQL", () =
     ok(
       await call(
         "setJournalPrivacyAction",
-        [{ entryId: ids.recoverable, locale: "en", status: "private" }],
+        [
+          {
+            entryId: ids.recoverable,
+            locale: "en",
+            status: "private",
+            expectedStatus: "draft",
+          },
+        ],
         { cookie: cookie(), routeId: ids.recoverable },
       ),
     );
@@ -822,7 +865,14 @@ describe("the author's complete journey, through real HTTP and PostgreSQL", () =
     ok(
       await call(
         "setJournalPrivacyAction",
-        [{ entryId: ids.journal, locale: "pt-BR", status: "private" }],
+        [
+          {
+            entryId: ids.journal,
+            locale: "pt-BR",
+            status: "private",
+            expectedStatus: "draft",
+          },
+        ],
         { cookie: cookie(), routeId: ids.journal },
       ),
     );
@@ -835,7 +885,14 @@ describe("the author's complete journey, through real HTTP and PostgreSQL", () =
     for (const status of ["published", "public", ""]) {
       const refused = await call(
         "setJournalPrivacyAction",
-        [{ entryId: ids.journal, locale: "pt-BR", status }],
+        [
+          {
+            entryId: ids.journal,
+            locale: "pt-BR",
+            status,
+            expectedStatus: "private",
+          },
+        ],
         { cookie: cookie(), routeId: ids.journal },
       );
       expect(refused).toMatchObject({ ok: false, code: "invalid_input" });
@@ -1154,7 +1211,7 @@ describe("writing track by track, through real HTTP and PostgreSQL", () => {
     expect(await snapshot()).toEqual(before);
   });
 
-  it("refuses a change to a published journal's public page, whatever the request carries, and shows no writing in the answer", async () => {
+  it("refuses a change to a published journal's public page without the dialog's confirmation, and shows no writing in the answer", async () => {
     published = await create("published");
     ok(
       await call(
@@ -1175,23 +1232,39 @@ describe("writing track by track, through real HTTP and PostgreSQL", () => {
         { cookie: cookie(), routeId: published },
       ),
     );
-    // The studio cannot publish yet: the journal is made public directly, on
-    // the disposable database, for this test only.
-    await db.query(
-      `update entry_texts set status = 'published', published_at = now(),
-              first_published_at = now() where entry_id = $1`,
-      [published],
+    // Published through the studio's own two requests: a preview, then the
+    // publish with the token the preview returned.
+    const shown = ok(
+      await call(
+        "previewPublicationAction",
+        [{ entryId: published, locale: "en" }],
+        { cookie: cookie(), routeId: published },
+      ),
+    );
+    ok(
+      await call(
+        "publishJournalVersionAction",
+        [
+          {
+            entryId: published,
+            locale: "en",
+            expectedVersion: await versionOf(published),
+            confirmation: shown.confirmation,
+          },
+        ],
+        { cookie: cookie(), routeId: published },
+      ),
     );
     const before = await snapshot();
     const version = await versionOf(published);
-    for (const extra of [
-      {},
-      // The action never forwards a confirmation from the request: if it did,
-      // this would be an invalid_input, not the same refusal.
-      { confirmation: "not-a-token" },
-      { confirmation: "ct1.AAAA.BBBB" },
-    ]) {
-      const refused = await call(
+    for (const [extra, code] of [
+      [{}, "confirmation_required"],
+      // A token that is not of the token's form is an input error.
+      [{ confirmation: "not-a-token" }, "invalid_input"],
+      // One of the right form that this server never issued.
+      [{ confirmation: "ct1.AAAA.BBBB" }, "confirmation_invalid"],
+    ] as const) {
+      const refused = await callRaw(
         "saveJournalAction",
         [
           {
@@ -1203,7 +1276,10 @@ describe("writing track by track, through real HTTP and PostgreSQL", () => {
         ],
         { cookie: cookie(), routeId: published },
       );
-      expect(refused).toEqual({ ok: false, code: "published" });
+      expect(refused.result).toMatchObject({ ok: false, code });
+      // No writing, no disclosure, and no token in the refusal.
+      expect(refused.text).not.toContain(label);
+      expect(refused.text).not.toContain("ct1.");
     }
     for (const change of [
       { albumRating: 6 },
@@ -1220,7 +1296,7 @@ describe("writing track by track, through real HTTP and PostgreSQL", () => {
           [{ entryId: published, expectedVersion: version, ...change }],
           { cookie: cookie(), routeId: published },
         ),
-      ).toEqual({ ok: false, code: "published" });
+      ).toEqual({ ok: false, code: "confirmation_required" });
     }
     expect(await snapshot()).toEqual(before);
 
@@ -1267,6 +1343,672 @@ describe("writing track by track, through real HTTP and PostgreSQL", () => {
       ).toEqual({ ok: false, code: "unauthorized" });
     }
     expect(await snapshot()).toEqual(before);
+  });
+});
+
+describe("publishing from the studio, through real HTTP and PostgreSQL", () => {
+  const cookie = () => author.cookie;
+
+  const statusOf = (entryId: string, locale = "en") =>
+    scalar<string>(
+      "select status from entry_texts where entry_id = $1 and locale = $2",
+      [entryId, locale],
+    );
+  const versionOf = (entryId: string) =>
+    scalar<number>("select version from entries where id = $1", [entryId]);
+
+  // A journal with writing, an album rating, and one track reflection that is
+  // set to show, so there is something to disclose.
+  async function written(suffix: string): Promise<string> {
+    const entryId = String(
+      ok(
+        await call(
+          "createJournalAction",
+          [
+            {
+              albumId: ids.album,
+              locale: "en",
+              opening: `${label} ${suffix} opening`,
+              body: `${label} ${suffix} body.`,
+            },
+          ],
+          { cookie: cookie() },
+        ),
+      ).entryId,
+    );
+    ok(
+      await call(
+        "saveJournalAction",
+        [
+          {
+            entryId,
+            expectedVersion: 1,
+            albumRating: 9,
+            reflections: [
+              {
+                trackId: ids.track,
+                isPublished: true,
+                texts: { en: `${label} ${suffix} track words` },
+              },
+            ],
+          },
+        ],
+        { cookie: cookie(), routeId: entryId },
+      ),
+    );
+    return entryId;
+  }
+
+  const preview = async (entryId: string, asCookie = cookie()) =>
+    ok(
+      await call("previewPublicationAction", [{ entryId, locale: "en" }], {
+        cookie: asCookie,
+        routeId: entryId,
+      }),
+    ) as {
+      confirmation: string;
+      review: { text: unknown; reflections: unknown[] };
+    };
+
+  const publish = async (
+    entryId: string,
+    confirmation: unknown,
+    options: { cookie?: string; expectedVersion?: number } = {},
+  ) =>
+    call(
+      "publishJournalVersionAction",
+      [
+        {
+          entryId,
+          locale: "en",
+          expectedVersion:
+            options.expectedVersion ?? (await versionOf(entryId)),
+          ...(confirmation === undefined ? {} : { confirmation }),
+        },
+      ],
+      { cookie: options.cookie ?? cookie(), routeId: entryId },
+    );
+
+  let live = "";
+
+  it("previews what readers would see with a token, and publishes nothing", async () => {
+    const entryId = await written("preview");
+    const before = await snapshot();
+    const shown = await callRaw(
+      "previewPublicationAction",
+      [{ entryId, locale: "en" }],
+      { cookie: cookie(), routeId: entryId },
+    );
+    expect(shown.result).toMatchObject({ ok: true });
+    // Private writing goes only to the author's request, and is never cached.
+    expect(shown.headers.get("cache-control")).toContain("no-store");
+    const data = dataOf(shown.result);
+    expect(data.confirmation).toMatch(/^ct1\./);
+    expect(data.expiresAtMs).toBeGreaterThan(Date.now());
+    expect(data.review).toMatchObject({
+      entryId,
+      locale: "en",
+      status: "draft",
+      opening: `${label} preview opening`,
+      text: [[`${label} preview body.`]],
+      albumRating: { halfSteps: 9, alreadyPublic: false },
+    });
+    expect(data.review.reflections).toHaveLength(1);
+    expect(data.review.reflections[0].text).toEqual([
+      [`${label} preview track words`],
+    ]);
+    // A preview changes nothing, anywhere.
+    expect(await snapshot()).toEqual(before);
+    expect(await statusOf(entryId)).toBe("draft");
+  });
+
+  it("refuses a preview of anything that cannot be published, with fixed codes and no writing", async () => {
+    const entryId = await written("refused");
+    const before = await snapshot();
+    const cases: [string, unknown, string][] = [
+      ["an unknown journal", { entryId: NOWHERE, locale: "en" }, "not_found"],
+      ["a malformed id", { entryId: "nope", locale: "en" }, "invalid_input"],
+      [
+        "a language that does not exist",
+        { entryId, locale: "fr" },
+        "invalid_input",
+      ],
+      [
+        "a language version not written",
+        { entryId, locale: "pt-BR" },
+        "not_found",
+      ],
+      [
+        "an extra field",
+        { entryId, locale: "en", status: "published" },
+        "invalid_input",
+      ],
+      ["no input", undefined, "invalid_input"],
+    ];
+    for (const [what, input, code] of cases) {
+      const refused = await callRaw("previewPublicationAction", [input], {
+        cookie: cookie(),
+        routeId: entryId,
+      });
+      expect(refused.result, what).toMatchObject({ ok: false, code });
+      expect(refused.text, what).not.toMatch(
+        /select |insert |constraint|\bat \//i,
+      );
+      expect(refused.text, what).not.toContain("ct1.");
+    }
+    expect(await snapshot()).toEqual(before);
+  });
+
+  it("publishes only with the token that a preview returned, to this session, for this journal", async () => {
+    live = await written("live");
+    const mine = await preview(live);
+    // Another journal, with its own preview, for the wrong-journal case.
+    const elsewhere = await written("elsewhere");
+    const theirs = await preview(elsewhere);
+    const before = await snapshot();
+
+    // No confirmation at all.
+    expect(await publish(live, undefined)).toEqual({
+      ok: false,
+      code: "confirmation_required",
+    });
+    // Not of the token's form: an input error.
+    for (const bad of ["", "x", "ct1", "not-a-token"]) {
+      expect(await publish(live, bad)).toMatchObject({
+        ok: false,
+        code: "invalid_input",
+      });
+    }
+    // The right form, never issued by this server.
+    expect(await publish(live, "ct1.AAAA.BBBB")).toEqual({
+      ok: false,
+      code: "confirmation_invalid",
+    });
+    // Another session of the same author cannot use this session's token.
+    const other = await mintAuthorSession(db, secret);
+    expect(
+      await publish(live, mine.confirmation, { cookie: other.cookie }),
+    ).toEqual({
+      ok: false,
+      code: "confirmation_invalid",
+    });
+    // Another journal's token.
+    expect(await publish(live, theirs.confirmation)).toEqual({
+      ok: false,
+      code: "confirmation_invalid",
+    });
+    // A stale editor.
+    expect(await publish(live, undefined, { expectedVersion: 99 })).toEqual({
+      ok: false,
+      code: "conflict",
+    });
+    expect(await snapshot()).toEqual(before);
+    expect(await statusOf(live)).toBe("draft");
+
+    // With the token from its own preview, it publishes, and the answer
+    // carries no token.
+    const done = await callRaw(
+      "publishJournalVersionAction",
+      [
+        {
+          entryId: live,
+          locale: "en",
+          expectedVersion: await versionOf(live),
+          confirmation: mine.confirmation,
+        },
+      ],
+      { cookie: cookie(), routeId: live },
+    );
+    expect(done.result).toEqual({ ok: true, data: { changed: true } });
+    // The token is never echoed. (A success also carries the re-rendered
+    // studio page, which is the author's own page for their own request.)
+    expect(done.text).not.toContain("ct1.");
+    expect(await statusOf(live)).toBe("published");
+    expect(
+      await scalar<boolean>(
+        "select was_published from entry_slugs where entry_id = $1 and is_current",
+        [live],
+      ),
+    ).toBe(true);
+    // Publishing changed no reflection's own setting.
+    expect(
+      await scalar<boolean>(
+        "select is_published from track_reflections where album_journal_id = $1",
+        [live],
+      ),
+    ).toBe(true);
+    // The token is spent: the state it described is gone.
+    expect(await publish(live, mine.confirmation)).toMatchObject({
+      ok: false,
+    });
+    expect(elsewhere).not.toBe(live);
+  });
+
+  it("lets exactly one of two simultaneous confirmations through", async () => {
+    const entryId = await written("double");
+    const shown = await preview(entryId);
+    const version = await versionOf(entryId);
+    const results = await Promise.all([
+      publish(entryId, shown.confirmation, { expectedVersion: version }),
+      publish(entryId, shown.confirmation, { expectedVersion: version }),
+    ]);
+    expect(results.filter((result) => result.ok)).toHaveLength(1);
+    expect(results.find((result) => !result.ok)).toEqual({
+      ok: false,
+      code: "confirmation_stale",
+    });
+    expect(await statusOf(entryId)).toBe("published");
+  });
+
+  it("refuses a token once the journal changed after the preview", async () => {
+    const entryId = await written("changed");
+    const shown = await preview(entryId);
+    const version = await versionOf(entryId);
+    ok(
+      await call(
+        "saveJournalAction",
+        [
+          {
+            entryId,
+            expectedVersion: version,
+            body: `${label} written again.`,
+          },
+        ],
+        { cookie: cookie(), routeId: entryId },
+      ),
+    );
+    // The editor that held the preview is stale...
+    expect(
+      await publish(entryId, shown.confirmation, { expectedVersion: version }),
+    ).toEqual({ ok: false, code: "conflict" });
+    // ...and the token is not accepted for the new version either.
+    expect(await publish(entryId, shown.confirmation)).toEqual({
+      ok: false,
+      code: "confirmation_invalid",
+    });
+    expect(await statusOf(entryId)).toBe("draft");
+    // A new preview shows the new writing.
+    const fresh = await preview(entryId);
+    expect(fresh.review.text).toEqual([[`${label} written again.`]]);
+  });
+
+  it("edits published writing only with the confirmation of exactly that change", async () => {
+    const version = await versionOf(live);
+    const shorter = {
+      entryId: live,
+      expectedVersion: version,
+      body: `${label} short`,
+    };
+    const before = await snapshot();
+
+    // Without it, and with a token that was never issued: refused, nothing saved.
+    expect(
+      await call("saveJournalAction", [shorter], {
+        cookie: cookie(),
+        routeId: live,
+      }),
+    ).toEqual({ ok: false, code: "confirmation_required" });
+    expect(
+      await call(
+        "saveJournalAction",
+        [{ ...shorter, confirmation: "ct1.AAAA.BBBB" }],
+        {
+          cookie: cookie(),
+          routeId: live,
+        },
+      ),
+    ).toEqual({ ok: false, code: "confirmation_invalid" });
+    expect(await snapshot()).toEqual(before);
+
+    // The preview names the change, mints a token, and writes nothing.
+    const shown = await callRaw("previewPublicChangeAction", [shorter], {
+      cookie: cookie(),
+      routeId: live,
+    });
+    expect(shown.headers.get("cache-control")).toContain("no-store");
+    const data = dataOf(shown.result);
+    expect(data.confirmation).toMatch(/^ct1\./);
+    expect(data.review.changes).toEqual([
+      {
+        kind: "edited",
+        label: "Your reflection",
+        locale: "en",
+        before: { type: "text", text: [[`${label} live body.`]] },
+        after: { type: "text", text: [[`${label} short`]] },
+      },
+    ]);
+    expect(await snapshot()).toEqual(before);
+
+    // Another session's token is refused.
+    const other = await mintAuthorSession(db, secret);
+    const theirs = ok(
+      await call("previewPublicChangeAction", [shorter], {
+        cookie: other.cookie,
+        routeId: live,
+      }),
+    );
+    expect(
+      await call(
+        "saveJournalAction",
+        [{ ...shorter, confirmation: theirs.confirmation }],
+        { cookie: cookie(), routeId: live },
+      ),
+    ).toEqual({ ok: false, code: "confirmation_invalid" });
+    expect(await snapshot()).toEqual(before);
+
+    // The author's own token saves exactly that change, once.
+    const saved = ok(
+      await call(
+        "saveJournalAction",
+        [{ ...shorter, confirmation: data.confirmation }],
+        { cookie: cookie(), routeId: live },
+      ),
+    );
+    expect(saved.version).toBe(version + 1);
+    expect(
+      await scalar<string>(
+        "select body_text from entry_texts where entry_id = $1",
+        [live],
+      ),
+    ).toBe(`${label} short`);
+    expect(
+      await call(
+        "saveJournalAction",
+        [
+          {
+            ...shorter,
+            expectedVersion: version + 1,
+            confirmation: data.confirmation,
+          },
+        ],
+        { cookie: cookie(), routeId: live },
+      ),
+    ).toMatchObject({ ok: false });
+
+    // A change that touches nothing readers see has nothing to confirm.
+    const quiet = ok(
+      await call(
+        "previewPublicChangeAction",
+        [
+          {
+            entryId: live,
+            expectedVersion: version + 1,
+            reflections: [{ trackId: ids.track, isPublished: false }],
+          },
+        ],
+        { cookie: cookie(), routeId: live },
+      ),
+    );
+    expect(quiet.confirmation).toBeNull();
+  });
+
+  it("refuses a token made for the other operation, and previews of a journal in Recently deleted", async () => {
+    // A publish token cannot save, and a change token cannot publish.
+    const live2 = await written("purposes live");
+    ok(await publish(live2, (await preview(live2)).confirmation));
+    const v2 = await versionOf(live2);
+    const publishToken = (await preview(live2)).confirmation;
+    const changeToken = dataOf(
+      await call(
+        "previewPublicChangeAction",
+        [{ entryId: live2, expectedVersion: v2, body: `${label} other edit` }],
+        { cookie: cookie(), routeId: live2 },
+      ),
+    ).confirmation as string;
+    expect(
+      await call(
+        "saveJournalAction",
+        [
+          {
+            entryId: live2,
+            expectedVersion: v2,
+            body: `${label} other edit`,
+            confirmation: publishToken,
+          },
+        ],
+        { cookie: cookie(), routeId: live2 },
+      ),
+    ).toEqual({ ok: false, code: "confirmation_invalid" });
+    expect(await publish(live2, changeToken)).toEqual({
+      ok: false,
+      code: "confirmation_invalid",
+    });
+
+    // Recently deleted: both previews answer a fixed code and nothing else.
+    ok(
+      await call("deleteJournalAction", [live2], {
+        cookie: cookie(),
+        routeId: live2,
+      }),
+    );
+    const before = await snapshot();
+    const refused = await callRaw(
+      "previewPublicChangeAction",
+      [{ entryId: live2, expectedVersion: v2, body: `${label} late edit` }],
+      { cookie: cookie(), routeId: live2 },
+    );
+    expect(refused.result).toEqual({ ok: false, code: "deleted" });
+    expect(refused.text).not.toContain(label);
+    expect(refused.text).not.toContain("ct1.");
+    expect(
+      await call(
+        "previewPublicChangeAction",
+        [{ entryId: NOWHERE, expectedVersion: 1, body: "x" }],
+        { cookie: cookie(), routeId: live2 },
+      ),
+    ).toMatchObject({ ok: false, code: "not_found" });
+    expect(await snapshot()).toEqual(before);
+  });
+
+  it("does not let a token from while a version was private be replayed after it is published and made private again", async () => {
+    const entryId = await written("replay");
+    ok(
+      await call(
+        "setJournalPrivacyAction",
+        [
+          {
+            entryId,
+            locale: "en",
+            status: "private",
+            expectedStatus: "draft",
+          },
+        ],
+        { cookie: cookie(), routeId: entryId },
+      ),
+    );
+    const first = await preview(entryId);
+    ok(await publish(entryId, first.confirmation));
+    ok(
+      await call(
+        "setJournalPrivacyAction",
+        [
+          {
+            entryId,
+            locale: "en",
+            status: "private",
+            expectedStatus: "published",
+          },
+        ],
+        { cookie: cookie(), routeId: entryId },
+      ),
+    );
+    // Back to the status it had at the review; only the stamp tells.
+    expect(await statusOf(entryId)).toBe("private");
+    expect(await publish(entryId, first.confirmation)).toEqual({
+      ok: false,
+      code: "confirmation_stale",
+    });
+    expect(await statusOf(entryId)).toBe("private");
+  });
+
+  it("unpublishes one language version and deletes nothing", async () => {
+    const entryId = await written("unpublish");
+    await publish(entryId, (await preview(entryId)).confirmation);
+    expect(await statusOf(entryId)).toBe("published");
+    const history = await scalar<string>(
+      "select first_published_at::text from entry_texts where entry_id = $1",
+      [entryId],
+    );
+    const text = await scalar<string>(
+      "select body_text from entry_texts where entry_id = $1",
+      [entryId],
+    );
+
+    expect(
+      await call(
+        "setJournalPrivacyAction",
+        [
+          {
+            entryId,
+            locale: "en",
+            status: "private",
+            expectedStatus: "published",
+          },
+        ],
+        { cookie: cookie(), routeId: entryId },
+      ),
+    ).toMatchObject({ ok: true });
+    expect(await statusOf(entryId)).toBe("private");
+    expect(
+      await scalar<string | null>(
+        "select published_at::text from entry_texts where entry_id = $1",
+        [entryId],
+      ),
+    ).toBeNull();
+    expect(
+      await scalar<string>(
+        "select first_published_at::text from entry_texts where entry_id = $1",
+        [entryId],
+      ),
+    ).toBe(history);
+    expect(
+      await scalar<string>(
+        "select body_text from entry_texts where entry_id = $1",
+        [entryId],
+      ),
+    ).toBe(text);
+    // Its address stays reserved.
+    expect(
+      await scalar<boolean>(
+        "select was_published from entry_slugs where entry_id = $1 and is_current",
+        [entryId],
+      ),
+    ).toBe(true);
+    // It cannot be "unpublished" into published.
+    expect(
+      await call(
+        "setJournalPrivacyAction",
+        [
+          {
+            entryId,
+            locale: "en",
+            status: "published",
+            expectedStatus: "private",
+          },
+        ],
+        { cookie: cookie(), routeId: entryId },
+      ),
+    ).toMatchObject({ ok: false, code: "invalid_input" });
+  });
+
+  it("refuses a stale Draft, Private, or Unpublish from a tab that no longer shows the real state", async () => {
+    const entryId = await written("stale");
+    const setStatus = (status: string, expectedStatus: string) =>
+      call(
+        "setJournalPrivacyAction",
+        [{ entryId, locale: "en", status, expectedStatus }],
+        { cookie: cookie(), routeId: entryId },
+      );
+
+    // Tab A drew the page while the version was private (it was a draft
+    // here; use private as A's belief). Tab B publishes it meanwhile.
+    ok(await setStatus("private", "draft"));
+    ok(await publish(entryId, (await preview(entryId)).confirmation));
+    const before = await snapshot();
+
+    // Tab A still shows "private": its Draft click must not unpublish.
+    expect(await setStatus("draft", "private")).toEqual({
+      ok: false,
+      code: "status_changed",
+    });
+    expect(await setStatus("private", "private")).toEqual({
+      ok: false,
+      code: "status_changed",
+    });
+    expect(await statusOf(entryId)).toBe("published");
+    expect(await snapshot()).toEqual(before);
+
+    // The author's own Unpublish, from a tab that shows the real state, works.
+    ok(await setStatus("private", "published"));
+    expect(await statusOf(entryId)).toBe("private");
+
+    // And a stale Unpublish (the tab still shows "published") is refused
+    // instead of being applied again.
+    expect(await setStatus("draft", "published")).toEqual({
+      ok: false,
+      code: "status_changed",
+    });
+    expect(await statusOf(entryId)).toBe("private");
+
+    // No expectation at all is an input error: nothing is applied blindly.
+    expect(
+      await call(
+        "setJournalPrivacyAction",
+        [{ entryId, locale: "en", status: "draft" }],
+        { cookie: cookie(), routeId: entryId },
+      ),
+    ).toMatchObject({ ok: false, code: "invalid_input" });
+    expect(await statusOf(entryId)).toBe("private");
+  });
+
+  it("returns a deleted, published journal private, and publishes it again only after a new review", async () => {
+    const entryId = await written("restore");
+    const first = await preview(entryId);
+    ok(await publish(entryId, first.confirmation));
+
+    ok(
+      await call("deleteJournalAction", [entryId], {
+        cookie: cookie(),
+        routeId: entryId,
+      }),
+    );
+    // Nothing can be previewed or published while it is deleted.
+    expect(
+      await call("previewPublicationAction", [{ entryId, locale: "en" }], {
+        cookie: cookie(),
+        routeId: entryId,
+      }),
+    ).toEqual({ ok: false, code: "deleted" });
+    expect(await publish(entryId, first.confirmation)).toEqual({
+      ok: false,
+      code: "deleted",
+    });
+
+    const restored = ok(
+      await call("restoreJournalAction", [entryId], {
+        cookie: cookie(),
+        routeId: entryId,
+      }),
+    );
+    expect(restored.madePrivate).toEqual(["en"]);
+    expect(await statusOf(entryId)).toBe("private");
+
+    // The review from before the deletion is stale, and no token is refused.
+    expect(await publish(entryId, first.confirmation)).toEqual({
+      ok: false,
+      code: "confirmation_stale",
+    });
+    expect(await publish(entryId, undefined)).toEqual({
+      ok: false,
+      code: "confirmation_required",
+    });
+    expect(await statusOf(entryId)).toBe("private");
+
+    // A new review shows the reflection that was set to show before.
+    const second = await preview(entryId);
+    expect(second.review.reflections).toHaveLength(1);
+    ok(await publish(entryId, second.confirmation));
+    expect(await statusOf(entryId)).toBe("published");
   });
 });
 
@@ -1367,7 +2109,41 @@ describe("what a request without the author's session can do", () => {
         routeId: ids.journal,
       },
       setJournalPrivacyAction: {
-        args: [{ entryId: ids.journal, locale: "pt-BR", status: "draft" }],
+        args: [
+          {
+            entryId: ids.journal,
+            locale: "pt-BR",
+            status: "draft",
+            expectedStatus: "private",
+          },
+        ],
+        routeId: ids.journal,
+      },
+      // Publication (ADR 0006 § 10): both previews return private writing, so
+      // they are refused to a visitor too.
+      previewPublicationAction: {
+        args: [{ entryId: ids.journal, locale: "en" }],
+        routeId: ids.journal,
+      },
+      previewPublicChangeAction: {
+        args: [
+          {
+            entryId: ids.journal,
+            expectedVersion: journalVersion,
+            body: `${label} hijacked words`,
+          },
+        ],
+        routeId: ids.journal,
+      },
+      publishJournalVersionAction: {
+        args: [
+          {
+            entryId: ids.journal,
+            locale: "en",
+            expectedVersion: journalVersion,
+            confirmation: "ct1.AAAA.BBBB",
+          },
+        ],
         routeId: ids.journal,
       },
       deleteJournalAction: { args: [ids.journal], routeId: ids.journal },
@@ -1382,7 +2158,7 @@ describe("what a request without the author's session can do", () => {
 
   it("covers every server action in the build", () => {
     expect(Object.keys(attempts()).sort()).toEqual(Object.keys(actions).sort());
-    expect(Object.keys(actions).length).toBeGreaterThanOrEqual(23);
+    expect(Object.keys(actions).length).toBeGreaterThanOrEqual(26);
   });
 
   async function credentials(): Promise<[string, string | undefined][]> {
@@ -1936,8 +2712,8 @@ describe("recovering a journal from Recently deleted, through real HTTP and Post
         cookie: cookie(),
       })
     ).text();
-    expect(html).toContain("that part is now private");
-    expect(html).toContain("Nothing is published again until you choose to");
+    expect(html).toContain("is now private");
+    expect(html).toContain("Restoring publishes nothing");
   });
 
   it("names a notice only from a fixed word, never from the query string", async () => {
@@ -2092,7 +2868,14 @@ describe("the journey ends cleanly", () => {
     expect(
       await call(
         "setJournalPrivacyAction",
-        [{ entryId: ids.journal, locale: "pt-BR", status: "draft" }],
+        [
+          {
+            entryId: ids.journal,
+            locale: "pt-BR",
+            status: "draft",
+            expectedStatus: "private",
+          },
+        ],
         { cookie: author.cookie, routeId: ids.journal },
       ),
     ).toEqual({ ok: false, code: "deleted" });
@@ -2157,5 +2940,7 @@ describe("the journey ends cleanly", () => {
       expect(log).not.toContain(text);
     }
     expect(log).not.toMatch(/insert into|update "|select "/i);
+    // A confirmation token is never logged (ADR 0006 § 3).
+    expect(log).not.toContain("ct1.");
   });
 });

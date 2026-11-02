@@ -16,9 +16,8 @@ const FORBIDDEN_NAMES = new Set([
   "unpublishLanguageVersion",
   "previewPublication",
   "previewPublicChange",
-  // M2.2: the confirmed save's domain pieces. The studio's save action may
-  // call only the save, and never forwards a confirmation (M2.3 builds the
-  // dialogs that may).
+  // The confirmed save's domain pieces. The Journals wrappers that M2.3
+  // exposes to the studio are in WRAPPER_FILES below, each in one file only.
   "previewAlbumJournalChange",
   "verifyChangeConfirmation",
   "requirePublicChangeConfirmation",
@@ -32,13 +31,37 @@ const FORBIDDEN_NAMES = new Set([
   "permanentlyDeleteEntry",
 ]);
 
+// The Journals wrappers that studio actions call (ADR 0006 § 9), and the one
+// file each may be named in. A token is minted only by the two preview actions,
+// each alone in its own file, and the publish wrapper is called only by the
+// publish action. Adding a file here needs review.
+const J = "src/app/studio/journals";
+const WRAPPER_FILES: Record<string, string[]> = {
+  previewAlbumJournalPublication: [`${J}/preview-publication-action.ts`],
+  previewAlbumJournalPublicChange: [`${J}/preview-change-action.ts`],
+  publishAlbumJournalVersion: [`${J}/actions.ts`],
+};
+
+// The confirmation token reaches the browser only inside a dialog and leaves
+// it only from that dialog's confirm control (ADR 0006 § 5). The two dialogs
+// are the only client files that may name it, and each preview action is
+// imported by its own dialog alone.
+const TOKEN_FILES = new Set([
+  `${J}/publish-dialog.tsx`,
+  `${J}/change-dialog.tsx`,
+]);
+const PREVIEW_ACTION_IMPORTERS: Record<string, string> = {
+  "@/app/studio/journals/preview-publication-action": `${J}/publish-dialog.tsx`,
+  "@/app/studio/journals/preview-change-action": `${J}/change-dialog.tsx`,
+};
+
 function appFiles(): string[] {
   return readdirSync("src/app", { recursive: true, encoding: "utf8" })
     .map((file) => join("src/app", file))
     .filter((file) => /\.(m?[jt]sx?)$/.test(file) && !/\.test\./.test(file));
 }
 
-function violations(code: string): string[] {
+function violations(code: string, file = "x.tsx"): string[] {
   const source = ts.createSourceFile(
     "x.tsx",
     code,
@@ -54,8 +77,49 @@ function violations(code: string): string[] {
     ) {
       found.push("imports the Publication module");
     }
+    // Evasions by string: an element access by name, and a dynamic import of a
+    // module that holds a command or a wrapper.
+    if (
+      ts.isElementAccessExpression(node) &&
+      ts.isStringLiteralLike(node.argumentExpression) &&
+      (FORBIDDEN_NAMES.has(node.argumentExpression.text) ||
+        node.argumentExpression.text in WRAPPER_FILES)
+    ) {
+      found.push(`reaches ${node.argumentExpression.text} by name`);
+    }
+    if (
+      ts.isCallExpression(node) &&
+      node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      node.arguments[0] &&
+      ts.isStringLiteralLike(node.arguments[0]) &&
+      /^@\/modules\/(publication|journals|identity)/.test(
+        node.arguments[0].text,
+      )
+    ) {
+      found.push("imports a domain module dynamically");
+    }
     if (ts.isIdentifier(node) && FORBIDDEN_NAMES.has(node.text)) {
       found.push(`mentions ${node.text}`);
+    }
+    if (ts.isIdentifier(node) && node.text in WRAPPER_FILES) {
+      if (!WRAPPER_FILES[node.text]!.includes(file)) {
+        found.push(`mentions ${node.text} outside its action`);
+      }
+    }
+    if (
+      ts.isIdentifier(node) &&
+      node.text === "confirmation" &&
+      !TOKEN_FILES.has(file)
+    ) {
+      found.push("names the confirmation token outside a dialog");
+    }
+    if (
+      ts.isImportDeclaration(node) &&
+      ts.isStringLiteral(node.moduleSpecifier) &&
+      node.moduleSpecifier.text in PREVIEW_ACTION_IMPORTERS &&
+      PREVIEW_ACTION_IMPORTERS[node.moduleSpecifier.text] !== file
+    ) {
+      found.push("imports a preview action that is not its own");
     }
     ts.forEachChild(node, visit);
   };
@@ -68,7 +132,10 @@ describe("the studio cannot publish, re-address, or permanently delete", () => {
     const files = appFiles();
     expect(files.length).toBeGreaterThan(20);
     for (const file of files) {
-      expect(violations(readFileSync(file, "utf8")), file).toEqual([]);
+      expect(
+        violations(readFileSync(file, "utf8"), file.split("\\").join("/")),
+        file,
+      ).toEqual([]);
     }
   });
 
@@ -85,5 +152,80 @@ describe("the studio cannot publish, re-address, or permanently delete", () => {
     expect(violations("previewAlbumJournalChange(db, a, i)")).toHaveLength(1);
     expect(violations("verifyChangeConfirmation(a, t, b)")).toHaveLength(1);
     expect(violations("export const ok = 1;")).toEqual([]);
+    expect(violations('const f = ns["publishLanguageVersion"];')).toHaveLength(
+      1,
+    );
+    expect(
+      violations('const m = await import("@/modules/journals");'),
+    ).toHaveLength(1);
+    expect(violations('const m = await import("./local");')).toEqual([]);
+  });
+
+  it("keeps each wrapper, the token, and each preview action to its own file", () => {
+    const preview = "src/app/studio/journals/preview-publication-action.ts";
+    expect(violations("previewAlbumJournalPublication(a, i)", preview)).toEqual(
+      [],
+    );
+    expect(violations("previewAlbumJournalPublication(a, i)")).toHaveLength(1);
+    expect(
+      violations("publishAlbumJournalVersion(a, i)", `${J}/actions.ts`),
+    ).toEqual([]);
+    expect(
+      violations("publishAlbumJournalVersion(a, i)", preview),
+    ).toHaveLength(1);
+    expect(
+      violations("previewAlbumJournalPublicChange(a, i)", `${J}/actions.ts`),
+    ).toHaveLength(1);
+    expect(
+      violations("const t = result.confirmation;", `${J}/journal-editor.tsx`),
+    ).toHaveLength(1);
+    expect(
+      violations("const t = result.confirmation;", `${J}/change-dialog.tsx`),
+    ).toEqual([]);
+    expect(
+      violations(
+        'import { p } from "@/app/studio/journals/preview-change-action";',
+        `${J}/publish-dialog.tsx`,
+      ),
+    ).toHaveLength(1);
+    expect(
+      violations(
+        'import { p } from "@/app/studio/journals/preview-change-action";',
+        `${J}/change-dialog.tsx`,
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe("a preview refreshes nothing", () => {
+  // A preview reads. If it asked Next.js to refresh the studio it would also
+  // re-render the author's page for nothing, and a visibility effect would
+  // suggest that it had changed something.
+  it.each([
+    "src/app/studio/journals/preview-publication-action.ts",
+    "src/app/studio/journals/preview-change-action.ts",
+  ])("%s runs its command with the effect none", (file) => {
+    const source = ts.createSourceFile(
+      file,
+      readFileSync(file, "utf8"),
+      ts.ScriptTarget.Latest,
+      true,
+    );
+    const effects: string[] = [];
+    const visit = (node: ts.Node) => {
+      if (
+        ts.isCallExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        node.expression.text === "perform"
+      ) {
+        const effect = node.arguments[1];
+        effects.push(
+          effect && ts.isStringLiteralLike(effect) ? effect.text : "missing",
+        );
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+    expect(effects).toEqual(["none"]);
   });
 });

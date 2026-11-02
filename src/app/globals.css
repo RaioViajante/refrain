@@ -1025,6 +1025,74 @@ html:has(.studio-editorbar[data-mode="edit"]) {
   color: #2e2e2e;
 }
 
+/* A hint inside a dialog keeps its quieter size: in a review it labels the
+   text under it ("Readers see now"), so it must not look like that text. */
+.studio-dialog p.studio-hint {
+  font-size: 15px;
+  color: #4f4f4f;
+}
+
+/* A dialog that shows what will become public: wider, with its text scrolling
+   inside it so the controls stay in view on a phone. */
+.studio-dialog-review {
+  width: min(680px, calc(100vw - 32px));
+}
+
+.studio-dialog-review[open] {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 32px);
+  /* On a very short screen the whole dialog scrolls, so the reading area
+     keeps a usable height and the controls stay reachable. */
+  overflow-y: auto;
+}
+
+.studio-dialog-body {
+  min-height: 9rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px 6px 14px 0;
+  /* A rule above and below shows where the reading area ends, so a phone
+     reader can tell there is more to scroll to. */
+  border-block: 1px solid rgb(17 17 17 / 0.28);
+}
+
+/* The review of what will become public: sections and the changes in a list,
+   with room to tell one from the next. Same type as the rest of the studio. */
+.studio-review > * + * {
+  margin-top: 14px;
+}
+
+.studio-review-section {
+  margin-top: 22px;
+}
+
+.studio-review-section > * + * {
+  margin-top: 6px;
+}
+
+.studio-review-list {
+  display: grid;
+  gap: 18px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.studio-review-list > li > * + * {
+  margin-top: 6px;
+}
+
+.studio-review-text > * + * {
+  margin-top: 0.8em;
+}
+
+.studio-dialog-body:focus-visible,
+.studio-dialog h2:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 3px;
+}
+
 .studio-dialog::backdrop {
   background: rgb(17 17 17 / 0.4);
 }
@@ -1474,6 +1542,9 @@ html:has(.studio-editorbar[data-mode="edit"]) {
   grid-template-columns: 24px minmax(0, 1fr);
   column-gap: 12px;
   align-items: center;
+  /* A longer hint in one column must not stretch the rows of the others, or
+     the three boxes stop lining up. */
+  align-content: start;
 }
 
 .studio-check input {
@@ -1524,7 +1595,7 @@ html:has(.studio-editorbar[data-mode="edit"]) {
   color: #2e2e2e;
 }
 
-/* The lead word answers the three boxes above it: private, set to show, or
+/* The lead word answers the three boxes above it: private, included when published, or
    public. Type only. */
 .studio-track-lead {
   font-family: var(--font-kalam), cursive;

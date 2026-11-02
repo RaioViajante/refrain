@@ -35,7 +35,7 @@ export {
   testSecret,
   type RawClaims,
 } from "./confirmation";
-export { publishForTest } from "./publishing";
+export { publishForTest, setPrivacyForTest } from "./publishing";
 export { createTestJournal } from "./journals";
 export { isSubsetWithSameValues, publicAtomsFromQueries } from "./public-atoms";
 export { CHECKED_TABLES, rowChecksum } from "./checksum";

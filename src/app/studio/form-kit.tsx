@@ -293,6 +293,27 @@ interface ConfirmDialogProps {
   onConfirm: () => void;
   onCancel: () => void;
   children: ReactNode;
+  /** The confirm control cannot be used yet, for example while text loads. */
+  confirmDisabled?: boolean;
+  /** Removes the confirm control, when the dialog has nothing to confirm. */
+  hideConfirm?: boolean;
+  /** Controls that sit beside the confirm control, such as "Review again". */
+  extraActions?: ReactNode;
+  cancelLabel?: string;
+  /**
+   * When this changes, focus returns to the title. A review dialog replaces
+   * its own controls as it moves from reading to ready to refused, and the
+   * control that had focus would otherwise vanish with it.
+   */
+  focusKey?: string;
+  /** The name of the reading area of a review dialog. */
+  regionLabel?: string;
+  /**
+   * A dialog that shows the author what will become public. It is wider, its
+   * text scrolls, and focus starts on its title, not on the confirm control,
+   * so a keypress cannot confirm before anything has been read.
+   */
+  review?: boolean;
 }
 
 /**
@@ -307,26 +328,59 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
   children,
+  confirmDisabled,
+  hideConfirm,
+  extraActions,
+  cancelLabel = "Cancel",
+  focusKey,
+  regionLabel,
+  review,
 }: ConfirmDialogProps) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
   const titleId = useId();
 
   useEffect(() => {
     const element = dialog.current;
-    if (!element) {
+    if (!element || !open) {
       return;
     }
-    if (open && !element.open) {
+    // The control that opened the dialog, to hand focus back to. A dialog
+    // that is removed from the page cannot do it itself.
+    const opener =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    if (!element.open) {
       element.showModal();
-    } else if (!open && element.open) {
-      element.close();
     }
-  }, [open]);
+    if (review) {
+      heading.current?.focus();
+    }
+    return () => {
+      if (element.open) {
+        element.close();
+      }
+      if (opener?.isConnected) {
+        opener.focus();
+      }
+    };
+  }, [open, review]);
+
+  useEffect(() => {
+    if (review && focusKey !== undefined) {
+      // A notice that says what just happened (a refusal, a removal) takes
+      // focus, so it is read before anything else; otherwise the title does.
+      const notice =
+        dialog.current?.querySelector<HTMLElement>("[data-notice]");
+      (notice ?? heading.current)?.focus();
+    }
+  }, [review, focusKey]);
 
   return (
     <dialog
       ref={dialog}
-      className="studio-dialog"
+      className={`studio-dialog ${review ? "studio-dialog-review" : ""}`}
       aria-labelledby={titleId}
       onCancel={(event) => {
         event.preventDefault();
@@ -335,26 +389,45 @@ export function ConfirmDialog({
         }
       }}
     >
-      <h2 id={titleId} className="studio-section-title">
+      <h2
+        id={titleId}
+        ref={heading}
+        className="studio-section-title"
+        tabIndex={review ? -1 : undefined}
+      >
         {title}
       </h2>
-      <div>{children}</div>
-      <div className="studio-actions">
-        <button
-          type="button"
-          className="studio-button studio-button-primary"
-          onClick={onConfirm}
-          disabled={pending}
+      {review ? (
+        <div
+          className="studio-dialog-body"
+          role="region"
+          aria-label={regionLabel ?? title}
+          tabIndex={0}
         >
-          {pending ? "Working…" : confirmLabel}
-        </button>
+          {children}
+        </div>
+      ) : (
+        <div>{children}</div>
+      )}
+      <div className="studio-actions">
+        {hideConfirm ? null : (
+          <button
+            type="button"
+            className="studio-button studio-button-primary"
+            onClick={onConfirm}
+            disabled={pending || confirmDisabled}
+          >
+            {pending ? "Working…" : confirmLabel}
+          </button>
+        )}
+        {extraActions}
         <button
           type="button"
           className="studio-button"
           onClick={onCancel}
           disabled={pending}
         >
-          Cancel
+          {cancelLabel}
         </button>
       </div>
     </dialog>
@@ -380,7 +453,7 @@ export function useSubmission() {
       try {
         result = await work();
       } catch {
-        result = { ok: false, code: "failed" };
+        result = { ok: false, code: "unreachable" };
       }
       if (!result.ok) {
         setFailure(result);
@@ -391,7 +464,14 @@ export function useSubmission() {
     [],
   );
 
-  return { pending, failure, run, clearFailure: () => setFailure(undefined) };
+  return {
+    pending,
+    failure,
+    run,
+    clearFailure: () => setFailure(undefined),
+    /** Shows a failure that a dialog met, in the form's own words. */
+    report: (reported: Failure) => setFailure(reported),
+  };
 }
 
 /** The outcome of the last save, in words, announced politely. */

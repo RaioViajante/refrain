@@ -26,6 +26,16 @@ export type {
   DeletedAlbumJournalSummary,
   JournalStatistics,
 } from "./queries";
+export type {
+  PublicChangePreviewReview,
+  PublicChangeReview,
+  PublicationPreview,
+  PublicationReview,
+  ReviewedChange,
+  ReviewedReflection,
+  ReviewedValue,
+  ReviewText,
+} from "./publishing";
 export {
   createAlbumJournal,
   deleteAlbumJournal,
@@ -35,6 +45,9 @@ export {
   listAlbumJournalProgress,
   listAlbumJournals,
   listDeletedAlbumJournals,
+  previewAlbumJournalPublication,
+  previewAlbumJournalPublicChange,
+  publishAlbumJournalVersion,
   restoreAlbumJournal,
   saveAlbumJournal,
   setAlbumJournalPrivacy,

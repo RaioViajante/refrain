@@ -255,8 +255,9 @@ test("a journal that was published returns private, never published, with its hi
   await row.getByRole("button", { name: /^Restore the journal about/ }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("comes back as private");
+  await expect(dialog).toContainText("Restoring publishes nothing");
   await expect(dialog).toContainText(
-    "nothing is published again until you choose to",
+    "including any track reflections you had set to be included when published",
   );
   await dialog.getByRole("button", { name: "Restore journal" }).click();
 
@@ -265,7 +266,7 @@ test("a journal that was published returns private, never published, with its hi
     page
       .getByRole("status")
       .filter({ hasText: "Restored from Recently deleted" }),
-  ).toContainText("that part is now private");
+  ).toContainText("is now private");
   await expect(
     page
       .getByText("Private", { exact: true })

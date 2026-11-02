@@ -113,9 +113,10 @@ export default async function setup() {
 }
 
 // Removes only the records whose names start with the E2E prefix, from the
-// verified disposable database, in dependency order. These journals are never published through the application, so no
-// published slug is retired here; a slug the tests marked published directly
-// in the database is simply deleted with its disposable row.
+// verified disposable database, in dependency order. Some journals were
+// published through the studio during a run, so their slugs are marked
+// published; they are simply deleted with their disposable rows, and none is
+// retired (this is the test database, never the author's).
 async function removeSyntheticRecords(): Promise<void> {
   const client = new Client({
     connectionString: readTestDatabaseUrl(process.env),

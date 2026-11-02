@@ -22,6 +22,7 @@ import {
   testAuthor,
   withConnections,
   type TestAlbum,
+  setPrivacyForTest,
 } from "@/testing";
 
 import { changeEntrySlug, restoreDeletedEntry } from "./commands";
@@ -202,6 +203,15 @@ async function publishBlockedBehind(
 describe("every command that changes what is public moves the state stamp (test 4)", () => {
   it("save, publish, unpublish, delete, and restore each move it", async () => {
     const { entryId } = await committedJournal();
+    // Which timestamp each command owns (ADR 0006 § 3): publishing and
+    // unpublishing set the version's own, deleting and restoring the entry's.
+    const owns: Record<string, "version" | "entry" | "either"> = {
+      save: "either",
+      publish: "version",
+      unpublish: "version",
+      delete: "entry",
+      restore: "entry",
+    };
     const steps: [string, () => Promise<unknown>][] = [
       [
         "save",
@@ -216,7 +226,7 @@ describe("every command that changes what is public moves the state stamp (test 
       [
         "unpublish",
         () =>
-          setAlbumJournalPrivacy(author, {
+          setPrivacyForTest(getDb(), author, {
             entryId,
             locale: "en",
             status: "private",
@@ -230,7 +240,101 @@ describe("every command that changes what is public moves the state stamp (test 
       await step();
       const after = await stampOf(entryId);
       expect(after, name).not.toEqual(before);
+      // The timestamps alone must move, whatever the status did: a command
+      // that forgot to set `updated_at` would otherwise pass on its status.
+      const moved = {
+        version: after.version !== before.version,
+        entry: after.entry !== before.entry,
+      };
+      const rule = owns[name]!;
+      expect(
+        rule === "either" ? moved.version || moved.entry : moved[rule],
+        `${name} moves the ${rule} timestamp`,
+      ).toBe(true);
     }
+  });
+
+  it("a stale Draft from a tab that still shows Private waits for a real publication, then is refused", async () => {
+    const { entryId } = await committedJournal();
+    // Tab A's screen shows the version as draft. Tab B publishes it, holding
+    // the entry lock, while A's Private click arrives and has to wait for it.
+    const token = await previewPublication(getDb(), author, {
+      entryId,
+      locale: "en",
+    });
+    let pending: Promise<PromiseSettledResult<void>> | undefined;
+    // Tab B holds its own connection, so the application's pool is free for A.
+    await withConnections(1, async ([b]) => {
+      await b!.transaction(async (tx) => {
+        await lockEntryRow(tx, entryId);
+        await publishLanguageVersion(
+          tx,
+          author,
+          request(entryId, token.confirmation, token.disclosure.entryVersion),
+        );
+        // The bound command runs on the application's own connection.
+        pending = Promise.allSettled([
+          setAlbumJournalPrivacy(author, {
+            entryId,
+            locale: "en",
+            status: "private",
+            expectedStatus: "draft",
+          }),
+        ]).then(([settled]) => settled! as PromiseSettledResult<void>);
+        // The command runs on the application's connection, not one of these
+        // tests' own, so look for any statement waiting for a lock.
+        for (let attempt = 0; ; attempt++) {
+          const waiting = await tx.execute<{ n: number }>(sql`
+          select count(*)::int as n from pg_stat_activity
+           where datname = current_database() and wait_event_type = 'Lock'`);
+          if (waiting.rows[0]!.n > 0) {
+            break;
+          }
+          if (attempt > 250) {
+            throw new Error(
+              "The stale change was never blocked behind the lock.",
+            );
+          }
+          await new Promise((resolve) => setTimeout(resolve, 20));
+        }
+      });
+    });
+    const outcome = await pending!;
+    expect(outcome.status).toBe("rejected");
+    expect((outcome as PromiseRejectedResult).reason).toMatchObject({
+      failure: "status_changed",
+    });
+    // The stale click did not unpublish what B published.
+    expect(await statusOf(entryId, "en")).toBe("published");
+  });
+
+  it("a token cannot be replayed after a publish and an unpublish that return the status to where it was", async () => {
+    const { entryId } = await committedJournal();
+    const first = await previewPublication(getDb(), author, {
+      entryId,
+      locale: "en",
+    });
+    const startStatus = (await stampOf(entryId)).status;
+    await publishForTest(getDb(), entryId, "en");
+    await setPrivacyForTest(getDb(), author, {
+      entryId,
+      locale: "en",
+      status: startStatus as "draft" | "private",
+    });
+    expect((await stampOf(entryId)).status).toBe(startStatus);
+    // Only the timestamps differ now, and they are enough.
+    const [replay] = await Promise.allSettled([
+      publishLanguageVersion(
+        getDb(),
+        author,
+        request(entryId, first.confirmation, first.disclosure.entryVersion),
+      ),
+    ]);
+    expect(describeOutcome(replay!)).toEqual({
+      ok: false,
+      failure: "confirmation_stale",
+    });
+    expect(await statusOf(entryId, "en")).toBe(startStatus);
   });
 
   it("an address change does not move it, and is bound as an atom instead", async () => {

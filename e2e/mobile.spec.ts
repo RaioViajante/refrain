@@ -135,7 +135,7 @@ test("track by track fits a 390 px screen, and its controls are large enough to 
   for (const label of [
     "Mark as favourite",
     "Still writing",
-    "Show on the public page",
+    "Include when published",
   ]) {
     const control = page.getByLabel(label);
     await control.tap();

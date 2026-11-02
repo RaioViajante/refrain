@@ -1,6 +1,5 @@
 import "server-only";
 
-import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 
 import { CatalogError } from "@/modules/catalog";
@@ -10,6 +9,7 @@ import {
 } from "@/modules/identity";
 import { JournalError } from "@/modules/journals";
 
+import { revalidateAfter, type StudioEffect } from "./revalidation";
 import type { ActionResult } from "./results";
 
 // Shared by the Studio's server actions. Authorization is not here: every
@@ -30,21 +30,29 @@ export function denied(reason: AuthorizationFailure): ActionResult<never> {
  * application's own origin; Next.js accepts an action call without an `Origin`
  * header, so this is checked here (it is `unauthorized`, like a bad session).
  * A success refreshes the
- * Studio's data: the studio is private and never cached, so this only drops
- * the browser's copy of pages it has already shown. No public page exists to
- * invalidate. An expected failure becomes a fixed code; anything else is
+ * Studio's data through the one revalidation module, by the kind of change
+ * (`effect`, default "writing"; a preview passes "none"). The studio is
+ * private and never cached, so this only drops the browser's copy of pages it
+ * has already shown. No public page exists to invalidate. An expected failure becomes a fixed code; anything else is
  * logged by name only (messages from the database can contain query
  * parameters) and reported as `failed`.
  */
 export async function perform<Data>(
   work: () => Promise<Data>,
+  effect: StudioEffect = "writing",
 ): Promise<ActionResult<Data>> {
   if (!hasTrustedOrigin(await headers())) {
     return denied("unauthenticated");
   }
   try {
     const data = await work();
-    revalidatePath("/studio", "layout");
+    // The work has committed. A failure to refresh the browser's copy of the
+    // studio must never be reported as "nothing was changed".
+    try {
+      revalidateAfter(effect);
+    } catch {
+      console.error("A studio revalidation failed");
+    }
     return { ok: true, data };
   } catch (error) {
     return failed(error);
@@ -101,18 +109,23 @@ function failed(error: unknown): ActionResult<never> {
         return { ok: false, code: "archived" };
       case "unavailable":
         return { ok: false, code: "unavailable" };
-      // The save would change what readers see of a published journal. Only
-      // the confirmation dialogs of M2.3 can obtain the author's explicit
-      // confirmation of exactly that change, so until then the studio refuses
-      // it and writes nothing. It never confirms on the author's behalf, and
-      // the change itself (private writing) is not sent to the browser.
+      // A publication, or a change to a public page, whose confirmation is
+      // missing, not authentic, too old, or for another state (ADR 0006
+      // § 12). Nothing was written. The code is all the browser gets: no
+      // token, and not the private writing the refusal carried. The dialog
+      // asks the author to review the current state again, through a new
+      // preview request; nothing here retries or confirms on their behalf.
       case "confirmation_required":
       case "confirmation_invalid":
       case "confirmation_expired":
       case "confirmation_stale":
-        return { ok: false, code: "published" };
+        return { ok: false, code: error.failure };
       case "nothing_to_publish":
-        return { ok: false, code: "published_empty" };
+        return { ok: false, code: "nothing_to_publish" };
+      case "status_changed":
+        return { ok: false, code: "status_changed" };
+      case "no_current_slug":
+        return { ok: false, code: "no_address" };
       case "slug_unavailable":
         return { ok: false, code: "failed" };
     }

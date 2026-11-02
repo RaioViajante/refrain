@@ -72,7 +72,7 @@ export function RestoreJournalButton({
           The journal returns to your journals with its writing exactly as you
           left it.{" "}
           {wasPublished
-            ? "Part of it was published when it was deleted. That part comes back as private, and nothing is published again until you choose to publish it."
+            ? "A language version that was published when it was deleted comes back as private. Restoring publishes nothing. To publish it again you will first be shown everything it would publish, including any track reflections you had set to be included when published."
             : "Drafts stay drafts and private stays private."}
         </p>
       </ConfirmDialog>

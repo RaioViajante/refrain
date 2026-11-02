@@ -8,17 +8,23 @@ import { authorizeAuthor } from "@/modules/identity";
 import {
   createAlbumJournal,
   deleteAlbumJournal,
+  publishAlbumJournalVersion,
   restoreAlbumJournal,
   saveAlbumJournal,
   setAlbumJournalPrivacy,
 } from "@/modules/journals";
 
 // Server actions are public POST endpoints. Each one authorizes the request
-// itself, first, then validates the input inside the domain command. Nothing
-// here publishes: the only visibility change offered reaches `draft` or
-// `private`, and the command refuses anything else. Restoring a journal from
-// Recently deleted never publishes either: a published version returns as
-// private (docs/roadmap.md, owner-accepted restoration policy).
+// itself, first, then runs its command through `perform` (which also requires
+// the application's own Origin), and validates the input inside the domain
+// command.
+//
+// Publication (ADR 0006): the confirmation token is minted only by the two
+// preview actions (their own files, so nothing here can call one) and arrives
+// here only in the request body, sent by the confirmation dialog's confirm
+// control. Nothing in this file previews, mints, retries, or supplies a token.
+// A restore from Recently deleted never publishes: a published version returns
+// as private (docs/roadmap.md, owner-accepted restoration policy).
 
 export async function createJournalAction(
   input: unknown,
@@ -30,21 +36,12 @@ export async function createJournalAction(
   return perform(() => createAlbumJournal(authorization.author, input));
 }
 
-// Interim, fail closed (ADR 0006 § 5; M2.3 builds the dialogs). A save that
-// would change what readers see of a published journal needs a confirmation
-// token that only the confirmation dialog may send, and no dialog exists yet.
-// So this action never forwards a `confirmation` from the request: the domain
-// command then refuses such a save and writes nothing. Nothing here previews,
-// mints, or supplies a token.
-function withoutConfirmation(input: unknown): unknown {
-  if (typeof input === "object" && input !== null && !Array.isArray(input)) {
-    const rest: Record<string, unknown> = { ...input };
-    delete rest.confirmation;
-    return rest;
-  }
-  return input;
-}
-
+/**
+ * Saves the journal. When the save would change what readers see of a public
+ * journal it needs the `confirmation` that the change dialog sends, from a
+ * separate preview request; without a valid one the command refuses and writes
+ * nothing (ADR 0006 § 5). The token comes from the request body only.
+ */
 export async function saveJournalAction(
   input: unknown,
 ): Promise<ActionResult<{ version: number }>> {
@@ -52,8 +49,9 @@ export async function saveJournalAction(
   if (!authorization.ok) {
     return denied(authorization.reason);
   }
-  return perform(() =>
-    saveAlbumJournal(authorization.author, withoutConfirmation(input)),
+  return perform(
+    () => saveAlbumJournal(authorization.author, input),
+    "visibility",
   );
 }
 
@@ -64,7 +62,10 @@ export async function setJournalPrivacyAction(
   if (!authorization.ok) {
     return denied(authorization.reason);
   }
-  return perform(() => setAlbumJournalPrivacy(authorization.author, input));
+  return perform(
+    () => setAlbumJournalPrivacy(authorization.author, input),
+    "visibility",
+  );
 }
 
 export async function deleteJournalAction(
@@ -74,7 +75,10 @@ export async function deleteJournalAction(
   if (!authorization.ok) {
     return denied(authorization.reason);
   }
-  return perform(() => deleteAlbumJournal(authorization.author, entryId));
+  return perform(
+    () => deleteAlbumJournal(authorization.author, entryId),
+    "visibility",
+  );
 }
 
 export async function restoreJournalAction(
@@ -84,5 +88,27 @@ export async function restoreJournalAction(
   if (!authorization.ok) {
     return denied(authorization.reason);
   }
-  return perform(() => restoreAlbumJournal(authorization.author, entryId));
+  return perform(
+    () => restoreAlbumJournal(authorization.author, entryId),
+    "visibility",
+  );
+}
+
+/**
+ * Publishes one language version with the confirmation token that a separate
+ * preview request returned. The command, not this action, decides: it checks
+ * the token, the version, and the disclosure under the entry lock (ADR 0006
+ * § 4). Reports success only after the database commit.
+ */
+export async function publishJournalVersionAction(
+  input: unknown,
+): Promise<ActionResult<{ changed: boolean }>> {
+  const authorization = await authorizeAuthor(await headers());
+  if (!authorization.ok) {
+    return denied(authorization.reason);
+  }
+  return perform(
+    () => publishAlbumJournalVersion(authorization.author, input),
+    "visibility",
+  );
 }

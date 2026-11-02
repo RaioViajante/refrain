@@ -15,8 +15,17 @@ export type StudioFailure =
   | "deleted"
   | "not_deleted"
   | "unsupported"
-  | "published"
-  | "published_empty"
+  // ADR 0006 § 12. None carries a token, a disclosure, or any writing.
+  | "confirmation_required"
+  | "confirmation_invalid"
+  | "confirmation_expired"
+  | "confirmation_stale"
+  | "nothing_to_publish"
+  | "no_address"
+  // Made in the browser, never by the server: the request did not come back.
+  | "unreachable"
+  // The version is no longer in the state the screen showed.
+  | "status_changed"
   | "failed";
 
 export type FieldProblem = "required" | "too_long" | "invalid";

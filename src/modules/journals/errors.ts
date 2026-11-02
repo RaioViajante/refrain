@@ -21,8 +21,12 @@ import type { FieldErrors } from "@/validation";
  *   reflection on an archived recording can still be edited.
  * - `unavailable`: the application secret is not configured, so no
  *   confirmation can be checked. Nothing is saved when one is needed.
+ * - `status_changed`: a version's visibility is no longer what the author's
+ *   screen showed (another tab or session changed it), so nothing was changed.
  * - `nothing_to_publish`: the save would leave a published language version
  *   with no opening sentence and no body. Unpublish it first.
+ * - `no_current_slug`: a language version cannot be published without a
+ *   current address; an invariant failure, reported and not retried.
  * - `confirmation_required`, `confirmation_invalid`, `confirmation_expired`,
  *   `confirmation_stale`: the save would change what a reader sees of a public
  *   journal and the author's confirmation of exactly that change is missing,
@@ -44,6 +48,8 @@ export type JournalFailure =
   | "track_archived"
   | "unavailable"
   | "nothing_to_publish"
+  | "no_current_slug"
+  | "status_changed"
   | "confirmation_required"
   | "confirmation_invalid"
   | "confirmation_expired"

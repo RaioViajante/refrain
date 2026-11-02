@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  dialogViolations,
   exportSurfaceViolations,
   gateCallViolations,
   isProductionPath,
@@ -54,6 +55,10 @@ describe("the production source is clean", () => {
 
   it("lets only the save call the confirmation gate and the reflection writer, in order", () => {
     expect(gateCallViolations(production)).toEqual([]);
+  });
+
+  it("keeps the confirmation dialogs to their own handlers", () => {
+    expect(dialogViolations(production)).toEqual([]);
   });
 
   it("classifies test files and test support as not production", () => {
@@ -350,6 +355,80 @@ describe("the scans resist the evasions an independent review found", () => {
         ]),
       ).not.toEqual([]);
     });
+  });
+});
+
+describe("the mint-and-consume scan covers the studio's wrappers (M2.3)", () => {
+  const action = "src/app/studio/journals/some-action.ts";
+  const previewAction = "src/app/studio/journals/preview-publication-action.ts";
+  const imports = (...names: string[]) =>
+    `import { ${names.join(", ")} } from "@/modules/journals";\n`;
+
+  it("catches an action that previews and publishes in one operation", () => {
+    expect(
+      mintConsumeViolations([
+        file(
+          previewAction,
+          imports(
+            "previewAlbumJournalPublication",
+            "publishAlbumJournalVersion",
+          ) +
+            "export async function both(a, i) { const p = await previewAlbumJournalPublication(a, i); return publishAlbumJournalVersion(a, { ...i, confirmation: p.confirmation }); }",
+        ),
+      ]),
+    ).not.toEqual([]);
+  });
+
+  it("catches a save that previews its own change and saves it", () => {
+    expect(
+      mintConsumeViolations([
+        file(
+          "src/app/studio/journals/preview-change-action.ts",
+          imports("previewAlbumJournalPublicChange", "saveAlbumJournal") +
+            "export async function both(a, i) { const p = await previewAlbumJournalPublicChange(a, i); return saveAlbumJournal(a, { ...i, confirmation: p.confirmation }); }",
+        ),
+      ]),
+    ).not.toEqual([]);
+  });
+
+  it("catches a publish action that catches a refusal and tries again", () => {
+    expect(
+      mintConsumeViolations([
+        file(
+          action,
+          imports("publishAlbumJournalVersion") +
+            "export async function again(a, i) { try { return await publishAlbumJournalVersion(a, i); } catch { return publishAlbumJournalVersion(a, i); } }",
+        ),
+      ]),
+    ).not.toEqual([]);
+  });
+
+  it("lets only the two preview actions import a preview wrapper", () => {
+    for (const name of [
+      "previewAlbumJournalPublication",
+      "previewAlbumJournalPublicChange",
+    ]) {
+      expect(
+        mintConsumeViolations([file(action, imports(name))]),
+        name,
+      ).not.toEqual([]);
+      expect(
+        mintConsumeViolations([file(previewAction, imports(name))]),
+        name,
+      ).toEqual([]);
+    }
+  });
+
+  it("keeps a plain consumer in its own file without complaint", () => {
+    expect(
+      mintConsumeViolations([
+        file(
+          "src/app/studio/journals/actions.ts",
+          imports("publishAlbumJournalVersion") +
+            "export async function publish(a, i) { return publishAlbumJournalVersion(a, i); }",
+        ),
+      ]),
+    ).toEqual([]);
   });
 });
 
@@ -760,6 +839,125 @@ describe("the scans catch mutations of the real source", () => {
         file(
           "src/modules/journals/commands.ts",
           'import { x } from "@/testing/test-database";',
+        ),
+      ]),
+    ).not.toEqual([]);
+  });
+});
+
+describe("the dialog scan catches each way a dialog could send a token wrongly", () => {
+  const dialog = "src/app/studio/journals/publish-dialog.tsx";
+  const wrap = (body: string) =>
+    `import { publishJournalVersionAction } from "@/app/studio/journals/actions";\nimport { previewPublicationAction } from "@/app/studio/journals/preview-publication-action";\nexport function D() {\n${body}\n return <B onConfirm={confirm} />; }`;
+  const check = (body: string) => dialogViolations([file(dialog, wrap(body))]);
+
+  it("accepts the shape the dialog has", () => {
+    expect(
+      check(
+        "async function fetchPreview() { return previewPublicationAction({}); }\nasync function confirm() { return publishJournalVersionAction({ confirmation: t }); }",
+      ),
+    ).toEqual([]);
+  });
+
+  it("catches a confirm that previews, directly or through the helper", () => {
+    expect(
+      check(
+        "async function fetchPreview() { return previewPublicationAction({}); }\nasync function confirm() { const p = await previewPublicationAction({}); return publishJournalVersionAction({ confirmation: p.confirmation }); }",
+      ),
+    ).not.toEqual([]);
+    expect(
+      check(
+        "async function fetchPreview() { return previewPublicationAction({}); }\nasync function confirm() { const p = await fetchPreview(); return publishJournalVersionAction({ confirmation: p }); }",
+      ),
+    ).not.toEqual([]);
+  });
+
+  it("catches a retry in a catch handler, and a send from an effect or a timer", () => {
+    expect(
+      check(
+        "async function confirm() { try { await publishJournalVersionAction({}); } catch { await publishJournalVersionAction({}); } }",
+      ),
+    ).not.toEqual([]);
+    expect(
+      check(
+        "useEffect(() => { void publishJournalVersionAction({}); }, []);\nasync function confirm() {}",
+      ),
+    ).not.toEqual([]);
+    expect(
+      check(
+        "async function confirm() { setTimeout(() => publishJournalVersionAction({}), 10); }",
+      ),
+    ).not.toEqual([]);
+    expect(
+      check(
+        "async function confirm() { publishJournalVersionAction({}).catch(() => publishJournalVersionAction({})); }",
+      ),
+    ).not.toEqual([]);
+  });
+
+  it("catches a preview or a consumer in a handler that is not its own", () => {
+    expect(
+      check(
+        "async function other() { return publishJournalVersionAction({}); }\nasync function confirm() {}",
+      ),
+    ).not.toEqual([]);
+    expect(
+      check(
+        "async function other() { return previewPublicationAction({}); }\nasync function confirm() {}",
+      ),
+    ).not.toEqual([]);
+  });
+
+  it("catches a publish dialog that saves anything, and a confirm handed to anything but the confirm control", () => {
+    // Closing a review must never leave a change behind: the publish dialog
+    // may not save, whatever the handler is called.
+    expect(
+      check(
+        "async function stopShowing() { return saveJournalAction({}); }\nasync function confirm() {}",
+      ),
+    ).not.toEqual([]);
+    expect(
+      check(
+        "async function confirm() {}\nuseEffect(() => { void confirm(); }, []);",
+      ),
+    ).not.toEqual([]);
+  });
+
+  it("catches another studio action imported by a dialog, and an action aliased or passed on", () => {
+    expect(
+      dialogViolations([
+        file(
+          dialog,
+          'import { setJournalPrivacyAction } from "@/app/studio/journals/actions";\nexport function D() { return setJournalPrivacyAction({}); }',
+        ),
+      ]),
+    ).not.toEqual([]);
+    expect(
+      dialogViolations([
+        file(
+          dialog,
+          'import { deleteJournalAction as gone } from "@/app/studio/journals/actions";\nexport function D() { return gone(1); }',
+        ),
+      ]),
+    ).not.toEqual([]);
+    expect(
+      check(
+        "const send = publishJournalVersionAction;\nasync function confirm() { return send({}); }",
+      ),
+    ).not.toEqual([]);
+    expect(
+      check(
+        "async function confirm() { return run(publishJournalVersionAction); }",
+      ),
+    ).not.toEqual([]);
+  });
+
+  it("catches an action named in a file that is not allowed to", () => {
+    expect(
+      dialogViolations([
+        file(
+          "src/app/studio/journals/page-thing.tsx",
+          'import { publishJournalVersionAction } from "@/app/studio/journals/actions";\nexport const x = publishJournalVersionAction;',
         ),
       ]),
     ).not.toEqual([]);

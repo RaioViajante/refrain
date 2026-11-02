@@ -98,6 +98,9 @@ async function EditJournal({ params }: { params: Promise<{ id: string }> }) {
           version: journal.version,
           locale: journal.locale,
           status: journal.status,
+          anyPublished: journal.versions.some(
+            (version) => version.status === "published",
+          ),
         }}
         initial={{ opening: journal.opening ?? "", body: journal.body }}
         tracks={trackByTrack?.tracks ?? []}

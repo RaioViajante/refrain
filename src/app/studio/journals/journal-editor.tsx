@@ -30,6 +30,7 @@ import {
   TrackByTrack,
   type TrackDraft,
 } from "@/app/studio/journals/track-by-track";
+import { ChangeDialog } from "@/app/studio/journals/change-dialog";
 import { problemWith } from "@/app/studio/messages";
 import { StatusMark } from "@/app/studio/status-mark";
 import type { TrackByTrackItem, VisibilityStatus } from "@/modules/journals";
@@ -40,6 +41,13 @@ const LANGUAGES = [
 ];
 
 type Language = "en" | "pt-BR";
+
+interface Snapshot {
+  opening: string;
+  body: string;
+  albumRating: number | null;
+  drafts: Record<string, TrackDraft>;
+}
 
 function words(text: string): number {
   return text.trim() === "" ? 0 : text.trim().split(/\s+/).length;
@@ -55,6 +63,11 @@ interface JournalEditorProps {
     locale: Language;
     /** The journal's visibility, shown beside the save state. */
     status: VisibilityStatus;
+    /**
+     * Whether any language version is published. A save then asks the server
+     * what would change for readers before it writes anything.
+     */
+    anyPublished: boolean;
   };
   initial: { opening: string; body: string };
   /**
@@ -108,7 +121,14 @@ export function JournalEditor({
   const [created, setCreated] = useState(false);
   const [saved, setSaved] = useState(false);
   const [flagDirty, setFlagDirty] = useState(false);
-  const { pending, failure, run } = useSubmission();
+  const { pending, failure, run, clearFailure, report } = useSubmission();
+  // A save waiting for the author's confirmation of what readers would see.
+  // The change dialog owns the confirmation token; this holds only the save.
+  const [review, setReview] = useState<
+    { payload: Record<string, unknown>; sent: Snapshot } | undefined
+  >();
+  // Stops a second save from starting before React has re-rendered.
+  const saving = useRef(false);
 
   // A track added in the catalog while this page is open has no draft yet:
   // it starts from what is stored.
@@ -137,11 +157,52 @@ export function JournalEditor({
     : flagDirty;
   useUnsavedGuard(dirty);
 
-  async function save(event?: FormEvent) {
-    event?.preventDefault();
-    if (pending || created) {
+  function adopt(next: number, sent: Snapshot) {
+    setVersion(next);
+    setBase(sent);
+    setSaved(true);
+    router.refresh();
+  }
+
+  // Sends the save with no confirmation. When the journal turns out to be
+  // public (it was published in another tab), the server refuses and the
+  // change dialog takes over; `reviewed` stops that from looping.
+  async function commit(
+    payload: Record<string, unknown>,
+    sent: Snapshot,
+    reviewed = false,
+  ) {
+    const result = await run(() => saveJournalAction(payload));
+    if (result.ok) {
+      adopt(result.data.version, sent);
       return;
     }
+    if (
+      !reviewed &&
+      (result.code === "confirmation_required" ||
+        result.code === "confirmation_stale" ||
+        result.code === "confirmation_expired" ||
+        result.code === "confirmation_invalid")
+    ) {
+      clearFailure();
+      setReview({ payload, sent });
+    }
+  }
+
+  async function save(event?: FormEvent) {
+    event?.preventDefault();
+    if (pending || created || review || saving.current) {
+      return;
+    }
+    saving.current = true;
+    try {
+      await saveNow();
+    } finally {
+      saving.current = false;
+    }
+  }
+
+  async function saveNow() {
     if (edit) {
       // Only what changed is sent, so a save never rewrites writing the author
       // did not touch, and one language never overwrites another.
@@ -195,13 +256,14 @@ export function JournalEditor({
         albumRating,
         drafts: currentDrafts,
       };
-      const result = await run(() => saveJournalAction(payload));
-      if (result.ok) {
-        setVersion(result.data.version);
-        setBase(sent);
-        setSaved(true);
-        router.refresh();
+      if (edit.anyPublished) {
+        // Something is public: ask what would change for readers before
+        // anything is written. The dialog saves only if the author confirms.
+        clearFailure();
+        setReview({ payload, sent });
+        return;
       }
+      await commit(payload, sent);
       return;
     }
     const result = await run(() =>
@@ -288,7 +350,7 @@ export function JournalEditor({
           <button
             type="submit"
             className={`studio-button ${dirty ? "studio-button-primary" : ""}`}
-            disabled={pending}
+            disabled={pending || review !== undefined}
           >
             {create ? "Save as draft" : "Save"}
           </button>
@@ -299,10 +361,14 @@ export function JournalEditor({
 
       {edit?.status === "published" ? (
         <p className="studio-panel" role="note">
-          This version is published. Saving changes the public page. The studio
-          can’t confirm a change to published writing yet, so a change that
-          alters what readers see is refused, and nothing is saved. Make the
-          journal private first, then write.
+          This version is published. Saving changes the published writing.
+          Before a change to the published writing is saved, you will see
+          exactly what changes and confirm it. Nothing is saved without that.
+        </p>
+      ) : edit?.anyPublished ? (
+        <p className="studio-panel" role="note">
+          Another language version of this journal is published. A change to the
+          published writing will show you what changes and ask you first.
         </p>
       ) : null}
 
@@ -379,6 +445,28 @@ export function JournalEditor({
           </p>
         </div>
       </div>
+
+      <ChangeDialog
+        payload={review?.payload}
+        onSaved={(next) => {
+          if (review) {
+            adopt(next, review.sent);
+          }
+          setReview(undefined);
+        }}
+        onNothingToConfirm={() => {
+          const waiting = review;
+          setReview(undefined);
+          if (waiting) {
+            void commit(waiting.payload, waiting.sent, true);
+          }
+        }}
+        onRefused={(refused) => {
+          setReview(undefined);
+          report(refused);
+        }}
+        onCancel={() => setReview(undefined)}
+      />
     </form>
   );
 }

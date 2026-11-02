@@ -48,10 +48,19 @@ export function failureMessage(failure: Failure): string {
       return "This journal is not in Recently deleted, so there is nothing to restore. It may already have been restored. Reload the page.";
     case "unsupported":
       return "This text has formatting that the plain editor can’t show without losing it, so it was left untouched.";
-    case "published":
-      return "This change would alter a page that is public, and confirming changes to published writing isn’t available in the studio yet. Nothing was saved, and your text is still here. Make the journal private first, then save.";
-    case "published_empty":
-      return "A published version has to keep an opening sentence or some text, so nothing was saved. Make the journal private first if you want to empty it.";
+    case "confirmation_required":
+    case "confirmation_invalid":
+    case "confirmation_expired":
+    case "confirmation_stale":
+      return "What would be published has changed since you looked, or your confirmation ran out, so nothing was published or saved. Your text is still here. Review it again to continue.";
+    case "nothing_to_publish":
+      return "A version needs an opening sentence or some text before it can be published, and a published version has to keep one. Nothing was changed. Write something first, or unpublish it before you empty it.";
+    case "status_changed":
+      return "This version was changed somewhere else (another tab may have published or unpublished it), so nothing was changed here. The page now shows how it stands. Check it, then choose again.";
+    case "unreachable":
+      return "The studio didn’t answer, so it isn’t known whether this went through. Reload the page to see what was saved before you try again. What you typed is still here.";
+    case "no_address":
+      return "This journal has no address, so it can’t be published. Nothing was changed.";
     case "failed":
       return "Something went wrong, and nothing was changed. Try again.";
   }

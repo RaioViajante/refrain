@@ -147,6 +147,10 @@ export const journalPrivacyInput = z.object({
   entryId: z.uuid(),
   locale: z.enum(locales),
   status: z.enum(journalPrivacyStatuses),
+  // The status the author's screen showed. The change is applied only if the
+  // version still has it, so a stale tab cannot silently undo what another
+  // tab did (it could unpublish a version that was published meanwhile).
+  expectedStatus: z.enum(["draft", "private", "published"]),
 });
 export type JournalPrivacyInput = z.input<typeof journalPrivacyInput>;
 

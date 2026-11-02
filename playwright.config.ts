@@ -69,7 +69,7 @@ export default defineConfig({
     {
       name: "desktop",
       testMatch:
-        /(catalog|journal|tracks|recovery|academic|navigation|layout|accessibility)\.spec\.ts/,
+        /(catalog|journal|tracks|recovery|publication|academic|navigation|layout|accessibility)\.spec\.ts/,
       use: {
         browserName: "chromium",
         viewport: { width: 1280, height: 900 },
@@ -92,6 +92,21 @@ export default defineConfig({
           },
         ]
       : []),
+    {
+      // The publication workflow again at a phone width: the dialogs scroll
+      // inside the screen, and every control is 44px.
+      name: "publication-390",
+      testMatch: /publication\.spec\.ts/,
+      use: {
+        browserName: "chromium",
+        viewport: { width: 390, height: 844 },
+        isMobile: true,
+        hasTouch: true,
+        deviceScaleFactor: 2,
+        storageState: AUTH_FILE,
+      },
+      dependencies: ["desktop"],
+    },
     {
       name: "mobile-390",
       testMatch: /mobile\.spec\.ts/,

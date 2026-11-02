@@ -19,14 +19,11 @@ import {
   shiftedTestToken,
   testAuthor,
   testSecret,
+  setPrivacyForTest,
 } from "@/testing";
 import { previewPublication } from "@/modules/publication";
 
-import {
-  previewAlbumJournalChange,
-  saveAlbumJournal,
-  setAlbumJournalPrivacy,
-} from "./commands";
+import { previewAlbumJournalChange, saveAlbumJournal } from "./commands";
 import { JournalError, type JournalFailure } from "./errors";
 import { getAlbumJournal, getTrackByTrack } from "./queries";
 
@@ -811,7 +808,7 @@ describe("publishing and unpublishing around a confirmed save", () => {
       expect(
         (await preview(tx, journal.entryId, fields)).confirmation,
       ).not.toBeNull();
-      await setAlbumJournalPrivacy(tx, author, {
+      await setPrivacyForTest(tx, author, {
         entryId: journal.entryId,
         locale: "en",
         status: "private",

@@ -846,12 +846,15 @@ export function exportSurfaceViolations(files: SourceText[]): string[] {
 const MINTING_PREVIEWS = [
   "previewPublication",
   "previewPublicChange",
-  // The Journals wrapper of previewPublicChange (ADR 0006 § 9: the wrapper
-  // is a preview too, and no action reaches it until M2.3).
+  // The Journals wrappers (ADR 0006 § 9: a wrapper of a preview is a preview
+  // too). Only the two preview actions reach them (M2.3).
   "previewAlbumJournalChange",
+  "previewAlbumJournalPublicChange",
+  "previewAlbumJournalPublication",
 ];
 const CONSUMERS = [
   "publishLanguageVersion",
+  "publishAlbumJournalVersion",
   "saveAlbumJournal",
   "requirePublicChangeConfirmation",
 ];
@@ -869,12 +872,19 @@ export const TESTING_IMPORT_ALLOWLIST: Readonly<Record<string, string>> = {
 
 /**
  * Files allowed to import a preview. The Journals commands wrap
- * `previewPublicChange` in `previewAlbumJournalChange`, which no function
- * there calls together with the save, and which no Server Action reaches
- * until M2.3 adds the actions. Adding a file needs review.
+ * `previewPublicChange` in `previewAlbumJournalChange`, and `publishing.ts`
+ * wraps the two previews for the studio; no function there calls a preview
+ * together with a consumer. Each Server Action that mints a token is alone in
+ * its own file (M2.3), so nothing else in a "use server" file can reach it.
+ * Adding a file needs review.
  */
 export const PREVIEW_IMPORTERS: ReadonlySet<string> = new Set<string>([
   "src/modules/journals/commands.ts",
+  "src/modules/journals/publishing.ts",
+  "src/modules/journals/studio.ts",
+  "src/modules/journals/index.ts",
+  "src/app/studio/journals/preview-publication-action.ts",
+  "src/app/studio/journals/preview-change-action.ts",
 ]);
 
 function importsOf(
@@ -1169,4 +1179,221 @@ export function gateCallViolations(files: SourceText[]): string[] {
     }
   }
   return problems;
+}
+
+// ---------------------------------------------------------------------------
+// Scan 6: the confirmation dialogs (ADR 0006 §§ 5 and 9). A dialog holds a
+// token and may send it only from its confirm control. The generic scan above
+// cannot tell two handlers of one component apart, so this one reads the
+// dialogs' own functions by name:
+//
+//   previewPublicationAction, previewPublicChangeAction   only in fetchPreview
+//   publishJournalVersionAction                           only in confirm
+//   saveJournalAction                                     only in confirm of the
+//                                                         change dialog. The
+//                                                         publish dialog saves
+//                                                         nothing, so closing
+//                                                         a review never
+//                                                         leaves a change.
+//
+// `confirm` never reaches a preview, so nothing previews and consumes in one
+// operation; nothing inside a catch handler or an effect,
+// timer, or microtask calls any of them; and `confirm` is attached only to
+// the confirm control (`onConfirm`).
+
+const DIALOG_FILE = /^src\/app\/studio\/.*-dialog\.tsx$/;
+const PREVIEW_ACTIONS = [
+  "previewPublicationAction",
+  "previewPublicChangeAction",
+];
+const CONSUMER_ACTIONS = ["publishJournalVersionAction", "saveJournalAction"];
+const ACTION_SITES: Record<string, string[]> = {
+  previewPublicationAction: ["fetchPreview"],
+  previewPublicChangeAction: ["fetchPreview"],
+  publishJournalVersionAction: ["confirm"],
+  saveJournalAction: ["confirm"],
+};
+// Files that may name each action at all (outside its own definition).
+const ACTION_FILES: Record<string, string[]> = {
+  previewPublicationAction: ["src/app/studio/journals/publish-dialog.tsx"],
+  previewPublicChangeAction: ["src/app/studio/journals/change-dialog.tsx"],
+  publishJournalVersionAction: ["src/app/studio/journals/publish-dialog.tsx"],
+  saveJournalAction: [
+    "src/app/studio/journals/change-dialog.tsx",
+    "src/app/studio/journals/journal-editor.tsx",
+  ],
+};
+const DEFERRED = new Set([
+  "useEffect",
+  "useLayoutEffect",
+  "setTimeout",
+  "setInterval",
+  "queueMicrotask",
+  "requestAnimationFrame",
+]);
+
+// Each dialog may import exactly these studio actions and no others, so it
+// cannot gain a write (delete, restore, create, privacy, catalog) by an import
+// the call-site rules above do not know by name.
+const DIALOG_ACTION_IMPORTS: Record<string, string[]> = {
+  "src/app/studio/journals/publish-dialog.tsx": [
+    "publishJournalVersionAction",
+    "previewPublicationAction",
+  ],
+  "src/app/studio/journals/change-dialog.tsx": [
+    "saveJournalAction",
+    "previewPublicChangeAction",
+  ],
+};
+const ACTION_MODULE = /^@\/app\/studio\/.*(actions?|-action)$/;
+
+export function dialogViolations(files: SourceText[]): string[] {
+  const problems: string[] = [];
+  const guarded = [...PREVIEW_ACTIONS, ...CONSUMER_ACTIONS];
+  for (const file of files) {
+    if (!file.path.startsWith("src/app/")) {
+      continue;
+    }
+    const source = parse(file);
+    prepare(source);
+    const isDialog = DIALOG_FILE.test(file.path);
+
+    const visit = (node: ts.Node) => {
+      // A dialog imports only its own actions; any other studio action module
+      // or name is a way to write that nothing here has reviewed.
+      const allowedImports = DIALOG_ACTION_IMPORTS[file.path];
+      if (
+        allowedImports &&
+        ts.isImportDeclaration(node) &&
+        ts.isStringLiteral(node.moduleSpecifier) &&
+        ACTION_MODULE.test(node.moduleSpecifier.text)
+      ) {
+        const bindings = node.importClause?.namedBindings;
+        const names =
+          bindings && ts.isNamedImports(bindings)
+            ? bindings.elements.map(
+                (element) => (element.propertyName ?? element.name).text,
+              )
+            : ["*"];
+        for (const name of names) {
+          if (!allowedImports.includes(name)) {
+            problems.push(`${file.path} imports ${name}`);
+          }
+        }
+      }
+      // A guarded action is only ever called, never aliased or passed on.
+      if (
+        isDialog &&
+        ts.isIdentifier(node) &&
+        guarded.includes(node.text) &&
+        !ts.isImportSpecifier(node.parent) &&
+        !(ts.isCallExpression(node.parent) && node.parent.expression === node)
+      ) {
+        problems.push(
+          `${file.path}: ${node.text} is used without being called`,
+        );
+      }
+      // Where each action may be named at all.
+      if (ts.isIdentifier(node) && guarded.includes(node.text)) {
+        const defining =
+          file.path === "src/app/studio/journals/actions.ts" ||
+          file.path === `src/app/studio/journals/${nameToFile(node.text)}.ts`;
+        if (!defining && !ACTION_FILES[node.text]!.includes(file.path)) {
+          problems.push(`${file.path} names ${node.text}`);
+        }
+      }
+      if (isDialog && ts.isCallExpression(node)) {
+        const name = calleeName(node.expression);
+        const fn = handlerOf(node);
+        if (name && guarded.includes(name)) {
+          if (!ACTION_SITES[name]!.includes(fn)) {
+            problems.push(`${file.path}: ${name} is called in ${fn}`);
+          }
+          for (let up: ts.Node | undefined = node.parent; up; up = up.parent) {
+            if (ts.isCatchClause(up)) {
+              problems.push(`${file.path}: ${name} is called in a catch`);
+            }
+            if (ts.isCallExpression(up)) {
+              const outer = calleeName(up.expression);
+              if (outer && DEFERRED.has(outer)) {
+                problems.push(`${file.path}: ${name} is called from ${outer}`);
+              }
+              if (
+                ts.isPropertyAccessExpression(up.expression) &&
+                up.expression.name.text === "catch"
+              ) {
+                problems.push(`${file.path}: ${name} is called in .catch`);
+              }
+            }
+          }
+        }
+        // The handler that sends anything may not reach a preview.
+        if (
+          fn === "confirm" &&
+          name &&
+          (name === "fetchPreview" || PREVIEW_ACTIONS.includes(name))
+        ) {
+          problems.push(`${file.path}: ${fn} calls ${name}`);
+        }
+        // Nothing previews from inside a catch handler either.
+        if (name === "fetchPreview") {
+          for (let up: ts.Node | undefined = node.parent; up; up = up.parent) {
+            if (ts.isCatchClause(up)) {
+              problems.push(`${file.path}: fetchPreview is called in a catch`);
+            }
+          }
+        }
+      }
+      // `confirm` is attached only to the confirm control.
+      if (
+        isDialog &&
+        ts.isIdentifier(node) &&
+        node.text === "confirm" &&
+        !(
+          (ts.isFunctionDeclaration(node.parent) &&
+            node.parent.name === node) ||
+          (ts.isJsxExpression(node.parent) &&
+            ts.isJsxAttribute(node.parent.parent) &&
+            node.parent.parent.name.getText() === "onConfirm")
+        )
+      ) {
+        problems.push(`${file.path}: confirm is used outside onConfirm`);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+  }
+  return problems;
+}
+
+// The handler a call belongs to: a function declaration, or a variable such as
+// `const fetchPreview = useCallback(async () => …)`, by name. Anything else is
+// the component itself, which the rules above do not allow.
+function handlerOf(node: ts.Node): string {
+  for (let up: ts.Node | undefined = node.parent; up; up = up.parent) {
+    if (ts.isFunctionDeclaration(up) && up.name) {
+      return up.name.text;
+    }
+    if (
+      ts.isVariableDeclaration(up) &&
+      ts.isIdentifier(up.name) &&
+      up.initializer !== undefined &&
+      (ts.isArrowFunction(up.initializer) ||
+        ts.isFunctionExpression(up.initializer) ||
+        (ts.isCallExpression(up.initializer) &&
+          calleeName(up.initializer.expression) === "useCallback"))
+    ) {
+      return up.name.text;
+    }
+  }
+  return "<module>";
+}
+
+// The file that defines a preview action, by its action name.
+function nameToFile(action: string): string {
+  return action === "previewPublicationAction"
+    ? "preview-publication-action"
+    : action === "previewPublicChangeAction"
+      ? "preview-change-action"
+      : "actions";
 }

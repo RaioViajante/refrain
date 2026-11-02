@@ -183,8 +183,9 @@ export async function createAlbumJournal(
  *   change. Without one it is refused as `confirmation_required` and nothing
  *   is written; so is an expired, stale, or misbound one. A save that only
  *   removes something from the public page, or changes nothing a reader
- *   sees, needs none. The studio offers no way to obtain a token yet (M2.3),
- *   so for the author it is refused.
+ *   sees, needs none. The studio's change dialog obtains the token from
+ *   `previewAlbumJournalPublicChange` and sends it only from its confirm
+ *   control (M2.3).
  * - Visibility is never touched, and a reflection's flag alone never makes
  *   anything public: the publication predicate still decides.
  *
@@ -281,8 +282,8 @@ export async function saveAlbumJournal(
  *
  * Private writing: the delta is for an authorized request only. The token is
  * evidence that this server computed this change for this session, not proof
- * that the author read it. No Server Action calls this until M2.3, so nothing
- * in the studio can obtain a token yet.
+ * that the author read it. Only the studio's preview action calls it, through
+ * `previewAlbumJournalPublicChange` (M2.3).
  */
 export async function previewAlbumJournalChange(
   db: DatabaseExecutor,
@@ -319,7 +320,9 @@ export async function previewAlbumJournalChange(
 }
 
 /**
- * Sets one language version of an album journal to `draft` or `private`.
+ * Sets one language version of an album journal to `draft` or `private`, if
+ * it still has the `expectedStatus` the author's screen showed (otherwise
+ * `status_changed`, and nothing changes).
  * Nothing here can publish: the status is validated against those two values,
  * and the change goes through the Publication module's own command, which
  * refuses a deleted entry. Moving a version that is currently published to one
@@ -336,6 +339,16 @@ export async function setAlbumJournalPrivacy(
       const journal = await lockAlbumJournal(tx, data.entryId);
       if (journal.deleted) {
         throw new JournalError("entry_deleted");
+      }
+      // Under the entry lock: the version must still be what the author saw.
+      const current = await tx.execute<{ status: string }>(sql`
+        select status from entry_texts
+         where entry_id = ${data.entryId} and locale = ${data.locale}`);
+      if (current.rows.length === 0) {
+        throw new JournalError("entry_not_found");
+      }
+      if (current.rows[0]!.status !== data.expectedStatus) {
+        throw new JournalError("status_changed");
       }
       await unpublishLanguageVersion(
         tx,
@@ -403,7 +416,7 @@ export async function restoreAlbumJournal(
 }
 
 // Publication failures that a journal command can cause, as journal failures.
-async function translatePublication<Result>(
+export async function translatePublication<Result>(
   work: () => Promise<Result>,
 ): Promise<Result> {
   try {
@@ -428,6 +441,7 @@ async function translatePublication<Result>(
           throw new JournalError("version_conflict");
         case "unavailable":
         case "nothing_to_publish":
+        case "no_current_slug":
         case "confirmation_invalid":
           throw new JournalError(error.failure);
         case "confirmation_required":
