@@ -261,10 +261,12 @@ describe("the public album journal's projection", () => {
         "tracks",
       ]);
       expect(Object.keys(page.album).sort()).toEqual([
+        "artwork",
         "firstReleaseYear",
         "label",
         "title",
       ]);
+      expect(page.album.artwork).toBeNull();
       expect(Object.keys(page.credits[0]!)).toEqual(["name"]);
       // A track row carries no database id.
       expect(Object.keys(page.tracks[0]!).sort()).toEqual([
@@ -292,6 +294,40 @@ describe("the public album journal's projection", () => {
         "isPublished",
       ]) {
         expect(text, word).not.toContain(`"${word}"`);
+      }
+    });
+  });
+
+  it("shows the chosen cover as image sources only, and nothing for any other stored value (M3.2)", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const { entryId, album } = await publishedJournal(tx);
+      const release = "3f8c4f8e-0000-4000-8000-000000000001";
+      const stored = `https://coverartarchive.org/release/${release}/1000000001`;
+      await tx
+        .update(schema.albums)
+        .set({ coverUrl: stored, coverSource: "Cover Art Archive" })
+        .where(eq(schema.albums.id, album.albumId));
+      const page = (await getPublicAlbumJournal(tx, entryId, "en"))!;
+      expect(page.album.artwork).toEqual({
+        src: `${stored}-500.jpg`,
+        srcSet: `${stored}-250.jpg 250w, ${stored}-500.jpg 500w, ${stored}-1200.jpg 1200w`,
+      });
+      // The stored address itself is not part of the page.
+      expect(JSON.stringify(page)).not.toContain(`"${stored}"`);
+
+      for (const [coverUrl, coverSource] of [
+        ["https://evil.example/cover.jpg", "Cover Art Archive"],
+        ["javascript:alert(1)", "Cover Art Archive"],
+        [`${stored}?track=1`, "Cover Art Archive"],
+        [stored, "elsewhere"],
+      ]) {
+        await tx
+          .update(schema.albums)
+          .set({ coverUrl, coverSource })
+          .where(eq(schema.albums.id, album.albumId));
+        const tampered = (await getPublicAlbumJournal(tx, entryId, "en"))!;
+        expect(tampered.album.artwork, coverUrl).toBeNull();
+        expect(JSON.stringify(tampered)).not.toContain(coverUrl);
       }
     });
   });
@@ -337,6 +373,7 @@ describe("the public album journal's projection", () => {
         title: "[Test] Album",
         firstReleaseYear: 1994,
         label: "[Test] Label",
+        artwork: null,
       });
       expect(page.ratingHalfSteps).toBe(9);
     });

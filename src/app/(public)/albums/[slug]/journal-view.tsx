@@ -1,4 +1,7 @@
-import type { PublicAlbumJournal } from "@/modules/publication/public";
+import type {
+  PublicAlbumJournal,
+  PublicArtwork,
+} from "@/modules/publication/public";
 
 import { PUBLIC_CONTENT_ID } from "@/app/(public)/_components/public-frame";
 import { renderDocument } from "@/app/(public)/_components/rich-text";
@@ -61,21 +64,57 @@ function Chevron({ className }: Readonly<{ className?: string }>) {
   );
 }
 
-/** The graceful stand-in until album artwork is fetched from a provider. */
-function Artwork({ title }: Readonly<{ title: string }>) {
+/**
+ * The album artwork in its fixed 1:1 frame (docs/design-system.md §
+ * Components). The fallback is always there; a chosen Cover Art Archive cover
+ * covers it once loaded, so nothing moves, and if the image never arrives the
+ * fallback is what remains. The image is decorative inside the frame, which
+ * carries the accessible name. It is requested without a referrer, and only
+ * from the archive (the Content-Security-Policy allows nothing else).
+ */
+function Artwork({
+  title,
+  artwork,
+}: Readonly<{ title: string; artwork: PublicArtwork | null }>) {
   return (
-    <div
-      className="pj-cover"
-      role="img"
-      aria-label={`Album artwork for ${title}: not available yet`}
-    >
-      <span className="pj-cover-hatch" aria-hidden="true" />
-      <span className="pj-cover-text" aria-hidden="true">
-        <RecordIcon />
-        <b>Album artwork</b>
-        <i>not available yet</i>
-      </span>
-    </div>
+    <>
+      <div
+        className="pj-cover"
+        role="img"
+        aria-label={
+          artwork
+            ? `Album artwork for ${title}`
+            : `Album artwork for ${title}: not available yet`
+        }
+      >
+        <span className="pj-cover-hatch" aria-hidden="true" />
+        <span className="pj-cover-text" aria-hidden="true">
+          <RecordIcon />
+          <b>Album artwork</b>
+          <i>
+            {artwork ? "loads from Cover Art Archive" : "not available yet"}
+          </i>
+        </span>
+        {artwork ? (
+          // eslint-disable-next-line @next/next/no-img-element -- a remote cover, deliberately not routed through an image optimizer (docs/evidence/m3-2.md)
+          <img
+            className="pj-cover-image"
+            src={artwork.src}
+            srcSet={artwork.srcSet}
+            sizes="(max-width: 720px) 100vw, 514px"
+            width={500}
+            height={500}
+            alt=""
+            decoding="async"
+            fetchPriority="high"
+            referrerPolicy="no-referrer"
+          />
+        ) : null}
+      </div>
+      {artwork ? (
+        <p className="pj-cover-caption">Cover: Cover Art Archive</p>
+      ) : null}
+    </>
   );
 }
 
@@ -99,7 +138,7 @@ export function JournalView({
     <main className="public-shell pj" id={PUBLIC_CONTENT_ID} tabIndex={-1}>
       <article className="pj-grid">
         <div className="pj-art">
-          <Artwork title={album.title} />
+          <Artwork title={album.title} artwork={album.artwork} />
         </div>
         <div className="pj-meta">
           <p>
