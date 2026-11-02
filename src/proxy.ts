@@ -18,7 +18,10 @@ import {
 // public-reads switch, is `routeAlbumJournalRequest` (Publication), which asks
 // the publication queries. Every response here is `no-store`, because a
 // cached `308` would keep naming the address of a journal that has since been
-// unpublished, and a cached `404` would hide a newly published one.
+// unpublished, and a cached `404` would hide a newly published one. The `308`,
+// `405`, and `503` set it themselves; the page and the not-found view are the
+// framework's responses, so `next.config.ts` sets it for them too, and the
+// HTTP tests assert it for every request form.
 
 export const config = {
   // One segment: `/albums/<slug>`. Anything deeper has no page and gets the

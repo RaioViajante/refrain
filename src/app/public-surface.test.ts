@@ -43,6 +43,27 @@ function publicFiles(): string[] {
   return ["src/proxy.ts", ...inApp];
 }
 
+/** The strings of `export const config = { matcher: [...] }`, from the syntax tree. */
+function matcherOf(code: string): string[] {
+  const found: string[] = [];
+  const visit = (node: ts.Node) => {
+    if (
+      ts.isPropertyAssignment(node) &&
+      node.name.getText() === "matcher" &&
+      ts.isArrayLiteralExpression(node.initializer)
+    ) {
+      for (const element of node.initializer.elements) {
+        if (ts.isStringLiteralLike(element)) {
+          found.push(element.text);
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(parse(code, "proxy.ts"));
+  return found;
+}
+
 function parse(code: string, file = "x.tsx"): ts.SourceFile {
   return ts.createSourceFile(file, code, ts.ScriptTarget.Latest, true);
 }
@@ -227,14 +248,61 @@ describe("the public surface", () => {
     }
   });
 
-  it("has the proxy ask both routing decisions, and no other file serve a public address", () => {
-    const proxy = readFileSync("src/proxy.ts", "utf8");
-    expect(proxy).toContain("routeAlbumJournalRequest");
-    expect(proxy).toContain("routePublicDocumentRequest");
-    // The matcher names each public address that has to be decided first.
-    expect(proxy).toMatch(
-      /matcher:\s*\[[^\]]*"\/albums\/:slug"[^\]]*"\/sitemap\.xml"[^\]]*"\/robots\.txt"/,
+  it("has the proxy ask both routing decisions, with exactly the matcher the routes need", () => {
+    const code = readFileSync("src/proxy.ts", "utf8");
+    expect(code).toContain("routeAlbumJournalRequest");
+    expect(code).toContain("routePublicDocumentRequest");
+    expect(matcherOf(code)).toEqual([
+      "/albums/:slug",
+      "/sitemap.xml",
+      "/robots.txt",
+    ]);
+  });
+
+  it("classifies every route-like file under src/app, so a new public surface cannot be missed", () => {
+    const routeLike =
+      /(^|\/)(page|route|layout|template|default|not-found|error|global-error|loading|opengraph-image|twitter-image|icon|apple-icon|sitemap|robots|manifest|feed)\.(m?[jt]sx?)$/;
+    const known = [
+      // The Writing Studio and the authentication endpoint: authorized.
+      /^src\/app\/studio\//,
+      /^src\/app\/api\/auth\/\[\.\.\.all\]\/route\.ts$/,
+      // The public surface, scanned above.
+      /^src\/app\/\(public\)\//,
+      /^src\/app\/sitemap\.xml\/route\.ts$/,
+      /^src\/app\/robots\.txt\/route\.ts$/,
+      /^src\/app\/not-found\.tsx$/,
+      // The root layout and the homepage placeholder, which reads nothing.
+      /^src\/app\/layout\.tsx$/,
+      /^src\/app\/page\.tsx$/,
+    ];
+    const unclassified = walk("src/app").filter(
+      (file) => routeLike.test(file) && !known.some((rule) => rule.test(file)),
     );
+    expect(unclassified).toEqual([]);
+    // The placeholder homepage is public and anonymous: it imports nothing from
+    // a module and calls nothing that reads the system.
+    expect(readFileSync("src/app/page.tsx", "utf8")).not.toMatch(
+      /from "@\/|import\(/,
+    );
+  });
+
+  it("would notice an unclassified route file", () => {
+    const routeLike = /(^|\/)(page|route|feed)\.(m?[jt]sx?)$/;
+    expect(routeLike.test("src/app/feed.xml/route.ts")).toBe(true);
+    expect(routeLike.test("src/app/(public)/albums/page.tsx")).toBe(true);
+  });
+
+  it("is imported only by the public surface, anywhere in src", () => {
+    const importers = walk("src").filter((file) =>
+      /@\/modules\/publication\/public["']/.test(readFileSync(file, "utf8")),
+    );
+    for (const file of importers) {
+      expect(
+        files.includes(file),
+        `${file} imports the public reading entry point but is not a public file`,
+      ).toBe(true);
+    }
+    expect(importers).toContain("src/proxy.ts");
   });
 
   it("is never imported by the studio", () => {
