@@ -65,6 +65,22 @@ function writingState(
   return draft.isStillWriting ? "still writing" : "written";
 }
 
+// What is true of this reflection now, as saved: public, selected to show but
+// not public, or private. The mark alone is never described as enough.
+function visibilityWord(item: TrackByTrackItem, locale: Language) {
+  const saved = item.reflection;
+  if (!saved) {
+    return null;
+  }
+  if (saved.publicIn.length > 0) {
+    return "public";
+  }
+  if (saved.isPublished && saved.texts[locale] !== undefined) {
+    return "set to show";
+  }
+  return "private";
+}
+
 // What is true of this reflection, in a lead word and the rest of the sentence:
 // the lead says which of the three it is. The saved row decides what is
 // public; the draft only says what saving will do. The mark alone is never
@@ -291,7 +307,8 @@ function TrackPanel({
         <p className="studio-hint">
           Also written in{" "}
           {otherLocales.map((other) => LANGUAGE_NAMES[other]).join(", ")}. It is
-          kept as it is, and stays private unless it is set to show and that version is published.
+          kept as it is, and stays private unless it is set to show and that
+          version is published.
         </p>
       ) : null}
 
