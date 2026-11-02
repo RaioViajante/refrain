@@ -716,7 +716,10 @@ describe("publishing needs a token for exactly this state (test 3)", () => {
           }),
           // The unkeyed fingerprint alone, in the shape of a token.
           `ct1.${Buffer.from(JSON.stringify(claims)).toString("base64url")}.${claims.f}`,
-          result.confirmation.slice(0, -2) + "AA",
+          // Two characters of the MAC replaced by others: never the same two
+          // (about one token in 256 ends in "AA", and would stay genuine).
+          result.confirmation.slice(0, -2) +
+            (result.confirmation.endsWith("AA") ? "BB" : "AA"),
         ];
         for (const token of forged) {
           expect(
