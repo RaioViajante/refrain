@@ -3,6 +3,7 @@ import "server-only";
 import { withDatabase } from "@/db";
 
 import * as commands from "./commands";
+import * as publishing from "./publishing";
 import * as queries from "./queries";
 
 // The Writing Studio's interface to the journals: commands and queries bound
@@ -16,6 +17,19 @@ export const setAlbumJournalPrivacy = withDatabase(
 );
 export const deleteAlbumJournal = withDatabase(commands.deleteAlbumJournal);
 export const restoreAlbumJournal = withDatabase(commands.restoreAlbumJournal);
+
+// Publication (ADR 0006): previews mint a confirmation token for the dialog,
+// and the checked commands consume one that a dialog sent. A studio action
+// calls one of them, never a preview and its consumer together.
+export const previewAlbumJournalPublication = withDatabase(
+  publishing.previewAlbumJournalPublication,
+);
+export const publishAlbumJournalVersion = withDatabase(
+  publishing.publishAlbumJournalVersion,
+);
+export const previewAlbumJournalPublicChange = withDatabase(
+  publishing.previewAlbumJournalPublicChange,
+);
 
 export const listAlbumJournals = withDatabase(queries.listAlbumJournals);
 export const listDeletedAlbumJournals = withDatabase(

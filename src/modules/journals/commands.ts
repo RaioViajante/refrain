@@ -403,7 +403,7 @@ export async function restoreAlbumJournal(
 }
 
 // Publication failures that a journal command can cause, as journal failures.
-async function translatePublication<Result>(
+export async function translatePublication<Result>(
   work: () => Promise<Result>,
 ): Promise<Result> {
   try {
@@ -428,6 +428,7 @@ async function translatePublication<Result>(
           throw new JournalError("version_conflict");
         case "unavailable":
         case "nothing_to_publish":
+        case "no_current_slug":
         case "confirmation_invalid":
           throw new JournalError(error.failure);
         case "confirmation_required":
