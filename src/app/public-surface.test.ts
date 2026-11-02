@@ -240,6 +240,12 @@ function gateViolations(
   const found: string[] = [];
 
   const checkFunction = (fn: FunctionLike) => {
+    // A default value runs before the body, so before its guard.
+    for (const parameter of fn.parameters) {
+      if (parameter.initializer && holdsRead(parameter.initializer, reads)) {
+        found.push("reads in a parameter default, before any guard");
+      }
+    }
     if (!holdsRead(fn.body!, reads)) {
       return;
     }
@@ -267,6 +273,20 @@ function gateViolations(
   };
 
   const visit = (node: ts.Node, insideFunction: boolean) => {
+    // The guard and the exits must be the real ones, not a local stand-in that
+    // happens to share the name.
+    if (
+      (ts.isFunctionDeclaration(node) ||
+        ts.isVariableDeclaration(node) ||
+        ts.isParameter(node)) &&
+      node.name !== undefined &&
+      ts.isIdentifier(node.name) &&
+      [GATE, "notFound", "redirect", "permanentRedirect"].includes(
+        node.name.text,
+      )
+    ) {
+      found.push(`declares its own ${node.name.text}`);
+    }
     if (isFunctionLike(node) && node.body) {
       checkFunction(node);
       ts.forEachChild(node, (child) => visit(child, true));
@@ -277,6 +297,15 @@ function gateViolations(
       if (name && reads.has(name)) {
         found.push(`calls ${name} outside any function`);
       }
+    }
+    // A read reached by a computed name is invisible to the call check.
+    if (
+      ts.isElementAccessExpression(node) &&
+      ts.isStringLiteralLike(node.argumentExpression) &&
+      (reads.has(node.argumentExpression.text) ||
+        node.argumentExpression.text === GATE)
+    ) {
+      found.push(`reaches ${node.argumentExpression.text} by name`);
     }
     // A bare reference to a read can reach it by a path that the guard check
     // does not see.
@@ -324,6 +353,15 @@ function violations(code: string, file: string): string[] {
       !ALLOWED_IMPORTS.some((rule) => rule.test(specifier))
     ) {
       found.push(`imports ${specifier}`);
+    }
+    // `import * as ns` hides which reads are used, so the guard scan cannot see
+    // them.
+    if (
+      ts.isImportDeclaration(node) &&
+      node.importClause?.namedBindings &&
+      ts.isNamespaceImport(node.importClause.namedBindings)
+    ) {
+      found.push("imports a namespace");
     }
     if (
       ts.isCallExpression(node) &&
@@ -534,6 +572,9 @@ describe("the public surface", () => {
         ).not.toEqual([]);
       }
       expect(
+        check('import * as ns from "@/modules/publication/public";'),
+      ).toEqual(["imports a namespace"]);
+      expect(
         check('import x = require("@/modules/publication/queries");'),
       ).not.toEqual([]);
       expect(
@@ -675,6 +716,27 @@ describe("the public surface", () => {
           'import { publicReadsEnabled as on } from "@/modules/publication/public"; const reads = getPublicAlbumJournal;',
         ],
       ])("rejects %s", (_label, code) => {
+        expect(gates(code).length).toBeGreaterThan(0);
+      });
+
+      it.each([
+        [
+          "a read in a parameter default",
+          "async function f(s, x = getPublicAlbumJournal(s)) { if (!publicReadsEnabled()) { return null; } return x; }",
+        ],
+        [
+          "a read by element access",
+          'async function f(s) { if (!publicReadsEnabled()) { return null; } return ns["getPublicAlbumJournal"](s); }',
+        ],
+        [
+          "a local stand-in for the switch",
+          "const publicReadsEnabled = () => true; async function f(s) { if (!publicReadsEnabled()) { return null; } return getPublicAlbumJournal(s); }",
+        ],
+        [
+          "a local stand-in for notFound",
+          "function notFound() {} async function f(s) { if (!publicReadsEnabled()) { notFound(); } return getPublicAlbumJournal(s); }",
+        ],
+      ])("also rejects %s", (_label, code) => {
         expect(gates(code).length).toBeGreaterThan(0);
       });
 

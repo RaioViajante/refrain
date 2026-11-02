@@ -6,7 +6,7 @@
 //
 // 1. it is the same on every not-found response, whatever the reason the
 //    address is not served (unknown, draft, private, deleted, unpublished,
-//    restored, retired), and for GET, HEAD, and RSC requests;
+//    restored, retired), and for GET, HEAD, RSC, prefetch, and segment forms;
 // 2. request history does not change it, in a long-lived server or in a fresh
 //    process whose first request is a hidden address;
 // 3. it never accompanies a response that carries entry-specific content: not
@@ -16,6 +16,7 @@
 // 5. the bytes that carry the marker are the build's own artifact, so they
 //    cannot contain anything a journal wrote.
 import { createHash, randomBytes } from "node:crypto";
+import { request as httpRequest } from "node:http";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -419,6 +420,118 @@ describe("the marker never accompanies entry-specific content", () => {
   });
 });
 
+describe("every transport form answers a hidden address as an unknown one", () => {
+  // The segment-prefetch forms the router and a crawler can send, including
+  // one whose path names the requested address itself (the request most likely
+  // to make a framework create an entry per address), with and without a
+  // forged session cookie and conditional headers. Status, every header, and
+  // the body are compared in full, with the requested address masked.
+  const withSlug = (slug: string) =>
+    [
+      ["/_full", { "next-router-segment-prefetch": "/_full" }],
+      ["/_head", { "next-router-segment-prefetch": "/_head" }],
+      ["/_tree", { "next-router-segment-prefetch": "/_tree" }],
+      [
+        "a segment path naming the address",
+        {
+          "next-router-segment-prefetch": `/!KHB1YmxpYyk/albums/${slug}/__PAGE__`,
+        },
+      ],
+      [
+        "a forged session cookie",
+        { cookie: "better-auth.session_token=forged.value" },
+      ],
+      ["a conditional request", { "if-none-match": '"x"', range: "bytes=0-9" }],
+    ] as const;
+
+  const mask = (snapshot: Snapshot, slug: string) => {
+    const view = sameServer(snapshot);
+    const hide = (text: string) => text.split(slug).join("SLUG");
+    return {
+      status: view.status,
+      headers: Object.fromEntries(
+        Object.entries(view.headers).map(([name, value]) => [
+          name,
+          hide(value),
+        ]),
+      ),
+      body: hide(view.body),
+    };
+  };
+
+  it("in full: status, headers, and body", async () => {
+    const unknown = unknownSlug();
+    for (const rsc of [true, false]) {
+      for (const [index, [label]] of withSlug("x").entries()) {
+        const forUnknown = mask(
+          await get(on.baseURL, `/albums/${unknown}`, {
+            rsc,
+            headers: {
+              "next-router-prefetch": "1",
+              ...withSlug(unknown)[index]![1],
+            },
+          }),
+          unknown,
+        );
+        for (const [reason, slug] of Object.entries(hidden)) {
+          const got = mask(
+            await get(on.baseURL, `/albums/${slug}`, {
+              rsc,
+              headers: {
+                "next-router-prefetch": "1",
+                ...withSlug(slug)[index]![1],
+              },
+            }),
+            slug,
+          );
+          expect(got, `${label} (rsc ${rsc}): ${reason}`).toEqual(forUnknown);
+        }
+      }
+    }
+  });
+
+  it("does not reflect a spoofed Host into a response that is not a redirect", async () => {
+    // The rewrite header names the server's own origin, built from the request.
+    // A raw request with a hostile Host must not see it in any header or body.
+    const url = new URL(on.baseURL);
+    const send = (path: string) =>
+      new Promise<{ headers: string; body: string }>((resolve, reject) => {
+        const req = httpRequest(
+          {
+            host: url.hostname,
+            port: url.port,
+            path,
+            headers: {
+              host: "evil.example",
+              "x-forwarded-host": "evil.example",
+              "x-forwarded-proto": "https",
+            },
+          },
+          (res) => {
+            let body = "";
+            res.setEncoding("utf8");
+            res.on("data", (chunk) => (body += chunk));
+            res.on("end", () =>
+              resolve({ headers: JSON.stringify(res.headers), body }),
+            );
+          },
+        );
+        req.on("error", reject);
+        req.end();
+      });
+    for (const path of [
+      `/albums/${unknownSlug()}`,
+      `/albums/${hidden["unpublished after being public"]}`,
+      `/albums/${servedSlug}`,
+      "/sitemap.xml",
+    ]) {
+      const answer = await send(path);
+      expect(answer.headers, path).not.toContain("evil.example");
+      expect(answer.body, path).not.toContain("evil.example");
+    }
+  });
+});
+
 describe("the not-found view's illustration", () => {
   it("is a static file, byte for byte the approved original, and the same for everyone", async () => {
     const original = readFileSync("public/artwork/refrain-404.png");
@@ -439,11 +552,13 @@ describe("the not-found view's illustration", () => {
 });
 
 describe("what else could tell a hidden address from an unknown one", () => {
-  it("has the same response time, within a generous bound", async () => {
+  it("has the same response time, within a generous bound (a gross-branch tripwire)", async () => {
     // A hidden address and an unknown one run the same code: one slug query,
     // then the same rewrite to the same prerendered view. This measures it,
     // with interleaved requests so that drift affects both alike. It is a
-    // tripwire for an extra query or a branch, not a constant-time proof: a
+    // tripwire for a gross difference (a slow branch, an external call), not for
+    // an extra query, which costs far less than the margin, and not a
+    // constant-time proof: a
     // network observer far from the server cannot resolve what this can.
     const slug = hidden["unpublished after being public"]!;
     const time = async (path: string) => {
@@ -484,6 +599,37 @@ describe("what else could tell a hidden address from an unknown one", () => {
       ]) {
         expect(text).not.toContain(needle);
       }
+    }
+  });
+});
+
+describe("what the requests left on disk", () => {
+  it("added no file named for an address under the build's album output", () => {
+    // If a request for a concrete address ever caused the framework to cache a
+    // rendering, it would appear here by name. This runs after every request
+    // above (a describe's tests run in order), and the listing must be the
+    // build's own.
+    expect(readdirSync(".next/server/app/albums").sort()).toEqual([
+      "[slug].html",
+      "[slug].meta",
+      "[slug].segments",
+    ]);
+    const names: string[] = [];
+    const walk = (directory: string) => {
+      for (const entry of readdirSync(directory, { withFileTypes: true })) {
+        names.push(entry.name);
+        if (entry.isDirectory()) {
+          walk(join(directory, entry.name));
+        }
+      }
+    };
+    walk(".next");
+    const all = [...Object.values(hidden), servedSlug, redirectFrom, prefix];
+    for (const needle of all) {
+      expect(
+        names.filter((name) => name.includes(needle)),
+        needle,
+      ).toEqual([]);
     }
   });
 });

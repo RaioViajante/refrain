@@ -382,6 +382,10 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
       expect((await box()).bottom).toBeLessThanOrEqual(0);
       expect(await page.locator("#main").count()).toBe(1);
 
+      const restMainTop = await page
+        .locator("main")
+        .evaluate((el) => el.getBoundingClientRect().top);
+
       // The first Tab reaches it, and it is drawn on screen.
       await page.keyboard.press("Tab");
       await expect(skip).toBeFocused();
@@ -404,7 +408,8 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
       expect(look.color).toBe("rgb(255, 255, 255)");
       expect(look.outline).toBe("solid 2px");
 
-      // It covers nothing: not the navigation, and not the page's writing.
+      // It covers nothing visible: a navigation link under it is drawn
+      // invisible while it has focus, and it never reaches the writing.
       const navigation = await page
         .locator(".public-link")
         .evaluateAll((links) =>
@@ -415,6 +420,7 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
               bottom: r.bottom,
               left: r.left,
               right: r.right,
+              opacity: getComputedStyle(link.closest("ul")!).opacity,
             };
           }),
         );
@@ -425,12 +431,20 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
           shown.right > link.left &&
           shown.top < link.bottom &&
           shown.bottom > link.top;
-        expect(overlaps, "the skip link covers a navigation link").toBe(false);
+        if (overlaps) {
+          expect(link.opacity, "a link under the skip link is visible").toBe(
+            "0",
+          );
+        }
       }
+      // The page does not move while it is focused: the content starts where
+      // it starts at rest.
+      const mainAtRest = restMainTop;
       const main = await page
         .locator("main")
         .evaluate((el) => el.getBoundingClientRect().top);
       expect(shown.bottom).toBeLessThanOrEqual(main);
+      expect(main).toBe(mainAtRest);
 
       // Nothing about it breaks the page's accessibility.
       const results = await new AxeBuilder({ page }).withTags(TAGS).analyze();
@@ -443,6 +457,12 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
       await expect
         .poll(() => page.evaluate(() => document.activeElement?.id))
         .toBe("main");
+      // The jump lands on the content: its top is on screen, not scrolled past
+      // by the height of anything that moved.
+      const landed = await page
+        .locator("main")
+        .evaluate((el) => el.getBoundingClientRect().top);
+      expect(landed).toBeGreaterThanOrEqual(0);
       const ring = await page
         .locator("main")
         .evaluate((el) => getComputedStyle(el).outlineStyle);

@@ -33,8 +33,7 @@ export default function NotFound() {
           width={1536}
           height={1024}
           unoptimized
-          priority
-          alt="Ink drawing of a person with curly hair and headphones, sitting cross-legged and scratching their head over a map marked 404, next to a stack of records, a mug, a cassette and a signpost."
+          alt="Ink drawing of a person with curly hair and headphones, scratching their head over a map marked 404."
         />
         <h1 className="public-notfound-title">Nothing here</h1>
         <p>This page is not available.</p>

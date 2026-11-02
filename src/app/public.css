@@ -33,12 +33,15 @@
 }
 
 /* The skip link: the first tab stop. It is off screen until it has keyboard
-   focus, and then it takes its own place above the navigation, in ink on
-   paper, so that it covers neither the navigation nor the writing (an overlay
-   covered the "Home" link at 390px). It is out of the flow at rest, so a
-   pointer user never sees it. */
+   focus, and then it is drawn at the top left in ink on paper. It never
+   changes the page's flow: a link that took space while focused moved the
+   content up again when activated, so the jump to the content landed off by
+   its height. At narrow widths it would sit on the navigation, so the
+   navigation is drawn invisible (still in place and focusable, so the next Tab
+   reaches it) for as long as the skip link has focus. */
 .public-skip {
   position: absolute;
+  z-index: 10;
   top: -100px;
   left: 8px;
   display: inline-flex;
@@ -54,11 +57,13 @@
 }
 
 .public-skip:focus {
-  position: static;
-  align-self: flex-start;
-  margin: 8px 0 0 8px;
+  top: 8px;
   outline: 2px solid var(--color-ink);
   outline-offset: 3px;
+}
+
+.public:has(.public-skip:focus) .public-nav {
+  opacity: 0;
 }
 
 /* The skip link moves focus here. A page is not a control, so it gets no ring
