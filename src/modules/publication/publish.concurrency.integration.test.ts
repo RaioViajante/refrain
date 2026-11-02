@@ -8,6 +8,7 @@ import {
   deleteAlbumJournal,
   restoreAlbumJournal,
   saveAlbumJournal,
+  setAlbumJournalPrivacy,
 } from "@/modules/journals";
 import {
   createTestAlbum,
@@ -251,6 +252,60 @@ describe("every command that changes what is public moves the state stamp (test 
         `${name} moves the ${rule} timestamp`,
       ).toBe(true);
     }
+  });
+
+  it("a stale Draft from a tab that still shows Private waits for a real publication, then is refused", async () => {
+    const { entryId } = await committedJournal();
+    // Tab A's screen shows the version as draft. Tab B publishes it, holding
+    // the entry lock, while A's Private click arrives and has to wait for it.
+    const token = await previewPublication(getDb(), author, {
+      entryId,
+      locale: "en",
+    });
+    let pending: Promise<PromiseSettledResult<void>> | undefined;
+    // Tab B holds its own connection, so the application's pool is free for A.
+    await withConnections(1, async ([b]) => {
+      await b!.transaction(async (tx) => {
+        await lockEntryRow(tx, entryId);
+        await publishLanguageVersion(
+          tx,
+          author,
+          request(entryId, token.confirmation, token.disclosure.entryVersion),
+        );
+        // The bound command runs on the application's own connection.
+        pending = Promise.allSettled([
+          setAlbumJournalPrivacy(author, {
+            entryId,
+            locale: "en",
+            status: "private",
+            expectedStatus: "draft",
+          }),
+        ]).then(([settled]) => settled! as PromiseSettledResult<void>);
+        // The command runs on the application's connection, not one of these
+        // tests' own, so look for any statement waiting for a lock.
+        for (let attempt = 0; ; attempt++) {
+          const waiting = await tx.execute<{ n: number }>(sql`
+          select count(*)::int as n from pg_stat_activity
+           where datname = current_database() and wait_event_type = 'Lock'`);
+          if (waiting.rows[0]!.n > 0) {
+            break;
+          }
+          if (attempt > 250) {
+            throw new Error(
+              "The stale change was never blocked behind the lock.",
+            );
+          }
+          await new Promise((resolve) => setTimeout(resolve, 20));
+        }
+      });
+    });
+    const outcome = await pending!;
+    expect(outcome.status).toBe("rejected");
+    expect((outcome as PromiseRejectedResult).reason).toMatchObject({
+      failure: "status_changed",
+    });
+    // The stale click did not unpublish what B published.
+    expect(await statusOf(entryId, "en")).toBe("published");
   });
 
   it("a token cannot be replayed after a publish and an unpublish that return the status to where it was", async () => {

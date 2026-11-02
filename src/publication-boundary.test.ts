@@ -923,6 +923,35 @@ describe("the dialog scan catches each way a dialog could send a token wrongly",
     ).not.toEqual([]);
   });
 
+  it("catches another studio action imported by a dialog, and an action aliased or passed on", () => {
+    expect(
+      dialogViolations([
+        file(
+          dialog,
+          'import { setJournalPrivacyAction } from "@/app/studio/journals/actions";\nexport function D() { return setJournalPrivacyAction({}); }',
+        ),
+      ]),
+    ).not.toEqual([]);
+    expect(
+      dialogViolations([
+        file(
+          dialog,
+          'import { deleteJournalAction as gone } from "@/app/studio/journals/actions";\nexport function D() { return gone(1); }',
+        ),
+      ]),
+    ).not.toEqual([]);
+    expect(
+      check(
+        "const send = publishJournalVersionAction;\nasync function confirm() { return send({}); }",
+      ),
+    ).not.toEqual([]);
+    expect(
+      check(
+        "async function confirm() { return run(publishJournalVersionAction); }",
+      ),
+    ).not.toEqual([]);
+  });
+
   it("catches an action named in a file that is not allowed to", () => {
     expect(
       dialogViolations([

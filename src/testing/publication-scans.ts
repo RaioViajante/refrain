@@ -1232,6 +1232,21 @@ const DEFERRED = new Set([
   "requestAnimationFrame",
 ]);
 
+// Each dialog may import exactly these studio actions and no others, so it
+// cannot gain a write (delete, restore, create, privacy, catalog) by an import
+// the call-site rules above do not know by name.
+const DIALOG_ACTION_IMPORTS: Record<string, string[]> = {
+  "src/app/studio/journals/publish-dialog.tsx": [
+    "publishJournalVersionAction",
+    "previewPublicationAction",
+  ],
+  "src/app/studio/journals/change-dialog.tsx": [
+    "saveJournalAction",
+    "previewPublicChangeAction",
+  ],
+};
+const ACTION_MODULE = /^@\/app\/studio\/.*(actions?|-action)$/;
+
 export function dialogViolations(files: SourceText[]): string[] {
   const problems: string[] = [];
   const guarded = [...PREVIEW_ACTIONS, ...CONSUMER_ACTIONS];
@@ -1244,6 +1259,40 @@ export function dialogViolations(files: SourceText[]): string[] {
     const isDialog = DIALOG_FILE.test(file.path);
 
     const visit = (node: ts.Node) => {
+      // A dialog imports only its own actions; any other studio action module
+      // or name is a way to write that nothing here has reviewed.
+      const allowedImports = DIALOG_ACTION_IMPORTS[file.path];
+      if (
+        allowedImports &&
+        ts.isImportDeclaration(node) &&
+        ts.isStringLiteral(node.moduleSpecifier) &&
+        ACTION_MODULE.test(node.moduleSpecifier.text)
+      ) {
+        const bindings = node.importClause?.namedBindings;
+        const names =
+          bindings && ts.isNamedImports(bindings)
+            ? bindings.elements.map(
+                (element) => (element.propertyName ?? element.name).text,
+              )
+            : ["*"];
+        for (const name of names) {
+          if (!allowedImports.includes(name)) {
+            problems.push(`${file.path} imports ${name}`);
+          }
+        }
+      }
+      // A guarded action is only ever called, never aliased or passed on.
+      if (
+        isDialog &&
+        ts.isIdentifier(node) &&
+        guarded.includes(node.text) &&
+        !ts.isImportSpecifier(node.parent) &&
+        !(ts.isCallExpression(node.parent) && node.parent.expression === node)
+      ) {
+        problems.push(
+          `${file.path}: ${node.text} is used without being called`,
+        );
+      }
       // Where each action may be named at all.
       if (ts.isIdentifier(node) && guarded.includes(node.text)) {
         const defining =
