@@ -90,7 +90,7 @@ export function JournalView({
       ? `${tracks.length} ${tracks.length === 1 ? "track" : "tracks"}`
       : null,
   ].filter((fact): fact is string => fact !== null);
-  const body = renderDocument(journal.body);
+  const body = renderDocument(journal.body, 2);
   const ratingValue =
     journal.ratingHalfSteps !== null ? ratingText(journal.ratingHalfSteps) : "";
 
@@ -210,7 +210,7 @@ export function JournalView({
                 );
               }
 
-              const reflectionBody = renderDocument(reflection.body);
+              const reflectionBody = renderDocument(reflection.body, 3);
               const rating =
                 reflection.ratingHalfSteps !== null
                   ? ratingText(reflection.ratingHalfSteps)

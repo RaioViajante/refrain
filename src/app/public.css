@@ -315,7 +315,7 @@ a.public-link:hover,
   margin: 0 0 1.25em;
 }
 
-.pj-body h3 {
+.pj-body h2 {
   margin: 1.7em 0 0.5em;
   font-family: var(--font-kalam), cursive;
   font-size: 26px;
@@ -534,6 +534,7 @@ details[open] > summary .pj-chevron {
   .pj-grid {
     display: flex;
     flex-direction: column;
+    align-items: stretch;
   }
 
   .pj-col {
@@ -576,7 +577,7 @@ details[open] > summary .pj-chevron {
     font-size: 19.5px;
   }
 
-  .pj-body h3 {
+  .pj-body h2 {
     font-size: 24px;
   }
 

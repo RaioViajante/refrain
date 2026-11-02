@@ -85,19 +85,28 @@ function hasText(node: Node): boolean {
   return plainText(node).trim() !== "";
 }
 
-function block(node: Node, index: number, depth: number): ReactNode {
+type HeadingLevel = 2 | 3;
+
+function block(
+  node: Node,
+  index: number,
+  depth: number,
+  level: HeadingLevel,
+): ReactNode {
   if (!hasText(node)) {
     return null;
   }
   switch (node.type) {
     case "paragraph":
       return <p key={index}>{inline(children(node), depth + 1)}</p>;
-    case "heading":
-      return <h3 key={index}>{inline(children(node), depth + 1)}</h3>;
+    case "heading": {
+      const Heading = level === 2 ? "h2" : "h3";
+      return <Heading key={index}>{inline(children(node), depth + 1)}</Heading>;
+    }
     case "blockquote":
       return (
         <blockquote key={index}>
-          {children(node).map((child, i) => block(child, i, depth + 1))}
+          {children(node).map((child, i) => block(child, i, depth + 1, level))}
         </blockquote>
       );
     default:
@@ -106,13 +115,21 @@ function block(node: Node, index: number, depth: number): ReactNode {
   }
 }
 
-/** The document's blocks, or null when it is not a document or has no text. */
-export function renderDocument(document: unknown): ReactNode {
+/**
+ * The document's blocks, or null when it is not a document or has no text.
+ * `headingLevel` is the level a subheading is given, so the page's outline stays
+ * in order: the journal's own writing sits under the page title (2), and a
+ * track's reflection sits under the "Track by track" heading (3).
+ */
+export function renderDocument(
+  document: unknown,
+  headingLevel: HeadingLevel,
+): ReactNode {
   if (!isNode(document) || document.type !== "doc") {
     return null;
   }
   const blocks = children(document)
-    .map((node, index) => block(node, index, 0))
+    .map((node, index) => block(node, index, 0, headingLevel))
     .filter((element) => element !== null);
   return blocks.length > 0 ? blocks : null;
 }

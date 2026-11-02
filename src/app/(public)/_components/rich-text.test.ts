@@ -5,8 +5,10 @@ import { describe, expect, it } from "vitest";
 import { renderDocument } from "./rich-text";
 import { ratingText, Stars } from "./stars";
 
-const html = (document: unknown) =>
-  renderToStaticMarkup(createElement(Fragment, null, renderDocument(document)));
+const html = (document: unknown, level: 2 | 3 = 3) =>
+  renderToStaticMarkup(
+    createElement(Fragment, null, renderDocument(document, level)),
+  );
 
 const doc = (...content: unknown[]) => ({ type: "doc", content });
 const text = (value: string, marks?: { type: string }[]) => ({
@@ -33,6 +35,17 @@ describe("the journal renderer", () => {
     ).toBe(
       "<p>One<br/><em>two</em></p><h3>Sub</h3><blockquote><p>Quoted</p></blockquote>",
     );
+  });
+
+  it("gives a subheading the level the page asks for", () => {
+    const heading = doc({
+      type: "heading",
+      attrs: { level: 1 },
+      content: [text("Sub")],
+    });
+    // Whatever level was stored, the outline is the page's own.
+    expect(html(heading, 2)).toBe("<h2>Sub</h2>");
+    expect(html(heading, 3)).toBe("<h3>Sub</h3>");
   });
 
   it("escapes markup in text", () => {
@@ -78,7 +91,7 @@ describe("the journal renderer", () => {
 
   it("drops empty paragraphs, and returns nothing for no text", () => {
     expect(html(doc(paragraph(), paragraph(text("   "))))).toBe("");
-    expect(renderDocument(doc())).toBeNull();
+    expect(renderDocument(doc(), 2)).toBeNull();
   });
 
   it("returns nothing for anything that is not a document", () => {
@@ -90,7 +103,7 @@ describe("the journal renderer", () => {
       [],
       { type: "paragraph" },
     ]) {
-      expect(renderDocument(value)).toBeNull();
+      expect(renderDocument(value, 2)).toBeNull();
     }
   });
 
