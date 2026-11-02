@@ -72,13 +72,24 @@ async function Catalog() {
         deletes writing.
       </p>
 
+      <p>
+        <Link href="/studio/catalog/add" className="studio-button">
+          <Icon name="search" size={17} />
+          Add music
+        </Link>
+      </p>
+
       {empty ? (
         <div className="studio-panel">
           <p className="studio-section-title">Nothing in the catalog yet</p>
           <p>
             Everything starts with an artist or a band.{" "}
+            <Link href="/studio/catalog/add" className="studio-link">
+              Find one on MusicBrainz
+            </Link>{" "}
+            or{" "}
             <Link href="/studio/artists/new" className="studio-link">
-              Add one
+              add one by hand
             </Link>
             , then an album that credits them, and the music you love will have
             somewhere to live.

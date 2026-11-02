@@ -10,8 +10,10 @@ import {
   createAlbum,
   deleteAlbum,
   moveTrackInAlbum,
+  removeAlbumArtwork,
   removeTrackFromAlbum,
   restoreAlbum,
+  setAlbumArtwork,
   updateAlbum,
 } from "@/modules/catalog";
 import { authorizeAuthor } from "@/modules/identity";
@@ -106,4 +108,27 @@ export async function moveTrackInAlbumAction(
   return perform(() =>
     moveTrackInAlbum(authorization.author, albumId, trackId, direction),
   );
+}
+
+// Artwork (M3.2): a front cover from the Cover Art Archive, chosen by the
+// author, or none. Refused while a published journal shows the album (gate G8).
+
+export async function setAlbumArtworkAction(
+  input: unknown,
+): Promise<ActionResult> {
+  const authorization = await authorizeAuthor(await headers());
+  if (!authorization.ok) {
+    return denied(authorization.reason);
+  }
+  return perform(() => setAlbumArtwork(authorization.author, input));
+}
+
+export async function removeAlbumArtworkAction(
+  input: unknown,
+): Promise<ActionResult> {
+  const authorization = await authorizeAuthor(await headers());
+  if (!authorization.ok) {
+    return denied(authorization.reason);
+  }
+  return perform(() => removeAlbumArtwork(authorization.author, input));
 }

@@ -363,7 +363,7 @@ function buildPlan(release: Release): ImportPlan {
 }
 
 /** What linking to a release asserts: its identity, title, and credit. */
-function linkPlanOf(release: Release) {
+export function linkPlanOf(release: Release) {
   return {
     releaseGroupId: release.releaseGroup.id,
     releaseId: release.id,
@@ -372,7 +372,7 @@ function linkPlanOf(release: Release) {
   };
 }
 
-function artistPlanOf(artist: Artist) {
+export function artistPlanOf(artist: Artist) {
   const { kind, fromProvider } = artistKindOf(artist.type);
   return {
     mbArtistId: artist.id,

@@ -80,6 +80,15 @@ function failed(error: unknown): ActionResult<never> {
           code: "in_use",
           blockedBy: error.details.blockedBy,
         };
+      case "provider_unavailable":
+      case "provider_not_found":
+      case "unsupported_release":
+      case "already_linked":
+      case "not_linked":
+      case "public_page":
+        return { ok: false, code: error.failure };
+      case "review_stale":
+        return { ok: false, code: "stale" };
     }
   }
   if (error instanceof JournalError) {
