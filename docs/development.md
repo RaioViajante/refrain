@@ -48,6 +48,7 @@ All local configuration lives in one file, `.env`, which Git ignores. Docker Com
 | `BETTER_AUTH_SECRET` | Server code, the author command | Signs session cookies, and is the input from which the publication confirmation key is derived (HKDF, a distinct purpose string). At least 32 characters of random data; [generate it](#authentication). A secret: never commit it, never reuse it between environments. Replacing it signs the author out and invalidates every outstanding confirmation token, which costs nothing: a token lives 15 minutes. |
 | `BETTER_AUTH_URL` | Server code, the author command | The application's origin, for example `http://localhost:3000`. HTTPS is required unless the host is `localhost`, `127.0.0.1`, or `[::1]`. Only this origin may send state-changing requests. |
 | `REFRAIN_AUTHOR_EMAIL` | Server code, the author command | The single author's email address. Only the account with this email is authorized in the studio. |
+| `REFRAIN_PUBLIC_READS_ENABLED` | Server code only (the proxy, the public page, the sitemap, `robots.txt`) | **Off unless it is exactly `true`.** Unset, empty, `TRUE`, `1`, `yes`, and every other value leave every public address answering the unknown-address `404`. It is read when a request is served, never at build time, and it is never a `NEXT_PUBLIC_` variable. It can hide public content and can never reveal any: with it on, every read still goes through the publication predicate. **Never switch it on in a deployment that anyone else can reach** until the [public page release gates](security.md#public-page-release-gates) are closed. [`.env.example`](../.env.example) leaves it off. |
 
 Variables already set in the environment take precedence over `.env`, which is how CI supplies its own `TEST_DATABASE_URL`. A `.env` created before M1.2 lacks the two test variables, and one created before M1.3A lacks the three authentication variables; copy them from `.env.example`.
 
@@ -158,7 +159,7 @@ It replaces the password and signs out every session. There is no password reset
 
 ### Using the Writing Studio (M1.3B)
 
-After [the author account exists](#first-time-setup-of-the-author-account), `pnpm dev` and sign in at `http://localhost:3000/studio`. Everything is private: publishing only marks a version as published in your records, and there are no public pages yet. Typical first session, which is also the manual acceptance test:
+After [the author account exists](#first-time-setup-of-the-author-account), `pnpm dev` and sign in at `http://localhost:3000/studio`. Everything is private by default: publishing marks a version as published in your records, and a public page for it opens only where [`REFRAIN_PUBLIC_READS_ENABLED`](#configuration) is `true`, which no default configuration sets. Typical first session, which is also the manual acceptance test:
 
 1. **Artist.** Artists → *Add an artist* → a name, person or band → *Add artist*. (The MusicBrainz id is optional and only stored.)
 2. **Album.** Albums → *Add an album* → a title, credit the artist (add more rows for more artists, reorder with ↑ ↓), optionally a year and the reference edition's label, date, and country → *Add album*. Titles need not be unique.
@@ -293,6 +294,19 @@ The server uses its own connections, so these rows are committed, unlike the int
 
 [`src/testing/studio-actions.http.test.ts`](../src/testing/studio-actions.http.test.ts) calls each Server Action the way any client could, by its identifier from the build's manifest. It does not sign in, because sign-in is rate limited for all clients together and the authentication tests count their attempts: it mints sessions in the test database with the same HMAC signature the cookie carries ([`http-session.ts`](../src/testing/http-session.ts)), and removes them and its `[Test] HTTP …` rows when it finishes.
 
+### Public page tests (M3.1)
+
+The public album-journal page has three layers of tests, all against synthetic data (the Grace / Jeff Buckley catalog facts, every piece of writing labelled `[Test]`, and private markers that must appear nowhere):
+
+| Layer | Command | What it shows |
+| --- | --- | --- |
+| Unit and static scans | `pnpm test` | The switch over every near-miss value; the read model's pure parts; the allow-listed renderer; [`src/app/public-surface.test.ts`](../src/app/public-surface.test.ts) (imports, the switch before every read, no cache directive) |
+| PostgreSQL | `pnpm test:integration` | [`public-album-journal.integration.test.ts`](../src/modules/publication/public-album-journal.integration.test.ts): the read model against an independent oracle over 384 states, the projection's keys, the sitemap against slug resolution, and the routing decision |
+| Production build over HTTP | `pnpm build && pnpm test:http` | [`public-album-journal.http.test.ts`](../src/testing/public-album-journal.http.test.ts) starts the one build several times, each with its own value of the switch and with no author, and compares every address that is not served with an unknown one; [`public-transitions.http.test.ts`](../src/testing/public-transitions.http.test.ts) changes state with the real commands and requests the next page at once |
+| Browser | `pnpm test:e2e` | [`e2e/public.spec.ts`](../e2e/public.spec.ts) at 1440 px and 390 px, from a second server of the same build with the switch on (the studio's server keeps it off). `E2E_SCREENSHOTS=1` writes screenshots to `visual-review/m3-1/`, which Git ignores |
+
+The browser and HTTP tests seed their journals through [`src/testing/public-seed-cli.ts`](../src/testing/public-seed-cli.ts) and [`public-journals.ts`](../src/testing/public-journals.ts); both touch only the disposable test database, after its safety checks.
+
 ### Browser tests
 
 `pnpm test:e2e` runs the Writing Studio in a real browser (Chromium, through [Playwright](https://playwright.dev) 1.64.1) against the **production build**, the **disposable test database**, and a **synthetic author**. Nothing reads or writes the development database or the owner's account, and no password of the owner's is ever needed.
@@ -337,7 +351,7 @@ There is no `sleep`: each test waits for something the application shows (a head
 
 **Running one file or one project:** `pnpm exec playwright test e2e/recovery.spec.ts --project=desktop` (the `setup` project runs first by itself). Within a file, tests share state and run in order, so a single test of a file may need its predecessors. A failure prints Playwright's own call log; `E2E_KEEP_SERVER_LOG=1` copies the server log to `test-results/server.log`.
 
-**Not covered:** real HTTPS, Firefox and WebKit, and anything public (there are no public pages). CI runs Chromium only.
+**Not covered:** real HTTPS, Firefox and WebKit, and any hosted configuration or CDN. CI runs Chromium only.
 
 ### Backup and restore
 

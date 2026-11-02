@@ -1,6 +1,6 @@
 # Design System
 
-**Status:** visual identity approved (design V4.4, October 31, 2026). **Implemented for the Writing Studio only** (branch `feat/studio-visual-fidelity`, [working specification](design/studio-visual-fidelity.md)); the public pages do not exist yet. This document summarizes the approved design for implementation. It does not redesign anything.
+**Status:** visual identity approved (design V4.4, October 31, 2026). **Implemented for the Writing Studio** ([working specification](design/studio-visual-fidelity.md)) **and, since M3.1, for the first public page, the album journal** ([below](#public-album-journal-m31)); the other public pages (home, lists, artist journals, memories) do not exist yet. This document summarizes the approved design for implementation. It does not redesign anything.
 
 ## Authority
 
@@ -171,6 +171,27 @@ Each of these is resolved by the [Authority](#authority) rules. The reference fi
 1. The handoff typography table lists a "Site name" (Kalam 700, 20px), and its responsive notes say the header "stacks name over navigation". The handoff CSS also defines `.brand` and `.mark` header classes. Every approved public screen shows navigation only. **Resolution:** no logo, wordmark, or site name in the public header.
 2. `reference/refrain-cursor/README.md` lists `refrain-pencil-64.png`, which does not exist. **Resolution:** reference only the assets listed in [Pencil cursor](#pencil-cursor).
 3. Legacy font declarations (Atkinson Hyperlegible Next, Caveat) remain in the exported CSS. **Resolution:** not part of the design; see [Typography](#typography).
+
+## Public album journal (M3.1)
+
+The first public page follows the approved `Grace` screen (`refrainV44-Grace`, desktop and mobile): two columns (5fr and 7fr, 88px apart) on the RaioViajante lateral contract (`width: min(100% - 35.2px, 1320px)`), the album artwork frame, the kind label, the title in Kalam 700 at 104px (62px on a phone, 54px at 370px and below), the credit with the drawn underline, the facts line, the opening sentence in Kalam 300 at 31px (26px), "My rating" with half-step stars, the writing at 21px and 62 characters (19.5px), the "Track by track" section with one ruled row per track, the favourite circle, the "(still writing)" label, and the closing line. On a phone, the order is the artwork, the heading, the facts, and the writing. The page is implemented in [`src/app/(public)/`](../src/app/(public)/) and [`public.css`](../src/app/public.css), with the strokes of [`strokes.css`](../src/app/strokes.css) (one stroke added, the favourite loop).
+
+Where the approved screen shows something that does not exist yet, or that the data cannot honestly supply, the page shows less, never something invented. Each is a decision recorded here:
+
+| Approved screen | Public page | Why |
+| --- | --- | --- |
+| The header's four links (Home, Albums, Artists, Memories) | Home, and Albums as the current page (not a link) | No list page exists, and a link to one would be a broken promise. The other links arrive with their pages |
+| The language selector in the footer | Not shown | It arrives with next-intl; the page is English, and each piece of writing carries its own `lang` |
+| "Written [DATE] · edited [DATE]" | "Published <date>" and "Written in <language>" | The edit date is private editing metadata. The publication date is public by definition |
+| The cover from the Cover Art Archive and its caption | A hatched frame, "Album artwork / not available yet", with an accessible name | No provider integration exists, and no external image host is allow-listed yet |
+| "Everything in brackets is a placeholder…" | Not shown | A mockup note, not content |
+| The "All albums" and "More about <artist>" links | Not shown | Those pages do not exist |
+| A track row opens by a button | A native `<details>` with a `<summary>` | Keyboard and screen-reader operation with no script; the reflection is in the page either way |
+| Section headings as `h3` in the writing | `h2` in the writing, `h3` in a track's reflection | The outline stays in order under the `h1` and the "Track by track" `h2` |
+| A track with no reflection says "not written yet" | The same, also for a track whose reflection is not public | The page never says that a private reflection exists |
+| A track's credit under its name (a cover, for example) | Shown when the catalog has one | It is catalog metadata of a track in a public journal |
+
+The public pages are monochrome with the design's own paper tints, use only Kalam and Alegreya Sans, request nothing from another origin, and have no author control. A request for an address that is not served shows one view, "Nothing here", for every reason, so no case can be told from another. These properties are tested in a browser at 1440px and 390px (`e2e/public.spec.ts`).
 
 ## Writing Studio controls for ADR 0002
 
