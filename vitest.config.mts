@@ -17,6 +17,9 @@ const serverOnly = fileURLToPath(
 );
 
 export default defineConfig({
+  // The application's tsconfig keeps JSX for Next.js to compile; tests compile
+  // it themselves.
+  esbuild: { jsx: "automatic" },
   resolve: {
     alias: [
       { find: /^@\//, replacement: src },

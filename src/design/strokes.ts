@@ -231,6 +231,33 @@ function line(
   );
 }
 
+/**
+ * A hand-drawn loop around a word: the favourite mark of the public journal.
+ * From the given seed, the first drawing that stays inside its box (so nothing
+ * is clipped) is used: fixed, and the same every time.
+ */
+function loop(width: number, height: number, seed: number): string {
+  for (let attempt = seed; attempt < seed + 600; attempt += 1) {
+    const drawable = generator.ellipse(
+      width / 2,
+      height / 2,
+      width - 6,
+      height - 6,
+      { seed: attempt, roughness: 1.1, bowing: 0.8 },
+    );
+    const d = round(
+      generator
+        .toPaths(drawable)
+        .map((path) => path.d)
+        .join(" "),
+    );
+    if (overshoot(d, width, height) <= MAX_OVERSHOOT) {
+      return d;
+    }
+  }
+  throw new Error(`No ${width}x${height} loop fits its box from seed ${seed}.`);
+}
+
 /** A slightly irregular quadrilateral: the ink behind a primary button. */
 function inkBlock(width: number, height: number, seed: number): string {
   let state = seed;
@@ -403,6 +430,9 @@ export function strokes(): Record<string, string> {
         stroke: INK,
         width: 1.6,
       },
+    ]),
+    favourite: svg(200, 44, [
+      { d: loop(200, 44, 81), stroke: INK, width: 1.5 },
     ]),
     underline: svg(200, 10, [
       { d: swoosh(71, 4.9, 3.8), stroke: INK, width: 1.6 },

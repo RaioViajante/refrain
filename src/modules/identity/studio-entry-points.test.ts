@@ -101,6 +101,17 @@ const ROUTE_ALLOW_LIST = new Set([
   join("src", "app", "api", "auth", "[...all]", "route.ts"),
 ]);
 
+// The public documents (M3.1). They are read-only and anonymous by design, so
+// they are not administrative route handlers and must not authorize. They are
+// checked by a different rule instead: src/app/public-surface.test.ts requires
+// each to apply the public-reads switch and to import only the Publication
+// module's public entry point. A new route handler that is on neither list
+// still fails this test.
+const PUBLIC_ROUTE_ALLOW_LIST = new Set([
+  join("src", "app", "robots.txt", "route.ts"),
+  join("src", "app", "sitemap.xml", "route.ts"),
+]);
+
 function isAwaitedAuthorizationCall(expression: ts.Expression): boolean {
   return (
     ts.isAwaitExpression(expression) &&
@@ -285,7 +296,11 @@ function authorizationViolations(
       check("metadata function", entry);
     }
   }
-  if (isRouteFile && !ROUTE_ALLOW_LIST.has(normalized)) {
+  if (
+    isRouteFile &&
+    !ROUTE_ALLOW_LIST.has(normalized) &&
+    !PUBLIC_ROUTE_ALLOW_LIST.has(normalized)
+  ) {
     for (const entry of exported.filter(
       (e) => HTTP_METHODS.has(e.name) || e.name === "(re-export)",
     )) {
@@ -389,9 +404,13 @@ describe("every entry point authorizes first", () => {
     expect([...ROUTE_ALLOW_LIST]).toEqual([
       join("src", "app", "api", "auth", "[...all]", "route.ts"),
     ]);
+    expect([...PUBLIC_ROUTE_ALLOW_LIST]).toEqual([
+      join("src", "app", "robots.txt", "route.ts"),
+      join("src", "app", "sitemap.xml", "route.ts"),
+    ]);
     expect(
-      files.filter((file) => /(^|[\\/])route\.(m?[jt]sx?)$/.test(file)),
-    ).toEqual([join("src", "app", "api", "auth", "[...all]", "route.ts")]);
+      files.filter((file) => /(^|[\\/])route\.(m?[jt]sx?)$/.test(file)).sort(),
+    ).toEqual([...ROUTE_ALLOW_LIST, ...PUBLIC_ROUTE_ALLOW_LIST].sort());
   });
 
   describe("probes: each bypass the review found is caught", () => {
@@ -502,6 +521,20 @@ export async function bad() { await somethingElse(); await authorizeAuthor(h); r
       ).toEqual([]);
       expect(
         check("export const GET = handler;", "src/app/api/x/route.ts"),
+      ).toHaveLength(1);
+      // The two public documents are on their own reviewed list; a third one
+      // is not, and fails here until it is added there on purpose.
+      expect(
+        check(
+          "export async function GET() { return new Response(); }",
+          join("src", "app", "sitemap.xml", "route.ts"),
+        ),
+      ).toEqual([]);
+      expect(
+        check(
+          "export async function GET() { return new Response(); }",
+          join("src", "app", "feed.xml", "route.ts"),
+        ),
       ).toHaveLength(1);
       const guarded =
         "export async function POST(request) { const a = await requireAuthor(request.headers); }";

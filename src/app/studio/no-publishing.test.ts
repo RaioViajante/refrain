@@ -75,7 +75,16 @@ function violations(code: string, file = "x.tsx"): string[] {
       ts.isStringLiteral(node.moduleSpecifier) &&
       node.moduleSpecifier.text.startsWith("@/modules/publication")
     ) {
-      found.push("imports the Publication module");
+      // The one exception is the Publication module's public reading entry
+      // point (reads and the public-reads switch, never a command), and only
+      // outside the studio: the public pages, the proxy, and the sitemap use
+      // it (src/app/public-surface.test.ts). The studio never does.
+      const readsOnly =
+        node.moduleSpecifier.text === "@/modules/publication/public" &&
+        !file.startsWith("src/app/studio/");
+      if (!readsOnly) {
+        found.push("imports the Publication module");
+      }
     }
     // Evasions by string: an element access by name, and a dynamic import of a
     // module that holds a command or a wrapper.
@@ -142,6 +151,22 @@ describe("the studio cannot publish, re-address, or permanently delete", () => {
   it("would catch each way of reaching those commands", () => {
     expect(
       violations('import { x } from "@/modules/publication";'),
+    ).toHaveLength(1);
+    // The reading entry point is allowed for public files, never the studio.
+    expect(
+      violations(
+        'import { x } from "@/modules/publication/public";',
+        "src/app/(public)/albums/page.tsx",
+      ),
+    ).toEqual([]);
+    expect(
+      violations(
+        'import { x } from "@/modules/publication/public";',
+        "src/app/studio/journals/page.tsx",
+      ),
+    ).toHaveLength(1);
+    expect(
+      violations('import { x } from "@/modules/publication/commands";'),
     ).toHaveLength(1);
     expect(violations("publishLanguageVersion(db, id, 'en');")).toHaveLength(1);
     expect(violations("const f = permanentlyDeleteEntry;")).toHaveLength(1);
