@@ -14,7 +14,7 @@ import {
 } from "@/app/studio/journals/actions";
 import { PublishDialog } from "@/app/studio/journals/publish-dialog";
 import { LANGUAGE_NAMES } from "@/app/studio/journals/review-parts";
-import { failureMessage } from "@/app/studio/messages";
+import { failureMessage, PUBLIC_PAGE_NOTE } from "@/app/studio/messages";
 import { StatusMark } from "@/app/studio/status-mark";
 import type { VisibilityStatus } from "@/modules/journals";
 
@@ -124,7 +124,7 @@ export function JournalControls({
     setAsking(undefined);
     if (locale) {
       setMessage(
-        `The ${LANGUAGE_NAMES[locale]} version is now published in your journal. Public web pages are not built yet, so nothing opens on the web.`,
+        `The ${LANGUAGE_NAMES[locale]} version is now published in your journal. ${PUBLIC_PAGE_NOTE}`,
       );
     }
     router.refresh();
@@ -181,8 +181,7 @@ export function JournalControls({
                 </div>
                 <p className="studio-hint" style={{ maxWidth: "52ch" }}>
                   Published means this version is marked as published in your
-                  records. Public web pages are not built yet, so nothing opens
-                  on the web.
+                  records. {PUBLIC_PAGE_NOTE}
                 </p>
               </>
             ) : (

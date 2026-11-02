@@ -9,7 +9,7 @@ export default function DevelopmentPage() {
   return (
     <main className="mx-auto max-w-prose space-y-4 px-4 py-16">
       <h1 className="text-2xl">refrain</h1>
-      <p>Development build. The journal is not available yet.</p>
+      <p>Development build. The approved homepage is not built yet.</p>
       <Suspense fallback={<p>Database: checking…</p>}>
         <DatabaseStatus />
       </Suspense>

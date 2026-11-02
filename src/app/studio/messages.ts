@@ -5,6 +5,16 @@ import type { ActionResult, FieldProblem } from "./results";
 // in words. English only for now; Brazilian Portuguese arrives with next-intl
 // (issue #11).
 
+/**
+ * What the studio says about the web. It is true whichever way the
+ * installation is configured: the public page of a published version is served
+ * only where the server-side public-reads switch is on (ADR 0006, D4), and the
+ * switch is off by default. The studio does not claim that no page exists, and
+ * it does not claim that one opens.
+ */
+export const PUBLIC_PAGE_NOTE =
+  "On the web it opens at its address only where public reads are switched on. They are off by default, so on a default installation nothing opens on the web.";
+
 type Failure = Extract<ActionResult<unknown>, { ok: false }>;
 
 const BLOCKED_BY = {

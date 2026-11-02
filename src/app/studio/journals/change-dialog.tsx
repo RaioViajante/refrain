@@ -10,7 +10,7 @@ import {
   Notice,
   ReviewedValueView,
 } from "@/app/studio/journals/review-parts";
-import { failureMessage } from "@/app/studio/messages";
+import { failureMessage, PUBLIC_PAGE_NOTE } from "@/app/studio/messages";
 import type { ActionResult } from "@/app/studio/results";
 import type { PublicChangePreviewReview } from "@/modules/journals";
 
@@ -226,8 +226,8 @@ function OpenChangeDialog({
               This version is published, so saving changes the published
               writing. Here is exactly what changes. Nothing is saved until you
               press the button below, and cancelling leaves your text in the
-              editor. No web page exists yet, so this updates what is marked as
-              published in your records; nothing opens on the web.
+              editor. This updates what is marked as published in your records.{" "}
+              {PUBLIC_PAGE_NOTE}
             </p>
             <ul className="studio-review-list">
               {review.changes.map((change, index) => {

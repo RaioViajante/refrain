@@ -242,7 +242,7 @@ test("Publish… shows exactly what readers would see and publishes nothing unti
   });
   await expect(privateSection).toContainText(names.tracks[1]);
   await expect(dialog).not.toContainText(kept);
-  // It says that no web page exists yet.
+  // It says, truthfully for any configuration, when the web page opens.
   await expect(dialog).toContainText("nothing opens on the web");
   await shoot(page, "publish-dialog");
   await scan(page, "the publish dialog");
@@ -360,7 +360,7 @@ test("confirming publishes the version, and the page says what that does and doe
   const result = page.getByRole("status").filter({
     hasText: "The English version is now published in your journal.",
   });
-  await expect(result).toContainText("Public web pages are not built yet");
+  await expect(result).toContainText("only where public reads are switched on");
   await expect(panel).toContainText("Published");
   await expect(
     panel.getByRole("button", { name: "Unpublish…", exact: true }),
@@ -384,7 +384,7 @@ test("confirming publishes the version, and the page says what that does and doe
   ]);
 });
 
-test("no public page exists: an anonymous visitor reaches nothing of it", async ({
+test("public reads are off by default: an anonymous visitor reaches nothing of it", async ({
   browser,
   baseURL,
 }) => {

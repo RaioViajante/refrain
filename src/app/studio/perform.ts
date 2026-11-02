@@ -33,7 +33,7 @@ export function denied(reason: AuthorizationFailure): ActionResult<never> {
  * Studio's data through the one revalidation module, by the kind of change
  * (`effect`, default "writing"; a preview passes "none"). The studio is
  * private and never cached, so this only drops the browser's copy of pages it
- * has already shown. No public page exists to invalidate. An expected failure becomes a fixed code; anything else is
+ * has already shown. The public pages are never cached, so there is nothing to invalidate. An expected failure becomes a fixed code; anything else is
  * logged by name only (messages from the database can contain query
  * parameters) and reported as `failed`.
  */
