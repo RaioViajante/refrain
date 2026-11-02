@@ -38,6 +38,12 @@ import {
   seedSimple,
   type SeededJournal,
 } from "@/testing/public-journals";
+import {
+  comparable,
+  corpus,
+  request,
+  visibleText,
+} from "@/testing/public-http";
 import { assertDisposableTestDatabase } from "@/testing/test-database";
 
 // The test process issues confirmation tokens through the real commands to put
@@ -53,82 +59,6 @@ const slug = (name: string) => `${prefix}-${name}`;
 let client: Client;
 const seeded: SeededJournal[] = [];
 const servers: ProductionServer[] = [];
-
-/** Every response body and header seen, scanned for private markers at the end. */
-const corpus: string[] = [];
-
-interface Snapshot {
-  status: number;
-  headers: Record<string, string>;
-  body: string;
-}
-
-async function request(
-  base: string,
-  path: string,
-  init: RequestInit & { rsc?: boolean } = {},
-): Promise<Snapshot> {
-  const { rsc, ...rest } = init;
-  // The router always sends a cache-busting `_rsc` parameter; without it the
-  // framework answers a redirect that adds one.
-  const target = rsc
-    ? `${path}${path.includes("?") ? "&" : "?"}_rsc=probe`
-    : path;
-  const send = (to: string) =>
-    fetch(`${base}${to}`, {
-      redirect: "manual",
-      ...rest,
-      headers: {
-        ...(rsc ? { rsc: "1" } : {}),
-        ...(rest.headers as Record<string, string> | undefined),
-      },
-    });
-  let response = await send(target);
-  // The router checks the `_rsc` value against its own hash of the request
-  // and answers a 307 to the right one; a browser follows it, so a test does.
-  const correction = response.headers.get("location");
-  if (
-    rsc &&
-    response.status === 307 &&
-    correction?.includes("_rsc") &&
-    correction.startsWith(path.split("?")[0]!)
-  ) {
-    await response.text();
-    response = await send(correction);
-  }
-  const headers: Record<string, string> = {};
-  response.headers.forEach((value, key) => {
-    headers[key.toLowerCase()] = value;
-  });
-  const body = await response.text();
-  corpus.push(JSON.stringify(headers), body);
-  return { status: response.status, headers, body };
-}
-
-/** The text a reader sees: no scripts, styles, or tags. */
-function visibleText(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/g, " ")
-    .replace(/<style[\s\S]*?<\/style>/g, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ");
-}
-
-// What an unknown address and a hidden one must share. The date, and the
-// connection management that the HTTP server decides, are not the answer.
-const IGNORED_HEADERS = new Set(["date", "connection", "keep-alive"]);
-
-function comparable(snapshot: Snapshot) {
-  return {
-    status: snapshot.status,
-    headers: Object.fromEntries(
-      Object.entries(snapshot.headers).filter(
-        ([name]) => !IGNORED_HEADERS.has(name),
-      ),
-    ),
-    body: snapshot.body,
-  };
-}
 
 async function start(value: string | undefined) {
   const server = await startProductionServer({
@@ -368,7 +298,7 @@ describe("public reads enabled: a published journal", () => {
     expect(body).toContain("Written in English");
     expect(body).toContain(PUBLIC_TEXT.marginNote);
     // The body, through the allow-list: a subheading, a quote, a hard break.
-    expect(body).toContain(`<h3>${PUBLIC_TEXT.heading}</h3>`);
+    expect(body).toContain(`<h2>${PUBLIC_TEXT.heading}</h2>`);
     expect(body).toContain("<blockquote>");
     expect(body).toContain("<br/>");
     expect(body).toContain(

@@ -123,6 +123,39 @@ const hostileDocument = {
   ],
 };
 
+const paragraph = (text: string) => ({
+  type: "paragraph",
+  content: [{ type: "text", text }],
+});
+
+/** Synthetic writing shaped like a real essay, for layout and screenshots. */
+export const editorialDocument = {
+  type: "doc",
+  content: [
+    paragraph(
+      "[Test] This is synthetic writing, only to judge the layout. The column holds about sixty-two characters per line, so a long essay stays comfortable to read across several screens, and the rhythm of its paragraphs can be judged by eye.",
+    ),
+    paragraph(
+      "[Test] A second synthetic paragraph. Paragraphs can be as long as the thought needs, or very short.",
+    ),
+    {
+      type: "heading",
+      attrs: { level: 2 },
+      content: [{ type: "text", text: "[Test] A subheading" }],
+    },
+    paragraph(
+      "[Test] Text under the subheading, to see the space between a heading and the paragraph that follows it.",
+    ),
+    {
+      type: "blockquote",
+      content: [
+        paragraph("[Test] A quoted line, to see the quote's rule and size."),
+      ],
+    },
+    paragraph("[Test] A closing synthetic paragraph before the tracks."),
+  ],
+};
+
 export interface GraceOptions {
   slug: string;
   /** Rating of the journal in half steps. Default 9 (4.5). */
@@ -135,6 +168,8 @@ export interface GraceOptions {
   reflections?: boolean;
   /** The text of the English version's body (a plain paragraph) when set. */
   plainBody?: string;
+  /** "hostile" (default) tests escaping; "editorial" reads like an essay. */
+  document?: "hostile" | "editorial";
 }
 
 /**
@@ -210,7 +245,9 @@ export async function seedGrace(
             },
           ],
         }
-      : hostileDocument;
+      : options.document === "editorial"
+        ? editorialDocument
+        : hostileDocument;
     await tx.execute(sql`
       update entry_texts
          set opening = ${PUBLIC_TEXT.opening},

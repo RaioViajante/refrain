@@ -1,9 +1,14 @@
+import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { copyFileSync, mkdirSync } from "node:fs";
+import { promisify } from "node:util";
 
 import { Client } from "pg";
 
-import { startProductionServer } from "@/testing/production-server";
+import {
+  startProductionServer,
+  type ProductionServer,
+} from "@/testing/production-server";
 import {
   assertDisposableTestDatabase,
   readTestDatabaseUrl,
@@ -54,6 +59,28 @@ async function assertReviewNamesAreFree(): Promise<void> {
   }
 }
 
+const execFileAsync = promisify(execFile);
+
+// The public pages are read from a second server of the same build, with the
+// public-reads switch on and no author: the studio's server keeps the switch
+// off, as a default deployment does. Its journals are seeded by a command that
+// runs under `--conditions=react-server`, because Playwright's own process
+// cannot load server-only modules (src/testing/public-seed-cli.ts).
+async function seedPublic(args: string[]): Promise<string> {
+  const { stdout } = await execFileAsync(
+    "pnpm",
+    [
+      "--silent",
+      "tsx",
+      "--conditions=react-server",
+      "src/testing/public-seed-cli.ts",
+      ...args,
+    ],
+    { env: process.env },
+  );
+  return stdout.trim();
+}
+
 export default async function setup() {
   let server;
   try {
@@ -79,6 +106,37 @@ export default async function setup() {
     }
   }
 
+  let publicServer: ProductionServer | undefined;
+  let seededPublic: string | undefined;
+  const publicPrefix = `e2e${randomUUID().slice(0, 6)}`;
+  try {
+    publicServer = await startProductionServer({
+      withAuthor: false,
+      env: { REFRAIN_PUBLIC_READS_ENABLED: "true" },
+    });
+    seededPublic = await seedPublic(["seed", publicPrefix]);
+  } catch (error) {
+    if (seededPublic) {
+      await seedPublic(["remove", seededPublic, publicPrefix]).catch(() => {});
+    }
+    await publicServer?.stop().catch(() => {});
+    await server.stop();
+    throw error;
+  }
+  const pub = publicServer;
+  const seeded = JSON.parse(seededPublic) as {
+    grace: { slug: string; entryId: string };
+    draft: { slug: string };
+    opening: string;
+  };
+  process.env.E2E_PUBLIC_URL = pub.baseURL;
+  process.env.E2E_PUBLIC_SLUG = seeded.grace.slug;
+  process.env.E2E_PUBLIC_ENTRY_ID = seeded.grace.entryId;
+  process.env.E2E_PUBLIC_DRAFT_SLUG = seeded.draft.slug;
+  process.env.E2E_PUBLIC_OPENING = seeded.opening;
+  process.env.E2E_PUBLIC_SERVER_LOG = pub.serverLog;
+  process.env.E2E_PUBLIC_SEED_PREFIX = publicPrefix;
+
   process.env.E2E_BASE_URL = server.baseURL;
   process.env.E2E_AUTHOR_EMAIL = server.authorEmail;
   process.env.E2E_AUTHOR_PASSWORD = server.authorPassword;
@@ -89,6 +147,12 @@ export default async function setup() {
   process.env.E2E_RUN_ID = randomUUID().slice(0, 8);
 
   return async () => {
+    try {
+      await seedPublic(["remove", seededPublic, publicPrefix]).catch(() => {});
+      await pub.stop().catch(() => {});
+    } catch {
+      // The studio's own teardown below must still run.
+    }
     try {
       // Kept only when asked, to look at (or capture evidence from) what the
       // run left in the disposable database; `pnpm db:test:down && pnpm
