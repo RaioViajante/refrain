@@ -255,6 +255,7 @@ export function JournalControls({
         open={publishing !== undefined}
         onClose={() => setAsking(undefined)}
         onPublished={() => published(publishing)}
+        onReflectionHidden={() => router.refresh()}
       />
 
       <ConfirmDialog

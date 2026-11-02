@@ -1041,7 +1041,40 @@ html:has(.studio-editorbar[data-mode="edit"]) {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding-right: 4px;
+  padding: 4px 6px 14px 0;
+  /* A rule above and below shows where the reading area ends, so a phone
+     reader can tell there is more to scroll to. */
+  border-block: 1px solid rgb(17 17 17 / 0.28);
+}
+
+/* The review of what will become public: sections and the changes in a list,
+   with room to tell one from the next. Same type as the rest of the studio. */
+.studio-review > * + * {
+  margin-top: 14px;
+}
+
+.studio-review-section {
+  margin-top: 22px;
+}
+
+.studio-review-section > * + * {
+  margin-top: 6px;
+}
+
+.studio-review-list {
+  display: grid;
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.studio-review-list > li > * + * {
+  margin-top: 6px;
+}
+
+.studio-review-text > * + * {
+  margin-top: 0.8em;
 }
 
 .studio-dialog-body:focus-visible,

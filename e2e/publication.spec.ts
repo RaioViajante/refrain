@@ -618,3 +618,42 @@ test("a published journal that is deleted and restored comes back private, and p
   expect((await stored()).status).toBe("private");
   await dialog.getByRole("button", { name: "Cancel" }).click();
 });
+
+test("a reflection can be taken off the list from inside the review, and the author confirms the set as it then stands", async ({
+  page,
+}) => {
+  const tokens = watchTokens(page);
+  await page.goto(journalUrl);
+  await visibility(page)
+    .getByRole("button", { name: "Publish…", exact: true })
+    .click();
+  const dialog = publishDialog(page);
+  await expect(dialog).toContainText(
+    "Track reflections that will be public in English (1)",
+  );
+
+  await dialog.getByRole("button", { name: /^Don’t show this one: / }).click();
+  // The review is read again: the list is empty, and nothing is published.
+  await expect(dialog).toContainText(
+    "Track reflections that will be public in English (0)",
+  );
+  await expect(dialog).toContainText("No track reflection will be shown.");
+  await expect(
+    dialog.getByRole("heading", { name: "Publish the English version?" }),
+  ).toBeFocused();
+  expect((await stored()).status).toBe("private");
+  expect(tokens).toEqual([]);
+  expect((await reflections())[0]!.is_published).toBe(false);
+
+  // Confirming publishes the set as it now stands: no reflection.
+  await dialog
+    .getByRole("button", { name: "Publish the English version" })
+    .click();
+  await expect(dialog).toBeHidden();
+  await expect(
+    page.getByRole("status").filter({ hasText: "is now published" }),
+  ).toBeVisible();
+  expect((await stored()).status).toBe("published");
+  expect(tokens).toHaveLength(1);
+  expect((await reflections()).every((row) => !row.is_published)).toBe(true);
+});

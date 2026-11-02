@@ -174,6 +174,7 @@ function OpenChangeDialog({
       title="Update the public page?"
       confirmLabel="Save and update the public page"
       pending={submitting}
+      focusKey={stage.name}
       hideConfirm={stage.name !== "ready"}
       onConfirm={confirm}
       onCancel={onCancel}

@@ -301,6 +301,12 @@ interface ConfirmDialogProps {
   extraActions?: ReactNode;
   cancelLabel?: string;
   /**
+   * When this changes, focus returns to the title. A review dialog replaces
+   * its own controls as it moves from reading to ready to refused, and the
+   * control that had focus would otherwise vanish with it.
+   */
+  focusKey?: string;
+  /**
    * A dialog that shows the author what will become public. It is wider, its
    * text scrolls, and focus starts on its title, not on the confirm control,
    * so a keypress cannot confirm before anything has been read.
@@ -324,6 +330,7 @@ export function ConfirmDialog({
   hideConfirm,
   extraActions,
   cancelLabel = "Cancel",
+  focusKey,
   review,
 }: ConfirmDialogProps) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -356,6 +363,12 @@ export function ConfirmDialog({
       }
     };
   }, [open, review]);
+
+  useEffect(() => {
+    if (review && focusKey !== undefined) {
+      heading.current?.focus();
+    }
+  }, [review, focusKey]);
 
   return (
     <dialog

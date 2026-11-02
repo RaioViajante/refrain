@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ConfirmDialog } from "@/app/studio/form-kit";
-import { publishJournalVersionAction } from "@/app/studio/journals/actions";
+import {
+  publishJournalVersionAction,
+  saveJournalAction,
+} from "@/app/studio/journals/actions";
 import { previewPublicationAction } from "@/app/studio/journals/preview-publication-action";
 import {
   LANGUAGE_NAMES,
@@ -39,6 +42,7 @@ export function PublishDialog({
   open,
   onClose,
   onPublished,
+  onReflectionHidden,
 }: {
   entryId: string;
   locale: Language;
@@ -46,6 +50,8 @@ export function PublishDialog({
   onClose: () => void;
   /** Called after the server confirmed the publication. */
   onPublished: () => void;
+  /** Called after a reflection was taken off the list, so the page can refresh. */
+  onReflectionHidden: () => void;
 }) {
   return open ? (
     <OpenPublishDialog
@@ -53,6 +59,7 @@ export function PublishDialog({
       locale={locale}
       onClose={onClose}
       onPublished={onPublished}
+      onReflectionHidden={onReflectionHidden}
     />
   ) : null;
 }
@@ -74,11 +81,13 @@ function OpenPublishDialog({
   locale,
   onClose,
   onPublished,
+  onReflectionHidden,
 }: {
   entryId: string;
   locale: Language;
   onClose: () => void;
   onPublished: () => void;
+  onReflectionHidden: () => void;
 }) {
   const [stage, setStage] = useState<Stage>({ name: "loading" });
   // Guards against a second click before React has re-rendered.
@@ -116,6 +125,41 @@ function OpenPublishDialog({
   async function reviewAgain() {
     setStage({ name: "loading" });
     setStage(await fetchPreview());
+  }
+
+  // Takes one reflection off the list of what will be shown: the ordinary
+  // save, a removal that needs no confirmation and takes effect at once, even
+  // if the dialog is cancelled afterwards (it can only hide). The review that
+  // was on screen, and its token, are dropped; the author reads the new one and
+  // confirms again (ADR 0005 § 5.3).
+  async function stopShowing(trackId: string) {
+    if (busy.current || stage.name !== "ready") {
+      return;
+    }
+    busy.current = true;
+    const { review } = stage.preview;
+    setStage({ name: "loading" });
+    let result: ActionResult<{ version: number }>;
+    try {
+      result = await saveJournalAction({
+        entryId,
+        expectedVersion: review.entryVersion,
+        reflections: [{ trackId, isPublished: false }],
+      });
+    } catch {
+      result = { ok: false, code: "failed" };
+    }
+    busy.current = false;
+    if (!result.ok) {
+      setStage(
+        result.code === "conflict"
+          ? { name: "changed" }
+          : { name: "failed", failure: result },
+      );
+      return;
+    }
+    setStage(await fetchPreview());
+    onReflectionHidden();
   }
 
   async function confirm() {
@@ -173,6 +217,7 @@ function OpenPublishDialog({
       title={`Publish the ${language} version?`}
       confirmLabel={`Publish the ${language} version`}
       pending={submitting}
+      focusKey={stage.name}
       hideConfirm={stage.name !== "ready"}
       onConfirm={confirm}
       onCancel={onClose}
@@ -291,6 +336,14 @@ function OpenPublishDialog({
                           .filter(Boolean)
                           .join(" · ")}
                       </p>
+                      <button
+                        type="button"
+                        className="studio-button"
+                        onClick={() => void stopShowing(reflection.trackId)}
+                        aria-label={`Don’t show this one: ${reflection.trackTitle}, ${language}`}
+                      >
+                        Don’t show this one
+                      </button>
                     </li>
                   ))}
                 </ul>
