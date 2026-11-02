@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   exportSurfaceViolations,
+  gateCallViolations,
   isProductionPath,
   mintConsumeViolations,
   productionSources,
@@ -49,6 +50,10 @@ describe("the production source is clean", () => {
 
   it("never mints a token and consumes it in one operation", () => {
     expect(mintConsumeViolations(production)).toEqual([]);
+  });
+
+  it("lets only the save call the confirmation gate and the reflection writer, in order", () => {
+    expect(gateCallViolations(production)).toEqual([]);
   });
 
   it("classifies test files and test support as not production", () => {
@@ -676,6 +681,51 @@ describe("the scans catch mutations of the real source", () => {
       "export async function writeReflection(tx) { await tx.insert(schema.trackReflectionTexts).values({}); }";
     expect(writers("src/modules/journals/reflections.ts", write)).toEqual([]);
     expect(writers("src/modules/journals/commands.ts", write)).not.toEqual([]);
+  });
+
+  it("catches a second caller of the reflection writer, and a write before the gate", () => {
+    const second = changed(
+      "src/modules/journals/commands.ts",
+      (text) =>
+        `${text}\nexport async function flagEverything(tx: never, id: string) {\n  await writeReflection(tx, id, id, { trackId: id, isPublished: true });\n}\n`,
+    );
+    expect(gateCallViolations(second)).not.toEqual([]);
+    const early = changed("src/modules/journals/commands.ts", (text) =>
+      text.replace(
+        "const change = await prepareChange(tx, data, journal);",
+        "const change = await prepareChange(tx, data, journal);\n      await writeReflection(tx, data.entryId, journal.albumId, change.reflections![0]!);",
+      ),
+    );
+    expect(gateCallViolations(early)).not.toEqual([]);
+  });
+
+  it("catches the gate called from somewhere else, such as a studio action", () => {
+    const files = changed(
+      "src/app/studio/journals/actions.ts",
+      (text) =>
+        `${text}\nexport async function sneak(tx: never, a: never) {\n  await requirePublicChangeConfirmation(tx, a, {} as never);\n}\n`,
+    );
+    expect(gateCallViolations(files)).not.toEqual([]);
+  });
+
+  it("catches an un-delete or a rating written through a variable, a spread, or SQL with a placeholder", () => {
+    for (const text of [
+      "export async function evil(tx, v) { await tx.update(schema.entries).set({ deletedAt: v }); }",
+      "export async function evil(tx, base) { await tx.update(schema.entries).set({ ...base }); }",
+      "export async function evil(tx, patch) { await tx.update(schema.albumJournals).set({ ...patch }); }",
+      "export async function evil(tx, v) { await tx.execute(sql`update entries set deleted_at = ${v} where id = 1`); }",
+    ]) {
+      expect(writers("src/modules/journals/other.ts", text), text).not.toEqual(
+        [],
+      );
+    }
+    // Setting it to now() is a deletion, not an un-delete.
+    expect(
+      writers(
+        "src/modules/journals/other.ts",
+        "export async function ok(tx) { await tx.update(schema.entries).set({ deletedAt: sql`now()` }); }",
+      ),
+    ).toEqual([]);
   });
 
   it("catches signing a token anywhere but a preview", () => {

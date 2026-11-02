@@ -1111,6 +1111,16 @@ describe("writing track by track, through real HTTP and PostgreSQL", () => {
         ],
       },
       { reflections: [{ trackId: ids.track, status: "published" }] },
+      // A confirmation hidden inside a reflection is an unknown key.
+      {
+        reflections: [
+          {
+            trackId: ids.track,
+            isFavourite: true,
+            confirmation: "ct1.AAAA.BBBB",
+          },
+        ],
+      },
       { reflections: [{ trackId: ids.track, texts: { fr: "x" } }] },
       {
         reflections: [

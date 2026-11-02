@@ -656,6 +656,60 @@ describe("the token", () => {
   });
 });
 
+describe("the guard between what was confirmed and what was written", () => {
+  it("rolls the save back when the stored rows differ from the confirmed change, and says nothing of the writing", async () => {
+    await inScratchTransaction(async (tx) => {
+      const journal = await publicJournal(tx);
+      const fields = {
+        reflections: [
+          { trackId: journal.two, texts: { en: "[Test] Confirmed words" } },
+        ],
+      };
+      const shown = await preview(tx, journal.entryId, fields);
+      expect(shown.confirmation).not.toBeNull();
+
+      // A defect of the kind the guard exists for: something rewrites the
+      // text on its way into the table, so what a reader would see is not what
+      // the author confirmed. Made by the test, inside this rolled-back
+      // transaction, never in a migration.
+      await tx.execute(sql`
+        create function pg_temp.rewrite_reflection() returns trigger
+        language plpgsql as $$
+        begin
+          new.body := jsonb_build_object('type', 'doc', 'content',
+            jsonb_build_array(jsonb_build_object('type', 'paragraph',
+              'content', jsonb_build_array(
+                jsonb_build_object('type', 'text', 'text', '[Test] Not what was confirmed')))));
+          return new;
+        end $$`);
+      await tx.execute(sql`
+        create trigger rewrite_reflection before insert or update
+          on track_reflection_texts
+          for each row execute function pg_temp.rewrite_reflection()`);
+
+      const before = await rowChecksum(tx);
+      const version = await versionOf(tx, journal.entryId);
+      const error = await captureFailure(tx, async (db) =>
+        saveAlbumJournal(db, author, {
+          entryId: journal.entryId,
+          expectedVersion: version,
+          ...fields,
+          confirmation: shown.confirmation!,
+        }),
+      );
+      expect(error).toBeInstanceOf(Error);
+      // Not a domain refusal: an invariant failure, with no writing in it.
+      expect(error).not.toBeInstanceOf(JournalError);
+      for (const text of [(error as Error).message, inspect(error)]) {
+        expect(text).not.toContain("[Test] Confirmed words");
+        expect(text).not.toContain("[Test] Not what was confirmed");
+      }
+      expect(await rowChecksum(tx)).toEqual(before);
+      expect(await versionOf(tx, journal.entryId)).toBe(version);
+    });
+  });
+});
+
 describe("previews", () => {
   it("refuse what the save would refuse, so no token is minted for it", async () => {
     await inScratchTransaction(async (tx) => {

@@ -265,6 +265,32 @@ describe("writing a track reflection", () => {
     });
   });
 
+  it("treats text made only of invisible or Unicode white space as blank", async () => {
+    await inScratchTransaction(async (tx) => {
+      const journal = await createTestJournal(tx);
+      const trackId = journal.trackIds[0]!;
+      for (const blank of [
+        "\u00A0",
+        "\u3000 \u2003",
+        "\u200B",
+        "\uFEFF\n \u2060",
+      ]) {
+        await save(tx, journal.entryId, {
+          reflections: [{ trackId, isFavourite: true, texts: { en: blank } }],
+        });
+        // No row: a text row always means text.
+        expect(await textRows(tx, journal.entryId)).toEqual([]);
+      }
+      await save(tx, journal.entryId, {
+        reflections: [{ trackId, texts: { en: "[Test] Real" } }],
+      });
+      await save(tx, journal.entryId, {
+        reflections: [{ trackId, texts: { en: "\u00A0\u200B" } }],
+      });
+      expect(await textRows(tx, journal.entryId)).toEqual([]);
+    });
+  });
+
   it("refuses malformed reflections without writing anything", async () => {
     await inScratchTransaction(async (tx) => {
       const journal = await createTestJournal(tx);
