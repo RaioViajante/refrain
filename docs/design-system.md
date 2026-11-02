@@ -1,6 +1,6 @@
 # Design System
 
-**Status:** visual identity approved (design V4.4, October 31, 2026). **Implemented for the Writing Studio only** (branch `feat/studio-visual-fidelity`, [working specification](design/studio-visual-fidelity.md)); the public pages do not exist yet. This document summarizes the approved design for implementation. It does not redesign anything.
+**Status:** visual identity approved (design V4.4, October 31, 2026). **Implemented for the Writing Studio** ([working specification](design/studio-visual-fidelity.md)) **and, since M3.1, for the first public page, the album journal** ([below](#public-album-journal-m31)); the other public pages (home, lists, artist journals, memories) do not exist yet. This document summarizes the approved design for implementation. It does not redesign anything.
 
 ## Authority
 
@@ -23,6 +23,7 @@ This document summarizes items 1 and 2. If it disagrees with them, correct this 
 | Tracked asset | Origin | Use |
 | --- | --- | --- |
 | `public/artwork/refrain-home-character.png` | Byte-identical copy of the local `reference/refrain-home-character.png` (SHA-256 `ad58315e79980337147ef11f30a0ed418a5c3bf509a0a77da81bce59290ba63c`) | The original character illustration (1536×1024): the public homepage, and the README in both light and dark themes |
+| `public/artwork/refrain-404.webp` | Derived, with the owner's authorization (M3.1, PR #35), from the local original `reference/refrain-404.png` (1536×1024, 8-bit RGBA, 2,824,585 bytes, SHA-256 `7705f803a871cdd9e693dcf9ae2d222fe8545281c4e8b9975699f00ed96c4956`), which stays unaltered outside the repository. Made with `cwebp -q 90 -m 6 -sharp_yuv -alpha_q 100 -exact -metadata none` (libwebp 1.6.0): 467,460 bytes (17% of the original), SHA-256 `c3d879f0a9ad1ecb0ff33c1601abd34ce350c1ffefcaebed6ad5a1ca29fd4a96`. Same dimensions. Its transparency is lossless: decoded, its alpha channel equals the original's for every pixel, the corners are clear, and about 49% of the picture is fully transparent. Its colour is lossy: composited on white it differs from the original by 42.4 dB PSNR, or 39.2 dB over the visible pixels alone (the largest difference is 19 of 255, and 99.9% of channel values differ by 9 or less); a 3× side-by-side of the hair, the hatching, the map lettering, and the cassette shows no visible change. The C2PA provenance chunk of the original PNG is not carried over | The author's approved 404 artwork, on the shared not-found view only (see [Not found](#not-found-and-the-skip-link-m31)) |
 | `docs/assets/refrain-home-character-dark.png` | Derived from the original, approved by the author | Not used. It was the README's dark-theme image until pull request #12; the README now shows the original in both themes. Kept in the repository. Same dimensions and transparency as the original, with tones remapped. |
 
 The rules for `reference/` and for promoting assets are in [`AGENTS.md` § 6](../AGENTS.md#6-design-system-boundaries). The favicons and the pencil cursor are promoted into `public/` when the application first uses them.
@@ -98,7 +99,7 @@ There is no other color anywhere, including status, error, and success states, w
 
 - **Header (public):** minimal, centered navigation: Home, Albums, Artists, Memories. The Home link is the way back to the homepage. There is no logo, wordmark, or site name in the header. The current page has a drawn underline.
 - **Header (studio):** "Writing studio" label, centered Desk and Catalog navigation, and a "Public pages" link (the Studio shows "Sign out" there until public pages exist). Exactly two destinations; one row on a wide screen, and the reference's centered vertical composition at 720px and below. Artists, Albums, and Tracks are the Catalog's own navigation, in the margin column ([Studio visual fidelity § Navigation structure](design/studio-visual-fidelity.md#navigation-structure)).
-- **Character:** appears only on the public homepage, between the navigation and the introduction. Static, using the original asset (`public/artwork/refrain-home-character.png`), with the approved alt text ("Ink drawing of a person with curly hair and headphones, sitting cross-legged on the floor and writing in a notebook while looking up, next to a stack of records, a mug, a cassette and a few crumpled pages."). It never appears on internal pages or as a header logo. The favicon kit is the only derived use. The application and the README use only the original.
+- **Character:** appears only on the public homepage, between the navigation and the introduction. Static, using the original asset (`public/artwork/refrain-home-character.png`), with the approved alt text ("Ink drawing of a person with curly hair and headphones, sitting cross-legged on the floor and writing in a notebook while looking up, next to a stack of records, a mug, a cassette and a few crumpled pages."). It never appears on internal pages or as a header logo. The favicon kit is the only derived use. The application and the README use only the original. **One narrow exception, approved by the owner (M3.1, PR #35):** the distinct, approved 404 artwork appears on the shared not-found view and nowhere else; it is a separate drawing, not this one, and it does not authorize the character on any other page.
 - **Footer:** centered and understated. A single rule, then the closing line *some songs take you back.* in Kalam, then the language selector. The language selector exists **only** in the footer, opens upward, and offers English and Português (Brasil). Its note reads: "Changes the interface only. Writing stays in the language it was written in."
 
 ## Components
@@ -154,6 +155,12 @@ The cursor applies only under `@media (hover: hover) and (pointer: fine)`. Links
 
 `reference/refrain-cursor/README.md` also lists a `refrain-pencil-64.png` that does not exist. Do not reference it. The reference README is preserved unedited.
 
+### Not found, and the skip link (M3.1)
+
+**Not found.** The shared view for every address that is not served shows the author's approved 404 artwork above the heading "Nothing here", the line "This page is not available.", and a link back to the start. It is the production copy (`public/artwork/refrain-404.webp`, above), centered, at most 560px wide and never wider than the page, with its own proportions and its width and height declared so that nothing shifts while it loads; its alternative text names what matters ("Ink drawing of a person with curly hair and headphones, scratching their head over a map marked 404."). It is the same for every address and says nothing about why. In forced-colors mode the drawing keeps its own white ground, since black ink on a dark system canvas would vanish. The V4.4 mockups include no 404 screen; the owner approved this composition (the drawing between the navigation and the text, as on the homepage) and the artwork as **a narrow exception** to the homepage-only rule for the character ([`AGENTS.md` § 6](../AGENTS.md#6-design-system-boundaries), and the Character bullet above): the exception covers this view only.
+
+**Skip link.** The first tab stop of every public page is "Skip to content", in Kalam, ink on paper with the 2px focus outline. It is off screen at rest and, while it has focus, is drawn at the top left without changing the page's flow (a link that took space moved the content when activated, so the jump landed off by its height). At 390px it would sit on the navigation, so the navigation is drawn invisible, in place and still focusable, for as long as the skip link has focus; it never covers the writing. Activating it moves focus to the page's single `<main id="main">`, which has no ring of its own because it is not a control. It is hidden in print. This is an addition the V4.4 screens do not show and an accessibility requirement; the studio's skip link works the same way.
+
 ## Accessibility baseline
 
 - Semantic HTML first: landmarks, headings in order, real buttons and links, labelled fields.
@@ -171,6 +178,32 @@ Each of these is resolved by the [Authority](#authority) rules. The reference fi
 1. The handoff typography table lists a "Site name" (Kalam 700, 20px), and its responsive notes say the header "stacks name over navigation". The handoff CSS also defines `.brand` and `.mark` header classes. Every approved public screen shows navigation only. **Resolution:** no logo, wordmark, or site name in the public header.
 2. `reference/refrain-cursor/README.md` lists `refrain-pencil-64.png`, which does not exist. **Resolution:** reference only the assets listed in [Pencil cursor](#pencil-cursor).
 3. Legacy font declarations (Atkinson Hyperlegible Next, Caveat) remain in the exported CSS. **Resolution:** not part of the design; see [Typography](#typography).
+
+## Public album journal (M3.1)
+
+The first public page follows the approved `Grace` screen (`refrainV44-Grace`, desktop and mobile): two columns (5fr and 7fr, 88px apart) on the RaioViajante lateral contract (`width: min(100% - 35.2px, 1320px)`), the album artwork frame, the kind label, the title in Kalam 700 at 104px (62px on a phone, 54px at 370px and below), the credit with the drawn underline, the facts line, the opening sentence in Kalam 300 at 31px (26px), "My rating" with half-step stars, the writing at 21px and 62 characters (19.5px), the "Track by track" section with one ruled row per track, the favourite circle, the "(still writing)" label, and the closing line. On a phone, the order is the artwork, the heading, the facts, and the writing. The page is implemented in [`src/app/(public)/`](../src/app/(public)/) and [`public.css`](../src/app/public.css), with the strokes of [`strokes.css`](../src/app/strokes.css) (one stroke added, the favourite loop).
+
+Where the approved screen shows something that does not exist yet, or that the data cannot honestly supply, the page shows less, never something invented. Each is a decision recorded here:
+
+| Approved screen | Public page | Why |
+| --- | --- | --- |
+| The header's four links (Home, Albums, Artists, Memories) | Home, and Albums as the current page (not a link) | No list page exists, and a link to one would be a broken promise. The other links arrive with their pages |
+| The language selector in the footer | Not shown | It arrives with next-intl; the page is English, and each piece of writing carries its own `lang` |
+| "Written [DATE] · edited [DATE]" | "Published <date>" and "Written in <language>" | The edit date is private editing metadata. The publication date is public by definition |
+| The cover from the Cover Art Archive and its caption | A hatched frame, "Album artwork / not available yet", with an accessible name | No provider integration exists, and no external image host is allow-listed yet |
+| "Everything in brackets is a placeholder…" | Not shown | A mockup note, not content |
+| The "All albums" and "More about <artist>" links | Not shown | Those pages do not exist |
+| A track row opens by a button | A native `<details>` with a `<summary>` | Keyboard and screen-reader operation with no script; the reflection is in the page either way |
+| Section headings as `h3` in the writing | `h2` in the writing, `h3` in a track's reflection | The outline stays in order under the `h1` and the "Track by track" `h2` |
+| A track with no reflection says "not written yet" | The same, also for a track whose reflection is not public | The page never says that a private reflection exists |
+| A track's credit under its name (a cover, for example) | Shown when the catalog has one | It is catalog metadata of a track in a public journal |
+| Stars drawn with a sketchy double stroke | Geometric stars, filled or outlined, in half steps | Not yet drawn in the hand-drawn style; the rating reads correctly and its name is spoken as a sentence. Revisit with the visual refinement |
+| The margin note is hidden at 720px and below | Shown on a phone, after the facts | The author's writing should not disappear on a small screen |
+| Links in the writing are ordinary underlined words | A link mark shows its text and no link | No address allow-list exists yet; a link would be an unchecked outbound address |
+| A track's panel starts "Written [DATE] · my rating" | The reflection's text only (the rating is in the row) | A reflection has no public date of its own, and the rating is already in the row |
+| A hand line under a favourite ("[favourite — …]") | Not shown | It is a placeholder for the author's own words; the model has no favourite note |
+
+The public pages are monochrome with the design's own paper tints, use only Kalam and Alegreya Sans, request nothing from another origin, and have no author control. A request for an address that is not served shows one view, "Nothing here", for every reason, so no case can be told from another. These properties are tested in a browser at 1440px and 390px (`e2e/public.spec.ts`).
 
 ## Writing Studio controls for ADR 0002
 

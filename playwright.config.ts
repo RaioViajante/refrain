@@ -108,6 +108,29 @@ export default defineConfig({
       dependencies: ["desktop"],
     },
     {
+      // The public album journal, anonymous, from the second server that has
+      // public reads switched on (e2e/global-setup.ts): desktop and 390 px.
+      name: "public-desktop",
+      testMatch: /public\.spec\.ts/,
+      use: {
+        browserName: "chromium",
+        viewport: { width: 1440, height: 900 },
+        storageState: undefined,
+      },
+    },
+    {
+      name: "public-390",
+      testMatch: /public\.spec\.ts/,
+      use: {
+        browserName: "chromium",
+        viewport: { width: 390, height: 844 },
+        isMobile: true,
+        hasTouch: true,
+        deviceScaleFactor: 2,
+        storageState: undefined,
+      },
+    },
+    {
       name: "mobile-390",
       testMatch: /mobile\.spec\.ts/,
       use: {

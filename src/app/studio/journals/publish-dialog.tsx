@@ -13,7 +13,7 @@ import {
   ReviewSection,
   starsInWords,
 } from "@/app/studio/journals/review-parts";
-import { failureMessage } from "@/app/studio/messages";
+import { failureMessage, PUBLIC_PAGE_NOTE } from "@/app/studio/messages";
 import type { ActionResult } from "@/app/studio/results";
 import type { PublicationPreview } from "@/modules/journals";
 
@@ -232,9 +232,8 @@ function OpenPublishDialog({
               anything: closing it leaves everything as it was.
             </p>
             <p className="studio-hint">
-              This version is {status} now. No web page for it exists yet, so
-              publishing only marks the version as published in your records;
-              nothing opens on the web.
+              This version is {status} now. Publishing marks the version as
+              published in your records. {PUBLIC_PAGE_NOTE}
             </p>
 
             <ReviewSection title="Opening sentence">

@@ -9,6 +9,15 @@ const publicEntryPointsOnly = {
     "Import another module only through its public entry point (index.ts).",
 };
 
+// The Publication module's second entry point, `public`, exports reads and the
+// public-reads switch, never a command (src/modules/publication/public.ts). Only
+// the public pages, the sitemap, robots.txt, and the proxy may use it, through
+// the override below; src/app/public-surface.test.ts holds the same list.
+const publicEntryPointsPlusReads = {
+  group: [...publicEntryPointsOnly.group, "!@/modules/publication/public"],
+  message: publicEntryPointsOnly.message,
+};
+
 // Relative imports may not leave the current directory. Anything else uses
 // the @/ alias, so the patterns above cannot be bypassed with a ../ path.
 const noParentRelativeImports = {
@@ -74,6 +83,46 @@ const eslintConfig = defineConfig([
             { group: ["drizzle-orm/*"], message: presentationMessage },
           ],
         },
+      ],
+    },
+  },
+  {
+    // The public surface: the one place that may import the Publication
+    // module's reading entry point. Rule options do not merge, so the
+    // presentation restrictions are repeated.
+    files: [
+      "src/app/\\(public\\)/**",
+      "src/app/sitemap.xml/**",
+      "src/app/robots.txt/**",
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@/db",
+              allowImportNames: ["checkDatabaseConnection"],
+              message: presentationMessage,
+            },
+            { name: "pg", message: presentationMessage },
+            { name: "drizzle-orm", message: presentationMessage },
+          ],
+          patterns: [
+            publicEntryPointsPlusReads,
+            noParentRelativeImports,
+            { group: ["drizzle-orm/*"], message: presentationMessage },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/proxy.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        { patterns: [publicEntryPointsPlusReads, noParentRelativeImports] },
       ],
     },
   },

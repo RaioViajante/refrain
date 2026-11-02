@@ -4,6 +4,7 @@ import { useId, useState } from "react";
 
 import { Icon } from "@/app/studio/icons";
 import { RatingField } from "@/app/studio/journals/rating-field";
+import { PUBLIC_PAGE_NOTE } from "@/app/studio/messages";
 import type { TrackByTrackItem } from "@/modules/journals";
 
 // Track by track (docs/design-system.md, AlbumEditor): each track of the
@@ -116,7 +117,7 @@ function visibilitySentence(
   if (saved.publicIn.includes(locale)) {
     return {
       lead: "Public",
-      rest: `. It is part of the ${language} version that is marked as published in your records. No public page exists yet, so nothing opens on the web.`,
+      rest: `. It is part of the ${language} version that is marked as published in your records. ${PUBLIC_PAGE_NOTE}`,
     };
   }
   if (draft.text.trim() === "" || saved.texts[locale] === undefined) {
@@ -334,7 +335,7 @@ function TrackPanel({
         />
         <Check
           label="Include when published"
-          hint="Publishes nothing by itself: it counts once this language version is published. Public web pages are not available yet."
+          hint="Publishes nothing by itself: it counts once this language version is published."
           checked={draft.isPublished}
           onChange={(isPublished) => onEdit({ isPublished })}
         />

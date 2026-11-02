@@ -101,6 +101,17 @@ const ROUTE_ALLOW_LIST = new Set([
   join("src", "app", "api", "auth", "[...all]", "route.ts"),
 ]);
 
+// The public documents (M3.1). They are read-only and anonymous by design, so
+// they are not administrative route handlers and must not authorize. They are
+// checked by a different rule instead: src/app/public-surface.test.ts requires
+// each to apply the public-reads switch and to import only the Publication
+// module's public entry point. A new route handler that is on neither list
+// still fails this test.
+const PUBLIC_ROUTE_ALLOW_LIST = new Set([
+  join("src", "app", "robots.txt", "route.ts"),
+  join("src", "app", "sitemap.xml", "route.ts"),
+]);
+
 function isAwaitedAuthorizationCall(expression: ts.Expression): boolean {
   return (
     ts.isAwaitExpression(expression) &&
@@ -285,7 +296,24 @@ function authorizationViolations(
       check("metadata function", entry);
     }
   }
-  if (isRouteFile && !ROUTE_ALLOW_LIST.has(normalized)) {
+  // A public document is exempt from authorization because it reads and answers
+  // anonymously, so it may export `GET` and nothing else: no other method (a
+  // write that skipped authorization would otherwise ride on the exemption), no
+  // re-export, and no default export.
+  if (isRouteFile && PUBLIC_ROUTE_ALLOW_LIST.has(normalized)) {
+    for (const entry of exported) {
+      if (entry.name !== "GET" || !entry.fn) {
+        violations.push(
+          `${file}: a public document may export only a GET function literal, and this exports "${entry.name}"`,
+        );
+      }
+    }
+  }
+  if (
+    isRouteFile &&
+    !ROUTE_ALLOW_LIST.has(normalized) &&
+    !PUBLIC_ROUTE_ALLOW_LIST.has(normalized)
+  ) {
     for (const entry of exported.filter(
       (e) => HTTP_METHODS.has(e.name) || e.name === "(re-export)",
     )) {
@@ -389,9 +417,13 @@ describe("every entry point authorizes first", () => {
     expect([...ROUTE_ALLOW_LIST]).toEqual([
       join("src", "app", "api", "auth", "[...all]", "route.ts"),
     ]);
+    expect([...PUBLIC_ROUTE_ALLOW_LIST]).toEqual([
+      join("src", "app", "robots.txt", "route.ts"),
+      join("src", "app", "sitemap.xml", "route.ts"),
+    ]);
     expect(
-      files.filter((file) => /(^|[\\/])route\.(m?[jt]sx?)$/.test(file)),
-    ).toEqual([join("src", "app", "api", "auth", "[...all]", "route.ts")]);
+      files.filter((file) => /(^|[\\/])route\.(m?[jt]sx?)$/.test(file)).sort(),
+    ).toEqual([...ROUTE_ALLOW_LIST, ...PUBLIC_ROUTE_ALLOW_LIST].sort());
   });
 
   describe("probes: each bypass the review found is caught", () => {
@@ -502,6 +534,47 @@ export async function bad() { await somethingElse(); await authorizeAuthor(h); r
       ).toEqual([]);
       expect(
         check("export const GET = handler;", "src/app/api/x/route.ts"),
+      ).toHaveLength(1);
+      // The two public documents are on their own reviewed list; a third one
+      // is not, and fails here until it is added there on purpose.
+      expect(
+        check(
+          "export async function GET() { return new Response(); }",
+          join("src", "app", "sitemap.xml", "route.ts"),
+        ),
+      ).toEqual([]);
+      expect(
+        check(
+          "export async function GET() { return new Response(); }",
+          join("src", "app", "feed.xml", "route.ts"),
+        ),
+      ).toHaveLength(1);
+      // The exemption covers GET alone: any other method, a re-export, or a
+      // wrapped handler on a public document is a violation.
+      const sitemap = join("src", "app", "sitemap.xml", "route.ts");
+      for (const code of [
+        "export async function POST() { return new Response(); }",
+        "export async function DELETE() { return new Response(); }",
+        "export async function GET() { return new Response(); }\nexport async function PUT() { return new Response(); }",
+        "export const GET = handler;",
+        'export { GET } from "./other";',
+        "export default function () { return new Response(); }",
+      ]) {
+        expect(check(code, sitemap), code).not.toEqual([]);
+      }
+      // A public document under a studio path, or a route handler anywhere
+      // else, is on no list.
+      expect(
+        check(
+          "export async function GET() { return new Response(); }",
+          join("src", "app", "studio", "sitemap.xml", "route.ts"),
+        ),
+      ).toHaveLength(1);
+      expect(
+        check(
+          "export async function GET() { return new Response(); }",
+          join("src", "app", "(public)", "albums", "export", "route.ts"),
+        ),
       ).toHaveLength(1);
       const guarded =
         "export async function POST(request) { const a = await requireAuthor(request.headers); }";

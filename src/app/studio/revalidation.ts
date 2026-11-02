@@ -16,14 +16,16 @@ import { revalidatePath } from "next/cache";
 //               unpublished, a journal was deleted or restored, or a save
 //               changed what a public page shows.
 //
-// There is no public page yet (M3.1), and the first public release caches
-// nothing: every public response is rendered per request with
-// `Cache-Control: no-store` (ADR 0006 § 11). So there is nothing public to
-// revalidate, and this module does NOT claim that public invalidation is
-// done. `PUBLIC_REVALIDATION_PATHS` is the seam that M3.1 fills in, and any
-// cache introduced later needs its own ADR that defines the invalidation of
-// every event above. Until then the list is empty on purpose, and a test fails
-// if it is filled without that work.
+// A public album-journal page exists since M3.1, and it caches nothing: every
+// public response is rendered per request with `Cache-Control: no-store` (ADR
+// 0006 § 11), the build holds no journal data, and src/app/public-surface.test.ts
+// fails on any cache directive in a public file. So there is still nothing
+// public to revalidate, and this module does NOT claim that public
+// invalidation is done: the HTTP tests of M3.1 show that the next request
+// reflects every change instead. `PUBLIC_REVALIDATION_PATHS` stays empty on
+// purpose; any cache introduced later needs its own ADR that defines the
+// invalidation of every event above, and a test fails if the list is filled
+// without that work.
 
 export type StudioEffect = "none" | "writing" | "visibility";
 
