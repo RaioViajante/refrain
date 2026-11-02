@@ -758,6 +758,8 @@ test("screenshots, when asked for", async ({ page }, testInfo) => {
     },
   });
   await page.locator("summary.pj-track-row").nth(1).click();
+  // Move the pointer away, so no row is caught in its hover state.
+  await page.mouse.move(0, 0);
   await page.screenshot({
     path: `visual-review/m3-1/${name}-open.png`,
     fullPage: true,

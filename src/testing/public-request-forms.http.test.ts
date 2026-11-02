@@ -37,6 +37,7 @@ import {
   seedSimple,
   type SeededJournal,
 } from "@/testing/public-journals";
+import { forms, masked, variants } from "@/testing/public-request-forms";
 import { assertDisposableTestDatabase } from "@/testing/test-database";
 
 process.env.BETTER_AUTH_SECRET = randomBytes(32).toString("base64");
@@ -94,92 +95,8 @@ afterAll(async () => {
   }
 }, 60_000);
 
-// What a response says about the request itself and nothing about any journal:
-// the slug it was asked for, which a redirect repeats in its `Location`,
-// `Refresh`, and body, and the random key that the framework puts in the Flight
-// data of a page it renders for a crawler. Both are masked before two answers
-// are compared.
-function masked(snapshot: Snapshot, slugs: string[]) {
-  const mask = (text: string) =>
-    slugs
-      .reduce((out, slug) => out.split(slug).join("SLUG"), text)
-      .replace(/(")[A-Za-z0-9_-]{21,23}(?![A-Za-z0-9_-])/g, "$1ID");
-  const view = comparable(snapshot);
-  return {
-    status: view.status,
-    headers: Object.fromEntries(
-      Object.entries(view.headers).map(([name, value]) => [name, mask(value)]),
-    ),
-    body: mask(view.body),
-  };
-}
-
-// Every transport form of one public address.
-function forms(s: string): [string, string, Record<string, string>][] {
-  return [
-    [
-      "router prefetch",
-      `/albums/${s}?_rsc=probe`,
-      { rsc: "1", "next-router-prefetch": "1" },
-    ],
-    [
-      "segment prefetch (tree)",
-      `/albums/${s}?_rsc=probe`,
-      {
-        rsc: "1",
-        "next-router-prefetch": "1",
-        "next-router-segment-prefetch": "/_tree",
-      },
-    ],
-    [
-      "segment prefetch (page)",
-      `/albums/${s}?_rsc=probe`,
-      {
-        rsc: "1",
-        "next-router-prefetch": "1",
-        "next-router-segment-prefetch": "/albums/[slug]/__PAGE__",
-      },
-    ],
-    ["segment file", `/albums/${s}.segments/_tree.segment.rsc`, {}],
-    [
-      "page segment file",
-      `/albums/${s}.segments/albums/$d$slug/__PAGE__.segment.rsc`,
-      {},
-    ],
-    [".rsc", `/albums/${s}.rsc`, {}],
-    [".json", `/albums/${s}.json`, {}],
-    ["next data", `/_next/data/${buildId}/albums/${s}.json`, {}],
-    [
-      "Accept: application/json",
-      `/albums/${s}`,
-      { accept: "application/json" },
-    ],
-    ["Accept: text/plain", `/albums/${s}`, { accept: "text/plain" }],
-    ["If-None-Match: *", `/albums/${s}`, { "if-none-match": "*" }],
-    ["If-None-Match: a validator", `/albums/${s}`, { "if-none-match": '"x"' }],
-    [
-      "If-Modified-Since",
-      `/albums/${s}`,
-      { "if-modified-since": "Wed, 21 Oct 2037 07:28:00 GMT" },
-    ],
-    ["Range", `/albums/${s}`, { range: "bytes=0-10" }],
-  ];
-}
-
-const variants = (s: string): [string, string][] => [
-  ["uppercase path", `/ALBUMS/${s}`],
-  ["capitalized path", `/Albums/${s}`],
-  ["double slash before", `//albums/${s}`],
-  ["double slash inside", `/albums//${s}`],
-  ["dot segment", `/albums/./${s}`],
-  ["encoded slash", `/albums%2F${s}`],
-  ["encoded dot", `/albums/%2e/${s}`],
-  ["semicolon", `/albums/${s};x=1`],
-  ["fragment-like", `/albums/${s}%23x`],
-];
-
 describe("a served address is never cacheable, in any request form", () => {
-  it.each(forms(slug("grace")))("%s", async (name, path, headers) => {
+  it.each(forms(slug("grace"), buildId))("%s", async (name, path, headers) => {
     const got = await request(on.baseURL, path, { headers });
     // Whatever the framework answers to this form, it must not be storable,
     // and it must carry no private writing.
@@ -222,11 +139,11 @@ describe("a served address is never cacheable, in any request form", () => {
 
 describe("an address that is not served answers every request form as an unknown one", () => {
   const unknown = slug("nothing");
-  it.each(forms(slug("draft")).map((f, i) => [f[0], i] as const))(
+  it.each(forms(slug("draft"), buildId).map((f, i) => [f[0], i] as const))(
     "draft, %s",
     async (_name, index) => {
-      const hidden = forms(slug("draft"))[index]!;
-      const baseline = forms(unknown)[index]!;
+      const hidden = forms(slug("draft"), buildId)[index]!;
+      const baseline = forms(unknown, buildId)[index]!;
       const a = comparable(
         await request(on.baseURL, hidden[1], { headers: hidden[2] }),
       );
@@ -429,6 +346,170 @@ describe("address normalization", () => {
       }
     },
   );
+
+  // Raw requests: fetch() normalizes `\\` and dot segments, and cannot choose
+  // `Host`.
+  const raw = (path: string, headers: Record<string, string> = {}) =>
+    new Promise<{
+      status?: number;
+      location?: string;
+      refresh?: string;
+      cookie?: string[];
+      body: string;
+    }>((resolve, reject) => {
+      const url = new URL(on.baseURL);
+      const req = httpRequest(
+        { host: url.hostname, port: url.port, path, headers },
+        (res) => {
+          let body = "";
+          res.setEncoding("utf8");
+          res.on("data", (chunk) => (body += chunk));
+          res.on("end", () =>
+            resolve({
+              status: res.statusCode,
+              location: res.headers.location,
+              refresh: res.headers.refresh as string | undefined,
+              cookie: res.headers["set-cookie"],
+              body,
+            }),
+          );
+        },
+      );
+      req.on("error", reject);
+      req.end();
+    });
+
+  it("never reflects a spoofed Host or forwarded host into a trailing-slash 308, anywhere on the site", async () => {
+    for (const path of [
+      "/studio/journals/",
+      "/api/auth/session/",
+      `/albums/${slug("draft")}/`,
+      "/sitemap.xml/",
+    ]) {
+      const got = await raw(path, {
+        host: "evil.example",
+        "x-forwarded-host": "evil.example",
+        "x-forwarded-proto": "https",
+      });
+      expect(got.status, path).toBe(308);
+      expect(got.location, path).toBe(path.slice(0, -1));
+      expect(got.refresh, path).toBe(`0;url=${path.slice(0, -1)}`);
+      expect(JSON.stringify(got), path).not.toContain("evil.example");
+    }
+  });
+
+  it("is never an open redirect: every target is a path on this site", async () => {
+    for (const path of [
+      "/%2F%2Fevil.example/",
+      "/%5C%5Cevil.example/",
+      "/%2F/evil.example/",
+      "/%09/evil.example/",
+      "//evil.example/",
+      "/\\evil.example/",
+      "/\\/evil.example/",
+      "/.//evil.example/",
+    ]) {
+      const got = await raw(path);
+      expect(got.status, path).toBe(308);
+      const location = got.location ?? "";
+      // One leading slash, then not a slash or a backslash: a path, never a
+      // scheme-relative or absolute address.
+      expect(location, path).toMatch(/^\/(?![/\\])/);
+      expect(new URL(location, "http://site.test").host, path).toBe(
+        "site.test",
+      );
+    }
+  });
+
+  it("sets no cookie, and answers the same with or without a session, on the studio and the auth endpoint", async () => {
+    for (const path of [
+      "/studio/",
+      "/studio/journals/",
+      "/api/auth/session/",
+    ]) {
+      const anonymous = await raw(path);
+      const withSession = await raw(path, {
+        cookie: "better-auth.session_token=forged.value; other=1",
+      });
+      expect(anonymous.cookie, path).toBeUndefined();
+      expect(withSession, path).toEqual(anonymous);
+      expect(anonymous.status, path).toBe(308);
+    }
+  });
+
+  it("still gives a percent-encoded public address the public decision: switch off, the unknown address; switch on, a hidden one answers as an unknown one", async () => {
+    // The framework matches the proxy against the decoded path too, so these
+    // reach the proxy; they must not slip past it to a route of their own, and
+    // they carry the public security headers like every other public answer.
+    const encoded = (s: string) => [
+      "/%73itemap.xml",
+      "/robots%2Etxt",
+      `/%61lbums/${s}`,
+      `/albums%2F${s}`,
+      `/albums/%${s.charCodeAt(0).toString(16)}${s.slice(1)}`,
+    ];
+    for (const method of ["GET", "HEAD", "POST"]) {
+      // Switch off: every surface, including a served journal's, is unknown.
+      const unknown = comparable(
+        await request(off.baseURL, `/albums/${slug("nothing")}`, { method }),
+      );
+      for (const path of [
+        ...encoded(slug("grace")),
+        ...encoded(slug("draft")),
+      ]) {
+        expect(
+          comparable(await request(off.baseURL, path, { method })),
+          `off: ${method} ${path}`,
+        ).toEqual(unknown);
+      }
+      // Switch on: a hidden journal's encoded address answers exactly as an
+      // unknown journal's does (a served one is public, and may differ).
+      const slugs = [slug("draft"), slug("nothing")];
+      const hidden = encoded(slug("draft"));
+      const absent = encoded(slug("nothing"));
+      for (const [index, path] of hidden.entries()) {
+        expect(
+          masked(await request(on.baseURL, path, { method }), slugs),
+          `on: ${method} ${path}`,
+        ).toEqual(
+          masked(await request(on.baseURL, absent[index]!, { method }), slugs),
+        );
+      }
+    }
+  });
+
+  it("answers the framework's transport forms of a trailing-slash address with no-store, the same for a hidden and an unknown address", async () => {
+    // Measured: these answer the not-found view (`404`), not a redirect. What
+    // matters is that they are `no-store`, point nowhere else, and cannot tell
+    // a hidden address from an unknown one.
+    const shapes = (s: string): [string, Record<string, string>][] => [
+      [`/_next/data/${buildId}/albums/${s}.json/`, {}],
+      [`/_next/data/${buildId}/albums/${s}.json/`, { "x-nextjs-data": "1" }],
+      [`/albums/${s}/.segments/_tree.segment.rsc`, {}],
+      [`/albums/${s}/?_rsc=abc`, { rsc: "1" }],
+    ];
+    const hiddenForms = shapes(slug("draft"));
+    const unknownForms = shapes(slug("nothing"));
+    for (const [index, [path, headers]] of hiddenForms.entries()) {
+      const label = `${path} ${JSON.stringify(headers)}`;
+      const got = await request(on.baseURL, path, { headers });
+      expect(got.headers["cache-control"], label).toMatch(/no-store/);
+      const target =
+        got.headers.location ?? got.headers["x-nextjs-redirect"] ?? "/";
+      expect(target, label).toMatch(/^\/(?![/\\])|^\/$/);
+      for (const marker of PRIVATE_MARKER_LIST) {
+        expect(got.body.includes(marker), label).toBe(false);
+      }
+      const [unknownPath, unknownHeaders] = unknownForms[index]!;
+      const slugs = [slug("draft"), slug("nothing")];
+      expect(masked(got, slugs), label).toEqual(
+        masked(
+          await request(on.baseURL, unknownPath, { headers: unknownHeaders }),
+          slugs,
+        ),
+      );
+    }
+  });
 
   it("leaves the homepage and every address without a trailing slash as they were", async () => {
     const home = await request(on.baseURL, "/");

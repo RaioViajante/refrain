@@ -35,7 +35,28 @@ describe("the address a request is redirected to", () => {
     },
   );
 
-  it("depends on the address alone: it reads nothing else", () => {
-    expect(normalizedAddress.length).toBe(1);
+  it("always answers a path on this site: never two leading slashes or a backslash", () => {
+    // A deterministic sweep of short addresses built from the characters that
+    // make open redirects: slashes, backslashes, their encodings, dots, and
+    // a query.
+    const parts = ["/", "\\", "%2F", "%5C", ".", "evil", "?", "x=//y"];
+    let checked = 0;
+    const walk = (prefix: string, depth: number) => {
+      if (depth === 0) {
+        const target = normalizedAddress(prefix);
+        if (target !== null) {
+          expect(target, prefix).toMatch(/^\/(?![/\\])|^\/$/);
+          checked += 1;
+        }
+        return;
+      }
+      for (const part of parts) {
+        walk(prefix + part, depth - 1);
+      }
+    };
+    for (let depth = 0; depth <= 5; depth += 1) {
+      walk("/", depth);
+    }
+    expect(checked).toBeGreaterThan(1000);
   });
 });

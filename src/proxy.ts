@@ -49,10 +49,28 @@ const UNKNOWN_ADDRESS = "/__refrain-unknown-address";
 
 const NO_STORE = "no-store";
 
+// The same values as `publicHeaders` in next.config.ts, without
+// `Cache-Control`, which the not-found view sets itself (`no-store`).
+const PUBLIC_SECURITY_HEADERS = {
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "X-Frame-Options": "DENY",
+  "Content-Security-Policy": "frame-ancestors 'none'",
+} as const;
+
 // What the three public matchers above can let through, in any of the
 // framework's transport forms: an album address, the sitemap, `robots.txt`.
 const PUBLIC_ADDRESS =
   /^(?:\/_next\/data\/[^/]+)?\/(?:albums\/|sitemap\.xml|robots\.txt)/;
+
+/** The path percent-decoded, or "" when it cannot be decoded. */
+function decodedOrEmpty(pathname: string): string {
+  try {
+    return decodeURIComponent(pathname);
+  } catch {
+    return "";
+  }
+}
 
 function slugOf(pathname: string): string {
   const segment = pathname.slice(pathname.lastIndexOf("/") + 1);
@@ -79,10 +97,16 @@ export async function proxy(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
   // The trailing-slash matcher also lets through a few addresses that are not
-  // public (a transport suffix after a slash, for example). Only the public
-  // addresses go on to a public decision; everything else is the framework's,
-  // exactly as before.
-  if (!PUBLIC_ADDRESS.test(pathname)) {
+  // public (a transport suffix after a slash, for example). Those go back to
+  // the framework. The framework matches the proxy against the decoded path
+  // as well as the raw one, so a percent-encoded public address
+  // (`/%73itemap.xml`, `/%61lbums/<slug>`) reaches the proxy too: it is checked
+  // in both forms, and it gets a public decision, exactly as it did before the
+  // trailing-slash matcher existed.
+  if (
+    !PUBLIC_ADDRESS.test(pathname) &&
+    !PUBLIC_ADDRESS.test(decodedOrEmpty(pathname))
+  ) {
     return NextResponse.next();
   }
   // The sitemap and robots.txt: the switch and the method only. Their routes
@@ -121,6 +145,12 @@ export async function proxy(request: NextRequest) {
         },
       });
     case "not_found":
-      return NextResponse.rewrite(new URL(UNKNOWN_ADDRESS, request.url));
+      // The security headers of the public addresses are set here as well as
+      // in next.config.ts, whose rules match the raw path only: a
+      // percent-encoded public address (`/%73itemap.xml`) reaches this proxy
+      // but not those rules, and must answer exactly as an unknown one does.
+      return NextResponse.rewrite(new URL(UNKNOWN_ADDRESS, request.url), {
+        headers: PUBLIC_SECURITY_HEADERS,
+      });
   }
 }

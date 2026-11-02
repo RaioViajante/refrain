@@ -842,8 +842,12 @@ describe("where the switch is applied", () => {
     while (guard && !ts.isIfStatement(guard)) {
       guard = guard.parent;
     }
-    expect(guard && ts.isIfStatement(guard) && guard.expression.getText()).toBe(
-      "!PUBLIC_ADDRESS.test(pathname)",
+    expect(
+      guard &&
+        ts.isIfStatement(guard) &&
+        guard.expression.getText().replace(/\s+/g, " "),
+    ).toBe(
+      "!PUBLIC_ADDRESS.test(pathname) && !PUBLIC_ADDRESS.test(decodedOrEmpty(pathname))",
     );
     let clause: ts.Node | undefined = serve;
     while (clause && !ts.isCaseClause(clause)) {

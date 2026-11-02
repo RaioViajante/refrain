@@ -1,8 +1,9 @@
-// Gate G2 and the cache-hit indicator (M3.1 owner review). The prerendered
-// not-found view carries `x-nextjs-cache: HIT`, which ADR 0006 § 14 (G2) says
-// no response may carry. These tests do not waive that wording; they measure
-// what the marker can and cannot reveal, on the production build, with
-// adversarial requests:
+// Gate G2 and the cache-hit indicator (M3.1). The framework stamps
+// `x-nextjs-cache: HIT` on responses it serves from its build output. ADR 0006
+// amendment A2 allows that one marker only on generic, entry-independent,
+// `no-store` responses whose body is empty or a verified data-free build file,
+// identical across unknown and every non-visible address. These tests are the
+// proof A2 requires, on the production build, with adversarial requests:
 //
 // 1. it is the same on every not-found response, whatever the reason the
 //    address is not served (unknown, draft, private, deleted, unpublished,
@@ -10,7 +11,7 @@
 // 2. request history does not change it, in a long-lived server or in a fresh
 //    process whose first request is a hidden address;
 // 3. it never accompanies a response that carries entry-specific content: not
-//    a served page, a redirect, the sitemap, `robots.txt`, `405`, or `503`;
+//    a served page, a redirect, the sitemap, `robots.txt`, or `405`;
 // 4. status, headers, body, and timing do not tell a hidden address from an
 //    unknown one;
 // 5. the bytes that carry the marker are the build's own artifact, so they
@@ -50,6 +51,7 @@ import {
   startProductionServer,
   type ProductionServer,
 } from "@/testing/production-server";
+import { forms, masked, variants } from "@/testing/public-request-forms";
 import { assertDisposableTestDatabase } from "@/testing/test-database";
 
 process.env.BETTER_AUTH_SECRET = randomBytes(32).toString("base64");
@@ -530,6 +532,40 @@ describe("every transport form answers a hidden address as an unknown one", () =
       expect(answer.body, path).not.toContain("evil.example");
     }
   });
+});
+
+describe("every request form, path variant, and trailing slash answers every hidden kind as an unknown one", () => {
+  // The forms and variants of public-request-forms.http.test.ts, there
+  // compared for a draft only, here for every reason an address is hidden, in
+  // status, every header, and body (the requested address masked).
+  it("in full, for every hidden kind", async () => {
+    const buildId = readFileSync(".next/BUILD_ID", "utf8").trim();
+    const unknown = unknownSlug();
+    const shapes = (s: string): [string, string, Record<string, string>][] => [
+      ...forms(s, buildId),
+      ...variants(s).map(
+        ([label, path]) =>
+          [label, path, {}] as [string, string, Record<string, string>],
+      ),
+      ["trailing slash", `/albums/${s}/`, {}],
+      ["trailing slash and a query", `/albums/${s}/?q=1`, {}],
+    ];
+    const reference = shapes(unknown);
+    let compared = 0;
+    for (const [reason, slug] of Object.entries(hidden)) {
+      for (const [index, [label, path, headers]] of shapes(slug).entries()) {
+        const [, unknownPath, unknownHeaders] = reference[index]!;
+        const got = masked(await get(on.baseURL, path, { headers }), [slug]);
+        const want = masked(
+          await get(on.baseURL, unknownPath, { headers: unknownHeaders }),
+          [unknown],
+        );
+        expect(got, `${label}: ${reason}`).toEqual(want);
+        compared += 1;
+      }
+    }
+    expect(compared).toBeGreaterThan(150);
+  }, 120_000);
 });
 
 describe("the not-found view's illustration", () => {

@@ -165,7 +165,7 @@ a.public-link:hover,
   color: var(--color-ink);
 }
 
-/* The approved 404 drawing, centered above the message: the original file, at
+/* The approved 404 drawing, centered above the message: its production copy, at
    most 560px wide and never wider than the page, with its own proportions
    (the width and height attributes reserve the space, so nothing shifts). */
 .public-notfound-art {

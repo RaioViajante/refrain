@@ -7,16 +7,24 @@
 // `next.config.ts` (the router returns `resHeaders: null` for a redirect), so
 // that `308` could never carry `no-store`. With `skipTrailingSlashRedirect`
 // the framework leaves it to the proxy, which answers it here, to the same
-// address and with the same status. The repeated-slash and backslash `308` is
-// sent by the render server after the proxy has run, so answering it here
-// first changes only its headers.
+// address and with the same status.
+//
+// The repeated-slash and backslash `308` is different: the framework answers
+// it at the very top of its router (`resolve-routes`), before any header rule,
+// redirect, or proxy, so a request with `//` or `\\` never reaches this code.
+// `repeatedSlashTarget` mirrors it only defensively, so that the proxy could
+// never pass such an address on unchanged; that case is a known limitation
+// (docs/evidence/m3-1.md).
 //
 // Each function returns the address to redirect to, or null when the address
 // is already normal. Both mirror the framework exactly (Next.js 16.4.3,
-// `normalizeRepeatedSlashes` and the `/:path+/` redirect), so the target of
-// every `308` is the one the framework would have chosen: one step at a time,
-// the query kept as it was. Neither looks at any journal: the answer depends
-// on the characters of the address alone.
+// `normalizeRepeatedSlashes` and the `/:path+/` redirect). The input is the
+// address as the framework's proxy adapter gives it, which has already removed
+// the router's `_rsc` parameter and a `.rsc` suffix and re-serialized the
+// query, so the target can differ from the framework's in those details
+// (docs/evidence/m3-1.md); for the addresses measured, it is the same.
+// Neither function looks at any journal: the answer depends on the characters
+// of the address alone.
 
 /** `a//b` or `a\b` becomes `a/b`; the query is kept. */
 function repeatedSlashTarget(pathAndQuery: string): string | null {
