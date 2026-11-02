@@ -180,9 +180,25 @@ async function waitUntilReady(
   );
 }
 
+export interface ProductionServerOptions {
+  /** A fixed port; by default a free one is chosen. */
+  port?: number;
+  /**
+   * Extra environment for the server. A key whose value is `undefined` is
+   * removed, so a test can serve the same build with a variable unset.
+   */
+  env?: Record<string, string | undefined>;
+  /**
+   * Whether to provision the synthetic author (the default). A server that
+   * only serves public pages needs none, and several can run at once.
+   */
+  withAuthor?: boolean;
+}
+
 export async function startProductionServer(
-  options: { port?: number } = {},
+  options: ProductionServerOptions = {},
 ): Promise<ProductionServer> {
+  const withAuthor = options.withAuthor ?? true;
   const connectionString = readTestDatabaseUrl(process.env);
   if (!existsSync(".next/BUILD_ID")) {
     throw new Error(
@@ -194,7 +210,7 @@ export async function startProductionServer(
     await migrate(drizzle({ client }), {
       migrationsFolder: "src/db/migrations",
     });
-    if ((await identityRowCount(client)) > 0) {
+    if (withAuthor && (await identityRowCount(client)) > 0) {
       throw new Error(
         "The test database already has identity rows, so the tests will not " +
           "touch it. Reset it with `pnpm db:test:down && pnpm db:test:up`.",
@@ -221,17 +237,29 @@ export async function startProductionServer(
     NEXT_TELEMETRY_DISABLED: "1",
   };
   delete env.TEST_DATABASE_URL;
+  // The public-reads switch is never inherited from the shell that runs the
+  // tests: a server has it only if the test sets it (ADR 0006, D4).
+  delete env.REFRAIN_PUBLIC_READS_ENABLED;
+  for (const [key, value] of Object.entries(options.env ?? {})) {
+    if (value === undefined) {
+      delete env[key];
+    } else {
+      env[key] = value;
+    }
+  }
 
-  const provisioned = await run(
-    "pnpm",
-    ["--silent", "author:provision", `--target=${databaseTarget}`],
-    env,
-    `${SYNTHETIC_AUTHOR_PASSWORD}\n`,
-  );
-  if (provisioned.code !== 0) {
-    throw new Error(
-      `Provisioning the test author failed:\n${provisioned.output}`,
+  if (withAuthor) {
+    const provisioned = await run(
+      "pnpm",
+      ["--silent", "author:provision", `--target=${databaseTarget}`],
+      env,
+      `${SYNTHETIC_AUTHOR_PASSWORD}\n`,
     );
+    if (provisioned.code !== 0) {
+      throw new Error(
+        `Provisioning the test author failed:\n${provisioned.output}`,
+      );
+    }
   }
 
   const logDirectory = mkdtempSync(join(tmpdir(), "refrain-http-"));
@@ -259,12 +287,14 @@ export async function startProductionServer(
       await exited;
     }
     logStream.end();
-    // Only the rows this run created: the tables were empty when it began.
-    await withVerifiedClient(connectionString, async (client) => {
-      await client.query("delete from auth_users");
-      await client.query("delete from auth_rate_limits");
-      await client.query("delete from auth_verifications");
-    });
+    if (withAuthor) {
+      // Only the rows this run created: the tables were empty when it began.
+      await withVerifiedClient(connectionString, async (client) => {
+        await client.query("delete from auth_users");
+        await client.query("delete from auth_rate_limits");
+        await client.query("delete from auth_verifications");
+      });
+    }
     rmSync(logDirectory, { recursive: true, force: true });
   };
 
