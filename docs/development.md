@@ -49,6 +49,7 @@ All local configuration lives in one file, `.env`, which Git ignores. Docker Com
 | `BETTER_AUTH_URL` | Server code, the author command | The application's origin, for example `http://localhost:3000`. HTTPS is required unless the host is `localhost`, `127.0.0.1`, or `[::1]`. Only this origin may send state-changing requests. |
 | `REFRAIN_AUTHOR_EMAIL` | Server code, the author command | The single author's email address. Only the account with this email is authorized in the studio. |
 | `REFRAIN_PUBLIC_READS_ENABLED` | Server code only (the proxy, the public page, the sitemap, `robots.txt`) | **Off unless it is exactly `true`.** Unset, empty, `TRUE`, `1`, `yes`, a value with stray whitespace (for example `true ` from an `.env` file: it fails closed, silently), and every other value leave every public address answering the unknown-address `404`. It is read when a request is served, never at build time, and it is never a `NEXT_PUBLIC_` variable. It can hide public content and can never reveal any: with it on, every read still goes through the publication predicate. **Never switch it on in a deployment that anyone else can reach** until the [public page release gates](security.md#public-page-release-gates) are closed. [`.env.example`](../.env.example) leaves it off. |
+| `REFRAIN_MUSICBRAINZ_BASE_URL`, `REFRAIN_COVER_ART_ARCHIVE_BASE_URL` | Server code only (Add music, M3.2) | **Unset in normal use**, which means the real MusicBrainz (`https://musicbrainz.org/ws/2/`) and Cover Art Archive. They exist so the tests can point the server at a local mock ([`provider-mock.ts`](../src/testing/provider-mock.ts)); the only other value accepted is plain HTTP on `127.0.0.1`, `localhost`, or `[::1]`, without credentials or a query. Any other value turns the provider off, and the studio says it couldn't reach it. Neither is a secret, and neither is a `NEXT_PUBLIC_` variable. |
 
 Variables already set in the environment take precedence over `.env`, which is how CI supplies its own `TEST_DATABASE_URL`. A `.env` created before M1.2 lacks the two test variables, and one created before M1.3A lacks the three authentication variables; copy them from `.env.example`.
 
@@ -290,6 +291,8 @@ pnpm db:test:down        # stop it and discard its data
 3. creates a synthetic author (`author@example.com`) with the real `pnpm author:provision` command, the password on standard input;
 4. starts `next start` on `127.0.0.1` and a free port, in production mode, with a random secret, and with `DATABASE_URL` set to the test database's URL.
 
+Every test server (HTTP and browser) is also given a local MusicBrainz and Cover Art Archive mock, started by the same helper, so **no test calls the real services**. It answers from synthetic `[Test]` fixtures ([`provider-fixtures.ts`](../src/testing/provider-fixtures.ts)), offers an unreachable and a nothing-found search (`[test] unreachable`, `[test] gracce`), follows the archive's redirect pattern, and records the path, User-Agent, and time of every request at `/__requests`, which the HTTP tests read. Browser tests answer the browser's own cover-image requests with a generated test image; no real artwork is ever loaded or committed.
+
 The server uses its own connections, so these rows are committed, unlike the integration tests' rolled-back transactions. Teardown stops the server and deletes the identity rows. If a run is interrupted, reset the test database with `pnpm db:test:down && pnpm db:test:up`. Run the HTTP and integration tests one after the other, not at the same time: the database holds at most one account.
 
 [`src/testing/studio-actions.http.test.ts`](../src/testing/studio-actions.http.test.ts) calls each Server Action the way any client could, by its identifier from the build's manifest. It does not sign in, because sign-in is rate limited for all clients together and the authentication tests count their attempts: it mints sessions in the test database with the same HMAC signature the cookie carries ([`http-session.ts`](../src/testing/http-session.ts)), and removes them and its `[Test] HTTP …` rows when it finishes.
@@ -306,6 +309,10 @@ The public album-journal page has three layers of tests, all against synthetic d
 | Browser | `pnpm test:e2e` | [`e2e/public.spec.ts`](../e2e/public.spec.ts) at 1440 px and 390 px, from a second server of the same build with the switch on (the studio's server keeps it off). `E2E_SCREENSHOTS=1` writes screenshots to `visual-review/m3-1/`, which Git ignores |
 
 The browser and HTTP tests seed their journals through [`src/testing/public-seed-cli.ts`](../src/testing/public-seed-cli.ts) and [`public-journals.ts`](../src/testing/public-journals.ts); both touch only the disposable test database, after its safety checks.
+
+### Add music (M3.2)
+
+With `pnpm dev`, the Catalog's **Add music** searches the real MusicBrainz from the server, one request per 1.1 seconds for the whole process, identified as `Refrain/<version> ( https://github.com/RaioViajante/refrain )`. Search for an album, choose an edition, review what will be added, choose a cover or none, and approve; or link an album you already have. Nothing is published by adding music, and nothing already in the catalog is changed. If MusicBrainz is unreachable, the studio says so and everything else keeps working. Keep live use light: MusicBrainz asks for no more than one call per second and no automated polling. The tests never call it ([HTTP tests](#http-tests)).
 
 ### Browser tests
 

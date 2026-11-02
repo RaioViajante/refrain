@@ -70,7 +70,7 @@ Before a technology is adopted, its compatibility with the chosen Next.js and Re
 
 ### Source layout
 
-The layout below is the target. Today `src/app/` (the development page, the authentication route `api/auth/[...all]`, and `studio/` with its sign-in page, its desk, and its artists, albums, tracks, and journals screens and server actions, all without locale routing yet), `src/db/`, `src/modules/catalog/`, `src/modules/journals/`, `src/modules/publication/`, `src/modules/identity/`, and `src/testing/` exist. The other directories are created by the first feature that needs them, never as empty placeholders.
+The layout below is the target. Today `src/app/` (the development page, the authentication route `api/auth/[...all]`, and `studio/` with its sign-in page, its desk, and its artists, albums, tracks, and journals screens and server actions, all without locale routing yet), `src/db/`, `src/modules/catalog/`, `src/modules/journals/`, `src/modules/publication/`, `src/modules/identity/`, `src/integrations/musicbrainz/` and `src/integrations/cover-art-archive/` (M3.2, with their shared `src/integrations/provider.ts`), and `src/testing/` exist. The other directories are created by the first feature that needs them, never as empty placeholders.
 
 ```text
 src/
@@ -141,8 +141,8 @@ Next.js **Cache Components** is enabled (`cacheComponents: true` in `next.config
 
 | Provider | Use | Constraints |
 | --- | --- | --- |
-| MusicBrainz | Search and import albums, tracks, and artists | Respect the published rate limit and send an identifying User-Agent. Failure shows "Couldn't reach MusicBrainz." and leaves the catalog usable. |
-| Cover Art Archive | Album covers | Used only when the author chooses one. Record the source. |
+| MusicBrainz | Search albums (release groups) and artists, list a release group's editions, look up a release or an artist (M3.2) | Built: an identifying User-Agent, one request per 1.1 s for the process, 8 s per attempt and 20 s overall, at most two retries on `503` (its throttling answer), `429`, `502`, `504`, or a network error, honouring `Retry-After`, a bounded in-memory cache of validated responses, and Zod validation of every response. Failure shows "Couldn't reach MusicBrainz." and leaves the catalog usable. Track-only search is not built. |
+| Cover Art Archive | Album covers (M3.2) | Built: the listing of a release or release group, read on the server through allow-listed HTTPS redirects; used only when the author chooses an image; stored as `https://coverartarchive.org/release/<release MBID>/<image id>` with the source "Cover Art Archive"; pages load the archive's thumbnails, built from those two parts, without a referrer. Images are copyrighted by their owners ([Evidence](evidence/m3-2.md#rights-and-attribution)). |
 | Wikimedia Commons | Artist photographs | Freely licensed images only. Credit and license are required and stored. |
 
 Provider policies must be read and confirmed before implementation. These notes are not a substitute for reading them.
