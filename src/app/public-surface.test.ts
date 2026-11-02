@@ -47,7 +47,7 @@ function publicFiles(): string[] {
       file === "src/app/sitemap.xml/route.ts" ||
       file === "src/app/robots.txt/route.ts",
   );
-  return ["src/proxy.ts", ...inApp];
+  return ["src/proxy.ts", "src/address-normalization.ts", ...inApp];
 }
 
 /** The strings of `export const config = { matcher: [...] }`, from the syntax tree. */
@@ -459,6 +459,8 @@ describe("the public surface", () => {
       "/albums/:slug",
       "/sitemap.xml",
       "/robots.txt",
+      // Trailing-slash addresses, for the no-store 308 (ADR 0006, A2).
+      "/:path+/",
     ]);
   });
 
@@ -830,10 +832,20 @@ describe("where the switch is applied", () => {
       "routeAlbumJournalRequest",
       "routePublicDocumentRequest",
     ]);
-    // `NextResponse.next()` appears once, and only in the `serve` case of the
-    // switch over the decision.
-    expect(nexts).toHaveLength(1);
-    let clause: ts.Node | undefined = nexts[0];
+    // `NextResponse.next()` appears twice: in the `serve` case of the switch
+    // over the decision, and for an address that is not public at all, which
+    // goes back to the framework without any public decision. Nothing else
+    // passes a request through.
+    expect(nexts).toHaveLength(2);
+    const [passThrough, serve] = nexts;
+    let guard: ts.Node | undefined = passThrough;
+    while (guard && !ts.isIfStatement(guard)) {
+      guard = guard.parent;
+    }
+    expect(guard && ts.isIfStatement(guard) && guard.expression.getText()).toBe(
+      "!PUBLIC_ADDRESS.test(pathname)",
+    );
+    let clause: ts.Node | undefined = serve;
     while (clause && !ts.isCaseClause(clause)) {
       clause = clause.parent;
     }

@@ -5,6 +5,11 @@ const nextConfig: NextConfig = {
   // is prerendered from the database by accident (docs/architecture.md).
   cacheComponents: true,
   partialPrefetching: true,
+  // The proxy answers a trailing slash itself, with the same `308` to the same
+  // address, because the framework's own redirect runs before the proxy and
+  // cannot carry `Cache-Control: no-store` (ADR 0006, amendment A2; see
+  // src/address-normalization.ts).
+  skipTrailingSlashRedirect: true,
   // Do not advertise the framework in response headers.
   poweredByHeader: false,
   // AGENTS.md is maintained by hand; `next dev` must not append to it.

@@ -5,6 +5,8 @@ import {
   routePublicDocumentRequest,
 } from "@/modules/publication/public";
 
+import { normalizedAddress } from "./address-normalization";
+
 // The status line of a public address (ADR 0006 § 11, gate G1).
 //
 // Under Cache Components a page answers `200` and streams a redirect or a
@@ -24,9 +26,20 @@ import {
 // HTTP tests assert it for every request form.
 
 export const config = {
-  // One segment: `/albums/<slug>`. Anything deeper has no page and gets the
-  // framework's own `404`, which does not depend on any journal's state.
-  matcher: ["/albums/:slug", "/sitemap.xml", "/robots.txt"],
+  matcher: [
+    // One segment: `/albums/<slug>`. Anything deeper has no page and gets the
+    // framework's own `404`, which does not depend on any journal's state.
+    "/albums/:slug",
+    "/sitemap.xml",
+    "/robots.txt",
+    // Every address that ends in a slash, anywhere on the site, except `/`:
+    // the framework would answer it with a `308` that cannot carry
+    // `no-store` (`skipTrailingSlashRedirect` in next.config.ts hands it to
+    // this proxy). The answer is the same `308` to the same address, now
+    // `no-store`. (A repeated slash cannot be handled here: the framework
+    // answers it before any proxy or header rule runs. docs/evidence/m3-1.md.)
+    "/:path+/",
+  ],
 };
 
 // A path that no route serves, so that rewriting to it renders the application's
@@ -35,6 +48,11 @@ export const config = {
 const UNKNOWN_ADDRESS = "/__refrain-unknown-address";
 
 const NO_STORE = "no-store";
+
+// What the three public matchers above can let through, in any of the
+// framework's transport forms: an album address, the sitemap, `robots.txt`.
+const PUBLIC_ADDRESS =
+  /^(?:\/_next\/data\/[^/]+)?\/(?:albums\/|sitemap\.xml|robots\.txt)/;
 
 function slugOf(pathname: string): string {
   const segment = pathname.slice(pathname.lastIndexOf("/") + 1);
@@ -47,7 +65,26 @@ function slugOf(pathname: string): string {
 }
 
 export async function proxy(request: NextRequest) {
+  // The address normalizations come first, before any public decision, and
+  // for every address alike: they depend on the characters of the address
+  // and on nothing else (src/address-normalization.ts).
+  const target = new URL(request.url);
+  const normal = normalizedAddress(`${target.pathname}${target.search}`);
+  if (normal !== null) {
+    return NextResponse.redirect(new URL(normal, request.url), {
+      status: 308,
+      headers: { "Cache-Control": NO_STORE },
+    });
+  }
+
   const pathname = request.nextUrl.pathname;
+  // The trailing-slash matcher also lets through a few addresses that are not
+  // public (a transport suffix after a slash, for example). Only the public
+  // addresses go on to a public decision; everything else is the framework's,
+  // exactly as before.
+  if (!PUBLIC_ADDRESS.test(pathname)) {
+    return NextResponse.next();
+  }
   // The sitemap and robots.txt: the switch and the method only. Their routes
   // read the publication queries themselves.
   const decision =

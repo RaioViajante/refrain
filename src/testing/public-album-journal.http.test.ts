@@ -411,6 +411,7 @@ describe("public reads enabled: a published journal", () => {
       const got = await request(on.baseURL, `/albums/${s}/`);
       expect(got.status).toBe(308);
       expect(got.headers.location).toBe(`/albums/${s}`);
+      expect(got.headers["cache-control"]).toBe("no-store");
       answers.push(shape(got.headers.location));
     }
     expect(new Set(answers).size).toBe(1);

@@ -9,6 +9,7 @@
 // in status, headers, and body.
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { request as httpRequest } from "node:http";
 
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
@@ -368,11 +369,135 @@ describe("with public reads off, every surface and method is an unknown address"
         const got = await request(server.baseURL, `/albums/${s}/`);
         expect(got.status).toBe(308);
         expect(got.headers.location).toBe(`/albums/${s}`);
+        expect(got.headers["cache-control"]).toBe("no-store");
         answers.push(shape(got));
       }
       expect(answers[1], JSON.stringify(answers)).toEqual(answers[0]);
       expect(answers[2], JSON.stringify(answers)).toEqual(answers[0]);
     }
+  });
+});
+
+// Address normalization (ADR 0006, amendment A2). The framework's own
+// trailing-slash `308` ran before the proxy and could not carry `no-store`; the
+// proxy now sends the same `308` to the same address, with `no-store`, for
+// every address on the site (src/address-normalization.ts). Everything about
+// the redirect but its `Cache-Control` is what the framework sent before
+// (measured against the previous build: status, `Location`, `Refresh`, body).
+describe("address normalization", () => {
+  const trailing: [string, string][] = [
+    [`/albums/${slug("grace")}/`, `/albums/${slug("grace")}`],
+    [`/albums/${slug("draft")}/`, `/albums/${slug("draft")}`],
+    [`/albums/${slug("nothing")}/`, `/albums/${slug("nothing")}`],
+    [
+      `/albums/${slug("nothing")}/?q=1&r=2`,
+      `/albums/${slug("nothing")}?q=1&r=2`,
+    ],
+    ["/albums/", "/albums"],
+    ["/albums/x/y/", "/albums/x/y"],
+    ["/ALBUMS/X/", "/ALBUMS/X"],
+    ["/sitemap.xml/", "/sitemap.xml"],
+    ["/robots.txt/", "/robots.txt"],
+    ["/studio/", "/studio"],
+    ["/studio/journals/", "/studio/journals"],
+    ["/api/auth/session/", "/api/auth/session"],
+    ["/artwork/refrain-404.webp/", "/artwork/refrain-404.webp"],
+    ["/_next/static/chunks/nothing.js/", "/_next/static/chunks/nothing.js"],
+  ];
+
+  it.each(trailing)(
+    "%s: the framework's 308 to the same address, now no-store, for every method, with the switch on or off",
+    async (path, destination) => {
+      for (const server of [on, off]) {
+        for (const init of [
+          { method: "GET" },
+          { method: "HEAD" },
+          { method: "POST" },
+          { method: "GET", headers: { rsc: "1" } },
+        ]) {
+          const got = await request(server.baseURL, path, init);
+          const label = `${init.method} ${JSON.stringify(init.headers ?? {})}`;
+          expect(got.status, label).toBe(308);
+          expect(got.headers.location, label).toBe(destination);
+          expect(got.headers.refresh, label).toBe(`0;url=${destination}`);
+          expect(got.headers["cache-control"], label).toBe("no-store");
+          expect(got.body, label).toBe(
+            init.method === "HEAD" ? "" : destination,
+          );
+          expect(got.headers["x-nextjs-cache"], label).toBeUndefined();
+        }
+      }
+    },
+  );
+
+  it("leaves the homepage and every address without a trailing slash as they were", async () => {
+    const home = await request(on.baseURL, "/");
+    expect(home.status).toBe(200);
+    expect(home.body).toContain("Development build");
+    const page = await request(on.baseURL, `/albums/${slug("grace")}`);
+    expect(page.status).toBe(200);
+    const signIn = await request(off.baseURL, "/studio/sign-in");
+    expect(signIn.status).toBe(200);
+  });
+
+  it("KNOWN LIMITATION, for the owner: a repeated slash or a backslash still gets the framework's 308 without no-store, the same for every address", async () => {
+    // Next.js 16.4.3 answers these at the top of its router, before any header
+    // rule, redirect, or proxy runs, with an empty header set
+    // (server/lib/router-utils/resolve-routes.js). The application cannot add
+    // `no-store` to it. This test fixes its exact shape, so that a change in
+    // the framework is noticed, and proves that it is the same whatever the
+    // state of the journal it names.
+    const shape = (got: Snapshot, s: string) => ({
+      status: got.status,
+      location: (got.headers.location ?? "").split(s).join("SLUG"),
+      cacheControl: got.headers["cache-control"],
+      body: got.body.split(s).join("SLUG"),
+    });
+    for (const server of [on, off]) {
+      const answers = [];
+      for (const s of [slug("grace"), slug("draft"), slug("nothing")]) {
+        const got = await request(server.baseURL, `/albums//${s}`);
+        answers.push(shape(got, s));
+      }
+      expect(answers[0]).toEqual({
+        status: 308,
+        location: "/albums/SLUG",
+        cacheControl: undefined,
+        body: "/albums/SLUG",
+      });
+      expect(answers[1]).toEqual(answers[0]);
+      expect(answers[2]).toEqual(answers[0]);
+    }
+    // A backslash, which a browser never sends but a raw client can.
+    const raw = await new Promise<{
+      status?: number;
+      location?: string;
+      cc?: string;
+    }>((resolve, reject) => {
+      const url = new URL(on.baseURL);
+      const req = httpRequest(
+        {
+          host: url.hostname,
+          port: url.port,
+          path: `/albums\\${slug("draft")}`,
+        },
+        (res) => {
+          res.resume();
+          resolve({
+            status: res.statusCode,
+            location: res.headers.location,
+            cc: res.headers["cache-control"],
+          });
+        },
+      );
+      req.on("error", reject);
+      req.end();
+    });
+    expect(raw).toEqual({
+      status: 308,
+      location: `/albums/${slug("draft")}`,
+      cc: undefined,
+    });
   });
 });
 
