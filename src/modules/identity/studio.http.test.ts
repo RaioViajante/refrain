@@ -10,6 +10,8 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, inject, it } from "vitest";
 
+import { CONTENT_SECURITY_POLICY } from "@/security-headers";
+
 const base = inject("studioBaseURL");
 const email = inject("studioAuthorEmail");
 const password = inject("studioAuthorPassword");
@@ -140,7 +142,7 @@ describe("studio access without a valid session", () => {
       const response = await get(path);
       expect(response.headers.get("x-frame-options")).toBe("DENY");
       expect(response.headers.get("content-security-policy")).toBe(
-        "frame-ancestors 'none'",
+        CONTENT_SECURITY_POLICY,
       );
       expect(response.headers.get("cache-control")).toContain("no-store");
       await response.body?.cancel();
