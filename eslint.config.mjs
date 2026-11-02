@@ -4,7 +4,16 @@ import nextTs from "eslint-config-next/typescript";
 
 // Module boundaries from docs/architecture.md § Dependency rules.
 const publicEntryPointsOnly = {
-  group: ["@/db/*", "@/modules/*/*", "@/integrations/*/*"],
+  // The second entry point of the Publication module, `public`, is the only
+  // other file that may be imported: it exports reads and the public-reads
+  // switch, never a command (src/modules/publication/public.ts). Studio files
+  // may not use it (src/app/public-surface.test.ts).
+  group: [
+    "@/db/*",
+    "@/modules/*/*",
+    "@/integrations/*/*",
+    "!@/modules/publication/public",
+  ],
   message:
     "Import another module only through its public entry point (index.ts).",
 };
