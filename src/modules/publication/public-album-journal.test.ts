@@ -93,7 +93,6 @@ describe("mergeTracks", () => {
     const rows = mergeTracks(listed, [reflection("elsewhere")]);
     expect(rows).toHaveLength(4);
     expect(rows[3]).toMatchObject({
-      trackId: "elsewhere",
       title: "Title of elsewhere",
       number: 4,
     });
@@ -107,7 +106,6 @@ describe("mergeTracks", () => {
       "number",
       "reflection",
       "title",
-      "trackId",
     ]);
   });
 });

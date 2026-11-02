@@ -264,6 +264,13 @@ describe("the public album journal's projection", () => {
         "title",
       ]);
       expect(Object.keys(page.credits[0]!)).toEqual(["name"]);
+      // A track row carries no database id.
+      expect(Object.keys(page.tracks[0]!).sort()).toEqual([
+        "credit",
+        "number",
+        "reflection",
+        "title",
+      ]);
       expect(Object.keys(page.tracks[0]!.reflection!).sort()).toEqual([
         "body",
         "isFavourite",

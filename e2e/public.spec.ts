@@ -356,6 +356,197 @@ test("respects reduced motion", async ({ page }) => {
   expect(durations).toEqual(["0s", "0s"]);
 });
 
+// The skip link (M3.1 owner review): the first tab stop, hidden until it has
+// keyboard focus, then drawn clear of the page's writing; activating it moves
+// focus to the one <main>.
+for (const reducedMotion of ["no-preference", "reduce"] as const) {
+  for (const view of ["journal", "not found"] as const) {
+    test(`the skip link is the first tab stop, appears only on focus, and skips to the content (${view}, motion: ${reducedMotion})`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ reducedMotion });
+      if (view === "journal") {
+        await openJournal(page);
+      } else {
+        await page.goto(`${base}/albums/e2e-no-such-journal`);
+      }
+      const skip = page.getByRole("link", { name: "Skip to content" });
+      const viewport = page.viewportSize()!;
+      const box = () =>
+        skip.evaluate((el) => {
+          const r = el.getBoundingClientRect();
+          return { top: r.top, right: r.right, bottom: r.bottom, left: r.left };
+        });
+
+      // At rest it is off screen: nothing for a pointer user to see.
+      expect((await box()).bottom).toBeLessThanOrEqual(0);
+      expect(await page.locator("#main").count()).toBe(1);
+
+      // The first Tab reaches it, and it is drawn on screen.
+      await page.keyboard.press("Tab");
+      await expect(skip).toBeFocused();
+      const shown = await box();
+      expect(shown.top).toBeGreaterThanOrEqual(0);
+      expect(shown.left).toBeGreaterThanOrEqual(0);
+      expect(shown.right).toBeLessThanOrEqual(viewport.width);
+      expect(shown.bottom - shown.top).toBeGreaterThanOrEqual(44);
+      const look = await skip.evaluate((el) => {
+        const css = getComputedStyle(el);
+        return {
+          font: css.fontFamily,
+          background: css.backgroundColor,
+          color: css.color,
+          outline: `${css.outlineStyle} ${css.outlineWidth}`,
+        };
+      });
+      expect(look.font).toMatch(/Kalam/);
+      expect(look.background).toBe("rgb(17, 17, 17)");
+      expect(look.color).toBe("rgb(255, 255, 255)");
+      expect(look.outline).toBe("solid 2px");
+
+      // It covers nothing: not the navigation, and not the page's writing.
+      const navigation = await page
+        .locator(".public-link")
+        .evaluateAll((links) =>
+          links.map((link) => {
+            const r = link.getBoundingClientRect();
+            return {
+              top: r.top,
+              bottom: r.bottom,
+              left: r.left,
+              right: r.right,
+            };
+          }),
+        );
+      expect(navigation.length).toBeGreaterThan(0);
+      for (const link of navigation) {
+        const overlaps =
+          shown.left < link.right &&
+          shown.right > link.left &&
+          shown.top < link.bottom &&
+          shown.bottom > link.top;
+        expect(overlaps, "the skip link covers a navigation link").toBe(false);
+      }
+      const main = await page
+        .locator("main")
+        .evaluate((el) => el.getBoundingClientRect().top);
+      expect(shown.bottom).toBeLessThanOrEqual(main);
+
+      // Nothing about it breaks the page's accessibility.
+      const results = await new AxeBuilder({ page }).withTags(TAGS).analyze();
+      expect(results.violations).toEqual([]);
+
+      // Activating it goes to the content: the address names it, and focus
+      // moves into <main>, so the next Tab continues from there.
+      await page.keyboard.press("Enter");
+      await expect(page).toHaveURL(/#main$/);
+      await expect
+        .poll(() => page.evaluate(() => document.activeElement?.id))
+        .toBe("main");
+      const ring = await page
+        .locator("main")
+        .evaluate((el) => getComputedStyle(el).outlineStyle);
+      expect(ring).toBe("none");
+      await page.keyboard.press("Tab");
+      const inside = await page.evaluate(
+        () => !!document.activeElement?.closest("main"),
+      );
+      // The not-found view has a link in <main>; the journal has controls.
+      expect(inside).toBe(true);
+
+      // And it is gone again once focus leaves it.
+      expect((await box()).bottom).toBeLessThanOrEqual(0);
+    });
+  }
+}
+
+// The approved 404 drawing on the shared not-found view (M3.1 owner review).
+test("the not-found view shows the approved drawing, responsive and accessible", async ({
+  page,
+}) => {
+  const response = await page.goto(`${base}/albums/e2e-no-such-journal`);
+  expect(response?.status()).toBe(404);
+  const art = page.getByRole("img", { name: /map marked 404/ });
+  await expect(art).toBeVisible();
+  // The original file, loaded in full: its own proportions, not stretched.
+  const loaded = await art.evaluate((el) => {
+    const image = el as HTMLImageElement;
+    const box = image.getBoundingClientRect();
+    return {
+      complete: image.complete,
+      naturalWidth: image.naturalWidth,
+      naturalHeight: image.naturalHeight,
+      src: new URL(image.currentSrc).pathname,
+      ratio: box.width / box.height,
+      width: box.width,
+    };
+  });
+  expect(loaded.complete).toBe(true);
+  expect([loaded.naturalWidth, loaded.naturalHeight]).toEqual([1536, 1024]);
+  expect(loaded.src).toBe("/artwork/refrain-404.png");
+  expect(loaded.ratio).toBeCloseTo(1536 / 1024, 2);
+  // At most 560px, and never wider than the page's own container.
+  const viewport = page.viewportSize()!;
+  expect(loaded.width).toBeLessThanOrEqual(560.5);
+  expect(loaded.width).toBeLessThanOrEqual(viewport.width - 35);
+  // The message stays the heading, and the drawing sits above it, inside <main>.
+  const heading = page.getByRole("heading", { level: 1 });
+  await expect(heading).toHaveText("Nothing here");
+  const [artBox, headingBox] = await Promise.all([
+    art.boundingBox(),
+    heading.boundingBox(),
+  ]);
+  expect(artBox!.y + artBox!.height).toBeLessThanOrEqual(headingBox!.y);
+  expect(await page.locator("main img").count()).toBe(1);
+  // It reflows without sideways scrolling, down to 320px.
+  await page.setViewportSize({ width: 320, height: 700 });
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth -
+        document.documentElement.clientWidth,
+    ),
+  ).toBeLessThanOrEqual(0);
+  // No accessibility violation with the drawing in place.
+  const results = await new AxeBuilder({ page }).withTags(TAGS).analyze();
+  expect(results.violations).toEqual([]);
+});
+
+test("the not-found message and link survive a drawing that fails to load", async ({
+  page,
+}) => {
+  await page.route("**/artwork/refrain-404.png", (route) => route.abort());
+  await page.goto(`${base}/albums/e2e-no-such-journal`);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "Nothing here",
+  );
+  await expect(
+    page.getByRole("link", { name: "Back to the start" }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth -
+        document.documentElement.clientWidth,
+    ),
+  ).toBeLessThanOrEqual(0);
+});
+
+test("the not-found drawing keeps its own white ground in forced colors", async ({
+  page,
+}) => {
+  await page.emulateMedia({ forcedColors: "active" });
+  await page.goto(`${base}/albums/e2e-no-such-journal`);
+  const art = page.getByRole("img", { name: /map marked 404/ });
+  await expect(art).toBeVisible();
+  const look = await art.evaluate((el) => {
+    const css = getComputedStyle(el);
+    return { adjust: css.forcedColorAdjust, background: css.backgroundColor };
+  });
+  expect(look.adjust).toBe("none");
+  expect(look.background).toBe("rgb(255, 255, 255)");
+});
+
 test("labels the written language and keeps the document in English", async ({
   page,
 }) => {
@@ -466,6 +657,17 @@ test("screenshots, when asked for", async ({ page }, testInfo) => {
   await page.screenshot({
     path: `visual-review/m3-1/${name}-closed.png`,
     fullPage: true,
+  });
+  // The skip link, drawn while it has keyboard focus (the top of the page).
+  await page.keyboard.press("Tab");
+  await page.screenshot({
+    path: `visual-review/m3-1/${name}-skip-focus.png`,
+    clip: {
+      x: 0,
+      y: 0,
+      width: page.viewportSize()!.width,
+      height: 240,
+    },
   });
   await page.locator("summary.pj-track-row").nth(1).click();
   await page.screenshot({

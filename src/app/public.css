@@ -32,6 +32,41 @@
   margin-inline: auto;
 }
 
+/* The skip link: the first tab stop. It is off screen until it has keyboard
+   focus, and then it takes its own place above the navigation, in ink on
+   paper, so that it covers neither the navigation nor the writing (an overlay
+   covered the "Home" link at 390px). It is out of the flow at rest, so a
+   pointer user never sees it. */
+.public-skip {
+  position: absolute;
+  top: -100px;
+  left: 8px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 18px;
+  background: var(--color-ink);
+  color: var(--color-paper);
+  font-family: var(--font-kalam), cursive;
+  font-size: 17.5px;
+  line-height: 1.2;
+  text-decoration: none;
+}
+
+.public-skip:focus {
+  position: static;
+  align-self: flex-start;
+  margin: 8px 0 0 8px;
+  outline: 2px solid var(--color-ink);
+  outline-offset: 3px;
+}
+
+/* The skip link moves focus here. A page is not a control, so it gets no ring
+   of its own. */
+.public main:focus {
+  outline: none;
+}
+
 /* Header: minimal, centered navigation; no logo, wordmark, or site name. */
 .public-header {
   padding-top: 18px;
@@ -121,7 +156,18 @@ a.public-link:hover,
 }
 
 .public-notfound {
+  padding-top: 40px;
   color: var(--color-ink);
+}
+
+/* The approved 404 drawing, centered above the message: the original file, at
+   most 560px wide and never wider than the page, with its own proportions
+   (the width and height attributes reserve the space, so nothing shifts). */
+.public-notfound-art {
+  display: block;
+  width: min(100%, 560px);
+  height: auto;
+  margin: 0 auto 24px;
 }
 
 .public-notfound-title {
@@ -685,6 +731,13 @@ details[open] > summary .pj-chevron {
    that the strokes draw get real borders instead, and the current page keeps a
    real underline. */
 @media (forced-colors: active) {
+  /* A drawing in black ink on a transparent ground would vanish on a dark
+     system canvas, so it keeps its own white paper. */
+  .public-notfound-art {
+    forced-color-adjust: none;
+    background: #fff;
+  }
+
   .pj-button,
   .pj-cover {
     background-image: none;
@@ -721,6 +774,7 @@ details[open] > summary .pj-chevron {
     display: block;
   }
 
+  .public-skip,
   .pj-chevron,
   .pj-chevron-down,
   .pj-button {

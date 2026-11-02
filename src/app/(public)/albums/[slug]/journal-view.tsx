@@ -1,5 +1,6 @@
 import type { PublicAlbumJournal } from "@/modules/publication/public";
 
+import { PUBLIC_CONTENT_ID } from "@/app/(public)/_components/public-frame";
 import { renderDocument } from "@/app/(public)/_components/rich-text";
 import { ratingText, Stars } from "@/app/(public)/_components/stars";
 
@@ -95,7 +96,7 @@ export function JournalView({
     journal.ratingHalfSteps !== null ? ratingText(journal.ratingHalfSteps) : "";
 
   return (
-    <main className="public-shell pj" id="main">
+    <main className="public-shell pj" id={PUBLIC_CONTENT_ID} tabIndex={-1}>
       <article className="pj-grid">
         <div className="pj-art">
           <Artwork title={album.title} />
@@ -196,7 +197,7 @@ export function JournalView({
 
               if (!reflection) {
                 return (
-                  <li key={track.trackId} className="pj-track">
+                  <li key={track.number} className="pj-track">
                     <div className="pj-track-row pj-track-unwritten">
                       <span className="pj-visually-hidden">{`Track ${track.number}: `}</span>
                       <span className="pj-track-number" aria-hidden="true">
@@ -218,7 +219,7 @@ export function JournalView({
                   ? ratingText(reflection.ratingHalfSteps)
                   : null;
               return (
-                <li key={track.trackId} className="pj-track">
+                <li key={track.number} className="pj-track">
                   <details>
                     <summary className="pj-track-row">
                       <span className="pj-visually-hidden">{`Track ${track.number}: `}</span>

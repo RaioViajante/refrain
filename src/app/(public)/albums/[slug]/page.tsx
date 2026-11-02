@@ -11,6 +11,8 @@ import {
   type PublicAlbumJournal,
 } from "@/modules/publication/public";
 
+import { PUBLIC_CONTENT_ID } from "@/app/(public)/_components/public-frame";
+
 import { JournalView } from "./journal-view";
 
 // A public album journal, read through the Publication module alone. The
@@ -106,7 +108,12 @@ export default function AlbumJournalPage({
 
 function AlbumJournalLoading() {
   return (
-    <main className="public-shell public-loading" id="main" aria-busy="true">
+    <main
+      className="public-shell public-loading"
+      id={PUBLIC_CONTENT_ID}
+      tabIndex={-1}
+      aria-busy="true"
+    >
       <p>Loading…</p>
     </main>
   );

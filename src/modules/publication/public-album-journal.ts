@@ -43,7 +43,8 @@ export interface PublicCredit {
 }
 
 export interface PublicJournalTrack {
-  trackId: string;
+  // No database id: a page must not carry an internal identifier (not even as
+  // a React key), and the position is what identifies a row to a reader.
   /** Position in the displayed list, starting at 1. */
   number: number;
   title: string;
@@ -195,7 +196,6 @@ export function mergeTracks(
       used.add(track.track_id);
     }
     rows.push({
-      trackId: track.track_id,
       title: track.title,
       credit: track.credit,
       reflection: reflection ? toPublicReflection(reflection) : null,
@@ -204,7 +204,6 @@ export function mergeTracks(
   for (const reflection of reflections) {
     if (!used.has(reflection.trackId)) {
       rows.push({
-        trackId: reflection.trackId,
         title: reflection.trackTitle,
         credit: null,
         reflection: toPublicReflection(reflection),
