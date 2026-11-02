@@ -209,7 +209,9 @@ describe("the public album journal in every state", () => {
     });
 
     expect(mismatches).toEqual([]);
-  });
+    // 384 states in one transaction: allow for a slow runner (it took just over
+    // the default 5 s in CI once).
+  }, 60_000);
 });
 
 describe("the public album journal's projection", () => {
