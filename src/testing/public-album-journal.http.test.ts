@@ -45,6 +45,7 @@ import {
   visibleText,
 } from "@/testing/public-http";
 import { assertDisposableTestDatabase } from "@/testing/test-database";
+import { CONTENT_SECURITY_POLICY } from "@/security-headers";
 
 // The test process issues confirmation tokens through the real commands to put
 // fixtures in a published state; those need the application's configuration.
@@ -611,6 +612,87 @@ describe("a database failure", () => {
     expect(got.body).toBe("Service unavailable");
     expect(got.body).not.toContain(password);
     expect(readFileSync(broken.serverLog, "utf8")).not.toContain(password);
+  });
+});
+
+describe("the album artwork (M3.2)", () => {
+  const release = "3f8c4f8e-0000-4000-8000-000000000001";
+  const stored = `https://coverartarchive.org/release/${release}/1000000001`;
+
+  it("shows the chosen cover in its frame, from the archive only, without a referrer", async () => {
+    const journal = await seedSimple(client, {
+      slug: slug("artwork"),
+      title: "[Test] Artwork album",
+      status: "published",
+      marker: "[Test] artwork public text",
+    });
+    seeded.push(journal);
+    await client.query(
+      "update albums set cover_url = $1, cover_source = 'Cover Art Archive' where id = $2",
+      [stored, journal.albumId],
+    );
+
+    const got = await request(on.baseURL, `/albums/${slug("artwork")}`);
+    expect(got.status).toBe(200);
+    expect(got.headers["content-security-policy"]).toBe(
+      CONTENT_SECURITY_POLICY,
+    );
+    const images = [...got.body.matchAll(/<img\b[^>]*>/g)].map((m) => m[0]);
+    expect(images).toHaveLength(1);
+    const image = images[0]!;
+    expect(image).toContain(`src="${stored}-500.jpg"`);
+    expect(image).toMatch(
+      /srcset="[^"]*-250\.jpg 250w, [^"]*-500\.jpg 500w, [^"]*-1200\.jpg 1200w"/i,
+    );
+    expect(image).toMatch(/referrerpolicy="no-referrer"/i);
+    expect(image).toContain('alt=""');
+    expect(image).toContain('width="500"');
+    expect(got.body).toContain(
+      'aria-label="Album artwork for [Test] Artwork album"',
+    );
+    expect(visibleText(got.body)).toContain("Cover: Cover Art Archive");
+    // Only the thumbnails: the stored address itself is never in the page.
+    expect(got.body).not.toContain(`${stored}"`);
+
+    // With public reads off, the address is the unknown one: no cover either.
+    const hidden = await request(off.baseURL, `/albums/${slug("artwork")}`);
+    expect(hidden.status).toBe(404);
+    expect(hidden.body).not.toContain("coverartarchive.org");
+  });
+
+  it("shows the fallback for any other stored value, and never loads it", async () => {
+    const journal = seeded.find((s) => s.slug === slug("artwork"))!;
+    for (const [coverUrl, coverSource] of [
+      ["https://evil.example/cover.jpg", "Cover Art Archive"],
+      ["javascript:alert(1)", "Cover Art Archive"],
+      [`${stored}" onerror="alert(1)`, "Cover Art Archive"],
+      [stored, "Somewhere else"],
+    ]) {
+      await client.query(
+        "update albums set cover_url = $1, cover_source = $2 where id = $3",
+        [coverUrl, coverSource, journal.albumId],
+      );
+      const got = await request(on.baseURL, `/albums/${slug("artwork")}`);
+      expect(got.status).toBe(200);
+      expect(got.body, coverUrl).not.toMatch(/<img\b/);
+      expect(got.body).not.toContain("evil.example");
+      expect(got.body).not.toContain("javascript:");
+      expect(got.body).not.toContain("onerror");
+      expect(got.body).toContain(
+        "Album artwork for [Test] Artwork album: not available yet",
+      );
+    }
+  });
+
+  it("shows no cover of an album whose only journal is not public", async () => {
+    const draft = seeded.find((s) => s.slug === slug("draft"))!;
+    await client.query(
+      "update albums set cover_url = $1, cover_source = 'Cover Art Archive' where id = $2",
+      [stored, draft.albumId],
+    );
+    const got = await request(on.baseURL, `/albums/${slug("draft")}`);
+    expect(got.status).toBe(404);
+    expect(got.body).not.toContain("coverartarchive.org");
   });
 });
 

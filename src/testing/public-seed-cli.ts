@@ -9,6 +9,9 @@
 //   unpublish <entry-id>      the real command, as the author's unpublish
 //   publish <entry-id>        the real preview-then-publish, for a test
 //   remove <json> <prefix>    removes what `seed` printed
+//   cover <entry-id> <url|none>
+//                             sets (or clears) the cover of the journal's
+//                             album, as the catalog stores one (M3.2)
 import { randomBytes } from "node:crypto";
 
 import { Client } from "pg";
@@ -79,6 +82,15 @@ async function main() {
       }
       case "publish": {
         await publishForTest(fixtureDatabase(client), first!, "en");
+        break;
+      }
+      case "cover": {
+        const coverUrl = second === "none" ? null : second!;
+        await client.query(
+          `update albums set cover_url = $1, cover_source = $2
+            where id = (select album_id from album_journals where entry_id = $3)`,
+          [coverUrl, coverUrl ? "Cover Art Archive" : null, first!],
+        );
         break;
       }
       case "remove": {

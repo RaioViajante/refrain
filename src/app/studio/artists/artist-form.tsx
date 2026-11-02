@@ -106,7 +106,7 @@ export function ArtistForm({
         value={values.mbArtistId}
         onChange={(value) => change("mbArtistId", value)}
         maxLength={36}
-        hint="Kept for later, when MusicBrainz search arrives. Nothing is looked up."
+        hint="Filled in when you add or link this artist from Add music. Saving this form looks nothing up."
         problem={problemWith(failure, "mbArtistId")}
       />
       <div className="studio-actions">

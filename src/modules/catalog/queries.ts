@@ -3,6 +3,10 @@ import "server-only";
 import { sql } from "drizzle-orm";
 
 import type { ArtistKind, DatabaseExecutor } from "@/db";
+import {
+  coverArtworkOf,
+  type CoverArtwork,
+} from "@/integrations/cover-art-archive";
 import type { AuthorizedAuthor } from "@/modules/identity";
 
 import { catalogId } from "./input";
@@ -308,6 +312,8 @@ export interface AlbumDetail {
   firstReleaseYear: number | null;
   mbReleaseGroupId: string | null;
   archived: boolean;
+  /** The chosen cover, only in the one stored form (M3.2), else null. */
+  artwork: CoverArtwork | null;
   credits: {
     artistId: string;
     artistName: string;
@@ -319,6 +325,7 @@ export interface AlbumDetail {
     label: string | null;
     releaseDate: string | null;
     country: string | null;
+    mbReleaseId: string | null;
   } | null;
   /** In reference-edition order. */
   tracklist: {
@@ -347,10 +354,12 @@ export async function getAlbum(
     title: string;
     first_release_year: number | null;
     mb_release_group_id: string | null;
+    cover_url: string | null;
+    cover_source: string | null;
     archived: boolean;
   }>(sql`
     select id, title, first_release_year, mb_release_group_id,
-           archived_at is not null as archived
+           cover_url, cover_source, archived_at is not null as archived
       from albums where id = ${albumId}`);
   const album = albums.rows[0];
   if (!album) {
@@ -374,8 +383,9 @@ export async function getAlbum(
     label: string | null;
     release_date: string | null;
     country: string | null;
+    mb_release_id: string | null;
   }>(sql`
-    select label, release_date::text as release_date, country
+    select label, release_date::text as release_date, country, mb_release_id
       from album_editions
      where album_id = ${albumId} and is_reference`);
 
@@ -415,6 +425,7 @@ export async function getAlbum(
     firstReleaseYear: album.first_release_year,
     mbReleaseGroupId: album.mb_release_group_id,
     archived: album.archived,
+    artwork: coverArtworkOf(album.cover_url, album.cover_source),
     credits: credits.rows.map((credit) => ({
       artistId: credit.artist_id,
       artistName: credit.name,
@@ -426,6 +437,7 @@ export async function getAlbum(
           label: edition.label,
           releaseDate: edition.release_date,
           country: edition.country,
+          mbReleaseId: edition.mb_release_id,
         }
       : null,
     tracklist: tracklist.rows.map((track, index) => ({

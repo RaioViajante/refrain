@@ -37,6 +37,12 @@ export type {
   ProposedText,
   PublicChangeDelta,
 } from "./surface";
+// Whether an album is on a public page, decided by the predicate, for the
+// catalog's artwork guard (M3.2; ADR 0006 D5, gate G8).
+export {
+  isAlbumOnPublicPage,
+  lockAlbumPublicExposure,
+} from "./catalog-exposure";
 // The publication predicate itself (./predicate) is internal: other modules
 // read public data only through these functions.
 export {

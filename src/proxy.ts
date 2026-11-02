@@ -6,6 +6,7 @@ import {
 } from "@/modules/publication/public";
 
 import { normalizedAddress } from "./address-normalization";
+import { CONTENT_SECURITY_POLICY } from "./security-headers";
 
 // The status line of a public address (ADR 0006 § 11, gate G1).
 //
@@ -55,7 +56,7 @@ const PUBLIC_SECURITY_HEADERS = {
   "X-Content-Type-Options": "nosniff",
   "Referrer-Policy": "strict-origin-when-cross-origin",
   "X-Frame-Options": "DENY",
-  "Content-Security-Policy": "frame-ancestors 'none'",
+  "Content-Security-Policy": CONTENT_SECURITY_POLICY,
 } as const;
 
 // What the three public matchers above can let through, in any of the

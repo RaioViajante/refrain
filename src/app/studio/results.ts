@@ -26,6 +26,14 @@ export type StudioFailure =
   | "unreachable"
   // The version is no longer in the state the screen showed.
   | "status_changed"
+  // MusicBrainz and the Cover Art Archive (M3.2). Nothing was written.
+  | "provider_unavailable"
+  | "provider_not_found"
+  | "stale"
+  | "unsupported_release"
+  | "already_linked"
+  | "not_linked"
+  | "public_page"
   | "failed";
 
 export type FieldProblem = "required" | "too_long" | "invalid";

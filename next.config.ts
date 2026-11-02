@@ -1,5 +1,12 @@
 import type { NextConfig } from "next";
 
+// The Content-Security-Policy, as in src/security-headers.ts (this file cannot
+// import application modules; src/security-headers.test.ts keeps them equal):
+// no framing, and images only from this application, inline data, and the
+// Cover Art Archive with the Internet Archive hosts it redirects to (M3.2).
+const CONTENT_SECURITY_POLICY =
+  "frame-ancestors 'none'; img-src 'self' data: blob: https://coverartarchive.org https://archive.org https://*.archive.org";
+
 const nextConfig: NextConfig = {
   // Data is dynamic unless it is explicitly cached with `use cache`, so nothing
   // is prerendered from the database by accident (docs/architecture.md).
@@ -21,7 +28,7 @@ const nextConfig: NextConfig = {
   async headers() {
     const privateHeaders = [
       { key: "X-Frame-Options", value: "DENY" },
-      { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+      { key: "Content-Security-Policy", value: CONTENT_SECURITY_POLICY },
       { key: "X-Content-Type-Options", value: "nosniff" },
       { key: "Referrer-Policy", value: "no-referrer" },
     ];
@@ -36,7 +43,7 @@ const nextConfig: NextConfig = {
       { key: "X-Content-Type-Options", value: "nosniff" },
       { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
       { key: "X-Frame-Options", value: "DENY" },
-      { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+      { key: "Content-Security-Policy", value: CONTENT_SECURITY_POLICY },
     ];
     return [
       { source: "/albums/:path*", headers: publicHeaders },

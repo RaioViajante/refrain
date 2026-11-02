@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 
 import { Client } from "pg";
 
+import { removeMusicFixtureRecords } from "@/testing/music-records";
 import {
   startProductionServer,
   type ProductionServer,
@@ -217,6 +218,8 @@ async function removeSyntheticRecords(): Promise<void> {
     await client.query("delete from artists where name like any($1)", [
       artists,
     ]);
+    // What Add music imported from the provider fixtures (M3.2).
+    await removeMusicFixtureRecords(client);
   } finally {
     await client.end();
   }

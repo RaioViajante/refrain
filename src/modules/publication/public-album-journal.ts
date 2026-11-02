@@ -3,6 +3,7 @@ import "server-only";
 import { sql } from "drizzle-orm";
 
 import type { DatabaseExecutor, Locale } from "@/db";
+import { coverArtworkOf } from "@/integrations/cover-art-archive";
 
 import { publicLanguageVersions } from "./predicate";
 import {
@@ -73,9 +74,20 @@ export interface PublicAlbumJournal {
     title: string;
     firstReleaseYear: number | null;
     label: string | null;
+    /**
+     * The cover the author chose (M3.2): image sources built from the one
+     * stored form, or null for the fallback. Never a stored address.
+     */
+    artwork: PublicArtwork | null;
   };
   credits: PublicCredit[];
   tracks: PublicJournalTrack[];
+}
+
+/** A Cover Art Archive image: a 500 px `src` and a 250/500/1200 `srcSet`. */
+export interface PublicArtwork {
+  src: string;
+  srcSet: string;
 }
 
 interface FrameRow extends Record<string, unknown> {
@@ -83,6 +95,8 @@ interface FrameRow extends Record<string, unknown> {
   album_title: string;
   first_release_year: number | null;
   label: string | null;
+  cover_url: string | null;
+  cover_source: string | null;
 }
 
 interface CreditRow extends Record<string, unknown> {
@@ -120,7 +134,7 @@ export async function getPublicAlbumJournal(
   // journal that stopped being visible between statements yields nothing.
   const frame = await db.execute<FrameRow>(sql`
     select aj.rating_half_steps, a.title as album_title,
-           a.first_release_year, ed.label
+           a.first_release_year, ed.label, a.cover_url, a.cover_source
       from (${publicLanguageVersions}) pv
       join album_journals aj on aj.entry_id = pv.entry_id
       join albums a on a.id = aj.album_id
@@ -169,10 +183,24 @@ export async function getPublicAlbumJournal(
       title: frameRow.album_title,
       firstReleaseYear: frameRow.first_release_year,
       label: frameRow.label,
+      artwork: publicArtworkOf(frameRow.cover_url, frameRow.cover_source),
     },
     credits: credits.rows.map((row) => ({ name: row.name })),
     tracks: mergeTracks(listed.rows, reflections),
   };
+}
+
+/**
+ * The album's artwork as a page may show it: only the image sources, and only
+ * for a stored cover in the exact form Refrain writes. Anything else in those
+ * columns shows the fallback, never an address taken from the database.
+ */
+export function publicArtworkOf(
+  coverUrl: string | null,
+  coverSource: string | null,
+): PublicArtwork | null {
+  const artwork = coverArtworkOf(coverUrl, coverSource);
+  return artwork ? { src: artwork.src, srcSet: artwork.srcSet } : null;
 }
 
 /**

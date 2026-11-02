@@ -86,7 +86,7 @@ async function Album({ params }: { params: Promise<{ id: string }> }) {
         </Link>
       </p>
       <div className="flex flex-wrap items-end gap-8">
-        <ArtworkPlaceholder />
+        <ArtworkPlaceholder artwork={album.artwork} title={album.title} />
         <div className="space-y-2">
           <h1 className="studio-title">{album.title}</h1>
           <p className="studio-meta">
@@ -125,6 +125,35 @@ async function Album({ params }: { params: Promise<{ id: string }> }) {
             country: album.edition?.country ?? "",
           }}
         />
+      </section>
+
+      <section aria-labelledby="album-artwork" className="space-y-3">
+        <h2 id="album-artwork" className="studio-section-title">
+          Artwork and MusicBrainz
+        </h2>
+        <p className="studio-hint" style={{ maxWidth: "62ch" }}>
+          {album.artwork ? "Cover: Cover Art Archive. " : "No artwork yet. "}
+          {album.mbReleaseGroupId || album.edition?.mbReleaseId
+            ? "Linked to MusicBrainz, so a cover can be chosen from the Cover Art Archive."
+            : "Not linked to MusicBrainz. Find it in Add music and link it to choose a cover."}
+        </p>
+        <p>
+          {album.mbReleaseGroupId || album.edition?.mbReleaseId ? (
+            <Link
+              href={`/studio/albums/${album.id}/artwork`}
+              className="studio-button"
+            >
+              {album.artwork ? "Change artwork" : "Choose artwork"}
+            </Link>
+          ) : (
+            <Link
+              href={`/studio/catalog/add?${new URLSearchParams({ q: album.title })}`}
+              className="studio-button"
+            >
+              Find on MusicBrainz
+            </Link>
+          )}
+        </p>
       </section>
 
       <section aria-labelledby="album-tracklist" className="space-y-4">

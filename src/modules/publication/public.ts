@@ -40,6 +40,7 @@ export type {
 } from "./public-routing";
 export type {
   PublicAlbumJournal,
+  PublicArtwork,
   PublicCredit,
   PublicJournalTrack,
 } from "./public-album-journal";

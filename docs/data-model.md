@@ -58,7 +58,7 @@ The entity tables (`artists`, `albums`, `tracks`) have `id uuid PRIMARY KEY`, `c
 | Table | Key columns | Constraints and notes |
 | --- | --- | --- |
 | `artists` | `name text NOT NULL`, `sort_name`, `kind text NOT NULL`, `mb_artist_id uuid`, `photo_url`, `photo_credit`, `photo_license`, `photo_source_url` | `kind IN ('person', 'group')`. `UNIQUE (mb_artist_id)`; NULL for manual entries. Name not blank. `CHECK` that credit and license are present whenever `photo_url` is. |
-| `albums` | `title text NOT NULL`, `first_release_year smallint`, `mb_release_group_id uuid`, `cover_url`, `cover_source` | The conceptual album (MusicBrainz release group). Titles are **not** unique. `UNIQUE (mb_release_group_id)`. Year `BETWEEN 1800 AND 2100`. `cover_source` required whenever `cover_url` is set. |
+| `albums` | `title text NOT NULL`, `first_release_year smallint`, `mb_release_group_id uuid`, `cover_url`, `cover_source` | The conceptual album (MusicBrainz release group). Titles are **not** unique. `UNIQUE (mb_release_group_id)`. Year `BETWEEN 1800 AND 2100`. Since M3.2 the application writes `cover_url` only in the form `https://coverartarchive.org/release/<release MBID>/<image id>`, with `cover_source = 'Cover Art Archive'`, and renders only that form. `cover_source` required whenever `cover_url` is set. |
 | `album_artists` | `album_id`, `artist_id`, `position smallint`, `credited_as` | `PK (album_id, artist_id)`. `UNIQUE (album_id, position)`, `position >= 1`. Album side cascades; artist side `RESTRICT`. |
 | `album_editions` | `album_id`, `label`, `release_date date`, `country`, `mb_release_id uuid`, `is_reference boolean` | A specific release. `UNIQUE (mb_release_id)`. Partial unique index on `(album_id) WHERE is_reference`: at most one reference edition. `UNIQUE (id, album_id)` is the target of the composite key below. `country` is two uppercase letters. |
 | `tracks` | `title text NOT NULL`, `length_ms integer`, `credit`, `mb_recording_id uuid` | A recording. It exists independently, so a single can be linked from a memory, and it may belong to any number of albums. `UNIQUE (mb_recording_id)`. `length_ms > 0`. |
@@ -267,9 +267,9 @@ These rules hold through transactions, module functions, and tests, not through 
 
 ## Transaction boundaries
 
-Each item below is one transaction (the numbers are stable; the boundary 1 import and 3's track reflections are not built yet):
+Each item below is one transaction (the numbers are stable):
 
-1. **Import from MusicBrainz**: upsert artists; insert the album, its reference edition, tracks, `album_artists`, `track_artists`, `album_tracks`, and `edition_tracks`.
+1. **Import from MusicBrainz** (`importMusicRelease`; built in M3.2): reuse each artist and recording already in the catalog by its MusicBrainz identifier, **unchanged** (an archived one is refused), and insert the rest; insert the album (the release group), its reference edition (the chosen release), `album_artists`, `track_artists` for new recordings, `album_tracks`, and `edition_tracks`; an album or edition already in the catalog is refused. The release is fetched again before the transaction opens, and nothing is written unless it still matches the plan the author reviewed.
 2. **Create an entry**: `entries`, the original `entry_texts` row, the subtype row, and the initial `entry_slugs` row.
 3. **Save an album journal** (`saveAlbumJournal`; M2.2): the original language version's opening sentence and reflection, the album rating, and any number of track reflections (a row per language for each text, the favourite mark, the "still writing" label, the track rating, and the "include when published" flag), in one transaction. It locks the entry, refuses a deleted entry and a stale `entries.version` instead of overwriting, validates every reflection against the rows (the recording belongs to the journal's album and a new reflection is not on an archived recording), asks the Publication gate whether the change adds or edits anything a reader sees (and then needs a `change_public` token for exactly that change), writes, bumps the version, and checks that what a reader would see is what was confirmed. A blank text removes that language's row, so a row always means text. The favourite mark belongs to the reflection, that is to the track **in this journal**, with no limit on how many tracks carry it.
 4. **Change visibility** of a language version (`unpublishLanguageVersion`, and publishing through boundary 12): `status`, `published_at`, the version's and the entry's `first_published_at` on a first publication, and the current slug's `was_published`, after locking the entry and verifying that it is not deleted.
@@ -301,6 +301,15 @@ Each item below is one transaction (the numbers are stable; the boundary 1 impor
 - Catalog metadata has no version counter: two sessions editing the same artist, album, or track can overwrite each other's named fields (**last write wins**). This is a known limitation, not conflict protection, and it is not hidden by the interface. Journal text does not have it: a stale save is refused. The risk and the follow-up are in the [Roadmap](roadmap.md#catalog-edit-concurrency-last-write-wins).
 
 Integration tests omit, clear, and update a field while the unrelated fields hold data, for each record, and the same behavior is asserted through the Server Actions over HTTP.
+
+**Catalog commands added in M3.2** ([`music.ts`](../src/modules/catalog/music.ts); provider calls happen before each transaction):
+
+- `importMusicRelease`: boundary 1, above.
+- `linkAlbumToMusic` and `linkArtistToMusic`: fill `albums.mb_release_group_id`, the reference edition's `mb_release_id`, or `artists.mb_artist_id` only while they are empty, under the row lock; a different identity already there is refused (`already_linked`); nothing else is touched.
+- `importMusicArtist`: one reviewed artist.
+- `setAlbumArtwork` and `removeAlbumArtwork`: lock every journal entry about the album `FOR SHARE` (in id order) and refuse while any is publicly visible (`public_page`, decided by the Publication module's predicate in a statement after the locks; ADR 0006 D5, gate G8), then lock the album row `FOR NO KEY UPDATE` (catalog after entry, as ADR 0006 § 7 L3 orders), compare the stored cover with the one the author saw (`review_stale`), and write `cover_url` and `cover_source` together. They are the first commands to take both kinds of lock ([ADR 0006 A3](decisions/0006-publication-decision-and-acknowledgement.md#a3-the-artwork-commands-take-entry-locks-then-a-catalog-lock)). The only `cover_url` written is `https://coverartarchive.org/release/<release MBID>/<image id>`, an image the archive lists as a front cover of the album's own edition or release group; anything else in the column is never rendered.
+
+No migration: the identifiers and the cover columns existed since M1.2.
 
 **Journal commands added in M1.3B:** `createAlbumJournal` (boundary 2: the entry, its original version as a `draft`, the `album_journals` row, and a slug reserved by `reserveInitialSlug`), `saveAlbumJournal` (the version check of boundary 3 for an album journal's text), `setAlbumJournalPrivacy` (only `draft` or `private`, through `unpublishLanguageVersion`), and `deleteAlbumJournal` (sets `deleted_at`; recoverable).
 

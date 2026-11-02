@@ -896,8 +896,38 @@ describe("the Publication reading module", () => {
     /^server-only$/,
     /^drizzle-orm$/,
     /^@\/db$/,
+    // M3.2: the pure parser of a stored cover, and nothing else from it (the
+    // next test). No provider is ever called while reading a public page.
+    /^@\/integrations\/cover-art-archive$/,
     /^\.\/(public|public-reads|public-routing|public-album-journal|queries|predicate|slug)$/,
   ];
+
+  it("uses only the pure cover parser from the Cover Art Archive integration", () => {
+    const imported: string[] = [];
+    for (const file of reading) {
+      const source = parse(readFileSync(file, "utf8"), file);
+      for (const statement of source.statements) {
+        if (
+          ts.isImportDeclaration(statement) &&
+          ts.isStringLiteral(statement.moduleSpecifier) &&
+          statement.moduleSpecifier.text === "@/integrations/cover-art-archive"
+        ) {
+          const bindings = statement.importClause?.namedBindings;
+          expect(bindings && ts.isNamedImports(bindings), file).toBe(true);
+          if (bindings && ts.isNamedImports(bindings)) {
+            imported.push(
+              ...bindings.elements.map(
+                (element) => `${file}:${element.name.text}`,
+              ),
+            );
+          }
+        }
+      }
+    }
+    expect(imported).toEqual([
+      "src/modules/publication/public-album-journal.ts:coverArtworkOf",
+    ]);
+  });
 
   it.each(reading)("%s imports no command, token, or other module", (file) => {
     const source = parse(readFileSync(file, "utf8"), file);
@@ -1041,6 +1071,9 @@ describe("the Publication reading module", () => {
     "AlbumJournalRequest",
     "AlbumJournalRouting",
     "PublicAlbumJournal",
+    // M3.2: the cover's image sources (a src and a srcSet), never an address
+    // from the database.
+    "PublicArtwork",
     "PublicCredit",
     "PublicJournalTrack",
     "SlugResolution",

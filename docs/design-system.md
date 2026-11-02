@@ -190,7 +190,7 @@ Where the approved screen shows something that does not exist yet, or that the d
 | The header's four links (Home, Albums, Artists, Memories) | Home, and Albums as the current page (not a link) | No list page exists, and a link to one would be a broken promise. The other links arrive with their pages |
 | The language selector in the footer | Not shown | It arrives with next-intl; the page is English, and each piece of writing carries its own `lang` |
 | "Written [DATE] · edited [DATE]" | "Published <date>" and "Written in <language>" | The edit date is private editing metadata. The publication date is public by definition |
-| The cover from the Cover Art Archive and its caption | A hatched frame, "Album artwork / not available yet", with an accessible name | No provider integration exists, and no external image host is allow-listed yet |
+| The cover from the Cover Art Archive and its caption | **Since M3.2:** the cover the author chose, in the fixed 1:1 frame over the hatched fallback ("Album artwork / loads from Cover Art Archive"), with the caption "Cover: Cover Art Archive" hanging below the frame so the title still sits on its lower edge; without a chosen cover, the hatched frame "Album artwork / not available yet". The frame carries the accessible name ("Album artwork for <title>"); the image itself is decorative inside it | Shown as it is, without filters. The 500 px thumbnail with a 250/500/1200 `srcset`, so nothing moves while it loads, and the fallback remains if it fails. Approved for local development; a hosted page shows covers only after the rights review ([Security § Deployment gate](security.md#deployment-gate), item 6) |
 | "Everything in brackets is a placeholder…" | Not shown | A mockup note, not content |
 | The "All albums" and "More about <artist>" links | Not shown | Those pages do not exist |
 | A track row opens by a button | A native `<details>` with a `<summary>` | Keyboard and screen-reader operation with no script; the reflection is in the page either way |
@@ -204,6 +204,19 @@ Where the approved screen shows something that does not exist yet, or that the d
 | A hand line under a favourite ("[favourite — …]") | Not shown | It is a placeholder for the author's own words; the model has no favourite note |
 
 The public pages are monochrome with the design's own paper tints, use only Kalam and Alegreya Sans, request nothing from another origin, and have no author control. A request for an address that is not served shows one view, "Nothing here", for every reason, so no case can be told from another. These properties are tested in a browser at 1440px and 390px (`e2e/public.spec.ts`).
+
+## Add music and artwork (M3.2)
+
+**Add music** follows the approved `Search` screen (`refrainV44-Search`): the title and lead, the search field with its magnifier, the kinds to search for, "Already in your catalog" and "From MusicBrainz" as ruled rows with the record icon and an **Add** control (or "In catalog" with its filled dot), the source line ("Data from MusicBrainz. Artwork from Cover Art Archive, added only if you choose it."), and the three states ("Searching MusicBrainz…", "Nothing found for “…”." with its hint, "Couldn’t reach MusicBrainz." with its reassurance and **Try again**). Where it differs:
+
+| Approved screen | Studio | Why |
+| --- | --- | --- |
+| Three kinds: Albums, Tracks, Artists | Albums and Artists | Tracks arrive with their album; a single-recording import is not in scope |
+| **Add** adds the result | **Add** opens the album's editions, then a review, and only the review's **Add to catalog** writes | The author must choose the exact edition and approve what is written |
+| The margin holds "Back to the catalog" | The Catalog's own navigation stays in the margin, and "← Back to the catalog" heads the page | The same frame as every Catalog page |
+| The three states shown side by side as a sample | Each state shown when it happens | The sample is a mockup note |
+
+The edition list, the review (facts, tracks, artists, the cover choice with **No artwork** selected first, the approval), the link-instead confirmation, and the album's artwork page reuse the studio's rows, panels, buttons, artwork frame, and confirmation dialog; no new component style was introduced beyond the search field, the choice grid, and the review's facts list.
 
 ## Writing Studio controls for ADR 0002
 
