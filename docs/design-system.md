@@ -23,6 +23,7 @@ This document summarizes items 1 and 2. If it disagrees with them, correct this 
 | Tracked asset | Origin | Use |
 | --- | --- | --- |
 | `public/artwork/refrain-home-character.png` | Byte-identical copy of the local `reference/refrain-home-character.png` (SHA-256 `ad58315e79980337147ef11f30a0ed418a5c3bf509a0a77da81bce59290ba63c`) | The original character illustration (1536×1024): the public homepage, and the README in both light and dark themes |
+| `public/artwork/refrain-404.png` | Byte-identical copy of the local `reference/refrain-404.png` (SHA-256 `7705f803a871cdd9e693dcf9ae2d222fe8545281c4e8b9975699f00ed96c4956`), the author's approved 404 illustration | The one public not-found view (1536×1024, 8-bit RGBA with genuine transparency: about 49% of its pixels are fully transparent and the drawing is solid; see [Not found](#not-found-and-the-skip-link-m31)). It is a different file from the home character, and it appears only on that view. It is 2.8 MB, and it is served as the original (a lighter derived copy needs the author's approval) |
 | `docs/assets/refrain-home-character-dark.png` | Derived from the original, approved by the author | Not used. It was the README's dark-theme image until pull request #12; the README now shows the original in both themes. Kept in the repository. Same dimensions and transparency as the original, with tones remapped. |
 
 The rules for `reference/` and for promoting assets are in [`AGENTS.md` § 6](../AGENTS.md#6-design-system-boundaries). The favicons and the pencil cursor are promoted into `public/` when the application first uses them.
@@ -153,6 +154,12 @@ Optional. The approved page mockups do not use it. If it is used, only these ass
 The cursor applies only under `@media (hover: hover) and (pointer: fine)`. Links, buttons, and selects keep `pointer`; inputs, text areas, and the editor keep `text`. It never replaces the text cursor while editing, and a standard cursor is always declared as the fallback.
 
 `reference/refrain-cursor/README.md` also lists a `refrain-pencil-64.png` that does not exist. Do not reference it. The reference README is preserved unedited.
+
+### Not found, and the skip link (M3.1)
+
+**Not found.** The shared view for every address that is not served shows the author's approved 404 drawing above the heading "Nothing here", the line "This page is not available.", and a link back to the start. The drawing is the original file, centered, at most 560px wide and never wider than the page, with its own proportions; its alternative text names what matters (a person with curly hair and headphones scratching their head over a map marked 404). It is the same for every address and says nothing about why. In forced-colors mode the drawing keeps its own white ground, since black ink on a dark system canvas would vanish. The V4.4 mockups include no 404 screen, so this composition follows the home character's rule (the drawing between the navigation and the text) and is the one decision here for the author to confirm. [`AGENTS.md` § 6](../AGENTS.md#6-design-system-boundaries) and the Character bullet above restrict *the original character illustration* to the homepage; this is a separate approved file on the not-found view.
+
+**Skip link.** The first tab stop of every public page is "Skip to content", in Kalam, ink on paper with the 2px focus outline. It is off screen at rest and, while it has focus, is drawn at the top left without changing the page's flow (a link that took space moved the content when activated, so the jump landed off by its height). At 390px it would sit on the navigation, so the navigation is drawn invisible, in place and still focusable, for as long as the skip link has focus; it never covers the writing. Activating it moves focus to the page's single `<main id="main">`, which has no ring of its own because it is not a control. It is hidden in print. This is an addition the V4.4 screens do not show and an accessibility requirement; the studio's skip link works the same way.
 
 ## Accessibility baseline
 
