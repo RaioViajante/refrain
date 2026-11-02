@@ -1,3 +1,4 @@
+import type { PublicChangeDelta } from "@/modules/publication";
 import type { FieldErrors } from "@/validation";
 
 /**
@@ -15,10 +16,19 @@ import type { FieldErrors } from "@/validation";
  * - `unsupported_content`: the stored text has formatting the plain editor
  *   cannot represent; it is left untouched.
  * - `slug_unavailable`: no free slug was found for the journal.
- * - `published_text_locked`: the language version being saved is published.
- *   Changing published text needs the author's confirmation of what changes
- *   publicly (ADR 0006 § 5), which arrives with M2.2; until then a save of a
- *   published version is refused and nothing changes.
+ * - `track_not_in_album`, `track_archived`: a reflection is on a recording
+ *   that belongs to the journal's album and is not archived. An existing
+ *   reflection on an archived recording can still be edited.
+ * - `unavailable`: the application secret is not configured, so no
+ *   confirmation can be checked. Nothing is saved when one is needed.
+ * - `nothing_to_publish`: the save would leave a published language version
+ *   with no opening sentence and no body. Unpublish it first.
+ * - `confirmation_required`, `confirmation_invalid`, `confirmation_expired`,
+ *   `confirmation_stale`: the save would change what a reader sees of a public
+ *   journal and the author's confirmation of exactly that change is missing,
+ *   not authentic, too old, or for another state (ADR 0006 § 5 and § 12).
+ *   Nothing is written. The first, third, and fourth carry the fresh change
+ *   (`delta`), never a token.
  */
 export type JournalFailure =
   | "invalid_input"
@@ -30,15 +40,37 @@ export type JournalFailure =
   | "version_conflict"
   | "unsupported_content"
   | "slug_unavailable"
-  | "published_text_locked";
+  | "track_not_in_album"
+  | "track_archived"
+  | "unavailable"
+  | "nothing_to_publish"
+  | "confirmation_required"
+  | "confirmation_invalid"
+  | "confirmation_expired"
+  | "confirmation_stale";
 
 export class JournalError extends Error {
   override name = "JournalError";
 
+  /**
+   * The exposure delta of a refused confirmed save: private writing, for an
+   * authorized request only, never logged. Non-enumerable on purpose, so
+   * printing the error cannot print the author's writing.
+   */
+  declare readonly delta?: PublicChangeDelta;
+
   constructor(
     readonly failure: JournalFailure,
     readonly details: { fields?: FieldErrors } = {},
+    delta?: PublicChangeDelta,
   ) {
     super(`Journal operation refused: ${failure}`);
+    if (delta !== undefined) {
+      Object.defineProperty(this, "delta", {
+        value: delta,
+        enumerable: false,
+        writable: false,
+      });
+    }
   }
 }

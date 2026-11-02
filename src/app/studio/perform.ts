@@ -95,10 +95,25 @@ function failed(error: unknown): ActionResult<never> {
         return { ok: false, code: "unsupported" };
       case "entry_not_deleted":
         return { ok: false, code: "not_deleted" };
+      case "track_not_in_album":
+        return { ok: false, code: "not_found" };
+      case "track_archived":
+        return { ok: false, code: "archived" };
+      case "unavailable":
+        return { ok: false, code: "unavailable" };
+      // The save would change what readers see of a published journal. Only
+      // the confirmation dialogs of M2.3 can obtain the author's explicit
+      // confirmation of exactly that change, so until then the studio refuses
+      // it and writes nothing. It never confirms on the author's behalf, and
+      // the change itself (private writing) is not sent to the browser.
+      case "confirmation_required":
+      case "confirmation_invalid":
+      case "confirmation_expired":
+      case "confirmation_stale":
+        return { ok: false, code: "published" };
+      case "nothing_to_publish":
+        return { ok: false, code: "published_empty" };
       case "slug_unavailable":
-      // Unreachable from the studio until a publishing control exists; the
-      // confirmed save of M2.2 replaces this refusal.
-      case "published_text_locked":
         return { ok: false, code: "failed" };
     }
   }

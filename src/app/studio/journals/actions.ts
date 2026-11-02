@@ -30,6 +30,21 @@ export async function createJournalAction(
   return perform(() => createAlbumJournal(authorization.author, input));
 }
 
+// Interim, fail closed (ADR 0006 § 5; M2.3 builds the dialogs). A save that
+// would change what readers see of a published journal needs a confirmation
+// token that only the confirmation dialog may send, and no dialog exists yet.
+// So this action never forwards a `confirmation` from the request: the domain
+// command then refuses such a save and writes nothing. Nothing here previews,
+// mints, or supplies a token.
+function withoutConfirmation(input: unknown): unknown {
+  if (typeof input === "object" && input !== null && !Array.isArray(input)) {
+    const rest: Record<string, unknown> = { ...input };
+    delete rest.confirmation;
+    return rest;
+  }
+  return input;
+}
+
 export async function saveJournalAction(
   input: unknown,
 ): Promise<ActionResult<{ version: number }>> {
@@ -37,7 +52,9 @@ export async function saveJournalAction(
   if (!authorization.ok) {
     return denied(authorization.reason);
   }
-  return perform(() => saveAlbumJournal(authorization.author, input));
+  return perform(() =>
+    saveAlbumJournal(authorization.author, withoutConfirmation(input)),
+  );
 }
 
 export async function setJournalPrivacyAction(

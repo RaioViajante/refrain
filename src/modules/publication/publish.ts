@@ -29,7 +29,7 @@ import {
   type PublishState,
 } from "./disclosure";
 import { PublicationError } from "./errors";
-import { lockEntry } from "./lock";
+import { inSnapshot, lockEntry } from "./lock";
 
 // Publishing (ADR 0006 §§ 2 to 4). Two operations and nothing else makes a
 // language version public:
@@ -110,21 +110,6 @@ function assertPublishable(state: PublishState, expectedVersion?: number) {
   if (state.slug === null) {
     throw new PublicationError("no_current_slug");
   }
-}
-
-// One consistent snapshot, without a lock. Inside a transaction already (a
-// test, or a command that composes) it reads in that transaction.
-async function inSnapshot<Result>(
-  db: DatabaseExecutor,
-  work: (executor: DatabaseExecutor) => Promise<Result>,
-): Promise<Result> {
-  if ("rollback" in db) {
-    return work(db);
-  }
-  return db.transaction(work, {
-    isolationLevel: "repeatable read",
-    accessMode: "read only",
-  });
 }
 
 /**

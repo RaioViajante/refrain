@@ -23,9 +23,16 @@ import {
   createJournalAction,
   saveJournalAction,
 } from "@/app/studio/journals/actions";
+import { RatingField } from "@/app/studio/journals/rating-field";
+import {
+  draftOf,
+  sameDraft,
+  TrackByTrack,
+  type TrackDraft,
+} from "@/app/studio/journals/track-by-track";
 import { problemWith } from "@/app/studio/messages";
 import { StatusMark } from "@/app/studio/status-mark";
-import type { VisibilityStatus } from "@/modules/journals";
+import type { TrackByTrackItem, VisibilityStatus } from "@/modules/journals";
 
 const LANGUAGES = [
   { value: "en", label: "English" },
@@ -50,6 +57,12 @@ interface JournalEditorProps {
     status: VisibilityStatus;
   };
   initial: { opening: string; body: string };
+  /**
+   * The album's tracks with the author's reflections, and the album rating, for
+   * editing a journal. A new journal has none: it starts as a private draft.
+   */
+  tracks?: TrackByTrackItem[];
+  albumRating?: number | null;
   /** Where "back" goes, and what it is called. */
   back: { href: string; label: string };
   /** The page's heading, shown under the action bar. */
@@ -65,6 +78,8 @@ export function JournalEditor({
   create,
   edit,
   initial,
+  tracks = [],
+  albumRating: initialAlbumRating = null,
   back,
   heading,
 }: JournalEditorProps) {
@@ -74,12 +89,52 @@ export function JournalEditor({
   const [body, setBody] = useState(initial.body);
   const [locale, setLocale] = useState<Language>(edit?.locale ?? "en");
   const [version, setVersion] = useState(edit?.version ?? 1);
-  const [dirty, setDirty] = useState(false);
-  const [saved, setSaved] = useState(false);
-  // A new journal is created once: after it succeeds, a second save (a double
-  // Cmd+S before the redirect) must not create another.
+  const [albumRating, setAlbumRating] = useState<number | null>(
+    initialAlbumRating,
+  );
+  const [drafts, setDrafts] = useState<Record<string, TrackDraft>>(() =>
+    Object.fromEntries(
+      tracks.map((item) => [item.trackId, draftOf(item, edit?.locale ?? "en")]),
+    ),
+  );
+  // What was last saved, or loaded. Dirty means "differs from this", so an edit
+  // made while a save is running is still unsaved when that save returns.
+  const [base, setBase] = useState({
+    opening: initial.opening,
+    body: initial.body,
+    albumRating: initialAlbumRating,
+    drafts,
+  });
   const [created, setCreated] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [flagDirty, setFlagDirty] = useState(false);
   const { pending, failure, run } = useSubmission();
+
+  // A track added in the catalog while this page is open has no draft yet:
+  // it starts from what is stored.
+  const draftLocale = edit?.locale ?? "en";
+  const currentDrafts = Object.fromEntries(
+    tracks.map((item) => [
+      item.trackId,
+      drafts[item.trackId] ?? draftOf(item, draftLocale),
+    ]),
+  );
+  const baseDrafts = Object.fromEntries(
+    tracks.map((item) => [
+      item.trackId,
+      base.drafts[item.trackId] ?? draftOf(item, draftLocale),
+    ]),
+  );
+  const tracksDirty = tracks.some(
+    (item) =>
+      !sameDraft(currentDrafts[item.trackId]!, baseDrafts[item.trackId]!),
+  );
+  const dirty = edit
+    ? opening !== base.opening ||
+      body !== base.body ||
+      albumRating !== base.albumRating ||
+      tracksDirty
+    : flagDirty;
   useUnsavedGuard(dirty);
 
   async function save(event?: FormEvent) {
@@ -88,17 +143,62 @@ export function JournalEditor({
       return;
     }
     if (edit) {
-      const result = await run(() =>
-        saveJournalAction({
-          entryId: edit.entryId,
-          expectedVersion: version,
-          opening,
-          body,
-        }),
-      );
+      // Only what changed is sent, so a save never rewrites writing the author
+      // did not touch, and one language never overwrites another.
+      const payload: Record<string, unknown> = {
+        entryId: edit.entryId,
+        expectedVersion: version,
+      };
+      if (opening !== base.opening) {
+        payload.opening = opening;
+      }
+      if (body !== base.body) {
+        payload.body = body;
+      }
+      if (albumRating !== base.albumRating) {
+        payload.albumRating = albumRating;
+      }
+      const reflections = tracks.flatMap((item) => {
+        const now = currentDrafts[item.trackId]!;
+        const before = baseDrafts[item.trackId]!;
+        if (sameDraft(now, before)) {
+          return [];
+        }
+        const change: Record<string, unknown> = { trackId: item.trackId };
+        if (now.text !== before.text) {
+          change.texts = { [edit.locale]: now.text };
+        }
+        if (now.isFavourite !== before.isFavourite) {
+          change.isFavourite = now.isFavourite;
+        }
+        if (now.isStillWriting !== before.isStillWriting) {
+          change.isStillWriting = now.isStillWriting;
+        }
+        if (now.isPublished !== before.isPublished) {
+          change.isPublished = now.isPublished;
+        }
+        if (now.rating !== before.rating) {
+          change.ratingHalfSteps = now.rating;
+        }
+        return [change];
+      });
+      if (reflections.length > 0) {
+        payload.reflections = reflections;
+      }
+      if (Object.keys(payload).length === 2) {
+        setSaved(true);
+        return;
+      }
+      const sent = {
+        opening,
+        body,
+        albumRating,
+        drafts: currentDrafts,
+      };
+      const result = await run(() => saveJournalAction(payload));
       if (result.ok) {
         setVersion(result.data.version);
-        setDirty(false);
+        setBase(sent);
         setSaved(true);
         router.refresh();
       }
@@ -114,7 +214,7 @@ export function JournalEditor({
     );
     if (result.ok) {
       setCreated(true);
-      setDirty(false);
+      setFlagDirty(false);
       setSaved(true);
       router.push(`/studio/journals/${result.data.entryId}`);
     }
@@ -139,9 +239,25 @@ export function JournalEditor({
 
   function edited(update: () => void) {
     update();
-    setDirty(true);
+    setFlagDirty(true);
     setSaved(false);
   }
+
+  function editTrack(trackId: string, patch: Partial<TrackDraft>) {
+    setDrafts((current) => {
+      const item = tracks.find((candidate) => candidate.trackId === trackId);
+      const from =
+        current[trackId] ?? (item ? draftOf(item, draftLocale) : undefined);
+      return from ? { ...current, [trackId]: { ...from, ...patch } } : current;
+    });
+    setSaved(false);
+  }
+
+  const reflectionProblem = Object.keys(failure?.fields ?? {}).some((field) =>
+    field.startsWith("reflections"),
+  )
+    ? "A reflection is too long or isn’t valid, so nothing was saved. Your text is still here."
+    : undefined;
 
   return (
     <form onSubmit={save} className="studio-editor" noValidate>
@@ -181,6 +297,15 @@ export function JournalEditor({
 
       {heading}
 
+      {edit?.status === "published" ? (
+        <p className="studio-panel" role="note">
+          This version is published. Saving changes the public page. The studio
+          can’t confirm a change to published writing yet, so a change that
+          alters what readers see is refused, and nothing is saved. Make the
+          journal private first, then write.
+        </p>
+      ) : null}
+
       <div className="studio-columns">
         <div className="studio-writing-column">
           <TextField
@@ -207,6 +332,28 @@ export function JournalEditor({
               {words(body)} {words(body) === 1 ? "word" : "words"}
             </p>
           </div>
+          {edit ? (
+            <>
+              <RatingField
+                label="Your rating for the album"
+                value={albumRating}
+                onChange={(value) => {
+                  setAlbumRating(value);
+                  setSaved(false);
+                }}
+                hint="Set on its own. It is never calculated from the track ratings."
+              />
+              <TrackByTrack
+                tracks={tracks}
+                drafts={currentDrafts}
+                baseline={baseDrafts}
+                onEdit={editTrack}
+                locale={edit.locale}
+                status={edit.status}
+                problem={reflectionProblem}
+              />
+            </>
+          ) : null}
         </div>
 
         <div className="studio-margin">

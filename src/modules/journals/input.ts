@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { locales } from "@/db";
+import { MAX_CONFIRMATION_TOKEN_LENGTH } from "@/modules/identity";
 import { cleanText } from "@/validation";
 
 import { normalizeBodyText } from "./body";
@@ -49,6 +50,57 @@ export const createAlbumJournalInput = z.object({
 });
 export type CreateAlbumJournalInput = z.input<typeof createAlbumJournalInput>;
 
+// A reflection on one track is plain text, like the journal's own. It is
+// shorter than a whole-album reflection, and a blank text removes it.
+export const MAX_REFLECTION_LENGTH = 20_000;
+export const MAX_REFLECTIONS_PER_SAVE = 500;
+
+// Unicode white space only, and the zero-width characters that render as
+// nothing, is blank (ADR 0006 § 4, step 6): a text row always means text.
+const INVISIBLE_ONLY = /^[\p{White_Space}\u200B-\u200D\u2060\uFEFF]*$/u;
+
+const reflectionText = z
+  .string()
+  .transform(normalizeBodyText)
+  .pipe(z.string().max(MAX_REFLECTION_LENGTH))
+  .transform((value) => (INVISIBLE_ONLY.test(value) ? null : value))
+  .nullable();
+
+/** A rating in half steps (docs/data-model.md § Ratings): 1 to 10, `null` clears. */
+const ratingHalfSteps = z.number().int().min(1).max(10).nullable();
+
+/**
+ * What changes on one track's reflection. A field left out is unchanged. The
+ * language of a text is the key it is under, so one language is never written
+ * into another. A blank text, or `null`, removes the text in that language and
+ * nothing else.
+ */
+const reflectionInput = z
+  .strictObject({
+    trackId: z.uuid(),
+    // The author's explicit permission to show it publicly. On its own it
+    // makes nothing public (ADR 0002, D5.2).
+    isPublished: z.boolean().optional(),
+    isStillWriting: z.boolean().optional(),
+    isFavourite: z.boolean().optional(),
+    ratingHalfSteps: ratingHalfSteps.optional(),
+    texts: z
+      .strictObject({
+        en: reflectionText.optional(),
+        "pt-BR": reflectionText.optional(),
+      })
+      .optional(),
+  })
+  .refine(
+    (reflection) =>
+      Object.keys(reflection).some((key) => key !== "trackId") &&
+      (reflection.texts === undefined ||
+        Object.values(reflection.texts).some((text) => text !== undefined)),
+  );
+
+/** The `ct1` form; the token is authenticated later (ADR 0006 § 3). */
+const TOKEN_FORM = /^ct1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
+
 export const saveAlbumJournalInput = z
   .object({
     entryId: z.uuid(),
@@ -56,9 +108,36 @@ export const saveAlbumJournalInput = z
     expectedVersion: z.number().int().min(1).max(2_147_483_647),
     opening,
     body,
+    // The album rating, independent of every track rating; `null` clears it.
+    albumRating: ratingHalfSteps,
+    reflections: z
+      .array(reflectionInput)
+      .max(MAX_REFLECTIONS_PER_SAVE)
+      .refine(
+        (list) =>
+          new Set(list.map((item) => item.trackId)).size === list.length,
+      ),
+    // Needed only when the save changes what a reader sees of a public
+    // journal. It comes from the confirmation dialog and nowhere else.
+    confirmation: z
+      .string()
+      .max(MAX_CONFIRMATION_TOKEN_LENGTH)
+      .regex(TOKEN_FORM),
   })
-  .partial({ opening: true, body: true })
-  .refine((save) => save.opening !== undefined || save.body !== undefined);
+  .partial({
+    opening: true,
+    body: true,
+    albumRating: true,
+    reflections: true,
+    confirmation: true,
+  })
+  .refine(
+    (save) =>
+      save.opening !== undefined ||
+      save.body !== undefined ||
+      save.albumRating !== undefined ||
+      (save.reflections !== undefined && save.reflections.length > 0),
+  );
 export type SaveAlbumJournalInput = z.input<typeof saveAlbumJournalInput>;
 
 /** Only `draft` and `private`: nothing here can publish (ADR 0002, D4.1). */

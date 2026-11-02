@@ -121,3 +121,36 @@ test("deleting and restoring a journal works by touch, and the controls are larg
   await expectNoHorizontalOverflow(page);
   await expect(page.locator(".studio-reading p")).toHaveCount(2);
 });
+
+test("track by track fits a 390 px screen, and its controls are large enough to tap", async ({
+  page,
+}) => {
+  await page.goto(`${new URL(journalUrl).pathname}/edit`);
+  const head = page.getByRole("button", { name: /^Track 1:/ });
+  await expectTouchTarget(head);
+  await head.tap();
+  const text = page.getByLabel(/^Your reflection on /);
+  await expect(text).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+  for (const label of [
+    "Mark as favourite",
+    "Still writing",
+    "Show on the public page",
+  ]) {
+    const control = page.getByLabel(label);
+    await control.tap();
+    await expect(control).toBeChecked();
+    // The label is the target: the whole row is at least 44px tall.
+    const box = await page.getByText(label, { exact: true }).boundingBox();
+    expect(box!.height).toBeGreaterThanOrEqual(43.5);
+  }
+  const rating = page.getByRole("group", { name: /Rating for this track/ });
+  for (const half of await rating.locator(".studio-star-half label").all()) {
+    const box = await half.boundingBox();
+    // Star halves are the documented exception to the width; the row is 44px.
+    expect(box!.height).toBeGreaterThanOrEqual(43.5);
+  }
+  await rating.locator("label").filter({ hasText: "4 stars" }).tap();
+  await expect(rating.getByLabel("4 stars")).toBeChecked();
+  await expectNoHorizontalOverflow(page);
+});

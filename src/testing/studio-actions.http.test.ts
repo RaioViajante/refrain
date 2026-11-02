@@ -148,6 +148,8 @@ const TABLES = [
   "entry_texts",
   "album_journals",
   "entry_slugs",
+  "track_reflections",
+  "track_reflection_texts",
 ] as const;
 
 // A checksum of every row of every catalog and writing table, so "nothing was
@@ -1012,6 +1014,259 @@ describe("the author's complete journey, through real HTTP and PostgreSQL", () =
     expect(/<h1[^>]*>([^<]*)<\/h1>/.exec(journalPage)?.[1]).toBe(
       `${own("Album")} (retitled)`,
     );
+  });
+});
+
+describe("writing track by track, through real HTTP and PostgreSQL", () => {
+  const cookie = () => author.cookie;
+  let draft = "";
+  let published = "";
+
+  const versionOf = (entryId: string) =>
+    scalar<number>("select version from entries where id = $1", [entryId]);
+
+  const create = async (suffix: string) =>
+    String(
+      ok(
+        await call(
+          "createJournalAction",
+          [
+            {
+              albumId: ids.album,
+              locale: "en",
+              body: `${label} ${suffix} body.`,
+            },
+          ],
+          { cookie: cookie() },
+        ),
+      ).entryId,
+    );
+
+  it("saves reflections, marks, ratings, and the album rating in one request", async () => {
+    draft = await create("draft");
+    const saved = ok(
+      await call(
+        "saveJournalAction",
+        [
+          {
+            entryId: draft,
+            expectedVersion: 1,
+            albumRating: 8,
+            reflections: [
+              {
+                trackId: ids.track,
+                isPublished: true,
+                isFavourite: true,
+                ratingHalfSteps: 7,
+                texts: { en: `${label} first line\nsecond line` },
+              },
+            ],
+          },
+        ],
+        { cookie: cookie(), routeId: draft },
+      ),
+    );
+    expect(saved.version).toBe(2);
+    const row = (
+      await db.query(
+        `select tr.is_published, tr.is_favourite, tr.rating_half_steps,
+                trt.locale, trt.body_text, j.rating_half_steps as album_rating
+           from track_reflections tr
+           join track_reflection_texts trt on trt.track_reflection_id = tr.id
+           join album_journals j on j.entry_id = tr.album_journal_id
+          where tr.album_journal_id = $1`,
+        [draft],
+      )
+    ).rows[0];
+    expect(row).toEqual({
+      is_published: true,
+      is_favourite: true,
+      rating_half_steps: 7,
+      locale: "en",
+      body_text: `${label} first line\nsecond line`,
+      album_rating: 8,
+    });
+    // Set to show is not public: the journal is a draft.
+    expect(
+      await scalar<string>(
+        "select status from entry_texts where entry_id = $1",
+        [draft],
+      ),
+    ).toBe("draft");
+  });
+
+  it("refuses bad ratings, unknown tracks, and malformed reflections with fixed codes, and writes nothing", async () => {
+    const before = await snapshot();
+    const version = await versionOf(draft);
+    for (const change of [
+      { albumRating: 0 },
+      { albumRating: 11 },
+      { albumRating: 4.5 },
+      { reflections: [{ trackId: ids.track, ratingHalfSteps: 1.5 }] },
+      { reflections: [{ trackId: ids.track }] },
+      {
+        reflections: [
+          { trackId: ids.track, isFavourite: true },
+          { trackId: ids.track, isStillWriting: true },
+        ],
+      },
+      { reflections: [{ trackId: ids.track, status: "published" }] },
+      // A confirmation hidden inside a reflection is an unknown key.
+      {
+        reflections: [
+          {
+            trackId: ids.track,
+            isFavourite: true,
+            confirmation: "ct1.AAAA.BBBB",
+          },
+        ],
+      },
+      { reflections: [{ trackId: ids.track, texts: { fr: "x" } }] },
+      {
+        reflections: [
+          { trackId: ids.track, texts: { en: "x".repeat(20_001) } },
+        ],
+      },
+    ]) {
+      expect(
+        await call(
+          "saveJournalAction",
+          [{ entryId: draft, expectedVersion: version, ...change }],
+          { cookie: cookie(), routeId: draft },
+        ),
+        JSON.stringify(change).slice(0, 80),
+      ).toMatchObject({ ok: false, code: "invalid_input" });
+    }
+    // A recording that is not on this journal's album.
+    expect(
+      await call(
+        "saveJournalAction",
+        [
+          {
+            entryId: draft,
+            expectedVersion: version,
+            reflections: [{ trackId: ids.freeTrack, isFavourite: true }],
+          },
+        ],
+        { cookie: cookie(), routeId: draft },
+      ),
+    ).toEqual({ ok: false, code: "not_found" });
+    expect(await snapshot()).toEqual(before);
+  });
+
+  it("refuses a change to a published journal's public page, whatever the request carries, and shows no writing in the answer", async () => {
+    published = await create("published");
+    ok(
+      await call(
+        "saveJournalAction",
+        [
+          {
+            entryId: published,
+            expectedVersion: 1,
+            reflections: [
+              {
+                trackId: ids.track,
+                isPublished: true,
+                texts: { en: `${label} public reflection` },
+              },
+            ],
+          },
+        ],
+        { cookie: cookie(), routeId: published },
+      ),
+    );
+    // The studio cannot publish yet: the journal is made public directly, on
+    // the disposable database, for this test only.
+    await db.query(
+      `update entry_texts set status = 'published', published_at = now(),
+              first_published_at = now() where entry_id = $1`,
+      [published],
+    );
+    const before = await snapshot();
+    const version = await versionOf(published);
+    for (const extra of [
+      {},
+      // The action never forwards a confirmation from the request: if it did,
+      // this would be an invalid_input, not the same refusal.
+      { confirmation: "not-a-token" },
+      { confirmation: "ct1.AAAA.BBBB" },
+    ]) {
+      const refused = await call(
+        "saveJournalAction",
+        [
+          {
+            entryId: published,
+            expectedVersion: version,
+            body: `${label} a changed public text`,
+            ...extra,
+          },
+        ],
+        { cookie: cookie(), routeId: published },
+      );
+      expect(refused).toEqual({ ok: false, code: "published" });
+    }
+    for (const change of [
+      { albumRating: 6 },
+      { reflections: [{ trackId: ids.track, isFavourite: true }] },
+      {
+        reflections: [
+          { trackId: ids.track, texts: { en: `${label} shorter` } },
+        ],
+      },
+    ]) {
+      expect(
+        await call(
+          "saveJournalAction",
+          [{ entryId: published, expectedVersion: version, ...change }],
+          { cookie: cookie(), routeId: published },
+        ),
+      ).toEqual({ ok: false, code: "published" });
+    }
+    expect(await snapshot()).toEqual(before);
+
+    // A removal needs no confirmation: unflagging is saved.
+    ok(
+      await call(
+        "saveJournalAction",
+        [
+          {
+            entryId: published,
+            expectedVersion: version,
+            reflections: [{ trackId: ids.track, isPublished: false }],
+          },
+        ],
+        { cookie: cookie(), routeId: published },
+      ),
+    );
+    expect(
+      await scalar<boolean>(
+        "select is_published from track_reflections where album_journal_id = $1",
+        [published],
+      ),
+    ).toBe(false);
+  });
+
+  it("is refused for a visitor, whatever the reflection says, and writes nothing", async () => {
+    const before = await snapshot();
+    for (const cookieHeader of [
+      undefined,
+      "refrain.session_token=forged.value",
+    ]) {
+      expect(
+        await call(
+          "saveJournalAction",
+          [
+            {
+              entryId: draft,
+              expectedVersion: await versionOf(draft),
+              reflections: [{ trackId: ids.track, isFavourite: false }],
+            },
+          ],
+          { cookie: cookieHeader, routeId: draft },
+        ),
+      ).toEqual({ ok: false, code: "unauthorized" });
+    }
+    expect(await snapshot()).toEqual(before);
   });
 });
 

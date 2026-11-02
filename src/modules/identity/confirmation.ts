@@ -122,10 +122,19 @@ export type SignResult =
   { ok: true; token: string } | { ok: false; reason: "unavailable" };
 
 /** The authenticated, bound parts of a token that the caller still has to check. */
+declare const verifiedBrand: unique symbol;
+
+/**
+ * Opaque: only `verifyConfirmation` makes one, so code that holds one has been
+ * through the MAC, author, session, entry, version, and purpose checks. A
+ * hand-built object does not type-check. (A type-level guard, not a runtime
+ * one: the same-process limit of ADR 0006 § 3 still applies.)
+ */
 export interface VerifiedConfirmation {
-  fingerprint: string;
-  issuedAtMs: number;
-  expiresAtMs: number;
+  readonly [verifiedBrand]: true;
+  readonly fingerprint: string;
+  readonly issuedAtMs: number;
+  readonly expiresAtMs: number;
 }
 
 export type VerifyResult =
@@ -293,7 +302,7 @@ export function verifyConfirmationWith(
       fingerprint: claims.f,
       issuedAtMs: claims.i,
       expiresAtMs: claims.x,
-    },
+    } as VerifiedConfirmation,
   };
 }
 

@@ -107,8 +107,13 @@ export const WRITER_ALLOWLIST: ReadonlySet<string> = new Set([
   "src/modules/publication/commands.ts#retireEntrySlugs",
   // Writes a new draft entry that no other transaction can see (L1).
   "src/modules/journals/commands.ts#createAlbumJournal",
-  // The one writer of the text columns until M2.2 adds the confirmation step.
+  // The confirmed save (ADR 0006 § 5): it writes the text columns, the album
+  // rating, and (through writeReflection) the track reflections, only after
+  // the Publication module's gate.
   "src/modules/journals/commands.ts#saveAlbumJournal",
+  // The one writer of track_reflections and track_reflection_texts. Called
+  // only by saveAlbumJournal, under the entry lock, after the gate.
+  "src/modules/journals/reflections.ts#writeReflection",
   // An explicit, author-only deletion that cascades through foreign keys.
   "src/modules/journals/commands.ts#permanentlyDeleteEntry",
 ]);
@@ -260,6 +265,11 @@ function objectKeys(
   return keys;
 }
 
+/** An object literal with a spread, whose keys cannot be read. */
+function hasSpread(node: ts.ObjectLiteralExpression): boolean {
+  return node.properties.some((property) => ts.isSpreadAssignment(property));
+}
+
 // The value passed to `.set(...)` or `.values(...)` in the chain that starts
 // at `.update/.insert(table)`.
 function chainArguments(call: ts.CallExpression): ts.Expression[] {
@@ -403,7 +413,11 @@ export function writerViolations(files: SourceText[]): Write[] {
           continue;
         }
         const statement = text.slice(match.index);
-        if (table === "entries" && !/deleted_at\s*=\s*null/i.test(statement)) {
+        // `deleted_at = null`, or a value the scan cannot read (`${x}`).
+        if (
+          table === "entries" &&
+          !/deleted_at\s*=\s*(?:null|\0)/i.test(statement)
+        ) {
           continue;
         }
         if (
@@ -484,11 +498,20 @@ export function writerViolations(files: SourceText[]): Write[] {
             for (const value of args) {
               if (!ts.isObjectLiteralExpression(value)) {
                 reason ??= "writes entries with a value that cannot be read";
-              } else if (
-                objectKeys(value).get("deletedAt")?.kind ===
-                ts.SyntaxKind.NullKeyword
-              ) {
-                reason ??= "sets deleted_at to NULL";
+              } else if (hasSpread(value)) {
+                reason ??=
+                  "writes entries through a spread, which cannot be read";
+              } else {
+                const deletedAt = objectKeys(value).get("deletedAt");
+                // NULL un-deletes. A variable may hold NULL, so it is no better.
+                if (
+                  deletedAt &&
+                  (deletedAt.kind === ts.SyntaxKind.NullKeyword ||
+                    ts.isIdentifier(deletedAt))
+                ) {
+                  reason ??=
+                    "sets deleted_at to NULL, or to a value that may be";
+                }
               }
             }
           }
@@ -497,8 +520,11 @@ export function writerViolations(files: SourceText[]): Write[] {
               if (!ts.isObjectLiteralExpression(value)) {
                 reason ??=
                   "writes album_journals with a value that cannot be read";
-              } else if (objectKeys(value).has("ratingHalfSteps")) {
-                reason ??= "writes the album rating";
+              } else if (
+                hasSpread(value) ||
+                objectKeys(value).has("ratingHalfSteps")
+              ) {
+                reason ??= "writes the album rating, or a spread that may";
               }
             }
           }
@@ -609,6 +635,17 @@ export const PUBLICATION_INDEX_EXPORTS: ReadonlySet<string> = new Set([
   "previewPublication",
   "publishLanguageVersion",
   "PublishPreview",
+  "assertWrittenAsPredicted",
+  "previewPublicChange",
+  "requirePublicChangeConfirmation",
+  "verifyChangeConfirmation",
+  "PublicChangePreview",
+  "ExposureChange",
+  "ExposureSubject",
+  "ProposedChange",
+  "ProposedReflection",
+  "ProposedText",
+  "PublicChangeDelta",
   "getPublicLanguageVersion",
   "listPublicLanguageVersions",
   "listPublicTrackReflections",
@@ -806,8 +843,18 @@ export function exportSurfaceViolations(files: SourceText[]): string[] {
 // ---------------------------------------------------------------------------
 // Scan 4: no application code mints a token and consumes it in one operation.
 
-const MINTING_PREVIEWS = ["previewPublication", "previewPublicChange"];
-const CONSUMERS = ["publishLanguageVersion"];
+const MINTING_PREVIEWS = [
+  "previewPublication",
+  "previewPublicChange",
+  // The Journals wrapper of previewPublicChange (ADR 0006 § 9: the wrapper
+  // is a preview too, and no action reaches it until M2.3).
+  "previewAlbumJournalChange",
+];
+const CONSUMERS = [
+  "publishLanguageVersion",
+  "saveAlbumJournal",
+  "requirePublicChangeConfirmation",
+];
 const SIGNING = "signConfirmation";
 
 /**
@@ -820,8 +867,15 @@ export const TESTING_IMPORT_ALLOWLIST: Readonly<Record<string, string>> = {
   "src/ops/backup.ts": "@/testing/test-database",
 };
 
-/** Files allowed to import a preview: none until M2.3 adds the actions. */
-export const PREVIEW_IMPORTERS: ReadonlySet<string> = new Set<string>();
+/**
+ * Files allowed to import a preview. The Journals commands wrap
+ * `previewPublicChange` in `previewAlbumJournalChange`, which no function
+ * there calls together with the save, and which no Server Action reaches
+ * until M2.3 adds the actions. Adding a file needs review.
+ */
+export const PREVIEW_IMPORTERS: ReadonlySet<string> = new Set<string>([
+  "src/modules/journals/commands.ts",
+]);
 
 function importsOf(
   source: ts.SourceFile,
@@ -956,7 +1010,7 @@ export function mintConsumeViolations(files: SourceText[]): string[] {
         !inPublication &&
         !PREVIEW_IMPORTERS.has(file.path) &&
         imported.names.some((name) => MINTING_PREVIEWS.includes(name)) &&
-        imported.specifier.startsWith("@/modules/publication")
+        /^@\/modules\/(publication|journals)/.test(imported.specifier)
       ) {
         problems.push(
           `${file.path} imports a preview, which only its own action may`,
@@ -985,7 +1039,11 @@ export function mintConsumeViolations(files: SourceText[]): string[] {
       const minted = MINTING_PREVIEWS.filter((preview) =>
         reachable.has(preview),
       );
-      const consumed = CONSUMERS.filter((consumer) => reachable.has(consumer));
+      // A consumer that itself previews is a mint-and-consume too: it never
+      // appears among its own callees, so it counts as reaching itself.
+      const consumed = CONSUMERS.filter(
+        (consumer) => reachable.has(consumer) || consumer === name,
+      );
       if (minted.length > 0 && consumed.length > 0) {
         problems.push(
           `${file.path}: ${name} calls ${minted.join(", ")} and ${consumed.join(", ")}`,
@@ -1032,6 +1090,83 @@ export function mintConsumeViolations(files: SourceText[]): string[] {
       ts.forEachChild(node, visitRetry);
     };
     visitRetry(source);
+  }
+  return problems;
+}
+
+// ---------------------------------------------------------------------------
+// Scan 5: who calls the gate, and in what order (ADR 0006 § 9).
+
+const GATE_NAMES = [
+  "requirePublicChangeConfirmation",
+  "verifyChangeConfirmation",
+  "assertWrittenAsPredicted",
+];
+const GATE_CALLERS: ReadonlySet<string> = new Set([
+  "src/modules/journals/commands.ts#saveAlbumJournal",
+]);
+const REFLECTION_WRITERS = ["writeReflection"];
+
+/**
+ * Problems with who calls the Publication module's confirmation gate and the
+ * one writer of track reflections. Outside the Publication module only
+ * `saveAlbumJournal` may call the gate, and it may call `writeReflection`
+ * only after `requirePublicChangeConfirmation` appears in it. A new function
+ * that writes reflections without the gate is therefore a visible failure,
+ * even though the writer scan sees only the writes.
+ */
+export function gateCallViolations(files: SourceText[]): string[] {
+  const problems: string[] = [];
+  for (const file of files) {
+    if (file.path.startsWith("src/modules/publication/")) {
+      continue;
+    }
+    const source = parse(file);
+    prepare(source);
+    const calls: { name: string; fn: string; at: number }[] = [];
+    const visit = (node: ts.Node) => {
+      if (ts.isCallExpression(node)) {
+        const name = calleeName(node.expression);
+        if (
+          name &&
+          (GATE_NAMES.includes(name) || REFLECTION_WRITERS.includes(name))
+        ) {
+          calls.push({
+            name,
+            fn: enclosingFunction(node),
+            at: node.getStart(),
+          });
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+
+    for (const call of calls) {
+      const where = `${file.path}#${call.fn}`;
+      const allowed = GATE_CALLERS.has(where);
+      const definesWriter =
+        file.path === "src/modules/journals/reflections.ts" &&
+        REFLECTION_WRITERS.includes(call.name);
+      if (!allowed && !definesWriter) {
+        problems.push(`${where} calls ${call.name}, which only the save may`);
+      }
+    }
+    for (const call of calls.filter((c) =>
+      REFLECTION_WRITERS.includes(c.name),
+    )) {
+      const gate = calls.find(
+        (c) =>
+          c.fn === call.fn &&
+          c.name === "requirePublicChangeConfirmation" &&
+          c.at < call.at,
+      );
+      if (!gate && GATE_CALLERS.has(`${file.path}#${call.fn}`)) {
+        problems.push(
+          `${file.path}#${call.fn} writes a reflection before the confirmation gate`,
+        );
+      }
+    }
   }
   return problems;
 }

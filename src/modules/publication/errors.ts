@@ -1,4 +1,5 @@
 import type { PublishDisclosure } from "./disclosure";
+import type { PublicChangeDelta } from "./surface";
 
 /**
  * Expected failures of the publication commands. The code is fixed; it never
@@ -42,14 +43,30 @@ export class PublicationError extends Error {
    */
   declare readonly disclosure?: PublishDisclosure;
 
+  /**
+   * The same for a change to a public journal (ADR 0006 § 5): only
+   * `confirmation_required`, `confirmation_expired`, and `confirmation_stale`
+   * carry the freshly computed exposure delta. Private writing, and
+   * non-enumerable for the same reason.
+   */
+  declare readonly delta?: PublicChangeDelta;
+
   constructor(
     readonly failure: PublicationFailure,
     disclosure?: PublishDisclosure,
+    delta?: PublicChangeDelta,
   ) {
     super(`Publication refused: ${failure}`);
     if (disclosure !== undefined) {
       Object.defineProperty(this, "disclosure", {
         value: disclosure,
+        enumerable: false,
+        writable: false,
+      });
+    }
+    if (delta !== undefined) {
+      Object.defineProperty(this, "delta", {
+        value: delta,
         enumerable: false,
         writable: false,
       });

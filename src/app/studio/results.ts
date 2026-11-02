@@ -15,6 +15,8 @@ export type StudioFailure =
   | "deleted"
   | "not_deleted"
   | "unsupported"
+  | "published"
+  | "published_empty"
   | "failed";
 
 export type FieldProblem = "required" | "too_long" | "invalid";

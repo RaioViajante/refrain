@@ -11,16 +11,21 @@ import {
 } from "@/db";
 import type { AuthorizedAuthor } from "@/modules/identity";
 import {
+  assertWrittenAsPredicted,
   normalizeSlug,
+  previewPublicChange,
   PublicationError,
+  requirePublicChangeConfirmation,
   reserveInitialSlug,
   restoreDeletedEntry,
   retireEntrySlugs,
   unpublishLanguageVersion,
+  verifyChangeConfirmation,
+  type PublicChangePreview,
 } from "@/modules/publication";
 import { fieldErrorsOf } from "@/validation";
 
-import { documentToText, editableText, textToDocument } from "./body";
+import { documentToText, textToDocument } from "./body";
 import { JournalError, type JournalFailure } from "./errors";
 import {
   createAlbumJournalInput,
@@ -28,6 +33,7 @@ import {
   journalPrivacyInput,
   saveAlbumJournalInput,
 } from "./input";
+import { prepareChange, writeReflection } from "./reflections";
 
 export { JournalError, type JournalFailure };
 
@@ -56,6 +62,7 @@ function parse<Schema extends z.ZodType>(
 interface LockedJournal {
   deleted: boolean;
   version: number;
+  albumId: string;
 }
 
 // Locks the entry of an album journal for the rest of the transaction, so
@@ -65,8 +72,12 @@ async function lockAlbumJournal(
   tx: Transaction,
   entryId: string,
 ): Promise<LockedJournal> {
-  const result = await tx.execute<{ deleted: boolean; version: number }>(sql`
-    select e.deleted_at is not null as deleted, e.version
+  const result = await tx.execute<{
+    deleted: boolean;
+    version: number;
+    album_id: string;
+  }>(sql`
+    select e.deleted_at is not null as deleted, e.version, j.album_id
       from entries e
       join album_journals j on j.entry_id = e.id
      where e.id = ${entryId}
@@ -75,7 +86,7 @@ async function lockAlbumJournal(
   if (!row) {
     throw new JournalError("entry_not_found");
   }
-  return row;
+  return { deleted: row.deleted, version: row.version, albumId: row.album_id };
 }
 
 /**
@@ -144,98 +155,167 @@ export async function createAlbumJournal(
 }
 
 /**
- * Saves the reflection and opening sentence of an album journal's original
- * language version, in one transaction.
+ * Saves an album journal, one transaction (data model, boundary 3): the
+ * opening sentence and reflection of its original language version, the album
+ * rating, and any number of track reflections, each with its texts per
+ * language, its favourite mark, "still writing" label, rating, and its
+ * "show on the public page" flag.
  *
  * - Optimistic concurrency: `expectedVersion` must equal `entries.version`
- *   when the entry is locked, or the save is refused with `version_conflict`
- *   and nothing is written. Two editors never overwrite each other silently.
+ *   once the entry is locked, or the save is refused with `version_conflict`
+ *   and nothing is written. Every save of anything the entry owns bumps the
+ *   version (ADR 0006 § 6), so two editors never overwrite each other.
  * - A journal in Recently deleted cannot be saved.
- * - A published version cannot be saved (`published_text_locked`) until the
- *   confirmed save of M2.2 exists (ADR 0006 § 5): the interim, fail-closed
- *   behavior. Nothing in the studio can publish yet, so no author meets it.
- * - It is a patch (docs/data-model.md): `opening` and `body` left out are
- *   unchanged, and a save naming neither is refused. Clearing either is done on
- *   purpose with `null` or a blank string.
- * - Replacing the body of stored text that the plain editor would not
- *   reproduce exactly (see `editableText`) is refused, and the text is left
- *   untouched: `unsupported_content`. The opening sentence can still change.
- * - Visibility is never touched.
+ * - It is a patch (docs/data-model.md): a field left out is unchanged, and a
+ *   save naming nothing is refused. Clearing is done on purpose with `null`
+ *   or a blank string. A reflection's text in one language never touches
+ *   another language, and flags or ratings never touch its text.
+ * - A reflection exists for a recording of the journal's album
+ *   (`track_not_in_album`), and a new one cannot start on an archived
+ *   recording (`track_archived`); an existing one stays editable.
+ * - Replacing text that the plain editor would not reproduce exactly is
+ *   refused, and the text is left untouched: `unsupported_content`.
+ * - **A confirmed save (ADR 0006 § 5).** When the save would change what a
+ *   reader sees of a public journal, anything added or edited on the public
+ *   page (a text, longer or shorter, a rating, a mark, a flag turned on, text
+ *   added to a flagged reflection in a public language), it needs a
+ *   `confirmation` token from `previewAlbumJournalChange` for exactly that
+ *   change. Without one it is refused as `confirmation_required` and nothing
+ *   is written; so is an expired, stale, or misbound one. A save that only
+ *   removes something from the public page, or changes nothing a reader
+ *   sees, needs none. The studio offers no way to obtain a token yet (M2.3),
+ *   so for the author it is refused.
+ * - Visibility is never touched, and a reflection's flag alone never makes
+ *   anything public: the publication predicate still decides.
  *
  * Returns the new version.
  */
 export async function saveAlbumJournal(
   db: DatabaseExecutor,
-  _author: AuthorizedAuthor,
+  author: AuthorizedAuthor,
   input: unknown,
 ): Promise<{ version: number }> {
   const data = parse(saveAlbumJournalInput, input);
-  return db.transaction(async (tx) => {
-    const journal = await lockAlbumJournal(tx, data.entryId);
-    if (journal.deleted) {
-      throw new JournalError("entry_deleted");
-    }
-    if (journal.version !== data.expectedVersion) {
-      throw new JournalError("version_conflict");
-    }
-
-    const [stored] = await tx
-      .select({
-        body: schema.entryTexts.body,
-        status: schema.entryTexts.status,
-      })
-      .from(schema.entryTexts)
-      .where(
-        and(
-          eq(schema.entryTexts.entryId, data.entryId),
-          eq(schema.entryTexts.isOriginal, true),
-        ),
-      );
-    if (!stored) {
-      throw new JournalError("entry_not_found");
-    }
-    // Fail closed until M2.2 (ADR 0006 § 5): a save would change a public
-    // page without the author seeing what changes, so a published version
-    // cannot be saved. Unpublish it first. This is a guard, not the feature:
-    // the confirmed save replaces it.
-    if (stored.status === "published") {
-      throw new JournalError("published_text_locked");
-    }
-    // The stored text is only replaced when the save names a body. A save
-    // that names only the opening sentence leaves the body exactly as it is,
-    // whatever it holds.
-    const changes: {
-      opening?: string | null;
-      body?: unknown;
-      bodyText?: string;
-    } = {};
-    if (data.opening !== undefined) {
-      changes.opening = data.opening;
-    }
-    if (data.body !== undefined) {
-      if (editableText(stored.body) === null) {
-        throw new JournalError("unsupported_content");
+  return translatePublication(async () => {
+    // A pure computation: a forged token is refused before it holds a lock.
+    const presented =
+      data.confirmation === undefined
+        ? undefined
+        : verifyChangeConfirmation(author, data.confirmation, {
+            entryId: data.entryId,
+            expectedVersion: data.expectedVersion,
+          });
+    return db.transaction(async (tx) => {
+      const journal = await lockAlbumJournal(tx, data.entryId);
+      if (journal.deleted) {
+        throw new JournalError("entry_deleted");
       }
-      const document = textToDocument(data.body ?? "");
-      changes.body = document;
-      changes.bodyText = document ? documentToText(document)! : "";
-    }
-    await tx
-      .update(schema.entryTexts)
-      .set(changes)
-      .where(
-        and(
-          eq(schema.entryTexts.entryId, data.entryId),
-          eq(schema.entryTexts.isOriginal, true),
-        ),
-      );
-    const version = journal.version + 1;
-    await tx
-      .update(schema.entries)
-      .set({ version })
-      .where(eq(schema.entries.id, data.entryId));
-    return { version };
+      if (journal.version !== data.expectedVersion) {
+        throw new JournalError("version_conflict");
+      }
+
+      const change = await prepareChange(tx, data, journal);
+      // Nothing is written before this passes (ADR 0006 § 5).
+      const { predicted } = await requirePublicChangeConfirmation(tx, author, {
+        entryId: data.entryId,
+        expectedVersion: data.expectedVersion,
+        change,
+        confirmation: presented,
+      });
+
+      // The stored text is only replaced when the save names it. A save that
+      // names only the opening sentence leaves the body exactly as it is.
+      if (change.version) {
+        const changes: {
+          opening?: string | null;
+          body?: unknown;
+          bodyText?: string;
+        } = {};
+        if (change.version.opening !== undefined) {
+          changes.opening = change.version.opening;
+        }
+        if (change.version.body !== undefined) {
+          changes.body = change.version.body?.document ?? null;
+          changes.bodyText = change.version.body?.text ?? "";
+        }
+        await tx
+          .update(schema.entryTexts)
+          .set(changes)
+          .where(
+            and(
+              eq(schema.entryTexts.entryId, data.entryId),
+              eq(schema.entryTexts.isOriginal, true),
+            ),
+          );
+      }
+      if (change.albumRating !== undefined) {
+        await tx
+          .update(schema.albumJournals)
+          .set({ ratingHalfSteps: change.albumRating })
+          .where(eq(schema.albumJournals.entryId, data.entryId));
+      }
+      for (const reflection of change.reflections ?? []) {
+        await writeReflection(tx, data.entryId, journal.albumId, reflection);
+      }
+
+      const version = journal.version + 1;
+      await tx
+        .update(schema.entries)
+        .set({ version })
+        .where(eq(schema.entries.id, data.entryId));
+      // What a reader sees must be exactly what was confirmed.
+      await assertWrittenAsPredicted(tx, predicted);
+      return { version };
+    });
   });
+}
+
+/**
+ * Previews a save of an album journal that changes a public page (ADR 0006
+ * § 5): the exposure delta, the atoms that a reader would see added or
+ * edited, and, when there is one, a `change_public` confirmation token for
+ * exactly that change. Takes the same input as `saveAlbumJournal`, makes the
+ * same refusals (a deleted journal, a stale `expectedVersion`, unsupported
+ * text, an unknown track, a public version left empty), and writes nothing and
+ * holds no lock: one read-only snapshot.
+ *
+ * Private writing: the delta is for an authorized request only. The token is
+ * evidence that this server computed this change for this session, not proof
+ * that the author read it. No Server Action calls this until M2.3, so nothing
+ * in the studio can obtain a token yet.
+ */
+export async function previewAlbumJournalChange(
+  db: DatabaseExecutor,
+  author: AuthorizedAuthor,
+  input: unknown,
+): Promise<PublicChangePreview> {
+  // The token of a save is never an input to its own preview.
+  const data = parse(saveAlbumJournalInput, input);
+  return translatePublication(() =>
+    db.transaction(
+      async (tx) => {
+        const result = await tx.execute<{
+          album_id: string;
+        }>(sql`
+          select j.album_id
+            from album_journals j
+           where j.entry_id = ${data.entryId}`);
+        const journal = result.rows[0];
+        if (!journal) {
+          throw new JournalError("entry_not_found");
+        }
+        const change = await prepareChange(tx, data, {
+          albumId: journal.album_id,
+        });
+        return previewPublicChange(tx, author, {
+          entryId: data.entryId,
+          expectedVersion: data.expectedVersion,
+          change,
+        });
+      },
+      { isolationLevel: "repeatable read", accessMode: "read only" },
+    ),
+  );
 }
 
 /**
@@ -339,10 +419,21 @@ async function translatePublication<Result>(
         case "entry_not_deleted":
           throw new JournalError("entry_not_deleted");
         case "invalid_status":
+        case "invalid_input":
           throw new JournalError("invalid_input");
         case "slug_taken":
         case "invalid_slug":
           throw new JournalError("slug_unavailable");
+        case "version_conflict":
+          throw new JournalError("version_conflict");
+        case "unavailable":
+        case "nothing_to_publish":
+        case "confirmation_invalid":
+          throw new JournalError(error.failure);
+        case "confirmation_required":
+        case "confirmation_expired":
+        case "confirmation_stale":
+          throw new JournalError(error.failure, {}, error.delta);
       }
     }
     throw error;

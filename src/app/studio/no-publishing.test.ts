@@ -16,6 +16,13 @@ const FORBIDDEN_NAMES = new Set([
   "unpublishLanguageVersion",
   "previewPublication",
   "previewPublicChange",
+  // M2.2: the confirmed save's domain pieces. The studio's save action may
+  // call only the save, and never forwards a confirmation (M2.3 builds the
+  // dialogs that may).
+  "previewAlbumJournalChange",
+  "verifyChangeConfirmation",
+  "requirePublicChangeConfirmation",
+  "assertWrittenAsPredicted",
   "signConfirmation",
   "verifyConfirmation",
   "confirmationIsCurrent",
@@ -75,6 +82,8 @@ describe("the studio cannot publish, re-address, or permanently delete", () => {
     expect(violations("previewPublication(db, author, input)")).toHaveLength(1);
     expect(violations("signConfirmation(author, issue)")).toHaveLength(1);
     expect(violations("verifyConfirmation(a, t, b)")).toHaveLength(1);
+    expect(violations("previewAlbumJournalChange(db, a, i)")).toHaveLength(1);
+    expect(violations("verifyChangeConfirmation(a, t, b)")).toHaveLength(1);
     expect(violations("export const ok = 1;")).toEqual([]);
   });
 });

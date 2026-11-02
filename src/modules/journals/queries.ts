@@ -325,3 +325,194 @@ export async function getJournalStatistics(
       join entry_texts o on o.entry_id = e.id and o.is_original`);
   return result.rows[0]!;
 }
+
+// ---------------------------------------------------------------------------
+// Track by track, in the Writing Studio
+// ---------------------------------------------------------------------------
+
+export interface TrackReflectionState {
+  isPublished: boolean;
+  isStillWriting: boolean;
+  isFavourite: boolean;
+  ratingHalfSteps: number | null;
+  /**
+   * The reflection as plain text in each language that has one, or `null`
+   * for a text the plain editor cannot show without loss. A language with no
+   * text has no key.
+   */
+  texts: Partial<Record<Locale, string | null>>;
+  /**
+   * The languages in which a reader can see this reflection right now: it is
+   * set to show, it has text in that language, that language version is
+   * published, and the journal is not deleted. The publication predicate is
+   * what actually decides (docs/security.md); this mirrors it for the
+   * studio's wording, and a test compares the two. The flag alone never
+   * makes this non-empty.
+   */
+  publicIn: Locale[];
+}
+
+export interface TrackByTrackItem {
+  trackId: string;
+  title: string;
+  /** 1-based, in the order the reference edition lists them. */
+  number: number;
+  /** The recording was archived in the catalog; its writing is kept. */
+  archived: boolean;
+  /** `false` for a reflection on a recording the reference edition lacks. */
+  inReferenceEdition: boolean;
+  reflection: TrackReflectionState | null;
+}
+
+export interface TrackByTrack {
+  entryId: string;
+  /** `entries.version`: every save of the journal checks and bumps it. */
+  version: number;
+  deleted: boolean;
+  /** The album rating in half steps, independent of every track rating. */
+  albumRating: number | null;
+  /** The language the journal was written in. */
+  locale: Locale;
+  versions: { locale: Locale; status: VisibilityStatus }[];
+  tracks: TrackByTrackItem[];
+}
+
+/**
+ * The tracks of a journal's album in the reference edition's order, each with
+ * the author's reflection on it, if any, and the album rating. Reflections on
+ * recordings the reference edition lacks follow the ordered tracks. A track
+ * with no reflection has none: the studio shows it as empty. `null` when the
+ * journal does not exist. Private writing, for the studio only.
+ */
+export async function getTrackByTrack(
+  db: DatabaseExecutor,
+  _author: AuthorizedAuthor,
+  entryId: string,
+): Promise<TrackByTrack | null> {
+  if (!journalId.safeParse(entryId).success) {
+    return null;
+  }
+  const head = await db.execute<{
+    album_id: string;
+    version: number;
+    deleted: boolean;
+    rating_half_steps: number | null;
+    locale: Locale;
+  }>(sql`
+    select j.album_id, e.version, e.deleted_at is not null as deleted,
+           j.rating_half_steps, o.locale
+      from album_journals j
+      join entries e     on e.id = j.entry_id
+      join entry_texts o on o.entry_id = e.id and o.is_original
+     where j.entry_id = ${entryId}`);
+  const journal = head.rows[0];
+  if (!journal) {
+    return null;
+  }
+  const versions = await db.execute<{
+    locale: Locale;
+    status: VisibilityStatus;
+  }>(sql`
+    select locale, status from entry_texts
+     where entry_id = ${entryId}
+     order by is_original desc, locale`);
+  const publicLocales = new Set(
+    journal.deleted
+      ? []
+      : versions.rows
+          .filter((version) => version.status === "published")
+          .map((version) => version.locale),
+  );
+
+  const ordered = await db.execute<{
+    track_id: string;
+    title: string;
+    archived: boolean;
+  }>(sql`
+    select t.id as track_id, t.title, t.archived_at is not null as archived
+      from album_editions ed
+      join edition_tracks et on et.edition_id = ed.id
+      join tracks t on t.id = et.track_id
+     where ed.album_id = ${journal.album_id} and ed.is_reference
+     order by et.disc_number, et.position, t.id`);
+
+  const reflections = await db.execute<{
+    track_id: string;
+    is_published: boolean;
+    is_still_writing: boolean;
+    is_favourite: boolean;
+    rating_half_steps: number | null;
+    locale: Locale | null;
+    body: unknown;
+    title: string;
+    archived: boolean;
+  }>(sql`
+    select tr.track_id, tr.is_published, tr.is_still_writing, tr.is_favourite,
+           tr.rating_half_steps, trt.locale, trt.body, t.title,
+           t.archived_at is not null as archived
+      from track_reflections tr
+      join tracks t on t.id = tr.track_id
+      left join track_reflection_texts trt on trt.track_reflection_id = tr.id
+     where tr.album_journal_id = ${entryId}
+     order by t.title, tr.track_id`);
+
+  const byTrack = new Map<string, TrackReflectionState>();
+  const extra = new Map<string, { title: string; archived: boolean }>();
+  for (const row of reflections.rows) {
+    let state = byTrack.get(row.track_id);
+    if (!state) {
+      state = {
+        isPublished: row.is_published,
+        isStillWriting: row.is_still_writing,
+        isFavourite: row.is_favourite,
+        ratingHalfSteps: row.rating_half_steps,
+        texts: {},
+        publicIn: [],
+      };
+      byTrack.set(row.track_id, state);
+      extra.set(row.track_id, { title: row.title, archived: row.archived });
+    }
+    if (row.locale !== null) {
+      state.texts[row.locale] = editableText(row.body);
+    }
+  }
+  for (const state of byTrack.values()) {
+    state.publicIn = state.isPublished
+      ? (Object.keys(state.texts) as Locale[]).filter((locale) =>
+          publicLocales.has(locale),
+        )
+      : [];
+  }
+
+  const tracks: TrackByTrackItem[] = ordered.rows.map((row, index) => ({
+    trackId: row.track_id,
+    title: row.title,
+    number: index + 1,
+    archived: row.archived,
+    inReferenceEdition: true,
+    reflection: byTrack.get(row.track_id) ?? null,
+  }));
+  const listed = new Set(ordered.rows.map((row) => row.track_id));
+  for (const [trackId, info] of extra) {
+    if (!listed.has(trackId)) {
+      tracks.push({
+        trackId,
+        title: info.title,
+        number: tracks.length + 1,
+        archived: info.archived,
+        inReferenceEdition: false,
+        reflection: byTrack.get(trackId) ?? null,
+      });
+    }
+  }
+
+  return {
+    entryId,
+    version: journal.version,
+    deleted: journal.deleted,
+    albumRating: journal.rating_half_steps,
+    locale: journal.locale,
+    versions: versions.rows,
+    tracks,
+  };
+}

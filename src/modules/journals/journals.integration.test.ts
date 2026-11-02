@@ -395,17 +395,18 @@ describe("saving an album journal", () => {
     });
   });
 
-  it("refuses to save a published version until the confirmed save exists (ADR 0006 § 5, interim)", async () => {
+  it("refuses to change a published version's text without a confirmation (ADR 0006 § 5)", async () => {
     await inScratchTransaction(async (tx) => {
       const entryId = await createDraft(tx, "[Test] As published");
       await publishForTest(tx, entryId, "en");
       const before = await getAlbumJournal(tx, author, entryId);
       expect(before?.status).toBe("published");
 
+      // A longer text, a shorter one, and a cleared field are all edits.
       for (const change of [
         { opening: "[Test] Changed" },
         { body: "[Test] Shorter" },
-        { opening: null, body: "" },
+        { body: "[Test] As published, and a good deal longer than before" },
       ]) {
         expect(
           await failure(tx, (db) =>
@@ -415,12 +416,23 @@ describe("saving an album journal", () => {
               ...change,
             }),
           ),
-        ).toBe("published_text_locked");
+        ).toBe("confirmation_required");
       }
+      // A published version must keep something to publish.
+      expect(
+        await failure(tx, (db) =>
+          saveAlbumJournal(db, author, {
+            entryId,
+            expectedVersion: before!.version,
+            opening: null,
+            body: "",
+          }),
+        ),
+      ).toBe("nothing_to_publish");
       // Nothing changed: not the text, not the version.
       expect(await getAlbumJournal(tx, author, entryId)).toEqual(before);
 
-      // Unpublishing first is the way to change the text, and it works.
+      // Unpublishing first is the way to change the text without one.
       await setAlbumJournalPrivacy(tx, author, {
         entryId,
         locale: "en",

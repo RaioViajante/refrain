@@ -9,7 +9,7 @@ import { StudioFrame } from "@/app/studio/frame";
 import { JournalEditor } from "@/app/studio/journals/journal-editor";
 import { StudioLoading } from "@/app/studio/studio-loading";
 import { authorizeAuthor } from "@/modules/identity";
-import { getAlbumJournal } from "@/modules/journals";
+import { getAlbumJournal, getTrackByTrack } from "@/modules/journals";
 
 export const metadata: Metadata = { title: "Edit a journal · refrain" };
 
@@ -72,6 +72,8 @@ async function EditJournal({ params }: { params: Promise<{ id: string }> }) {
     );
   }
 
+  const trackByTrack = await getTrackByTrack(authorization.author, id);
+
   return (
     <StudioFrame current="journals" layout="wide">
       <JournalEditor
@@ -98,6 +100,8 @@ async function EditJournal({ params }: { params: Promise<{ id: string }> }) {
           status: journal.status,
         }}
         initial={{ opening: journal.opening ?? "", body: journal.body }}
+        tracks={trackByTrack?.tracks ?? []}
+        albumRating={trackByTrack?.albumRating ?? null}
       />
     </StudioFrame>
   );

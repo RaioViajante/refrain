@@ -45,6 +45,24 @@ async function shoot(page: Page, name: string, fullPage = true) {
     await page.setViewportSize({ width: size.width, height: size.height });
     // Let fonts and layout settle; the pages have no animation to wait for.
     await page.evaluate(() => document.fonts.ready);
+    if (fullPage) {
+      // Neutral state for a full-page capture: nothing focused, the page at
+      // the top, and no transition running. A full-page capture paints fixed
+      // and sticky elements (the sticky action bar, the skip link that waits
+      // above the screen) where the last scroll left them, so a page that a
+      // click had scrolled down showed them in the middle of the writing. The
+      // page itself is correct: e2e/editor-journal.spec.ts tests that.
+      await page.evaluate(async () => {
+        (document.activeElement as HTMLElement | null)?.blur();
+        window.scrollTo(0, 0);
+        await Promise.all(
+          document
+            .getAnimations()
+            .map((animation) => animation.finished.catch(() => undefined)),
+        );
+      });
+      expect(await page.evaluate(() => window.scrollY)).toBe(0);
+    }
     const directory = join(OUT, size.name);
     mkdirSync(directory, { recursive: true });
     await page.screenshot({
@@ -252,6 +270,61 @@ test("realistic sample: Grace, by Jeff Buckley", async ({ page }) => {
     page.getByRole("heading", { level: 1, name: "Albums", exact: true }),
   ).toBeVisible();
   await shoot(page, "26-albums-with-grace");
+});
+
+// Track by track, with the ten tracks of the reference sample and synthetic
+// reflections, so the screen can be put beside the V4.4 album editor. Track
+// titles are catalog facts; every reflection is "[Test]" text.
+test("track by track: Grace", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`/studio/albums/${graceAlbumId}`);
+  const graceTracks = [
+    "Mojo Pin",
+    "Grace",
+    "Last Goodbye",
+    "Lilac Wine",
+    "So Real",
+    "Hallelujah",
+    "Lover, You Should’ve Come Over",
+    "Corpus Christi Carol",
+    "Eternal Life",
+    "Dream Brother",
+  ];
+  for (const [index, title] of graceTracks.entries()) {
+    await page.locator("#new-track-title").fill(title);
+    await page.getByRole("button", { name: "Create and add" }).click();
+    // Count the list: a track named like the album would match the heading.
+    await expect(
+      page.getByRole("list", { name: "Tracklist" }).getByRole("listitem"),
+    ).toHaveCount(index + 1);
+  }
+  await page.goto(`${graceJournalUrl}/edit`);
+  await expect(
+    page.getByLabel("Your reflection", { exact: true }),
+  ).toBeVisible();
+  const write = async (index: number, text: string, still = false) => {
+    const head = page.getByRole("button", {
+      name: new RegExp(`^Track ${index}:`),
+    });
+    await head.click();
+    await page
+      .getByLabel(new RegExp(`^Your reflection on .*`))
+      .last()
+      .fill(text);
+    if (still) {
+      await page.getByLabel("Still writing").check();
+    }
+    await head.click();
+  };
+  await write(1, "[Test] Synthetic reflection on the first track.");
+  await write(2, "[Test] Synthetic reflection on the second track.");
+  await write(3, "[Test] A synthetic reflection that is not finished.", true);
+  await write(4, "[Test] Synthetic reflection on the fourth track.");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText("Saved just now")).toBeVisible();
+  await page.goto(`${graceJournalUrl}/edit`);
+  await page.getByRole("button", { name: /^Track 2:/ }).click();
+  await shoot(page, "27-grace-tracks");
 });
 
 // Close-ups of the drawn controls at 1x (the reference previews are 1x), for

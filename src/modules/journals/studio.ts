@@ -26,3 +26,4 @@ export const getJournalStatistics = withDatabase(queries.getJournalStatistics);
 export const listAlbumJournalProgress = withDatabase(
   queries.listAlbumJournalProgress,
 );
+export const getTrackByTrack = withDatabase(queries.getTrackByTrack);
