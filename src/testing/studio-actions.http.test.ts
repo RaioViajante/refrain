@@ -2521,7 +2521,7 @@ describe("recovering a journal from Recently deleted, through real HTTP and Post
         cookie: cookie(),
       })
     ).text();
-    expect(html).toContain("that part is now private");
+    expect(html).toContain("is now private");
     expect(html).toContain("Nothing is published again until you choose to");
   });
 

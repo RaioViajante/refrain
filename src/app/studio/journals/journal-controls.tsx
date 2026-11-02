@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   ConfirmDialog,
@@ -81,6 +81,31 @@ export function JournalControls({
     }
   }
 
+  // After a publication or an unpublication the control that opened the dialog
+  // is replaced when the page refreshes, so focus goes to the heading of the
+  // version whose state changed, once the new state has arrived.
+  const seen = useRef(
+    Object.fromEntries(versions.map((v) => [v.locale, v.status])),
+  );
+  useEffect(() => {
+    for (const version of versions) {
+      if (seen.current[version.locale] !== version.status) {
+        document.getElementById(`visibility-${version.locale}`)?.focus();
+      }
+      seen.current[version.locale] = version.status;
+    }
+  }, [versions]);
+
+  function published(locale: Language | undefined) {
+    setAsking(undefined);
+    if (locale) {
+      setMessage(
+        `The ${LANGUAGE_NAMES[locale]} version is now published in your journal. Public web pages are not built yet, so nothing opens on the web.`,
+      );
+    }
+    router.refresh();
+  }
+
   async function remove() {
     const result = await run(() => deleteJournalAction(entryId));
     setAsking(undefined);
@@ -103,7 +128,11 @@ export function JournalControls({
             aria-labelledby={`visibility-${version.locale}`}
             className="space-y-2"
           >
-            <p className="studio-label" id={`visibility-${version.locale}`}>
+            <p
+              className="studio-label"
+              id={`visibility-${version.locale}`}
+              tabIndex={-1}
+            >
               {heading}
             </p>
             <p className="studio-meta">
@@ -225,16 +254,7 @@ export function JournalControls({
         locale={publishing ?? versions[0]?.locale ?? "en"}
         open={publishing !== undefined}
         onClose={() => setAsking(undefined)}
-        onPublished={() => {
-          const locale = publishing;
-          setAsking(undefined);
-          if (locale) {
-            setMessage(
-              `The ${LANGUAGE_NAMES[locale]} version is now published in your journal. Public web pages are not built yet, so nothing opens on the web.`,
-            );
-          }
-          router.refresh();
-        }}
+        onPublished={() => published(publishing)}
       />
 
       <ConfirmDialog

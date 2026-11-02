@@ -258,11 +258,12 @@ test("clearing a reflection removes its text and keeps the track", async ({
   ).toContainText("empty");
 });
 
-test("a published journal refuses a change to the public page, and says why, without losing the text", async ({
+test("a published journal asks before a change to the public page, and keeps the text when the author cancels", async ({
   page,
 }) => {
-  // The studio cannot publish yet (M2.3), so this test sets the state of its
-  // own synthetic journal directly, on the disposable database only.
+  // The publication spec covers publishing through the studio; this test only
+  // needs a journal that is public, so it sets the state of its own synthetic
+  // journal directly, on the disposable database only.
   await withDatabase(async (client) => {
     await client.query(
       `update entry_texts t
@@ -287,9 +288,11 @@ test("a published journal refuses a change to the public page, and says why, wit
   ).toBeVisible();
   await text.fill("[Test] E2E A shorter text.");
   await save(page);
-  await expect(
-    page.getByText(/confirming changes to published writing isn’t available/),
-  ).toBeVisible();
+  const dialog = page.getByRole("dialog", { name: "Update the public page?" });
+  await expect(dialog).toContainText("Changed: Reflection on the track");
+  await expect(dialog).toContainText("[Test] E2E A shorter text.");
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).toBeHidden();
   await expect(text).toHaveValue("[Test] E2E A shorter text.");
   expect(await journalRow()).toEqual(before);
 

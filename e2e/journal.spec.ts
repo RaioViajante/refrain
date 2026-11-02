@@ -184,26 +184,35 @@ test("a save from a stale tab is refused as a conflict, and its text stays in th
   await other.close();
 });
 
-test("changes who can see it between draft and private, and nothing offers to publish", async ({
+test("changes who can see it between draft and private; Publish… only shows the disclosure", async ({
   page,
 }) => {
   await page.goto(journalUrl);
-  const privacy = page.getByRole("group", { name: "Who can see this" });
+  const privacy = page.getByRole("group", {
+    name: "Private state of the English version",
+  });
   await expect(privacy.getByRole("button", { name: "Draft" })).toHaveAttribute(
     "aria-pressed",
     "true",
   );
   await privacy.getByRole("button", { name: "Private" }).click();
-  await expect(page.getByText("Now private.")).toBeVisible();
+  await expect(page.getByText("English: now private.")).toBeVisible();
   await page.reload();
   await expect(
     privacy.getByRole("button", { name: "Private" }),
   ).toHaveAttribute("aria-pressed", "true");
   expect((await stored())[0]?.status).toBe("private");
 
-  // Publishing is not a control on any journal page.
-  await expect(page.getByRole("button", { name: /publish/i })).toHaveCount(0);
-  await expect(page.getByRole("link", { name: /publish/i })).toHaveCount(0);
+  // Publishing is offered only as a review: opening and cancelling it
+  // publishes nothing (the publication spec covers the whole workflow).
+  await page.getByRole("button", { name: "Publish…" }).click();
+  const dialog = page.getByRole("dialog", {
+    name: "Publish the English version?",
+  });
+  await expect(dialog).toContainText("Nothing is published until you press");
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).toBeHidden();
+  expect((await stored())[0]?.status).toBe("private");
 
   // The album still shows its journal.
   await page.goto(albumUrl);

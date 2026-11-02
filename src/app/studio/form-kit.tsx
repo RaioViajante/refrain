@@ -335,16 +335,24 @@ export function ConfirmDialog({
     if (!element || !open) {
       return;
     }
+    // The control that opened the dialog, to hand focus back to. A dialog
+    // that is removed from the page cannot do it itself.
+    const opener =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
     if (!element.open) {
       element.showModal();
     }
     if (review) {
       heading.current?.focus();
     }
-    // Closing (or unmounting) hands focus back to the control that opened it.
     return () => {
       if (element.open) {
         element.close();
+      }
+      if (opener?.isConnected) {
+        opener.focus();
       }
     };
   }, [open, review]);
