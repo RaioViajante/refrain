@@ -55,6 +55,8 @@ export function failureMessage(failure: Failure): string {
       return "What readers would see has changed since you looked, or your confirmation ran out, so nothing was published or saved. Your text is still here. Review it again to continue.";
     case "nothing_to_publish":
       return "A version needs an opening sentence or some text before readers can see it, and a published version has to keep one. Nothing was changed. Write something first, or unpublish it before you empty it.";
+    case "unreachable":
+      return "The studio didn’t answer, so it isn’t known whether this went through. Reload the page to see what was saved before you try again. What you typed is still here.";
     case "no_address":
       return "This journal has no address, so it can’t be published. Nothing was changed.";
     case "failed":

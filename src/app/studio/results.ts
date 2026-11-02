@@ -22,6 +22,8 @@ export type StudioFailure =
   | "confirmation_stale"
   | "nothing_to_publish"
   | "no_address"
+  // Made in the browser, never by the server: the request did not come back.
+  | "unreachable"
   | "failed";
 
 export type FieldProblem = "required" | "too_long" | "invalid";

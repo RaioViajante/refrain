@@ -305,9 +305,11 @@ test("a change made after the review stops the publication and shows the new sta
   await dialog
     .getByRole("button", { name: "Publish the English version" })
     .click();
-  await expect(dialog.getByRole("alert")).toContainText(
+  // The notice takes focus, so it is read before anything else.
+  await expect(dialog.locator("[data-notice]")).toContainText(
     "has changed since you looked",
   );
+  await expect(dialog.locator("[data-notice]")).toBeFocused();
   expect((await stored()).status).toBe("draft");
   // The token was sent once, by the confirm control, and is not offered again.
   expect(tokens).toHaveLength(1);
@@ -491,6 +493,41 @@ test("a change that only takes something away asks nothing, and a repeated Save 
   await expect(page.getByText("Unsaved changes")).toBeVisible();
 });
 
+test("a review that no longer fits the journal stops the save in the dialog and keeps the text", async ({
+  page,
+}) => {
+  await openEditor(page);
+  const typed = "[Test] E2E Pub typed while another tab changed things.";
+  await page.getByLabel("Your reflection", { exact: true }).fill(typed);
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  const dialog = changeDialog(page);
+  await expect(dialog).toContainText("Readers will see");
+
+  // Another tab changes a private reflection (nothing public, so no dialog),
+  // which moves the journal's version under the open review.
+  const other = await page.context().newPage();
+  await openEditor(other);
+  await (await openTrack(other, names.tracks[1])).fill(`${kept} (edited)`);
+  await other.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(other.getByText("Saved just now")).toBeVisible();
+  await other.close();
+
+  const before = await stored();
+  await dialog
+    .getByRole("button", { name: "Save and update the public page" })
+    .click();
+  // The version moved under the review: the save is refused as a conflict,
+  // the dialog closes, and the editor says so with the writing still in it.
+  await expect(dialog).toBeHidden();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "changed somewhere else" }),
+  ).toContainText("nothing was saved");
+  expect((await stored()).body_text).toBe(before.body_text);
+  await expect(page.getByLabel("Your reflection", { exact: true })).toHaveValue(
+    typed,
+  );
+});
+
 test("a conflict keeps the unsaved writing and says what happened", async ({
   page,
 }) => {
@@ -633,7 +670,16 @@ test("a reflection can be taken off the list from inside the review, and the aut
   );
 
   await dialog.getByRole("button", { name: /^Don’t show this one: / }).click();
-  // The review is read again: the list is empty, and nothing is published.
+  // The removal is saved and said in words; the review on screen is gone with
+  // its token, and nothing is published. The author asks for the new review.
+  await expect(dialog.locator("[data-notice]")).toContainText(
+    "Taken off the list",
+  );
+  await expect(dialog.locator("[data-notice]")).toBeFocused();
+  expect((await reflections())[0]!.is_published).toBe(false);
+  expect((await stored()).status).toBe("private");
+  expect(tokens).toEqual([]);
+  await dialog.getByRole("button", { name: "Review it again" }).click();
   await expect(dialog).toContainText(
     "Track reflections that will be public in English (0)",
   );

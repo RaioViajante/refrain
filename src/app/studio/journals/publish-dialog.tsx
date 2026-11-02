@@ -10,6 +10,7 @@ import {
 import { previewPublicationAction } from "@/app/studio/journals/preview-publication-action";
 import {
   LANGUAGE_NAMES,
+  Notice,
   ReviewedText,
   ReviewSection,
   starsInWords,
@@ -29,6 +30,9 @@ type Stage =
   // The server refused: what readers would see changed, or the review ran out.
   // Nothing was published. The author asks for a new review on purpose.
   | { name: "changed" }
+  // A reflection was taken off the list and saved. The review on screen was
+  // dropped with its token; the author asks for the new one.
+  | { name: "removed"; title: string }
   // Anything else the server said, in words.
   | { name: "failed"; failure: Failure };
 
@@ -132,7 +136,7 @@ function OpenPublishDialog({
   // if the dialog is cancelled afterwards (it can only hide). The review that
   // was on screen, and its token, are dropped; the author reads the new one and
   // confirms again (ADR 0005 § 5.3).
-  async function stopShowing(trackId: string) {
+  async function stopShowing(trackId: string, title: string) {
     if (busy.current || stage.name !== "ready") {
       return;
     }
@@ -147,7 +151,7 @@ function OpenPublishDialog({
         reflections: [{ trackId, isPublished: false }],
       });
     } catch {
-      result = { ok: false, code: "failed" };
+      result = { ok: false, code: "unreachable" };
     }
     busy.current = false;
     if (!result.ok) {
@@ -158,7 +162,9 @@ function OpenPublishDialog({
       );
       return;
     }
-    setStage(await fetchPreview());
+    // The removal is saved. The review that was on screen is gone, and the
+    // author asks for the new one, a separate request they choose to make.
+    setStage({ name: "removed", title });
     onReflectionHidden();
   }
 
@@ -181,7 +187,7 @@ function OpenPublishDialog({
         confirmation: preview.confirmation,
       });
     } catch {
-      result = { ok: false, code: "failed" };
+      result = { ok: false, code: "unreachable" };
     }
     busy.current = false;
     setSubmitting(false);
@@ -203,6 +209,12 @@ function OpenPublishDialog({
   }
 
   const ready = stage.name === "ready" ? stage.preview.review : undefined;
+  // Text the plain view cannot show cannot be reviewed, so it is not published
+  // from here: the author could not have read what they would confirm.
+  const unreadable =
+    ready !== undefined &&
+    (ready.text === null ||
+      ready.reflections.some((reflection) => reflection.text === null));
   const status =
     ready?.status === "draft"
       ? "a draft"
@@ -218,12 +230,13 @@ function OpenPublishDialog({
       confirmLabel={`Publish the ${language} version`}
       pending={submitting}
       focusKey={stage.name}
-      hideConfirm={stage.name !== "ready"}
+      regionLabel="What readers would see"
+      hideConfirm={stage.name !== "ready" || unreadable}
       onConfirm={confirm}
       onCancel={onClose}
       cancelLabel={stage.name === "ready" ? "Cancel" : "Close"}
       extraActions={
-        stage.name === "changed" ? (
+        stage.name === "changed" || stage.name === "removed" ? (
           <button
             type="button"
             className="studio-button studio-button-primary"
@@ -234,31 +247,46 @@ function OpenPublishDialog({
         ) : null
       }
     >
-      <div className="studio-review" aria-busy={loading}>
-        {stage.name === "loading" ? (
-          <p role="status">Reading what readers would see…</p>
-        ) : null}
+      <div className="studio-review">
+        <div role="status">
+          {loading ? "Reading what readers would see…" : null}
+        </div>
 
         {stage.name === "changed" ? (
-          <p role="alert" className="studio-problem">
+          <Notice problem>
             What readers would see has changed since you looked, or this review
             ran out. Nothing was published. Review it again to see how it stands
             now.
-          </p>
+          </Notice>
+        ) : null}
+
+        {stage.name === "removed" ? (
+          <Notice>
+            Taken off the list: {stage.title} · {language}. That is saved, even
+            if you close this. Nothing was published. Review it again to see
+            what will be shown now.
+          </Notice>
         ) : null}
 
         {stage.name === "failed" ? (
-          <p role="alert" className="studio-problem">
-            {failureMessage(stage.failure)}
-          </p>
+          <Notice problem>{failureMessage(stage.failure)}</Notice>
         ) : null}
 
         {ready ? (
           <>
+            {unreadable ? (
+              <p className="studio-problem">
+                Some of this text has formatting the plain view can’t show, so
+                you can’t read all of it here. It can’t be published from the
+                studio until it can be.
+              </p>
+            ) : null}
             <p>
               This is everything the {language} version will show once you
               publish it. Nothing is published until you press the button below,
-              and nothing you wrote is changed or deleted.
+              and nothing you wrote is deleted. Taking a reflection off this
+              list saves right away, even if you cancel, and it also stops that
+              reflection showing in any other language.
             </p>
             <p className="studio-hint">
               This version is {status} now. A page address for readers is not
@@ -285,7 +313,7 @@ function OpenPublishDialog({
             </ReviewSection>
 
             <ReviewSection title="Its address">
-              <p lang="en">
+              <p>
                 {ready.address.slug}
                 {ready.address.wasPublic
                   ? " (this address has been public before)"
@@ -316,7 +344,7 @@ function OpenPublishDialog({
                 <ul className="studio-review-list">
                   {ready.reflections.map((reflection) => (
                     <li key={reflection.trackId}>
-                      <p lang="en" className="studio-label">
+                      <p className="studio-label">
                         {reflection.trackTitle} · {language}
                       </p>
                       <ReviewedText
@@ -339,7 +367,12 @@ function OpenPublishDialog({
                       <button
                         type="button"
                         className="studio-button"
-                        onClick={() => void stopShowing(reflection.trackId)}
+                        onClick={() =>
+                          void stopShowing(
+                            reflection.trackId,
+                            reflection.trackTitle,
+                          )
+                        }
                         aria-label={`Don’t show this one: ${reflection.trackTitle}, ${language}`}
                       >
                         Don’t show this one

@@ -306,6 +306,8 @@ interface ConfirmDialogProps {
    * control that had focus would otherwise vanish with it.
    */
   focusKey?: string;
+  /** The name of the reading area of a review dialog. */
+  regionLabel?: string;
   /**
    * A dialog that shows the author what will become public. It is wider, its
    * text scrolls, and focus starts on its title, not on the confirm control,
@@ -331,6 +333,7 @@ export function ConfirmDialog({
   extraActions,
   cancelLabel = "Cancel",
   focusKey,
+  regionLabel,
   review,
 }: ConfirmDialogProps) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -366,7 +369,11 @@ export function ConfirmDialog({
 
   useEffect(() => {
     if (review && focusKey !== undefined) {
-      heading.current?.focus();
+      // A notice that says what just happened (a refusal, a removal) takes
+      // focus, so it is read before anything else; otherwise the title does.
+      const notice =
+        dialog.current?.querySelector<HTMLElement>("[data-notice]");
+      (notice ?? heading.current)?.focus();
     }
   }, [review, focusKey]);
 
@@ -394,7 +401,7 @@ export function ConfirmDialog({
         <div
           className="studio-dialog-body"
           role="region"
-          aria-labelledby={titleId}
+          aria-label={regionLabel ?? title}
           tabIndex={0}
         >
           {children}
@@ -446,7 +453,7 @@ export function useSubmission() {
       try {
         result = await work();
       } catch {
-        result = { ok: false, code: "failed" };
+        result = { ok: false, code: "unreachable" };
       }
       if (!result.ok) {
         setFailure(result);

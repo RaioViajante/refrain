@@ -116,7 +116,7 @@ function visibilitySentence(
   if (saved.publicIn.includes(locale)) {
     return {
       lead: "Public",
-      rest: `. Readers of the published ${language} version can read it.`,
+      rest: `. It is part of the ${language} version that is marked as published in your records. No public page exists yet, so nothing opens on the web.`,
     };
   }
   if (draft.text.trim() === "" || saved.texts[locale] === undefined) {

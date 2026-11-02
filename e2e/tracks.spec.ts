@@ -284,7 +284,9 @@ test("a published journal asks before a change to the public page, and keeps the
   const before = await journalRow();
   const text = await openTrack(page, tracks[1]!);
   await expect(
-    page.getByText(/Public\. Readers of the published English version/),
+    page.getByText(
+      /Public\. It is part of the English version that is marked as published/,
+    ),
   ).toBeVisible();
   await text.fill("[Test] E2E A shorter text.");
   await save(page);

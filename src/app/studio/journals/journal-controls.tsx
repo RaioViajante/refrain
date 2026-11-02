@@ -268,10 +268,11 @@ export function JournalControls({
       >
         <div className="space-y-3">
           <p>
-            Readers will no longer see this version. Nothing is deleted: your
-            writing, the track reflections, and the address stay as they are,
-            and other language versions are not touched. You can publish it
-            again later; that will show you what readers would see first.
+            This version will no longer be marked as published for readers.
+            Nothing is deleted: your writing, the track reflections, and the
+            address stay as they are, and other language versions are not
+            touched. You can publish it again later; that will show you what
+            readers would see first.
           </p>
           <SelectField
             label="After unpublishing, it is"

@@ -7,6 +7,7 @@ import { saveJournalAction } from "@/app/studio/journals/actions";
 import { previewPublicChangeAction } from "@/app/studio/journals/preview-change-action";
 import {
   LANGUAGE_NAMES,
+  Notice,
   ReviewedValueView,
 } from "@/app/studio/journals/review-parts";
 import { failureMessage } from "@/app/studio/messages";
@@ -143,7 +144,7 @@ function OpenChangeDialog({
     try {
       result = await saveJournalAction({ ...payload, confirmation });
     } catch {
-      result = { ok: false, code: "failed" };
+      result = { ok: false, code: "unreachable" };
     }
     busy.current = false;
     setSubmitting(false);
@@ -166,6 +167,15 @@ function OpenChangeDialog({
   }
 
   const review = stage.name === "ready" ? stage.preview.review : undefined;
+  // A change whose text the plain view cannot show cannot be read here, so it
+  // is not confirmed from here.
+  const unreadable =
+    review !== undefined &&
+    review.changes.some((change) =>
+      [change.before, change.after].some(
+        (value) => value?.type === "text" && value.text === null,
+      ),
+    );
 
   return (
     <ConfirmDialog
@@ -175,7 +185,8 @@ function OpenChangeDialog({
       confirmLabel="Save and update the public page"
       pending={submitting}
       focusKey={stage.name}
-      hideConfirm={stage.name !== "ready"}
+      regionLabel="What would change for readers"
+      hideConfirm={stage.name !== "ready" || unreadable}
       onConfirm={confirm}
       onCancel={onCancel}
       cancelLabel={stage.name === "ready" ? "Cancel" : "Close"}
@@ -192,24 +203,33 @@ function OpenChangeDialog({
         ) : null
       }
     >
-      <div className="studio-review" aria-busy={loading}>
-        {stage.name === "loading" ? (
-          <p role="status">Reading what would change for readers…</p>
-        ) : null}
+      <div className="studio-review">
+        <div role="status">
+          {loading ? "Reading what would change for readers…" : null}
+        </div>
 
         {stage.name === "changed" ? (
-          <p role="alert" className="studio-problem">
+          <Notice problem>
             {failureMessage({ ok: false, code: "confirmation_stale" })} Your
             text is still in the editor.
-          </p>
+          </Notice>
         ) : null}
 
         {review ? (
           <>
+            {unreadable ? (
+              <p className="studio-problem">
+                Some of this text has formatting the plain view can’t show, so
+                you can’t read all of it here. It can’t be saved from the studio
+                until it can be.
+              </p>
+            ) : null}
             <p>
               This version is published, so saving changes what readers see.
               Here is exactly what changes. Nothing is saved until you press the
-              button below, and cancelling leaves your text in the editor.
+              button below, and cancelling leaves your text in the editor. A
+              page address for readers is not built yet, so this updates what is
+              marked as published in your records.
             </p>
             <ul className="studio-review-list">
               {review.changes.map((change, index) => {
@@ -229,7 +249,11 @@ function OpenChangeDialog({
                     {change.before !== undefined ? (
                       <div>
                         <p className="studio-hint">Readers see now</p>
-                        <ReviewedValueView value={change.before} lang={lang} />
+                        <ReviewedValueView
+                          value={change.before}
+                          lang={lang}
+                          side="before"
+                        />
                       </div>
                     ) : null}
                     <div>
@@ -246,8 +270,6 @@ function OpenChangeDialog({
             </ul>
             <p className="studio-hint">
               Things you take away from the public page do not need this review.
-              A page address for readers is not built yet, so this updates what
-              is marked as published in your records.
             </p>
           </>
         ) : null}

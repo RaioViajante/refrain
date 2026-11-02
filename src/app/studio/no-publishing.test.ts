@@ -77,6 +77,27 @@ function violations(code: string, file = "x.tsx"): string[] {
     ) {
       found.push("imports the Publication module");
     }
+    // Evasions by string: an element access by name, and a dynamic import of a
+    // module that holds a command or a wrapper.
+    if (
+      ts.isElementAccessExpression(node) &&
+      ts.isStringLiteralLike(node.argumentExpression) &&
+      (FORBIDDEN_NAMES.has(node.argumentExpression.text) ||
+        node.argumentExpression.text in WRAPPER_FILES)
+    ) {
+      found.push(`reaches ${node.argumentExpression.text} by name`);
+    }
+    if (
+      ts.isCallExpression(node) &&
+      node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      node.arguments[0] &&
+      ts.isStringLiteralLike(node.arguments[0]) &&
+      /^@\/modules\/(publication|journals|identity)/.test(
+        node.arguments[0].text,
+      )
+    ) {
+      found.push("imports a domain module dynamically");
+    }
     if (ts.isIdentifier(node) && FORBIDDEN_NAMES.has(node.text)) {
       found.push(`mentions ${node.text}`);
     }
@@ -131,6 +152,13 @@ describe("the studio cannot publish, re-address, or permanently delete", () => {
     expect(violations("previewAlbumJournalChange(db, a, i)")).toHaveLength(1);
     expect(violations("verifyChangeConfirmation(a, t, b)")).toHaveLength(1);
     expect(violations("export const ok = 1;")).toEqual([]);
+    expect(violations('const f = ns["publishLanguageVersion"];')).toHaveLength(
+      1,
+    );
+    expect(
+      violations('const m = await import("@/modules/journals");'),
+    ).toHaveLength(1);
+    expect(violations('const m = await import("./local");')).toEqual([]);
   });
 
   it("keeps each wrapper, the token, and each preview action to its own file", () => {

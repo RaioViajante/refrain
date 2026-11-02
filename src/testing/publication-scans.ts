@@ -1180,3 +1180,177 @@ export function gateCallViolations(files: SourceText[]): string[] {
   }
   return problems;
 }
+
+// ---------------------------------------------------------------------------
+// Scan 6: the confirmation dialogs (ADR 0006 §§ 5 and 9). A dialog holds a
+// token and may send it only from its confirm control. The generic scan above
+// cannot tell two handlers of one component apart, so this one reads the
+// dialogs' own functions by name:
+//
+//   previewPublicationAction, previewPublicChangeAction   only in fetchPreview
+//   publishJournalVersionAction                           only in confirm
+//   saveJournalAction                                     only in confirm
+//                                                         (with the token) or
+//                                                         stopShowing (a
+//                                                         removal, no token)
+//
+// `confirm` and `stopShowing` never reach a preview, so nothing previews and
+// consumes in one operation; nothing inside a catch handler or an effect,
+// timer, or microtask calls any of them; and `confirm` is attached only to
+// the confirm control (`onConfirm`).
+
+const DIALOG_FILE = /^src\/app\/studio\/.*-dialog\.tsx$/;
+const PREVIEW_ACTIONS = [
+  "previewPublicationAction",
+  "previewPublicChangeAction",
+];
+const CONSUMER_ACTIONS = ["publishJournalVersionAction", "saveJournalAction"];
+const ACTION_SITES: Record<string, string[]> = {
+  previewPublicationAction: ["fetchPreview"],
+  previewPublicChangeAction: ["fetchPreview"],
+  publishJournalVersionAction: ["confirm"],
+  saveJournalAction: ["confirm", "stopShowing"],
+};
+// Files that may name each action at all (outside its own definition).
+const ACTION_FILES: Record<string, string[]> = {
+  previewPublicationAction: ["src/app/studio/journals/publish-dialog.tsx"],
+  previewPublicChangeAction: ["src/app/studio/journals/change-dialog.tsx"],
+  publishJournalVersionAction: ["src/app/studio/journals/publish-dialog.tsx"],
+  saveJournalAction: [
+    "src/app/studio/journals/publish-dialog.tsx",
+    "src/app/studio/journals/change-dialog.tsx",
+    "src/app/studio/journals/journal-editor.tsx",
+  ],
+};
+const DEFERRED = new Set([
+  "useEffect",
+  "useLayoutEffect",
+  "setTimeout",
+  "setInterval",
+  "queueMicrotask",
+  "requestAnimationFrame",
+]);
+
+export function dialogViolations(files: SourceText[]): string[] {
+  const problems: string[] = [];
+  const guarded = [...PREVIEW_ACTIONS, ...CONSUMER_ACTIONS];
+  for (const file of files) {
+    if (!file.path.startsWith("src/app/")) {
+      continue;
+    }
+    const source = parse(file);
+    prepare(source);
+    const isDialog = DIALOG_FILE.test(file.path);
+
+    const visit = (node: ts.Node) => {
+      // Where each action may be named at all.
+      if (ts.isIdentifier(node) && guarded.includes(node.text)) {
+        const defining =
+          file.path === "src/app/studio/journals/actions.ts" ||
+          file.path === `src/app/studio/journals/${nameToFile(node.text)}.ts`;
+        if (!defining && !ACTION_FILES[node.text]!.includes(file.path)) {
+          problems.push(`${file.path} names ${node.text}`);
+        }
+      }
+      if (isDialog && ts.isCallExpression(node)) {
+        const name = calleeName(node.expression);
+        const fn = handlerOf(node);
+        if (name && guarded.includes(name)) {
+          if (!ACTION_SITES[name]!.includes(fn)) {
+            problems.push(`${file.path}: ${name} is called in ${fn}`);
+          }
+          if (
+            name === "saveJournalAction" &&
+            fn === "stopShowing" &&
+            node.getText().includes("confirmation")
+          ) {
+            problems.push(`${file.path}: stopShowing sends a confirmation`);
+          }
+          for (let up: ts.Node | undefined = node.parent; up; up = up.parent) {
+            if (ts.isCatchClause(up)) {
+              problems.push(`${file.path}: ${name} is called in a catch`);
+            }
+            if (ts.isCallExpression(up)) {
+              const outer = calleeName(up.expression);
+              if (outer && DEFERRED.has(outer)) {
+                problems.push(`${file.path}: ${name} is called from ${outer}`);
+              }
+              if (
+                ts.isPropertyAccessExpression(up.expression) &&
+                up.expression.name.text === "catch"
+              ) {
+                problems.push(`${file.path}: ${name} is called in .catch`);
+              }
+            }
+          }
+        }
+        // Neither handler that sends anything may reach a preview.
+        if (
+          (fn === "confirm" || fn === "stopShowing") &&
+          name &&
+          (name === "fetchPreview" || PREVIEW_ACTIONS.includes(name))
+        ) {
+          problems.push(`${file.path}: ${fn} calls ${name}`);
+        }
+        // Nothing previews from inside a catch handler either.
+        if (name === "fetchPreview") {
+          for (let up: ts.Node | undefined = node.parent; up; up = up.parent) {
+            if (ts.isCatchClause(up)) {
+              problems.push(`${file.path}: fetchPreview is called in a catch`);
+            }
+          }
+        }
+      }
+      // `confirm` is attached only to the confirm control.
+      if (
+        isDialog &&
+        ts.isIdentifier(node) &&
+        node.text === "confirm" &&
+        !(
+          (ts.isFunctionDeclaration(node.parent) &&
+            node.parent.name === node) ||
+          (ts.isJsxExpression(node.parent) &&
+            ts.isJsxAttribute(node.parent.parent) &&
+            node.parent.parent.name.getText() === "onConfirm")
+        )
+      ) {
+        problems.push(`${file.path}: confirm is used outside onConfirm`);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+  }
+  return problems;
+}
+
+// The handler a call belongs to: a function declaration, or a variable such as
+// `const fetchPreview = useCallback(async () => …)`, by name. Anything else is
+// the component itself, which the rules above do not allow.
+function handlerOf(node: ts.Node): string {
+  for (let up: ts.Node | undefined = node.parent; up; up = up.parent) {
+    if (ts.isFunctionDeclaration(up) && up.name) {
+      return up.name.text;
+    }
+    if (
+      ts.isVariableDeclaration(up) &&
+      ts.isIdentifier(up.name) &&
+      up.initializer !== undefined &&
+      (ts.isArrowFunction(up.initializer) ||
+        ts.isFunctionExpression(up.initializer) ||
+        (ts.isCallExpression(up.initializer) &&
+          calleeName(up.initializer.expression) === "useCallback"))
+    ) {
+      return up.name.text;
+    }
+  }
+  return "<module>";
+}
+
+// The file that defines a preview action, by its action name.
+function nameToFile(action: string): string {
+  return action === "previewPublicationAction"
+    ? "preview-publication-action"
+    : action === "previewPublicChangeAction"
+      ? "preview-change-action"
+      : "actions";
+}

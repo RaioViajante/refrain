@@ -46,7 +46,13 @@ export async function perform<Data>(
   }
   try {
     const data = await work();
-    revalidateAfter(effect);
+    // The work has committed. A failure to refresh the browser's copy of the
+    // studio must never be reported as "nothing was changed".
+    try {
+      revalidateAfter(effect);
+    } catch {
+      console.error("A studio revalidation failed");
+    }
     return { ok: true, data };
   } catch (error) {
     return failed(error);

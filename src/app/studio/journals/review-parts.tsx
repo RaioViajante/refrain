@@ -59,9 +59,12 @@ export function ReviewedText({
 export function ReviewedValueView({
   value,
   lang,
+  side = "after",
 }: {
   value: ReviewedValue;
   lang: string;
+  /** "before" is what readers see now: an empty text there was never written. */
+  side?: "before" | "after";
 }) {
   switch (value.type) {
     case "text":
@@ -69,7 +72,9 @@ export function ReviewedValueView({
         <ReviewedText
           text={value.text}
           lang={lang}
-          empty="Nothing: this is cleared."
+          empty={
+            side === "before" ? "Nothing yet." : "Nothing: this is cleared."
+          }
         />
       );
     case "rating":
@@ -77,6 +82,29 @@ export function ReviewedValueView({
     case "flag":
       return <p lang="en">{value.value ? "Yes" : "No"}</p>;
   }
+}
+
+/**
+ * What just happened in a review dialog: a refusal, a removal. It takes focus
+ * (see `ConfirmDialog`), so it is read at once, and it is plain text with no
+ * token and none of the author's writing.
+ */
+export function Notice({
+  children,
+  problem,
+}: {
+  children: ReactNode;
+  problem?: boolean;
+}) {
+  return (
+    <p
+      data-notice
+      tabIndex={-1}
+      className={problem ? "studio-problem" : undefined}
+    >
+      {children}
+    </p>
+  );
 }
 
 /** A titled part of a review. */

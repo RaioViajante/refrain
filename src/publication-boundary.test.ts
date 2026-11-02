@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  dialogViolations,
   exportSurfaceViolations,
   gateCallViolations,
   isProductionPath,
@@ -54,6 +55,10 @@ describe("the production source is clean", () => {
 
   it("lets only the save call the confirmation gate and the reflection writer, in order", () => {
     expect(gateCallViolations(production)).toEqual([]);
+  });
+
+  it("keeps the confirmation dialogs to their own handlers", () => {
+    expect(dialogViolations(production)).toEqual([]);
   });
 
   it("classifies test files and test support as not production", () => {
@@ -834,6 +839,94 @@ describe("the scans catch mutations of the real source", () => {
         file(
           "src/modules/journals/commands.ts",
           'import { x } from "@/testing/test-database";',
+        ),
+      ]),
+    ).not.toEqual([]);
+  });
+});
+
+describe("the dialog scan catches each way a dialog could send a token wrongly", () => {
+  const dialog = "src/app/studio/journals/publish-dialog.tsx";
+  const wrap = (body: string) =>
+    `import { publishJournalVersionAction, saveJournalAction } from "@/app/studio/journals/actions";\nimport { previewPublicationAction } from "@/app/studio/journals/preview-publication-action";\nexport function D() {\n${body}\n return <B onConfirm={confirm} />; }`;
+  const check = (body: string) => dialogViolations([file(dialog, wrap(body))]);
+
+  it("accepts the shape the dialog has", () => {
+    expect(
+      check(
+        "async function fetchPreview() { return previewPublicationAction({}); }\nasync function confirm() { return publishJournalVersionAction({ confirmation: t }); }\nasync function stopShowing() { return saveJournalAction({}); }",
+      ),
+    ).toEqual([]);
+  });
+
+  it("catches a confirm that previews, directly or through the helper", () => {
+    expect(
+      check(
+        "async function fetchPreview() { return previewPublicationAction({}); }\nasync function confirm() { const p = await previewPublicationAction({}); return publishJournalVersionAction({ confirmation: p.confirmation }); }",
+      ),
+    ).not.toEqual([]);
+    expect(
+      check(
+        "async function fetchPreview() { return previewPublicationAction({}); }\nasync function confirm() { const p = await fetchPreview(); return publishJournalVersionAction({ confirmation: p }); }",
+      ),
+    ).not.toEqual([]);
+  });
+
+  it("catches a retry in a catch handler, and a send from an effect or a timer", () => {
+    expect(
+      check(
+        "async function confirm() { try { await publishJournalVersionAction({}); } catch { await publishJournalVersionAction({}); } }",
+      ),
+    ).not.toEqual([]);
+    expect(
+      check(
+        "useEffect(() => { void publishJournalVersionAction({}); }, []);\nasync function confirm() {}",
+      ),
+    ).not.toEqual([]);
+    expect(
+      check(
+        "async function confirm() { setTimeout(() => publishJournalVersionAction({}), 10); }",
+      ),
+    ).not.toEqual([]);
+    expect(
+      check(
+        "async function confirm() { publishJournalVersionAction({}).catch(() => publishJournalVersionAction({})); }",
+      ),
+    ).not.toEqual([]);
+  });
+
+  it("catches a preview or a consumer in a handler that is not its own", () => {
+    expect(
+      check(
+        "async function other() { return publishJournalVersionAction({}); }\nasync function confirm() {}",
+      ),
+    ).not.toEqual([]);
+    expect(
+      check(
+        "async function other() { return previewPublicationAction({}); }\nasync function confirm() {}",
+      ),
+    ).not.toEqual([]);
+  });
+
+  it("catches a removal that sends a confirmation, and a confirm handed to anything but the confirm control", () => {
+    expect(
+      check(
+        "async function stopShowing() { return saveJournalAction({ confirmation: t }); }\nasync function confirm() {}",
+      ),
+    ).not.toEqual([]);
+    expect(
+      check(
+        "async function confirm() {}\nuseEffect(() => { void confirm(); }, []);",
+      ),
+    ).not.toEqual([]);
+  });
+
+  it("catches an action named in a file that is not allowed to", () => {
+    expect(
+      dialogViolations([
+        file(
+          "src/app/studio/journals/page-thing.tsx",
+          'import { publishJournalVersionAction } from "@/app/studio/journals/actions";\nexport const x = publishJournalVersionAction;',
         ),
       ]),
     ).not.toEqual([]);

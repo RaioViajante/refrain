@@ -183,8 +183,9 @@ export async function createAlbumJournal(
  *   change. Without one it is refused as `confirmation_required` and nothing
  *   is written; so is an expired, stale, or misbound one. A save that only
  *   removes something from the public page, or changes nothing a reader
- *   sees, needs none. The studio offers no way to obtain a token yet (M2.3),
- *   so for the author it is refused.
+ *   sees, needs none. The studio's change dialog obtains the token from
+ *   `previewAlbumJournalPublicChange` and sends it only from its confirm
+ *   control (M2.3).
  * - Visibility is never touched, and a reflection's flag alone never makes
  *   anything public: the publication predicate still decides.
  *
@@ -281,8 +282,8 @@ export async function saveAlbumJournal(
  *
  * Private writing: the delta is for an authorized request only. The token is
  * evidence that this server computed this change for this session, not proof
- * that the author read it. No Server Action calls this until M2.3, so nothing
- * in the studio can obtain a token yet.
+ * that the author read it. Only the studio's preview action calls it, through
+ * `previewAlbumJournalPublicChange` (M2.3).
  */
 export async function previewAlbumJournalChange(
   db: DatabaseExecutor,
