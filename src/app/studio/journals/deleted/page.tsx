@@ -52,8 +52,8 @@ async function RecentlyDeleted() {
       <p className="studio-hint" style={{ maxWidth: "62ch" }}>
         A journal that was published when it was deleted comes back as private.
         Restoring never publishes anything; publishing it again shows you
-        everything it would make public first, including any track reflections
-        you had set to show.
+        everything it would publish first, including any track reflections you
+        had set to show.
       </p>
 
       {deleted.length === 0 ? (

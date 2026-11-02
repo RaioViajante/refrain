@@ -277,7 +277,7 @@ test("a published journal asks before a change to the public page, and keeps the
   await openEditor(page);
   await expect(
     page.getByText(
-      /This version is published\. Saving changes the public page/,
+      /This version is published\. Saving changes the published writing/,
     ),
   ).toBeVisible();
 
@@ -290,7 +290,9 @@ test("a published journal asks before a change to the public page, and keeps the
   ).toBeVisible();
   await text.fill("[Test] E2E A shorter text.");
   await save(page);
-  const dialog = page.getByRole("dialog", { name: "Update the public page?" });
+  const dialog = page.getByRole("dialog", {
+    name: "Update published writing?",
+  });
   await expect(dialog).toContainText("Changed: Reflection on the track");
   await expect(dialog).toContainText("[Test] E2E A shorter text.");
   await dialog.getByRole("button", { name: "Cancel" }).click();

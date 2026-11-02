@@ -24,6 +24,8 @@ export type StudioFailure =
   | "no_address"
   // Made in the browser, never by the server: the request did not come back.
   | "unreachable"
+  // The version is no longer in the state the screen showed.
+  | "status_changed"
   | "failed";
 
 export type FieldProblem = "required" | "too_long" | "invalid";

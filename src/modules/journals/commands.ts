@@ -320,7 +320,9 @@ export async function previewAlbumJournalChange(
 }
 
 /**
- * Sets one language version of an album journal to `draft` or `private`.
+ * Sets one language version of an album journal to `draft` or `private`, if
+ * it still has the `expectedStatus` the author's screen showed (otherwise
+ * `status_changed`, and nothing changes).
  * Nothing here can publish: the status is validated against those two values,
  * and the change goes through the Publication module's own command, which
  * refuses a deleted entry. Moving a version that is currently published to one
@@ -337,6 +339,16 @@ export async function setAlbumJournalPrivacy(
       const journal = await lockAlbumJournal(tx, data.entryId);
       if (journal.deleted) {
         throw new JournalError("entry_deleted");
+      }
+      // Under the entry lock: the version must still be what the author saw.
+      const current = await tx.execute<{ status: string }>(sql`
+        select status from entry_texts
+         where entry_id = ${data.entryId} and locale = ${data.locale}`);
+      if (current.rows.length === 0) {
+        throw new JournalError("entry_not_found");
+      }
+      if (current.rows[0]!.status !== data.expectedStatus) {
+        throw new JournalError("status_changed");
       }
       await unpublishLanguageVersion(
         tx,

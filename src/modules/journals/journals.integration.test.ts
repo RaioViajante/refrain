@@ -14,6 +14,7 @@ import {
   rowsAdded,
   type CountedTable,
   testAuthor,
+  setPrivacyForTest,
 } from "@/testing";
 import { listPublicLanguageVersions } from "@/modules/publication";
 
@@ -433,7 +434,7 @@ describe("saving an album journal", () => {
       expect(await getAlbumJournal(tx, author, entryId)).toEqual(before);
 
       // Unpublishing first is the way to change the text without one.
-      await setAlbumJournalPrivacy(tx, author, {
+      await setPrivacyForTest(tx, author, {
         entryId,
         locale: "en",
         status: "private",
@@ -451,7 +452,7 @@ describe("saving an album journal", () => {
   it("never changes visibility, the slug, or the featured state", async () => {
     await inScratchTransaction(async (tx) => {
       const entryId = await createDraft(tx);
-      await setAlbumJournalPrivacy(tx, author, {
+      await setPrivacyForTest(tx, author, {
         entryId,
         locale: "en",
         status: "private",
@@ -610,7 +611,7 @@ describe("journal privacy", () => {
   it("moves a version between draft and private, and keeps it out of public queries", async () => {
     await inScratchTransaction(async (tx) => {
       const entryId = await draft(tx);
-      await setAlbumJournalPrivacy(tx, author, {
+      await setPrivacyForTest(tx, author, {
         entryId,
         locale: "en",
         status: "private",
@@ -619,7 +620,7 @@ describe("journal privacy", () => {
         "private",
       );
       expect(await listPublicLanguageVersions(tx, entryId)).toEqual([]);
-      await setAlbumJournalPrivacy(tx, author, {
+      await setPrivacyForTest(tx, author, {
         entryId,
         locale: "en",
         status: "draft",
@@ -640,6 +641,7 @@ describe("journal privacy", () => {
               entryId,
               locale: "en",
               status,
+              expectedStatus: "draft",
             }),
           ),
         ).toBe("invalid_input");
@@ -656,7 +658,7 @@ describe("journal privacy", () => {
       const entryId = await draft(tx);
       expect(
         await failure(tx, (db) =>
-          setAlbumJournalPrivacy(db, author, {
+          setPrivacyForTest(db, author, {
             entryId,
             locale: "pt-BR",
             status: "private",
@@ -669,7 +671,7 @@ describe("journal privacy", () => {
       });
       expect(
         await failure(tx, (db) =>
-          setAlbumJournalPrivacy(db, author, {
+          setPrivacyForTest(db, author, {
             entryId: memory,
             locale: "en",
             status: "private",
@@ -685,7 +687,7 @@ describe("journal privacy", () => {
       await deleteAlbumJournal(tx, author, entryId);
       expect(
         await failure(tx, (db) =>
-          setAlbumJournalPrivacy(db, author, {
+          setPrivacyForTest(db, author, {
             entryId,
             locale: "en",
             status: "private",
@@ -705,7 +707,7 @@ describe("deleting an album journal", () => {
         locale: "en",
         body: "[Test] Kept words",
       });
-      await setAlbumJournalPrivacy(tx, author, {
+      await setPrivacyForTest(tx, author, {
         entryId,
         locale: "en",
         status: "private",
@@ -850,7 +852,7 @@ describe("journal queries", () => {
         versions: [{ locale: "en", status: "published" }],
         slug: "published-one",
       });
-      await setAlbumJournalPrivacy(tx, author, {
+      await setPrivacyForTest(tx, author, {
         entryId: b.entryId,
         locale: "en",
         status: "private",
@@ -1051,7 +1053,7 @@ describe("saving is a patch: the author's text never disappears for an unrelated
     await inScratchTransaction(async (tx) => {
       const entryId = await written(tx);
       const before = await stored(tx, entryId);
-      await setAlbumJournalPrivacy(tx, author, {
+      await setPrivacyForTest(tx, author, {
         entryId,
         locale: "en",
         status: "private",

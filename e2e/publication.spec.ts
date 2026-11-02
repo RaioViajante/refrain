@@ -120,7 +120,7 @@ const publishDialog = (page: Page) =>
   page.getByRole("dialog", { name: "Publish the English version?" });
 
 const changeDialog = (page: Page) =>
-  page.getByRole("dialog", { name: "Update the public page?" });
+  page.getByRole("dialog", { name: "Update published writing?" });
 
 async function openEditor(page: Page) {
   await page.goto(`${journalUrl}/edit`);
@@ -227,7 +227,7 @@ test("Publish… shows exactly what readers would see and publishes nothing unti
   await expect(dialog).toContainText(slug);
   await expect(dialog).toContainText("4.5 stars");
   await expect(dialog).toContainText(
-    "Track reflections that will be public in English (1)",
+    "Track reflections that will be published in English (1)",
   );
   await expect(dialog).toContainText(`${names.tracks[0]} · English`);
   await expect(dialog).toContainText(shown);
@@ -289,7 +289,7 @@ test("a change made after the review stops the publication and shows the new sta
     .click();
   const dialog = publishDialog(page);
   await expect(dialog).toContainText(
-    "Track reflections that will be public in English (1)",
+    "Track reflections that will be published in English (1)",
   );
 
   // Another tab sets the second track to show and saves.
@@ -321,7 +321,7 @@ test("a change made after the review stops the publication and shows the new sta
   // The author asks for a new review on purpose and sees both reflections.
   await dialog.getByRole("button", { name: "Review it again" }).click();
   await expect(dialog).toContainText(
-    "Track reflections that will be public in English (2)",
+    "Track reflections that will be published in English (2)",
   );
   await expect(dialog).toContainText(kept);
   expect((await stored()).status).toBe("draft");
@@ -344,7 +344,7 @@ test("confirming publishes the version, and the page says what that does and doe
   await panel.getByRole("button", { name: "Publish…", exact: true }).click();
   const dialog = publishDialog(page);
   await expect(dialog).toContainText(
-    "Track reflections that will be public in English (1)",
+    "Track reflections that will be published in English (1)",
   );
   await dialog
     .getByRole("button", { name: "Publish the English version" })
@@ -406,7 +406,7 @@ test("editing published writing shows exactly what changes, and saves only on co
   await openEditor(page);
   await expect(
     page.getByText(
-      "This version is published. Saving changes the public page.",
+      "This version is published. Saving changes the published writing.",
     ),
   ).toBeVisible();
 
@@ -417,14 +417,14 @@ test("editing published writing shows exactly what changes, and saves only on co
   const dialog = changeDialog(page);
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText("Changed: Your reflection · English");
-  await expect(dialog).toContainText("Readers see now");
+  await expect(dialog).toContainText("Published now");
   await expect(dialog).toContainText(body);
-  await expect(dialog).toContainText("Readers will see");
+  await expect(dialog).toContainText("Published after saving");
   await expect(dialog).toContainText(shorter);
   await shoot(page, "change-dialog");
   await scan(page, "the change dialog");
   await expect(
-    dialog.getByRole("heading", { name: "Update the public page?" }),
+    dialog.getByRole("heading", { name: "Update published writing?" }),
   ).toBeFocused();
   expect(tokens).toEqual([]);
   expect(await tokenInPage(page)).toBe(false);
@@ -444,7 +444,7 @@ test("editing published writing shows exactly what changes, and saves only on co
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(dialog).toBeVisible();
   await dialog
-    .getByRole("button", { name: "Save and update the public page" })
+    .getByRole("button", { name: "Save and update published writing" })
     .click();
   await expect(dialog).toBeHidden();
   await expect(page.getByText("Saved just now")).toBeVisible();
@@ -485,7 +485,7 @@ test("a change that only takes something away asks nothing, and a repeated Save 
   await page.keyboard.press("Control+s");
   const dialog = changeDialog(page);
   await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText("Readers will see");
+  await expect(dialog).toContainText("Published after saving");
   expect(previews).toHaveLength(1);
   await dialog.getByRole("button", { name: "Cancel" }).click();
   await expect(dialog).toBeHidden();
@@ -501,7 +501,7 @@ test("a review that no longer fits the journal stops the save in the dialog and 
   await page.getByLabel("Your reflection", { exact: true }).fill(typed);
   await page.getByRole("button", { name: "Save", exact: true }).click();
   const dialog = changeDialog(page);
-  await expect(dialog).toContainText("Readers will see");
+  await expect(dialog).toContainText("Published after saving");
 
   // Another tab changes a private reflection (nothing public, so no dialog),
   // which moves the journal's version under the open review.
@@ -514,7 +514,7 @@ test("a review that no longer fits the journal stops the save in the dialog and 
 
   const before = await stored();
   await dialog
-    .getByRole("button", { name: "Save and update the public page" })
+    .getByRole("button", { name: "Save and update published writing" })
     .click();
   // The version moved under the review: the save is refused as a conflict,
   // the dialog closes, and the editor says so with the writing still in it.
@@ -649,49 +649,68 @@ test("a published journal that is deleted and restored comes back private, and p
     .click();
   const dialog = publishDialog(page);
   await expect(dialog).toContainText(
-    "Track reflections that will be public in English (1)",
+    "Track reflections that will be published in English (1)",
   );
   await expect(dialog).toContainText(`${names.tracks[0]} · English`);
   expect((await stored()).status).toBe("private");
   await dialog.getByRole("button", { name: "Cancel" }).click();
 });
 
-test("a reflection can be taken off the list from inside the review, and the author confirms the set as it then stands", async ({
+test("closing a review never changes anything, and the way to change what is shown is the track editor", async ({
   page,
 }) => {
   const tokens = watchTokens(page);
   await page.goto(journalUrl);
-  await visibility(page)
-    .getByRole("button", { name: "Publish…", exact: true })
-    .click();
+  const state = async () => ({
+    stored: await stored(),
+    reflections: await reflections(),
+  });
+  const before = await state();
+
+  const panel = visibility(page);
+  await panel.getByRole("button", { name: "Publish…", exact: true }).click();
   const dialog = publishDialog(page);
   await expect(dialog).toContainText(
-    "Track reflections that will be public in English (1)",
+    "Track reflections that will be published in English (1)",
   );
+  // Nothing in the review saves: there is no control that changes a flag.
+  await expect(dialog.getByRole("button")).toHaveText([
+    "Publish the English version",
+    "Cancel",
+  ]);
+  await expect(dialog).toContainText("closing it leaves everything as it was");
 
-  await dialog.getByRole("button", { name: /^Don’t show this one: / }).click();
-  // The removal is saved and said in words; the review on screen is gone with
-  // its token, and nothing is published. The author asks for the new review.
-  await expect(dialog.locator("[data-notice]")).toContainText(
-    "Taken off the list",
-  );
-  await expect(dialog.locator("[data-notice]")).toBeFocused();
-  expect((await reflections())[0]!.is_published).toBe(false);
-  expect((await stored()).status).toBe("private");
+  // Cancel, Escape, and opening it again: nothing moved, no token was sent.
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).toBeHidden();
+  await panel.getByRole("button", { name: "Publish…", exact: true }).click();
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  expect(await state()).toEqual(before);
   expect(tokens).toEqual([]);
-  await dialog.getByRole("button", { name: "Review it again" }).click();
+
+  // To change what is shown, the review points to the track editor. Following
+  // it leaves the review (and its token) behind and still changes nothing.
+  await panel.getByRole("button", { name: "Publish…", exact: true }).click();
+  await dialog
+    .getByRole("link", { name: "Change what is shown, on the tracks" })
+    .click();
+  await expect(page).toHaveURL(/\/edit$/);
+  expect(await state()).toEqual(before);
+  expect(tokens).toEqual([]);
+
+  // There the author unflags the track and saves, on purpose; then a new
+  // review lists the set as it now stands, and confirming publishes that.
+  await openTrack(page, names.tracks[0]);
+  await page.getByLabel("Show on the public page").uncheck();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText("Saved just now")).toBeVisible();
+  await page.goto(journalUrl);
+  await panel.getByRole("button", { name: "Publish…", exact: true }).click();
   await expect(dialog).toContainText(
-    "Track reflections that will be public in English (0)",
+    "Track reflections that will be published in English (0)",
   );
-  await expect(dialog).toContainText("No track reflection will be shown.");
-  await expect(
-    dialog.getByRole("heading", { name: "Publish the English version?" }),
-  ).toBeFocused();
-  expect((await stored()).status).toBe("private");
-  expect(tokens).toEqual([]);
-  expect((await reflections())[0]!.is_published).toBe(false);
-
-  // Confirming publishes the set as it now stands: no reflection.
   await dialog
     .getByRole("button", { name: "Publish the English version" })
     .click();
@@ -702,4 +721,71 @@ test("a reflection can be taken off the list from inside the review, and the aut
   expect((await stored()).status).toBe("published");
   expect(tokens).toHaveLength(1);
   expect((await reflections()).every((row) => !row.is_published)).toBe(true);
+});
+
+test("a stale tab cannot undo another tab: Draft, Private, and Unpublish say what changed and change nothing", async ({
+  page,
+}) => {
+  // The journal is published (the previous test). Tab A loads the page now.
+  await page.goto(journalUrl);
+  const panel = visibility(page);
+  await expect(
+    panel.getByRole("button", { name: "Unpublish…", exact: true }),
+  ).toBeVisible();
+
+  // Tab B unpublishes it to private through the studio.
+  const other = await page.context().newPage();
+  await other.goto(journalUrl);
+  const otherPanel = visibility(other);
+  await otherPanel
+    .getByRole("button", { name: "Unpublish…", exact: true })
+    .click();
+  await other
+    .getByRole("dialog", { name: "Unpublish the English version?" })
+    .getByRole("button", { name: "Unpublish" })
+    .click();
+  await expect(other.getByText("is no longer published.")).toBeVisible();
+  expect((await stored()).status).toBe("private");
+
+  // Tab A still shows "Published". Its Unpublish is stale: refused in words,
+  // not applied a second time, and the page then shows the real state.
+  await panel.getByRole("button", { name: "Unpublish…", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Unpublish the English version?" })
+    .getByRole("button", { name: "Unpublish" })
+    .click();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "was changed somewhere else" }),
+  ).toContainText("nothing was changed here");
+  expect((await stored()).status).toBe("private");
+  await expect(
+    panel.getByRole("button", { name: "Private", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+
+  // Tab B publishes it again; tab A, now showing "Private", clicks Draft.
+  await visibility(other)
+    .getByRole("button", { name: "Publish…", exact: true })
+    .click();
+  const review = publishDialog(other);
+  await expect(review).toContainText(
+    "Track reflections that will be published",
+  );
+  await review
+    .getByRole("button", { name: "Publish the English version" })
+    .click();
+  await expect(
+    other.getByText("is now published in your journal."),
+  ).toBeVisible();
+  expect((await stored()).status).toBe("published");
+
+  await panel.getByRole("button", { name: "Draft", exact: true }).click();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "was changed somewhere else" }),
+  ).toBeVisible();
+  // Nothing was unpublished by the stale click.
+  expect((await stored()).status).toBe("published");
+  await expect(
+    panel.getByRole("button", { name: "Unpublish…", exact: true }),
+  ).toBeVisible();
+  await other.close();
 });

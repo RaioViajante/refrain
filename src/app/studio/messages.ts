@@ -52,9 +52,11 @@ export function failureMessage(failure: Failure): string {
     case "confirmation_invalid":
     case "confirmation_expired":
     case "confirmation_stale":
-      return "What readers would see has changed since you looked, or your confirmation ran out, so nothing was published or saved. Your text is still here. Review it again to continue.";
+      return "What would be published has changed since you looked, or your confirmation ran out, so nothing was published or saved. Your text is still here. Review it again to continue.";
     case "nothing_to_publish":
-      return "A version needs an opening sentence or some text before readers can see it, and a published version has to keep one. Nothing was changed. Write something first, or unpublish it before you empty it.";
+      return "A version needs an opening sentence or some text before it can be published, and a published version has to keep one. Nothing was changed. Write something first, or unpublish it before you empty it.";
+    case "status_changed":
+      return "This version was changed somewhere else (another tab may have published or unpublished it), so nothing was changed here. The page now shows how it stands. Check it, then choose again.";
     case "unreachable":
       return "The studio didn’t answer, so it isn’t known whether this went through. Reload the page to see what was saved before you try again. What you typed is still here.";
     case "no_address":

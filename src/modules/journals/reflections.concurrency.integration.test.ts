@@ -20,6 +20,7 @@ import {
   testAuthor,
   withConnections,
   type TestAlbum,
+  setPrivacyForTest,
 } from "@/testing";
 
 import {
@@ -27,7 +28,6 @@ import {
   previewAlbumJournalChange,
   restoreAlbumJournal,
   saveAlbumJournal,
-  setAlbumJournalPrivacy,
 } from "./commands";
 import { JournalError } from "./errors";
 import { getTrackByTrack } from "./queries";
@@ -483,7 +483,7 @@ describe("a confirmed save against changes that need no new version", () => {
             confirmation: shown.confirmation!,
           }),
         () =>
-          setAlbumJournalPrivacy(unpublisher!, author, {
+          setPrivacyForTest(unpublisher!, author, {
             entryId,
             locale: "en",
             status: "private",
@@ -615,7 +615,7 @@ describe("mixed operations on one journal", () => {
               confirmation: preview.confirmation,
             }),
           () =>
-            setAlbumJournalPrivacy(w4!, author, {
+            setPrivacyForTest(w4!, author, {
               entryId,
               locale: "en",
               status: "private",

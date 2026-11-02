@@ -459,7 +459,14 @@ describe("the author's complete journey, through real HTTP and PostgreSQL", () =
     ok(
       await call(
         "setJournalPrivacyAction",
-        [{ entryId: ids.recoverable, locale: "en", status: "private" }],
+        [
+          {
+            entryId: ids.recoverable,
+            locale: "en",
+            status: "private",
+            expectedStatus: "draft",
+          },
+        ],
         { cookie: cookie(), routeId: ids.recoverable },
       ),
     );
@@ -858,7 +865,14 @@ describe("the author's complete journey, through real HTTP and PostgreSQL", () =
     ok(
       await call(
         "setJournalPrivacyAction",
-        [{ entryId: ids.journal, locale: "pt-BR", status: "private" }],
+        [
+          {
+            entryId: ids.journal,
+            locale: "pt-BR",
+            status: "private",
+            expectedStatus: "draft",
+          },
+        ],
         { cookie: cookie(), routeId: ids.journal },
       ),
     );
@@ -871,7 +885,14 @@ describe("the author's complete journey, through real HTTP and PostgreSQL", () =
     for (const status of ["published", "public", ""]) {
       const refused = await call(
         "setJournalPrivacyAction",
-        [{ entryId: ids.journal, locale: "pt-BR", status }],
+        [
+          {
+            entryId: ids.journal,
+            locale: "pt-BR",
+            status,
+            expectedStatus: "private",
+          },
+        ],
         { cookie: cookie(), routeId: ids.journal },
       );
       expect(refused).toMatchObject({ ok: false, code: "invalid_input" });
@@ -1784,7 +1805,14 @@ describe("publishing from the studio, through real HTTP and PostgreSQL", () => {
     ok(
       await call(
         "setJournalPrivacyAction",
-        [{ entryId, locale: "en", status: "private" }],
+        [
+          {
+            entryId,
+            locale: "en",
+            status: "private",
+            expectedStatus: "draft",
+          },
+        ],
         { cookie: cookie(), routeId: entryId },
       ),
     );
@@ -1793,7 +1821,14 @@ describe("publishing from the studio, through real HTTP and PostgreSQL", () => {
     ok(
       await call(
         "setJournalPrivacyAction",
-        [{ entryId, locale: "en", status: "private" }],
+        [
+          {
+            entryId,
+            locale: "en",
+            status: "private",
+            expectedStatus: "published",
+          },
+        ],
         { cookie: cookie(), routeId: entryId },
       ),
     );
@@ -1822,7 +1857,14 @@ describe("publishing from the studio, through real HTTP and PostgreSQL", () => {
     expect(
       await call(
         "setJournalPrivacyAction",
-        [{ entryId, locale: "en", status: "private" }],
+        [
+          {
+            entryId,
+            locale: "en",
+            status: "private",
+            expectedStatus: "published",
+          },
+        ],
         { cookie: cookie(), routeId: entryId },
       ),
     ).toMatchObject({ ok: true });
@@ -1856,10 +1898,67 @@ describe("publishing from the studio, through real HTTP and PostgreSQL", () => {
     expect(
       await call(
         "setJournalPrivacyAction",
-        [{ entryId, locale: "en", status: "published" }],
+        [
+          {
+            entryId,
+            locale: "en",
+            status: "published",
+            expectedStatus: "private",
+          },
+        ],
         { cookie: cookie(), routeId: entryId },
       ),
     ).toMatchObject({ ok: false, code: "invalid_input" });
+  });
+
+  it("refuses a stale Draft, Private, or Unpublish from a tab that no longer shows the real state", async () => {
+    const entryId = await written("stale");
+    const setStatus = (status: string, expectedStatus: string) =>
+      call(
+        "setJournalPrivacyAction",
+        [{ entryId, locale: "en", status, expectedStatus }],
+        { cookie: cookie(), routeId: entryId },
+      );
+
+    // Tab A drew the page while the version was private (it was a draft
+    // here; use private as A's belief). Tab B publishes it meanwhile.
+    ok(await setStatus("private", "draft"));
+    ok(await publish(entryId, (await preview(entryId)).confirmation));
+    const before = await snapshot();
+
+    // Tab A still shows "private": its Draft click must not unpublish.
+    expect(await setStatus("draft", "private")).toEqual({
+      ok: false,
+      code: "status_changed",
+    });
+    expect(await setStatus("private", "private")).toEqual({
+      ok: false,
+      code: "status_changed",
+    });
+    expect(await statusOf(entryId)).toBe("published");
+    expect(await snapshot()).toEqual(before);
+
+    // The author's own Unpublish, from a tab that shows the real state, works.
+    ok(await setStatus("private", "published"));
+    expect(await statusOf(entryId)).toBe("private");
+
+    // And a stale Unpublish (the tab still shows "published") is refused
+    // instead of being applied again.
+    expect(await setStatus("draft", "published")).toEqual({
+      ok: false,
+      code: "status_changed",
+    });
+    expect(await statusOf(entryId)).toBe("private");
+
+    // No expectation at all is an input error: nothing is applied blindly.
+    expect(
+      await call(
+        "setJournalPrivacyAction",
+        [{ entryId, locale: "en", status: "draft" }],
+        { cookie: cookie(), routeId: entryId },
+      ),
+    ).toMatchObject({ ok: false, code: "invalid_input" });
+    expect(await statusOf(entryId)).toBe("private");
   });
 
   it("returns a deleted, published journal private, and publishes it again only after a new review", async () => {
@@ -2010,7 +2109,14 @@ describe("what a request without the author's session can do", () => {
         routeId: ids.journal,
       },
       setJournalPrivacyAction: {
-        args: [{ entryId: ids.journal, locale: "pt-BR", status: "draft" }],
+        args: [
+          {
+            entryId: ids.journal,
+            locale: "pt-BR",
+            status: "draft",
+            expectedStatus: "private",
+          },
+        ],
         routeId: ids.journal,
       },
       // Publication (ADR 0006 § 10): both previews return private writing, so
@@ -2762,7 +2868,14 @@ describe("the journey ends cleanly", () => {
     expect(
       await call(
         "setJournalPrivacyAction",
-        [{ entryId: ids.journal, locale: "pt-BR", status: "draft" }],
+        [
+          {
+            entryId: ids.journal,
+            locale: "pt-BR",
+            status: "draft",
+            expectedStatus: "private",
+          },
+        ],
         { cookie: author.cookie, routeId: ids.journal },
       ),
     ).toEqual({ ok: false, code: "deleted" });

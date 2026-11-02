@@ -53,12 +53,28 @@ export function JournalControls({
   const [after, setAfter] = useState<PrivateStatus>("private");
   const [message, setMessage] = useState("");
 
+  // The status each version showed when the page was drawn. The server
+  // applies a change only if the version still has it, so a stale tab fails
+  // with a clear message instead of undoing what another tab did.
+  function shown(locale: Language): VisibilityStatus {
+    return versions.find((v) => v.locale === locale)?.status ?? "draft";
+  }
+
   async function setStatus(locale: Language, next: PrivateStatus) {
     setMessage("");
     const result = await run(() =>
-      setJournalPrivacyAction({ entryId, locale, status: next }),
+      setJournalPrivacyAction({
+        entryId,
+        locale,
+        status: next,
+        expectedStatus: shown(locale),
+      }),
     );
     setAsking(undefined);
+    if (!result.ok && result.code === "status_changed") {
+      // Show how it really stands now.
+      router.refresh();
+    }
     if (result.ok) {
       setMessage(
         `${LANGUAGE_NAMES[locale]}: ${next === "private" ? "now private." : "back to a draft."}`,
@@ -70,9 +86,17 @@ export function JournalControls({
   async function unpublish(locale: Language) {
     setMessage("");
     const result = await run(() =>
-      setJournalPrivacyAction({ entryId, locale, status: after }),
+      setJournalPrivacyAction({
+        entryId,
+        locale,
+        status: after,
+        expectedStatus: shown(locale),
+      }),
     );
     setAsking(undefined);
+    if (!result.ok && result.code === "status_changed") {
+      router.refresh();
+    }
     if (result.ok) {
       setMessage(
         `The ${LANGUAGE_NAMES[locale]} version is no longer published. It is ${after === "private" ? "private" : "a draft"} now. Nothing was deleted.`,
@@ -156,8 +180,9 @@ export function JournalControls({
                   </button>
                 </div>
                 <p className="studio-hint" style={{ maxWidth: "52ch" }}>
-                  Published means this version is marked for readers. Public web
-                  pages are not built yet, so nothing opens on the web.
+                  Published means this version is marked as published in your
+                  records. Public web pages are not built yet, so nothing opens
+                  on the web.
                 </p>
               </>
             ) : (
@@ -206,8 +231,8 @@ export function JournalControls({
                 </div>
                 <p className="studio-hint" style={{ maxWidth: "52ch" }}>
                   A draft is still being written; private is finished for now.
-                  Both are only yours. Publish… shows you exactly what readers
-                  would see before anything changes.
+                  Both are only yours. Publish… shows you exactly what will be
+                  published before anything changes.
                 </p>
               </>
             )}
@@ -255,7 +280,6 @@ export function JournalControls({
         open={publishing !== undefined}
         onClose={() => setAsking(undefined)}
         onPublished={() => published(publishing)}
-        onReflectionHidden={() => router.refresh()}
       />
 
       <ConfirmDialog
@@ -268,11 +292,11 @@ export function JournalControls({
       >
         <div className="space-y-3">
           <p>
-            This version will no longer be marked as published for readers.
-            Nothing is deleted: your writing, the track reflections, and the
-            address stay as they are, and other language versions are not
-            touched. You can publish it again later; that will show you what
-            readers would see first.
+            This version will no longer be marked as published. Nothing is
+            deleted: your writing, the track reflections, and the address stay
+            as they are, and other language versions are not touched. You can
+            publish it again later; that will show you what would be published
+            first.
           </p>
           <SelectField
             label="After unpublishing, it is"

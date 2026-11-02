@@ -61,8 +61,12 @@ describe("hand-drawn strokes", () => {
       area: [760, 440],
       dialog: [540, 300],
     };
+    // Generated once: each call redraws every stroke (about 200 ms), and
+    // asking for it once per size made this test slow enough to time out on a
+    // loaded CI runner. The assertions below are unchanged.
+    const drawn = strokes();
     for (const [name, [width, height]] of Object.entries(sizes)) {
-      const markup = strokes()[name]!;
+      const markup = drawn[name]!;
       const numbers = [...markup.matchAll(/ d='([^']+)'/g)].flatMap((match) =>
         (match[1]!.match(/-?\d+\.?\d*/g) ?? []).map(Number),
       );

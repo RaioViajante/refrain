@@ -122,6 +122,8 @@ function failed(error: unknown): ActionResult<never> {
         return { ok: false, code: error.failure };
       case "nothing_to_publish":
         return { ok: false, code: "nothing_to_publish" };
+      case "status_changed":
+        return { ok: false, code: "status_changed" };
       case "no_current_slug":
         return { ok: false, code: "no_address" };
       case "slug_unavailable":

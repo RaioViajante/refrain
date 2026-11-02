@@ -1,12 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ConfirmDialog } from "@/app/studio/form-kit";
-import {
-  publishJournalVersionAction,
-  saveJournalAction,
-} from "@/app/studio/journals/actions";
+import { publishJournalVersionAction } from "@/app/studio/journals/actions";
 import { previewPublicationAction } from "@/app/studio/journals/preview-publication-action";
 import {
   LANGUAGE_NAMES,
@@ -30,9 +28,6 @@ type Stage =
   // The server refused: what readers would see changed, or the review ran out.
   // Nothing was published. The author asks for a new review on purpose.
   | { name: "changed" }
-  // A reflection was taken off the list and saved. The review on screen was
-  // dropped with its token; the author asks for the new one.
-  | { name: "removed"; title: string }
   // Anything else the server said, in words.
   | { name: "failed"; failure: Failure };
 
@@ -46,7 +41,6 @@ export function PublishDialog({
   open,
   onClose,
   onPublished,
-  onReflectionHidden,
 }: {
   entryId: string;
   locale: Language;
@@ -54,8 +48,6 @@ export function PublishDialog({
   onClose: () => void;
   /** Called after the server confirmed the publication. */
   onPublished: () => void;
-  /** Called after a reflection was taken off the list, so the page can refresh. */
-  onReflectionHidden: () => void;
 }) {
   return open ? (
     <OpenPublishDialog
@@ -63,7 +55,6 @@ export function PublishDialog({
       locale={locale}
       onClose={onClose}
       onPublished={onPublished}
-      onReflectionHidden={onReflectionHidden}
     />
   ) : null;
 }
@@ -85,13 +76,11 @@ function OpenPublishDialog({
   locale,
   onClose,
   onPublished,
-  onReflectionHidden,
 }: {
   entryId: string;
   locale: Language;
   onClose: () => void;
   onPublished: () => void;
-  onReflectionHidden: () => void;
 }) {
   const [stage, setStage] = useState<Stage>({ name: "loading" });
   // Guards against a second click before React has re-rendered.
@@ -129,43 +118,6 @@ function OpenPublishDialog({
   async function reviewAgain() {
     setStage({ name: "loading" });
     setStage(await fetchPreview());
-  }
-
-  // Takes one reflection off the list of what will be shown: the ordinary
-  // save, a removal that needs no confirmation and takes effect at once, even
-  // if the dialog is cancelled afterwards (it can only hide). The review that
-  // was on screen, and its token, are dropped; the author reads the new one and
-  // confirms again (ADR 0005 § 5.3).
-  async function stopShowing(trackId: string, title: string) {
-    if (busy.current || stage.name !== "ready") {
-      return;
-    }
-    busy.current = true;
-    const { review } = stage.preview;
-    setStage({ name: "loading" });
-    let result: ActionResult<{ version: number }>;
-    try {
-      result = await saveJournalAction({
-        entryId,
-        expectedVersion: review.entryVersion,
-        reflections: [{ trackId, isPublished: false }],
-      });
-    } catch {
-      result = { ok: false, code: "unreachable" };
-    }
-    busy.current = false;
-    if (!result.ok) {
-      setStage(
-        result.code === "conflict"
-          ? { name: "changed" }
-          : { name: "failed", failure: result },
-      );
-      return;
-    }
-    // The removal is saved. The review that was on screen is gone, and the
-    // author asks for the new one, a separate request they choose to make.
-    setStage({ name: "removed", title });
-    onReflectionHidden();
   }
 
   async function confirm() {
@@ -230,13 +182,13 @@ function OpenPublishDialog({
       confirmLabel={`Publish the ${language} version`}
       pending={submitting}
       focusKey={stage.name}
-      regionLabel="What readers would see"
+      regionLabel="What will be published"
       hideConfirm={stage.name !== "ready" || unreadable}
       onConfirm={confirm}
       onCancel={onClose}
       cancelLabel={stage.name === "ready" ? "Cancel" : "Close"}
       extraActions={
-        stage.name === "changed" || stage.name === "removed" ? (
+        stage.name === "changed" ? (
           <button
             type="button"
             className="studio-button studio-button-primary"
@@ -249,22 +201,14 @@ function OpenPublishDialog({
     >
       <div className="studio-review">
         <div role="status">
-          {loading ? "Reading what readers would see…" : null}
+          {loading ? "Reading what would be published…" : null}
         </div>
 
         {stage.name === "changed" ? (
           <Notice problem>
-            What readers would see has changed since you looked, or this review
+            What would be published has changed since you looked, or this review
             ran out. Nothing was published. Review it again to see how it stands
             now.
-          </Notice>
-        ) : null}
-
-        {stage.name === "removed" ? (
-          <Notice>
-            Taken off the list: {stage.title} · {language}. That is saved, even
-            if you close this. Nothing was published. Review it again to see
-            what will be shown now.
           </Notice>
         ) : null}
 
@@ -282,16 +226,15 @@ function OpenPublishDialog({
               </p>
             ) : null}
             <p>
-              This is everything the {language} version will show once you
-              publish it. Nothing is published until you press the button below,
-              and nothing you wrote is deleted. Taking a reflection off this
-              list saves right away, even if you cancel, and it also stops that
-              reflection showing in any other language.
+              This is everything that will be marked as published for the{" "}
+              {language} version. Nothing is published until you press the
+              button below. Nothing you do in this review changes or deletes
+              anything: closing it leaves everything as it was.
             </p>
             <p className="studio-hint">
-              This version is {status} now. A page address for readers is not
-              built yet, so publishing marks the version as published in your
-              records and nothing opens on the web.
+              This version is {status} now. No web page for it exists yet, so
+              publishing only marks the version as published in your records;
+              nothing opens on the web.
             </p>
 
             <ReviewSection title="Opening sentence">
@@ -333,7 +276,7 @@ function OpenPublishDialog({
             ) : null}
 
             <ReviewSection
-              title={`Track reflections that will be public in ${language} (${ready.reflections.length})`}
+              title={`Track reflections that will be published in ${language} (${ready.reflections.length})`}
             >
               {ready.reflections.length === 0 ? (
                 <p lang="en">
@@ -364,23 +307,23 @@ function OpenPublishDialog({
                           .filter(Boolean)
                           .join(" · ")}
                       </p>
-                      <button
-                        type="button"
-                        className="studio-button"
-                        onClick={() =>
-                          void stopShowing(
-                            reflection.trackId,
-                            reflection.trackTitle,
-                          )
-                        }
-                        aria-label={`Don’t show this one: ${reflection.trackTitle}, ${language}`}
-                      >
-                        Don’t show this one
-                      </button>
                     </li>
                   ))}
                 </ul>
               )}
+              <p className="studio-hint">
+                Nothing here changes which reflections are shown. To change
+                that, close this review, change it on the track, and review
+                again.
+              </p>
+              <p>
+                <Link
+                  href={`/studio/journals/${entryId}/edit`}
+                  className="studio-button"
+                >
+                  Change what is shown, on the tracks
+                </Link>
+              </p>
             </ReviewSection>
 
             <ReviewSection title="What stays private">

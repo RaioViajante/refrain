@@ -63,7 +63,7 @@ export function ReviewedValueView({
 }: {
   value: ReviewedValue;
   lang: string;
-  /** "before" is what readers see now: an empty text there was never written. */
+  /** "before" is what is published now: an empty text there was never written. */
   side?: "before" | "after";
 }) {
   switch (value.type) {

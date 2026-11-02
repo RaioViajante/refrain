@@ -361,14 +361,14 @@ export function JournalEditor({
 
       {edit?.status === "published" ? (
         <p className="studio-panel" role="note">
-          This version is published. Saving changes the public page. Before a
-          change that alters what readers see is saved, you will see exactly
-          what changes and confirm it. Nothing is saved without that.
+          This version is published. Saving changes the published writing.
+          Before a change to the published writing is saved, you will see
+          exactly what changes and confirm it. Nothing is saved without that.
         </p>
       ) : edit?.anyPublished ? (
         <p className="studio-panel" role="note">
-          Another language version of this journal is published. A change that
-          alters what readers see will show you what changes and ask you first.
+          Another language version of this journal is published. A change to the
+          published writing will show you what changes and ask you first.
         </p>
       ) : null}
 

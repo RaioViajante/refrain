@@ -1189,13 +1189,15 @@ export function gateCallViolations(files: SourceText[]): string[] {
 //
 //   previewPublicationAction, previewPublicChangeAction   only in fetchPreview
 //   publishJournalVersionAction                           only in confirm
-//   saveJournalAction                                     only in confirm
-//                                                         (with the token) or
-//                                                         stopShowing (a
-//                                                         removal, no token)
+//   saveJournalAction                                     only in confirm of the
+//                                                         change dialog. The
+//                                                         publish dialog saves
+//                                                         nothing, so closing
+//                                                         a review never
+//                                                         leaves a change.
 //
-// `confirm` and `stopShowing` never reach a preview, so nothing previews and
-// consumes in one operation; nothing inside a catch handler or an effect,
+// `confirm` never reaches a preview, so nothing previews and consumes in one
+// operation; nothing inside a catch handler or an effect,
 // timer, or microtask calls any of them; and `confirm` is attached only to
 // the confirm control (`onConfirm`).
 
@@ -1209,7 +1211,7 @@ const ACTION_SITES: Record<string, string[]> = {
   previewPublicationAction: ["fetchPreview"],
   previewPublicChangeAction: ["fetchPreview"],
   publishJournalVersionAction: ["confirm"],
-  saveJournalAction: ["confirm", "stopShowing"],
+  saveJournalAction: ["confirm"],
 };
 // Files that may name each action at all (outside its own definition).
 const ACTION_FILES: Record<string, string[]> = {
@@ -1217,7 +1219,6 @@ const ACTION_FILES: Record<string, string[]> = {
   previewPublicChangeAction: ["src/app/studio/journals/change-dialog.tsx"],
   publishJournalVersionAction: ["src/app/studio/journals/publish-dialog.tsx"],
   saveJournalAction: [
-    "src/app/studio/journals/publish-dialog.tsx",
     "src/app/studio/journals/change-dialog.tsx",
     "src/app/studio/journals/journal-editor.tsx",
   ],
@@ -1259,13 +1260,6 @@ export function dialogViolations(files: SourceText[]): string[] {
           if (!ACTION_SITES[name]!.includes(fn)) {
             problems.push(`${file.path}: ${name} is called in ${fn}`);
           }
-          if (
-            name === "saveJournalAction" &&
-            fn === "stopShowing" &&
-            node.getText().includes("confirmation")
-          ) {
-            problems.push(`${file.path}: stopShowing sends a confirmation`);
-          }
           for (let up: ts.Node | undefined = node.parent; up; up = up.parent) {
             if (ts.isCatchClause(up)) {
               problems.push(`${file.path}: ${name} is called in a catch`);
@@ -1284,9 +1278,9 @@ export function dialogViolations(files: SourceText[]): string[] {
             }
           }
         }
-        // Neither handler that sends anything may reach a preview.
+        // The handler that sends anything may not reach a preview.
         if (
-          (fn === "confirm" || fn === "stopShowing") &&
+          fn === "confirm" &&
           name &&
           (name === "fetchPreview" || PREVIEW_ACTIONS.includes(name))
         ) {

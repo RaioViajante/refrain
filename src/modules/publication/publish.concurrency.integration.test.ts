@@ -8,7 +8,6 @@ import {
   deleteAlbumJournal,
   restoreAlbumJournal,
   saveAlbumJournal,
-  setAlbumJournalPrivacy,
 } from "@/modules/journals";
 import {
   createTestAlbum,
@@ -22,6 +21,7 @@ import {
   testAuthor,
   withConnections,
   type TestAlbum,
+  setPrivacyForTest,
 } from "@/testing";
 
 import { changeEntrySlug, restoreDeletedEntry } from "./commands";
@@ -225,7 +225,7 @@ describe("every command that changes what is public moves the state stamp (test 
       [
         "unpublish",
         () =>
-          setAlbumJournalPrivacy(author, {
+          setPrivacyForTest(getDb(), author, {
             entryId,
             locale: "en",
             status: "private",
@@ -261,7 +261,7 @@ describe("every command that changes what is public moves the state stamp (test 
     });
     const startStatus = (await stampOf(entryId)).status;
     await publishForTest(getDb(), entryId, "en");
-    await setAlbumJournalPrivacy(author, {
+    await setPrivacyForTest(getDb(), author, {
       entryId,
       locale: "en",
       status: startStatus as "draft" | "private",

@@ -848,13 +848,13 @@ describe("the scans catch mutations of the real source", () => {
 describe("the dialog scan catches each way a dialog could send a token wrongly", () => {
   const dialog = "src/app/studio/journals/publish-dialog.tsx";
   const wrap = (body: string) =>
-    `import { publishJournalVersionAction, saveJournalAction } from "@/app/studio/journals/actions";\nimport { previewPublicationAction } from "@/app/studio/journals/preview-publication-action";\nexport function D() {\n${body}\n return <B onConfirm={confirm} />; }`;
+    `import { publishJournalVersionAction } from "@/app/studio/journals/actions";\nimport { previewPublicationAction } from "@/app/studio/journals/preview-publication-action";\nexport function D() {\n${body}\n return <B onConfirm={confirm} />; }`;
   const check = (body: string) => dialogViolations([file(dialog, wrap(body))]);
 
   it("accepts the shape the dialog has", () => {
     expect(
       check(
-        "async function fetchPreview() { return previewPublicationAction({}); }\nasync function confirm() { return publishJournalVersionAction({ confirmation: t }); }\nasync function stopShowing() { return saveJournalAction({}); }",
+        "async function fetchPreview() { return previewPublicationAction({}); }\nasync function confirm() { return publishJournalVersionAction({ confirmation: t }); }",
       ),
     ).toEqual([]);
   });
@@ -908,10 +908,12 @@ describe("the dialog scan catches each way a dialog could send a token wrongly",
     ).not.toEqual([]);
   });
 
-  it("catches a removal that sends a confirmation, and a confirm handed to anything but the confirm control", () => {
+  it("catches a publish dialog that saves anything, and a confirm handed to anything but the confirm control", () => {
+    // Closing a review must never leave a change behind: the publish dialog
+    // may not save, whatever the handler is called.
     expect(
       check(
-        "async function stopShowing() { return saveJournalAction({ confirmation: t }); }\nasync function confirm() {}",
+        "async function stopShowing() { return saveJournalAction({}); }\nasync function confirm() {}",
       ),
     ).not.toEqual([]);
     expect(

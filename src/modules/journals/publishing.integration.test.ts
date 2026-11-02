@@ -15,6 +15,7 @@ import {
   rowChecksum,
   shiftedTestToken,
   testAuthor,
+  setPrivacyForTest,
 } from "@/testing";
 
 import {
@@ -288,6 +289,152 @@ describe("the publication preview the studio dialog shows", () => {
   });
 });
 
+describe("a review that is closed without confirming leaves everything as it was", () => {
+  it("changes no flag, version, status, or row, however often it is opened, and the token still works", async () => {
+    await inScratchTransaction(async (tx) => {
+      const made = await journal(tx);
+      const flags = async () =>
+        (
+          await tx
+            .select({
+              trackId: schema.trackReflections.trackId,
+              flag: schema.trackReflections.isPublished,
+            })
+            .from(schema.trackReflections)
+            .where(eq(schema.trackReflections.albumJournalId, made.entryId))
+        )
+          .map((row) => `${row.trackId}:${row.flag}`)
+          .sort();
+      const before = {
+        rows: await rowChecksum(tx),
+        flags: await flags(),
+        version: await entryVersion(tx, made.entryId),
+        statuses: await statuses(tx, made.entryId),
+      };
+
+      // Opening it, reading it, and closing it any number of times.
+      const first = await preview(tx, made.entryId, "en");
+      await preview(tx, made.entryId, "en");
+      await preview(tx, made.entryId, "pt-BR");
+
+      expect({
+        rows: await rowChecksum(tx),
+        flags: await flags(),
+        version: await entryVersion(tx, made.entryId),
+        statuses: await statuses(tx, made.entryId),
+      }).toEqual(before);
+      // Closing a review does not spoil it: the same token can still publish.
+      expect(await publish(tx, made.entryId, "en", first.confirmation)).toEqual(
+        { changed: true },
+      );
+    });
+  });
+});
+
+describe("a stale Draft, Private, or Unpublish is refused", () => {
+  const change = (
+    tx: Transaction,
+    entryId: string,
+    status: "draft" | "private",
+    expectedStatus: string,
+    locale: Locale = "en",
+  ) =>
+    setAlbumJournalPrivacy(tx, author, {
+      entryId,
+      locale,
+      status,
+      expectedStatus,
+    });
+
+  it("applies a change only when the version still has the status the screen showed", async () => {
+    await inScratchTransaction(async (tx) => {
+      const made = await journal(tx, "draft");
+      await change(tx, made.entryId, "private", "draft");
+      expect((await statuses(tx, made.entryId)).en).toBe("private");
+      // The screen still shows "draft": the version is private now.
+      const before = await rowChecksum(tx);
+      expect(
+        await failureOf(tx, () => change(tx, made.entryId, "draft", "draft")),
+      ).toBe("status_changed");
+      expect(await rowChecksum(tx)).toEqual(before);
+      expect((await statuses(tx, made.entryId)).en).toBe("private");
+    });
+  });
+
+  it("does not let a tab that shows private unpublish what another tab published", async () => {
+    await inScratchTransaction(async (tx) => {
+      const made = await journal(tx);
+      // Tab A drew the page while the version was private. Tab B publishes it.
+      const token = (await preview(tx, made.entryId, "en")).confirmation;
+      await publish(tx, made.entryId, "en", token);
+      const before = await rowChecksum(tx);
+
+      for (const status of ["draft", "private"] as const) {
+        expect(
+          await failureOf(tx, () =>
+            change(tx, made.entryId, status, "private"),
+          ),
+        ).toBe("status_changed");
+      }
+      expect(await rowChecksum(tx)).toEqual(before);
+      expect((await statuses(tx, made.entryId)).en).toBe("published");
+
+      // The legitimate Unpublish, from a tab that shows the real state.
+      await change(tx, made.entryId, "private", "published");
+      expect((await statuses(tx, made.entryId)).en).toBe("private");
+      // And a second, stale Unpublish is refused rather than applied again.
+      expect(
+        await failureOf(tx, () =>
+          change(tx, made.entryId, "draft", "published"),
+        ),
+      ).toBe("status_changed");
+      expect((await statuses(tx, made.entryId)).en).toBe("private");
+    });
+  });
+
+  it("checks only the language it is about, and refuses what cannot be checked", async () => {
+    await inScratchTransaction(async (tx) => {
+      const made = await journal(tx);
+      const token = (await preview(tx, made.entryId, "pt-BR")).confirmation;
+      await publish(tx, made.entryId, "pt-BR", token);
+      // English is private, as the screen shows; Portuguese being published
+      // is not what this change is about.
+      await change(tx, made.entryId, "draft", "private", "en");
+      expect(await statuses(tx, made.entryId)).toEqual({
+        en: "draft",
+        "pt-BR": "published",
+      });
+      // Missing or unknown expectation, a missing version, a deleted journal.
+      expect(
+        await failureOf(tx, () =>
+          setAlbumJournalPrivacy(tx, author, {
+            entryId: made.entryId,
+            locale: "en",
+            status: "private",
+          } as never),
+        ),
+      ).toBe("invalid_input");
+      expect(
+        await failureOf(tx, () =>
+          change(tx, made.entryId, "private", "unknown"),
+        ),
+      ).toBe("invalid_input");
+      const onlyEnglish = await createTestJournal(tx, {
+        versions: [{ locale: "en" }],
+      });
+      expect(
+        await failureOf(tx, () =>
+          change(tx, onlyEnglish.entryId, "private", "draft", "pt-BR"),
+        ),
+      ).toBe("entry_not_found");
+      await deleteAlbumJournal(tx, author, made.entryId);
+      expect(
+        await failureOf(tx, () => change(tx, made.entryId, "private", "draft")),
+      ).toBe("entry_deleted");
+    });
+  });
+});
+
 describe("publishing with the token a separate preview returned", () => {
   it("publishes from a private version and from a draft, and only that language", async () => {
     await inScratchTransaction(async (tx) => {
@@ -556,7 +703,7 @@ describe("unpublishing a language version", () => {
         .from(schema.entrySlugs)
         .where(eq(schema.entrySlugs.entryId, made.entryId));
 
-      await setAlbumJournalPrivacy(tx, author, {
+      await setPrivacyForTest(tx, author, {
         entryId: made.entryId,
         locale: "en",
         status: "private",
@@ -605,7 +752,7 @@ describe("unpublishing a language version", () => {
 
       expect(
         await failureOf(tx, () =>
-          setAlbumJournalPrivacy(tx, author, {
+          setPrivacyForTest(tx, author, {
             entryId: made.entryId,
             locale: "en",
             status: "published",
@@ -614,7 +761,7 @@ describe("unpublishing a language version", () => {
       ).toBe("invalid_input");
 
       const beforeUnpublish = await preview(tx, made.entryId, "en");
-      await setAlbumJournalPrivacy(tx, author, {
+      await setPrivacyForTest(tx, author, {
         entryId: made.entryId,
         locale: "en",
         status: "draft",
@@ -637,7 +784,7 @@ describe("unpublishing a language version", () => {
       await deleteAlbumJournal(tx, author, made.entryId);
       expect(
         await failureOf(tx, () =>
-          setAlbumJournalPrivacy(tx, author, {
+          setPrivacyForTest(tx, author, {
             entryId: made.entryId,
             locale: "en",
             status: "private",

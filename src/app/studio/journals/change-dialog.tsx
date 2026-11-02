@@ -181,11 +181,11 @@ function OpenChangeDialog({
     <ConfirmDialog
       open
       review
-      title="Update the public page?"
-      confirmLabel="Save and update the public page"
+      title="Update published writing?"
+      confirmLabel="Save and update published writing"
       pending={submitting}
       focusKey={stage.name}
-      regionLabel="What would change for readers"
+      regionLabel="What will change in the published writing"
       hideConfirm={stage.name !== "ready" || unreadable}
       onConfirm={confirm}
       onCancel={onCancel}
@@ -204,9 +204,7 @@ function OpenChangeDialog({
       }
     >
       <div className="studio-review">
-        <div role="status">
-          {loading ? "Reading what would change for readers…" : null}
-        </div>
+        <div role="status">{loading ? "Reading what would change…" : null}</div>
 
         {stage.name === "changed" ? (
           <Notice problem>
@@ -225,11 +223,11 @@ function OpenChangeDialog({
               </p>
             ) : null}
             <p>
-              This version is published, so saving changes what readers see.
-              Here is exactly what changes. Nothing is saved until you press the
-              button below, and cancelling leaves your text in the editor. A
-              page address for readers is not built yet, so this updates what is
-              marked as published in your records.
+              This version is published, so saving changes the published
+              writing. Here is exactly what changes. Nothing is saved until you
+              press the button below, and cancelling leaves your text in the
+              editor. No web page exists yet, so this updates what is marked as
+              published in your records; nothing opens on the web.
             </p>
             <ul className="studio-review-list">
               {review.changes.map((change, index) => {
@@ -248,7 +246,7 @@ function OpenChangeDialog({
                     </h3>
                     {change.before !== undefined ? (
                       <div>
-                        <p className="studio-hint">Readers see now</p>
+                        <p className="studio-hint">Published now</p>
                         <ReviewedValueView
                           value={change.before}
                           lang={lang}
@@ -259,8 +257,8 @@ function OpenChangeDialog({
                     <div>
                       <p className="studio-hint">
                         {change.before !== undefined
-                          ? "Readers will see"
-                          : "Readers will see (new)"}
+                          ? "Published after saving"
+                          : "Published after saving (new)"}
                       </p>
                       <ReviewedValueView value={change.after} lang={lang} />
                     </div>
@@ -269,7 +267,8 @@ function OpenChangeDialog({
               })}
             </ul>
             <p className="studio-hint">
-              Things you take away from the public page do not need this review.
+              Things you take away from the published writing do not need this
+              review.
             </p>
           </>
         ) : null}
