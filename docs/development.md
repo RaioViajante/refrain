@@ -162,7 +162,7 @@ It replaces the password and signs out every session. There is no password reset
 
 After [the author account exists](#first-time-setup-of-the-author-account), `pnpm dev` and sign in at `http://localhost:3000/studio`. Everything is private by default: publishing marks a version as published in your records, and a public page for it opens only where [`REFRAIN_PUBLIC_READS_ENABLED`](#configuration) is `true`, which no default configuration sets. Typical first session, which is also the manual acceptance test:
 
-1. **Artist.** Artists → *Add an artist* → a name, person or band → *Add artist*. (The MusicBrainz id is optional and only stored.)
+1. **Artist.** Artists → *Add an artist* → a name, person or band → *Add artist*. (The MusicBrainz id is optional; saving the form only stores it. [Add music](#add-music-m32) fills it in when you add or link from MusicBrainz.)
 2. **Album.** Albums → *Add an album* → a title, credit the artist (add more rows for more artists, reorder with ↑ ↓), optionally a year and the reference edition's label, date, and country → *Add album*. Titles need not be unique.
 3. **Tracks.** On the album's page, under *Tracklist*: *Create and add* makes a new track at the end; *Add to album* links one you already have (a recording is never copied); ↑ ↓ reorder and *Remove* takes a track off this album only. Tracks can also be made on their own under Tracks.
 4. **Journal.** Journals → *Write a journal* (or *Write a journal about this album* on the album page) → choose the language you write in, an opening sentence, and your reflection; a blank line starts a paragraph → *Save as draft*. Saving is explicit; Cmd or Ctrl+S works.

@@ -171,7 +171,7 @@ export function AlbumForm({
         value={values.mbReleaseGroupId}
         onChange={(value) => change("mbReleaseGroupId", value)}
         maxLength={36}
-        hint="Kept for later, when MusicBrainz search arrives. Nothing is looked up."
+        hint="Filled in when you add or link this album from Add music. Saving this form looks nothing up."
         problem={problemWith(failure, "mbReleaseGroupId")}
       />
       <div className="studio-actions">
