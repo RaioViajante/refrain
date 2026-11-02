@@ -533,16 +533,16 @@ describe("every transport form answers a hidden address as an unknown one", () =
 });
 
 describe("the not-found view's illustration", () => {
-  it("is a static file, byte for byte the approved original, and the same for everyone", async () => {
-    const original = readFileSync("public/artwork/refrain-404.png");
+  it("is a static file, byte for byte the approved production copy, and the same for everyone", async () => {
+    const original = readFileSync("public/artwork/refrain-404.webp");
     const digest = (bytes: Uint8Array) =>
       createHash("sha256").update(bytes).digest("hex");
     for (const base of [on.baseURL, off.baseURL]) {
-      const response = await fetch(`${base}/artwork/refrain-404.png`, {
+      const response = await fetch(`${base}/artwork/refrain-404.webp`, {
         redirect: "manual",
       });
       expect(response.status).toBe(200);
-      expect(response.headers.get("content-type")).toBe("image/png");
+      expect(response.headers.get("content-type")).toBe("image/webp");
       expect(response.headers.get(MARKER)).toBeNull();
       expect(digest(new Uint8Array(await response.arrayBuffer()))).toBe(
         digest(original),

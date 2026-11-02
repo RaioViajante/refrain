@@ -150,7 +150,9 @@ describe("what the build prerenders for the public routes", () => {
     // no optimizer URL, no resized copy, and nothing from `reference/`.
     const images = [...html.matchAll(/<img\b[^>]*>/g)].map((m) => m[0]);
     expect(images).toHaveLength(1);
-    expect(images[0]).toContain('src="/artwork/refrain-404.png"');
+    expect(images[0]).toContain('src="/artwork/refrain-404.webp"');
+    expect(images[0]).toContain('width="1536"');
+    expect(images[0]).toContain('height="1024"');
     expect(images[0]).toMatch(/alt="[^"]{40,}"/);
     expect(html).not.toContain("/_next/image");
     expect(html).not.toContain("srcSet");

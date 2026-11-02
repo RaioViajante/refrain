@@ -1,111 +1,72 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { inflateSync } from "node:zlib";
 
 import { describe, expect, it } from "vitest";
 
-// The approved 404 illustration (M3.1 owner review). It is the author's own
-// drawing, promoted byte for byte from the local reference file and never
-// altered (AGENTS.md § 6; docs/design-system.md § Assets). These tests keep it
-// that way and check the two properties the not-found view depends on: it is
-// RGBA, and its transparency is genuine (a transparent ground and a drawing
-// that is solid), not a white background that happens to look transparent.
+// The approved 404 illustration (M3.1). The original is the author's own
+// drawing, the local `reference/refrain-404.png` (1536×1024, 8-bit RGBA,
+// SHA-256 7705f803a871cdd9e693dcf9ae2d222fe8545281c4e8b9975699f00ed96c4956),
+// which stays outside the repository and is never altered. The application
+// serves the production copy the owner authorized: a WebP made from it with
+//
+//   cwebp -q 90 -m 6 -sharp_yuv -alpha_q 100 -exact -metadata none \
+//     reference/refrain-404.png -o public/artwork/refrain-404.webp
+//
+// (libwebp 1.6.0), whose colour is lossy at quality 90 and whose transparency
+// is lossless. Decoded, its alpha channel equals the original's bit for bit
+// (docs/design-system.md § Assets). These tests keep the file as it was made;
+// the browser test reads its transparency back after decoding
+// (e2e/public.spec.ts).
 
-const FILE = "public/artwork/refrain-404.png";
+const FILE = "public/artwork/refrain-404.webp";
 const SHA256 =
-  "7705f803a871cdd9e693dcf9ae2d222fe8545281c4e8b9975699f00ed96c4956";
+  "c3d879f0a9ad1ecb0ff33c1601abd34ce350c1ffefcaebed6ad5a1ca29fd4a96";
 
 const file = readFileSync(FILE);
 
-function chunks(png: Buffer) {
+function chunks(webp: Buffer) {
   const found: { type: string; data: Buffer }[] = [];
-  let position = 8;
-  while (position < png.length) {
-    const length = png.readUInt32BE(position);
+  let position = 12;
+  while (position < webp.length) {
+    const length = webp.readUInt32LE(position + 4);
     found.push({
-      type: png.toString("latin1", position + 4, position + 8),
-      data: png.subarray(position + 8, position + 8 + length),
+      type: webp.toString("latin1", position, position + 4),
+      data: webp.subarray(position + 8, position + 8 + length),
     });
-    position += 12 + length;
+    position += 8 + length + (length % 2);
   }
   return found;
 }
 
-/** The alpha of every pixel of an 8-bit RGBA, non-interlaced PNG. */
-function alphaOf(png: Buffer) {
-  const all = chunks(png);
-  const header = all.find((chunk) => chunk.type === "IHDR")!.data;
-  const width = header.readUInt32BE(0);
-  const height = header.readUInt32BE(4);
-  const raw = inflateSync(
-    Buffer.concat(
-      all.filter((chunk) => chunk.type === "IDAT").map((chunk) => chunk.data),
-    ),
-  );
-  const bytesPerPixel = 4;
-  const stride = width * bytesPerPixel;
-  const alpha = new Uint8Array(width * height);
-  let previous = new Uint8Array(stride);
-  for (let y = 0; y < height; y += 1) {
-    const start = y * (stride + 1);
-    const filter = raw[start]!;
-    const line = new Uint8Array(raw.subarray(start + 1, start + 1 + stride));
-    for (let i = 0; i < stride; i += 1) {
-      const left = i >= bytesPerPixel ? line[i - bytesPerPixel]! : 0;
-      const up = previous[i]!;
-      const upLeft = i >= bytesPerPixel ? previous[i - bytesPerPixel]! : 0;
-      let predictor = 0;
-      if (filter === 1) predictor = left;
-      else if (filter === 2) predictor = up;
-      else if (filter === 3) predictor = (left + up) >> 1;
-      else if (filter === 4) {
-        const p = left + up - upLeft;
-        const pa = Math.abs(p - left);
-        const pb = Math.abs(p - up);
-        const pc = Math.abs(p - upLeft);
-        predictor = pa <= pb && pa <= pc ? left : pb <= pc ? up : upLeft;
-      }
-      line[i] = (line[i]! + predictor) & 255;
-    }
-    for (let x = 0; x < width; x += 1) {
-      alpha[y * width + x] = line[x * bytesPerPixel + 3]!;
-    }
-    previous = line;
-  }
-  return { width, height, alpha };
-}
-
 describe("the approved 404 illustration", () => {
-  it("is the original file, byte for byte", () => {
+  it("is the production copy that was made and reviewed, byte for byte", () => {
     expect(createHash("sha256").update(file).digest("hex")).toBe(SHA256);
+    expect(file.length).toBe(467_460);
   });
 
-  it("is an 8-bit RGBA PNG, 1536 by 1024, not interlaced", () => {
-    expect(file.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
-    const header = chunks(file).find((chunk) => chunk.type === "IHDR")!.data;
-    expect(header.readUInt32BE(0)).toBe(1536);
-    expect(header.readUInt32BE(4)).toBe(1024);
-    expect(header[8]).toBe(8); // bit depth
-    expect(header[9]).toBe(6); // color type: truecolor with alpha
-    expect(header[12]).toBe(0); // no interlace
+  it("is an extended WebP, 1536 by 1024, that declares transparency", () => {
+    expect(file.toString("latin1", 0, 4)).toBe("RIFF");
+    expect(file.toString("latin1", 8, 12)).toBe("WEBP");
+    expect(file.readUInt32LE(4)).toBe(file.length - 8);
+    const header = chunks(file).find((chunk) => chunk.type === "VP8X")!.data;
+    // Bit 4 of the flags: the image has an alpha channel.
+    expect((header[0]! >> 4) & 1).toBe(1);
+    expect(header.readUIntLE(4, 3) + 1).toBe(1536);
+    expect(header.readUIntLE(7, 3) + 1).toBe(1024);
   });
 
-  it("has genuine transparency: a clear ground, transparent corners, and a solid drawing", () => {
-    const { width, height, alpha } = alphaOf(file);
-    const total = width * height;
-    const clear = alpha.filter((a) => a === 0).length;
-    const solid = alpha.filter((a) => a >= 224).length;
-    // About half the picture is the clear ground around the drawing, and
-    // nearly all of the rest is solid: a real cut-out, not a faded image.
-    expect(clear / total).toBeGreaterThan(0.4);
-    expect(solid / total).toBeGreaterThan(0.4);
-    for (const [x, y] of [
-      [0, 0],
-      [width - 1, 0],
-      [0, height - 1],
-      [width - 1, height - 1],
-    ] as const) {
-      expect(alpha[y! * width + x!]).toBe(0);
-    }
+  it("stores its transparency losslessly, and nothing but the picture", () => {
+    const all = chunks(file);
+    expect(all.map((chunk) => chunk.type)).toEqual(["VP8X", "ALPH", "VP8 "]);
+    // The ALPH header's two low bits are the compression method: 1 is the
+    // lossless WebP codec. (0 would be uncompressed, which is also exact; any
+    // other value is invalid.)
+    expect(all[1]!.data[0]! & 0b11).toBe(1);
+    // No metadata chunk: no EXIF, XMP, or colour profile travels with it.
+    expect(all.some((chunk) => /EXIF|XMP |ICCP/.test(chunk.type))).toBe(false);
+  });
+
+  it("is a fraction of the original's 2,824,585 bytes", () => {
+    expect(file.length / 2_824_585).toBeLessThan(0.2);
   });
 });

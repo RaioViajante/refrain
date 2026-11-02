@@ -503,8 +503,50 @@ test("the not-found view shows the approved drawing, responsive and accessible",
   });
   expect(loaded.complete).toBe(true);
   expect([loaded.naturalWidth, loaded.naturalHeight]).toEqual([1536, 1024]);
-  expect(loaded.src).toBe("/artwork/refrain-404.png");
+  expect(loaded.src).toBe("/artwork/refrain-404.webp");
   expect(loaded.ratio).toBeCloseTo(1536 / 1024, 2);
+  // Its transparency survives in the browser: the corners and about half the
+  // picture are fully clear, and the drawing itself is solid (the decoded
+  // WebP, read back through a canvas).
+  const alpha = await art.evaluate((el) => {
+    const image = el as HTMLImageElement;
+    const canvas = document.createElement("canvas");
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const context = canvas.getContext("2d")!;
+    context.drawImage(image, 0, 0);
+    const { data, width, height } = context.getImageData(
+      0,
+      0,
+      canvas.width,
+      canvas.height,
+    );
+    const at = (x: number, y: number) => data[(y * width + x) * 4 + 3]!;
+    let clear = 0;
+    let solid = 0;
+    let sampled = 0;
+    for (let y = 0; y < height; y += 4) {
+      for (let x = 0; x < width; x += 4) {
+        const a = at(x, y);
+        sampled += 1;
+        if (a === 0) clear += 1;
+        if (a >= 224) solid += 1;
+      }
+    }
+    return {
+      corners: [
+        at(0, 0),
+        at(width - 1, 0),
+        at(0, height - 1),
+        at(width - 1, height - 1),
+      ],
+      clear: clear / sampled,
+      solid: solid / sampled,
+    };
+  });
+  expect(alpha.corners).toEqual([0, 0, 0, 0]);
+  expect(alpha.clear).toBeGreaterThan(0.4);
+  expect(alpha.solid).toBeGreaterThan(0.4);
   // At most 560px, and never wider than the page's own container.
   const viewport = page.viewportSize()!;
   expect(loaded.width).toBeLessThanOrEqual(560.5);
@@ -532,10 +574,36 @@ test("the not-found view shows the approved drawing, responsive and accessible",
   expect(results.violations).toEqual([]);
 });
 
+test("the not-found view reserves the drawing's space before it loads, so nothing shifts", async ({
+  page,
+}) => {
+  let release: () => void = () => undefined;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.route("**/artwork/refrain-404.webp", async (route) => {
+    await held;
+    await route.continue();
+  });
+  await page.goto(`${base}/albums/e2e-no-such-journal`, {
+    waitUntil: "domcontentloaded",
+  });
+  const heading = page.getByRole("heading", { level: 1 });
+  await expect(heading).toHaveText("Nothing here");
+  const before = (await heading.boundingBox())!.y;
+  const art = page.getByRole("img", { name: /map marked 404/ });
+  expect(await art.evaluate((el) => (el as HTMLImageElement).complete)).toBe(
+    false,
+  );
+  release();
+  await expect
+    .poll(() => art.evaluate((el) => (el as HTMLImageElement).naturalWidth))
+    .toBe(1536);
+  expect((await heading.boundingBox())!.y).toBe(before);
+});
+
 test("the not-found message and link survive a drawing that fails to load", async ({
   page,
 }) => {
-  await page.route("**/artwork/refrain-404.png", (route) => route.abort());
+  await page.route("**/artwork/refrain-404.webp", (route) => route.abort());
   await page.goto(`${base}/albums/e2e-no-such-journal`);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
     "Nothing here",
