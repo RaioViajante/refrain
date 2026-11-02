@@ -72,7 +72,7 @@ async function start(value: string | undefined) {
 let on: ProductionServer;
 let off: ProductionServer;
 // The gates that are not exactly "true".
-const invalidValues = ["TRUE", "1", "yes", "True"];
+const invalidValues = ["TRUE", "1", "yes", "True", "", "true ", "false"];
 const invalid: Record<string, ProductionServer> = {};
 
 beforeAll(async () => {
@@ -351,6 +351,30 @@ describe("public reads enabled: a published journal", () => {
     expect(response.body).toContain(PUBLIC_TEXT.opening);
     for (const marker of PRIVATE_MARKER_LIST) {
       expect(response.body).not.toContain(marker);
+    }
+  });
+
+  it("carries no internal identifier, in the page or in its payload", async () => {
+    // Studio-only data that a careless projection could leak: the database ids
+    // of the entry, the album, the artist, and the tracks.
+    const grace = seeded.find((journal) => journal.slug === slug("grace"))!;
+    const ids = [
+      grace.entryId,
+      grace.albumId,
+      grace.artistId,
+      ...grace.trackIds,
+    ];
+    expect(ids.length).toBeGreaterThan(5);
+    for (const rsc of [false, true]) {
+      const { body } = await request(on.baseURL, `/albums/${slug("grace")}`, {
+        rsc,
+      });
+      for (const id of ids) {
+        expect(
+          body,
+          `${rsc ? "payload" : "page"} contains ${id}`,
+        ).not.toContain(id);
+      }
     }
   });
 

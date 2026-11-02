@@ -55,6 +55,43 @@ const PREVIEW_ACTION_IMPORTERS: Record<string, string> = {
   "@/app/studio/journals/preview-change-action": `${J}/change-dialog.tsx`,
 };
 
+// Any module path that names the Publication module, whatever it begins with:
+// the alias, or a relative path that climbs to it.
+const PUBLICATION_MODULE = /(^|\/)modules\/publication(\/|$)/;
+
+// The only files under src/app that may import its reading entry point.
+const PUBLIC_READING_FILES =
+  /^src\/app\/(\(public\)\/|not-found\.tsx$|sitemap\.xml\/route\.ts$|robots\.txt\/route\.ts$)/;
+
+/** The module path a node names, if it names one with a string literal. */
+function moduleNamed(node: ts.Node): string | undefined {
+  if (
+    (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+    node.moduleSpecifier &&
+    ts.isStringLiteral(node.moduleSpecifier)
+  ) {
+    return node.moduleSpecifier.text;
+  }
+  if (
+    ts.isImportEqualsDeclaration(node) &&
+    ts.isExternalModuleReference(node.moduleReference) &&
+    ts.isStringLiteralLike(node.moduleReference.expression)
+  ) {
+    return node.moduleReference.expression.text;
+  }
+  if (
+    ts.isCallExpression(node) &&
+    (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+      (ts.isIdentifier(node.expression) &&
+        node.expression.text === "require")) &&
+    node.arguments[0] !== undefined &&
+    ts.isStringLiteralLike(node.arguments[0])
+  ) {
+    return node.arguments[0].text;
+  }
+  return undefined;
+}
+
 function appFiles(): string[] {
   return readdirSync("src/app", { recursive: true, encoding: "utf8" })
     .map((file) => join("src/app", file))
@@ -70,21 +107,31 @@ function violations(code: string, file = "x.tsx"): string[] {
   );
   const found: string[] = [];
   const visit = (node: ts.Node) => {
-    if (
-      ts.isImportDeclaration(node) &&
-      ts.isStringLiteral(node.moduleSpecifier) &&
-      node.moduleSpecifier.text.startsWith("@/modules/publication")
-    ) {
-      // The one exception is the Publication module's public reading entry
-      // point (reads and the public-reads switch, never a command), and only
-      // outside the studio: the public pages, the proxy, and the sitemap use
-      // it (src/app/public-surface.test.ts). The studio never does.
+    // Every way of naming the Publication module: `import`, `export ... from`,
+    // `import x = require()`, `require()`, and `import()`, by alias or by a
+    // relative path. The one exception is the module's public reading entry
+    // point (reads and the public-reads switch, never a command), and only from
+    // the public files: the public pages, the not-found view, and the two
+    // documents (src/app/public-surface.test.ts checks the rest). The studio
+    // never uses it.
+    const named = moduleNamed(node);
+    if (named !== undefined && PUBLICATION_MODULE.test(named)) {
       const readsOnly =
-        node.moduleSpecifier.text === "@/modules/publication/public" &&
-        !file.startsWith("src/app/studio/");
+        named === "@/modules/publication/public" &&
+        PUBLIC_READING_FILES.test(file);
       if (!readsOnly) {
         found.push("imports the Publication module");
       }
+    }
+    if (
+      ts.isCallExpression(node) &&
+      (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+        (ts.isIdentifier(node.expression) &&
+          node.expression.text === "require")) &&
+      node.arguments[0] !== undefined &&
+      !ts.isStringLiteralLike(node.arguments[0])
+    ) {
+      found.push("loads a module by a computed name");
     }
     // Evasions by string: an element access by name, and a dynamic import of a
     // module that holds a command or a wrapper.
@@ -184,6 +231,84 @@ describe("the studio cannot publish, re-address, or permanently delete", () => {
       violations('const m = await import("@/modules/journals");'),
     ).toHaveLength(1);
     expect(violations('const m = await import("./local");')).toEqual([]);
+  });
+
+  describe("a public file cannot reach a command, and only public files read", () => {
+    const publicFile = "src/app/(public)/albums/[slug]/page.tsx";
+
+    it.each([
+      ["a command", 'import { x } from "@/modules/publication/commands";'],
+      ["the module's index", 'import { x } from "@/modules/publication";'],
+      [
+        "a type import of a command",
+        'import type { x } from "@/modules/publication/commands";',
+      ],
+      [
+        "a re-export of a command",
+        'export { x } from "@/modules/publication/commands";',
+      ],
+      [
+        "a namespace re-export",
+        'export * from "@/modules/publication/commands";',
+      ],
+      [
+        "an import-equals",
+        'import x = require("@/modules/publication/commands");',
+      ],
+      [
+        "a require call",
+        'const x = require("@/modules/publication/commands");',
+      ],
+      [
+        "a dynamic import",
+        'const x = await import("@/modules/publication/commands");',
+      ],
+      [
+        "a relative path to a command",
+        'import { x } from "../../../../modules/publication/commands";',
+      ],
+      [
+        "a relative path to the reading entry point (only the alias is allowed)",
+        'import { x } from "../../../../modules/publication/public";',
+      ],
+      [
+        "a relative dynamic import",
+        'const x = await import("../../../modules/publication/commands");',
+      ],
+      ["a computed dynamic import", "const x = await import(name);"],
+      ["a computed require", "const x = require(name);"],
+      ["a command by name", "changeEntrySlug(a, b, c);"],
+      [
+        "a command by element access",
+        'const f = ns["publishLanguageVersion"];',
+      ],
+    ])("rejects %s", (_label, code) => {
+      expect(violations(code, publicFile).length).toBeGreaterThan(0);
+    });
+
+    it("allows the reading entry point to the public files, and to no one else", () => {
+      const reading = 'import { x } from "@/modules/publication/public";';
+      for (const file of [
+        publicFile,
+        "src/app/(public)/layout.tsx",
+        "src/app/sitemap.xml/route.ts",
+        "src/app/robots.txt/route.ts",
+        "src/app/not-found.tsx",
+      ]) {
+        expect(violations(reading, file), file).toEqual([]);
+      }
+      for (const file of [
+        "src/app/studio/journals/page.tsx",
+        "src/app/page.tsx",
+        "src/app/layout.tsx",
+        "src/app/api/auth/[...all]/route.ts",
+        "src/app/api/export/route.ts",
+        "src/app/studio/(public)/x.tsx",
+        "src/app/feed.xml/route.ts",
+      ]) {
+        expect(violations(reading, file).length, file).toBeGreaterThan(0);
+      }
+    });
   });
 
   it("keeps each wrapper, the token, and each preview action to its own file", () => {

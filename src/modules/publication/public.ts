@@ -6,7 +6,13 @@
 // application's database, and the public-reads switch. The studio never imports
 // it (src/app/public-surface.test.ts). Every read applies the publication
 // predicate (docs/security.md § Publication predicate), defined once.
-import { getDb, withDatabase } from "@/db";
+//
+// Every read here also applies the public-reads switch first (ADR 0006, D4), so
+// a caller that forgot to check it still discloses nothing while reads are
+// off: the answer is the one for an address that does not exist. This is the
+// facade's own defense in depth, beside the proxy's and the callers' checks
+// and the scans that hold those in place; it never replaces the predicate.
+import { getDb, type Locale } from "@/db";
 
 import {
   getPublicAlbumJournal as getPublicAlbumJournalFrom,
@@ -16,7 +22,11 @@ import {
   routeAlbumJournalRequest as routeAlbumJournalRequestWith,
   type AlbumJournalRequest,
 } from "./public-routing";
-import { resolvePublicSlug as resolvePublicSlugFrom } from "./queries";
+import { publicReadsEnabled } from "./public-reads";
+import {
+  resolvePublicSlug as resolvePublicSlugFrom,
+  type SlugResolution,
+} from "./queries";
 
 export {
   PUBLIC_READS_VARIABLE,
@@ -36,14 +46,30 @@ export type {
 export type { SlugResolution } from "./queries";
 export { isNormalizedSlug } from "./slug";
 
-export const getPublicAlbumJournal = withDatabase(getPublicAlbumJournalFrom);
+export async function getPublicAlbumJournal(
+  entryId: string,
+  readerLocale: Locale,
+) {
+  if (!publicReadsEnabled()) {
+    return null;
+  }
+  return getPublicAlbumJournalFrom(getDb(), entryId, readerLocale);
+}
 
-export const listPublicAlbumJournalAddresses = withDatabase(
-  listPublicAlbumJournalAddressesFrom,
-);
+export async function listPublicAlbumJournalAddresses() {
+  if (!publicReadsEnabled()) {
+    return [];
+  }
+  return listPublicAlbumJournalAddressesFrom(getDb());
+}
 
 /** Resolves an album-journal address: found, a redirect, or not found. */
-export function resolvePublicAlbumJournalSlug(slug: string) {
+export async function resolvePublicAlbumJournalSlug(
+  slug: string,
+): Promise<SlugResolution> {
+  if (!publicReadsEnabled()) {
+    return { outcome: "not_found" };
+  }
   return resolvePublicSlugFrom(getDb(), "album_journal", slug);
 }
 

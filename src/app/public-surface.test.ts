@@ -24,6 +24,13 @@ const READS = new Set([
   "routePublicDocumentRequest",
 ]);
 
+// The reads that a caller must guard itself. The routing functions apply the
+// switch as their own first step, which `public-routing.ts` is scanned for
+// below and the database tests prove.
+const CALLER_READS: ReadonlySet<string> = new Set(
+  [...READS].filter((name) => !name.startsWith("route")),
+);
+
 function walk(directory: string): string[] {
   return readdirSync(directory, { recursive: true, encoding: "utf8" })
     .map((file) => join(directory, file).split("\\").join("/"))
@@ -108,21 +115,215 @@ const FORBIDDEN_CALLS = new Set([
   "cacheTag",
   "generateStaticParams",
   "fetch",
+  "require",
 ]);
+
+// ---------------------------------------------------------------------------
+// The switch is a guard that dominates every read. Moving it, wrapping it,
+// ignoring its result, or reading around it must be caught, so the rule is
+// structural and not "the word appears before the read":
+//
+//  - the function body is a block (a concise arrow body would hide the order);
+//  - one of its own top-level statements is `if (<disabled>) <exit>`, where
+//    `<disabled>` is `!publicReadsEnabled()`, alone or as an operand of `||`
+//    (so the guard cannot depend on a condition that might be false), and the
+//    consequent ends in `return` or `throw`, or calls `notFound()` or
+//    `redirect()`; there is no `else`;
+//  - the first top-level statement that holds a read comes strictly after it,
+//    and the guard statement itself holds no read;
+//  - no read is a bare reference (`const f = read`, `.then(read)`,
+//    `read.call(...)`), an aliased import, or a call outside every function.
+// ---------------------------------------------------------------------------
+
+const GATE = "publicReadsEnabled";
+
+function unparenthesize(expression: ts.Expression): ts.Expression {
+  let current = expression;
+  while (ts.isParenthesizedExpression(current)) {
+    current = current.expression;
+  }
+  return current;
+}
+
+function isDisabledTest(
+  expression: ts.Expression,
+  allowArguments: boolean,
+): boolean {
+  const e = unparenthesize(expression);
+  if (
+    ts.isPrefixUnaryExpression(e) &&
+    e.operator === ts.SyntaxKind.ExclamationToken
+  ) {
+    const inner = unparenthesize(e.operand);
+    return (
+      ts.isCallExpression(inner) &&
+      ts.isIdentifier(inner.expression) &&
+      inner.expression.text === GATE &&
+      (allowArguments || inner.arguments.length === 0)
+    );
+  }
+  if (
+    ts.isBinaryExpression(e) &&
+    e.operatorToken.kind === ts.SyntaxKind.BarBarToken
+  ) {
+    return (
+      isDisabledTest(e.left, allowArguments) ||
+      isDisabledTest(e.right, allowArguments)
+    );
+  }
+  return false;
+}
+
+function exits(statement: ts.Statement): boolean {
+  if (ts.isReturnStatement(statement) || ts.isThrowStatement(statement)) {
+    return true;
+  }
+  if (
+    ts.isExpressionStatement(statement) &&
+    ts.isCallExpression(statement.expression) &&
+    ts.isIdentifier(statement.expression.expression) &&
+    ["notFound", "redirect", "permanentRedirect"].includes(
+      statement.expression.expression.text,
+    )
+  ) {
+    return true;
+  }
+  if (ts.isBlock(statement)) {
+    const last = statement.statements[statement.statements.length - 1];
+    return last !== undefined && exits(last);
+  }
+  return false;
+}
+
+function isSwitchGuard(
+  statement: ts.Statement,
+  allowArguments: boolean,
+): boolean {
+  return (
+    ts.isIfStatement(statement) &&
+    statement.elseStatement === undefined &&
+    isDisabledTest(statement.expression, allowArguments) &&
+    exits(statement.thenStatement)
+  );
+}
+
+/** Whether a statement calls one of the reads, outside nested functions. */
+function holdsRead(node: ts.Node, reads: ReadonlySet<string>): boolean {
+  let found = false;
+  const look = (child: ts.Node) => {
+    if (found || isFunctionLike(child)) {
+      return;
+    }
+    if (ts.isCallExpression(child)) {
+      const name = calledName(child);
+      if (name && reads.has(name)) {
+        found = true;
+        return;
+      }
+    }
+    ts.forEachChild(child, look);
+  };
+  look(node);
+  return found;
+}
+
+interface GateOptions {
+  /** Routing functions pass their `env`, and are checked with it allowed. */
+  allowArguments?: boolean;
+}
+
+function gateViolations(
+  source: ts.SourceFile,
+  reads: ReadonlySet<string>,
+  { allowArguments = false }: GateOptions = {},
+): string[] {
+  const found: string[] = [];
+
+  const checkFunction = (fn: FunctionLike) => {
+    if (!holdsRead(fn.body!, reads)) {
+      return;
+    }
+    const body = fn.body!;
+    if (!ts.isBlock(body)) {
+      found.push("reads in an expression body, with no statement to guard it");
+      return;
+    }
+    const statements = body.statements;
+    const firstRead = statements.findIndex((statement) =>
+      holdsRead(statement, reads),
+    );
+    const guard = statements.findIndex((statement) =>
+      isSwitchGuard(statement, allowArguments),
+    );
+    if (guard === -1) {
+      found.push(
+        "reads without a top-level `if (!publicReadsEnabled()) <exit>` guard",
+      );
+    } else if (holdsRead(statements[guard]!, reads)) {
+      found.push("reads inside the switch guard itself");
+    } else if (guard > firstRead) {
+      found.push("reads before the switch guard");
+    }
+  };
+
+  const visit = (node: ts.Node, insideFunction: boolean) => {
+    if (isFunctionLike(node) && node.body) {
+      checkFunction(node);
+      ts.forEachChild(node, (child) => visit(child, true));
+      return;
+    }
+    if (ts.isCallExpression(node) && !insideFunction) {
+      const name = calledName(node);
+      if (name && reads.has(name)) {
+        found.push(`calls ${name} outside any function`);
+      }
+    }
+    // A bare reference to a read can reach it by a path that the guard check
+    // does not see.
+    if (
+      ts.isIdentifier(node) &&
+      reads.has(node.text) &&
+      !ts.isImportSpecifier(node.parent) &&
+      !ts.isExportSpecifier(node.parent) &&
+      !(ts.isCallExpression(node.parent) && node.parent.expression === node)
+    ) {
+      found.push(`refers to ${node.text} without calling it`);
+    }
+    if (
+      ts.isImportSpecifier(node) &&
+      node.propertyName &&
+      (reads.has(node.propertyName.text) || node.propertyName.text === GATE)
+    ) {
+      found.push(`imports ${node.propertyName.text} under another name`);
+    }
+    ts.forEachChild(node, (child) => visit(child, insideFunction));
+  };
+  visit(source, false);
+  return found;
+}
 
 function violations(code: string, file: string): string[] {
   const source = parse(code, file);
   const found: string[] = [];
 
   const visit = (node: ts.Node) => {
-    if (
-      ts.isImportDeclaration(node) &&
+    // Every way a module can be named: `import`, `export ... from`, and
+    // `import x = require()`. (`require()` and `import()` are calls, below.)
+    const specifier =
+      (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+      node.moduleSpecifier &&
       ts.isStringLiteral(node.moduleSpecifier)
+        ? node.moduleSpecifier.text
+        : ts.isImportEqualsDeclaration(node) &&
+            ts.isExternalModuleReference(node.moduleReference) &&
+            ts.isStringLiteralLike(node.moduleReference.expression)
+          ? node.moduleReference.expression.text
+          : undefined;
+    if (
+      specifier !== undefined &&
+      !ALLOWED_IMPORTS.some((rule) => rule.test(specifier))
     ) {
-      const specifier = node.moduleSpecifier.text;
-      if (!ALLOWED_IMPORTS.some((rule) => rule.test(specifier))) {
-        found.push(`imports ${specifier}`);
-      }
+      found.push(`imports ${specifier}`);
     }
     if (
       ts.isCallExpression(node) &&
@@ -177,45 +378,9 @@ function violations(code: string, file: string): string[] {
   };
   visit(source);
 
-  // Every function that reads public content applies the switch first.
-  const checkFunction = (fn: FunctionLike) => {
-    const gate: number[] = [];
-    const reads: { position: number; name: string }[] = [];
-    const look = (node: ts.Node, nested: boolean) => {
-      if (node !== fn && isFunctionLike(node)) {
-        // A nested function is checked on its own.
-        return;
-      }
-      if (ts.isCallExpression(node)) {
-        const name = calledName(node);
-        if (name === "publicReadsEnabled") {
-          gate.push(node.getStart());
-        }
-        if (name && READS.has(name)) {
-          reads.push({ position: node.getStart(), name });
-        }
-      }
-      ts.forEachChild(node, (child) => look(child, nested));
-    };
-    look(fn, false);
-    for (const read of reads) {
-      // The routing functions apply the switch themselves, as their first step
-      // (tested against the database); a caller need not repeat it.
-      if (read.name.startsWith("route")) {
-        continue;
-      }
-      if (!gate.some((position) => position < read.position)) {
-        found.push(`reads with ${read.name} before applying the switch`);
-      }
-    }
-  };
-  const visitFunctions = (node: ts.Node) => {
-    if (isFunctionLike(node)) {
-      checkFunction(node);
-    }
-    ts.forEachChild(node, visitFunctions);
-  };
-  visitFunctions(source);
+  // Every function that reads public content applies the switch first, as an
+  // early exit that dominates the read.
+  found.push(...gateViolations(source, CALLER_READS));
 
   return found;
 }
@@ -336,6 +501,56 @@ describe("the public surface", () => {
       ).toEqual([]);
     });
 
+    it("a way around the reading entry point", () => {
+      for (const specifier of [
+        "@/modules/publication/queries",
+        "@/modules/publication/predicate",
+        "@/modules/publication/public-album-journal",
+        "@/modules/publication/public-routing",
+        "@/modules/publication/public-reads",
+        "@/modules/publication/slug",
+        "@/modules/publication/commands",
+        "@/modules/publication/index",
+        "@/modules/publication/public/",
+        "@/modules/publication/public-extra",
+        "@/modules/identity",
+        "@/modules/catalog",
+        "@/db/schema",
+        "drizzle-orm",
+        "pg",
+        "../../../modules/publication/queries",
+        "../../../../db",
+        "./../../../modules/publication/public",
+        "node:fs",
+        "child_process",
+      ]) {
+        expect(
+          check(`import { x } from "${specifier}";`),
+          `import from ${specifier}`,
+        ).not.toEqual([]);
+        expect(
+          check(`export { x } from "${specifier}";`),
+          `export from ${specifier}`,
+        ).not.toEqual([]);
+      }
+      expect(
+        check('import x = require("@/modules/publication/queries");'),
+      ).not.toEqual([]);
+      expect(
+        check('const x = require("@/modules/publication/queries");'),
+      ).not.toEqual([]);
+      expect(
+        check('const x = await import("@/modules/publication/queries");'),
+      ).not.toEqual([]);
+      expect(
+        check('export * from "@/modules/publication/queries";'),
+      ).not.toEqual([]);
+      // The facade itself, in every form that names it, is allowed.
+      expect(
+        check('export { x } from "@/modules/publication/public";'),
+      ).toEqual([]);
+    });
+
     it("a read before the switch, and a read after it", () => {
       expect(
         check(
@@ -360,6 +575,119 @@ describe("the public surface", () => {
       ).toHaveLength(1);
     });
 
+    describe("the switch guard must dominate the read", () => {
+      const reads = new Set(["getPublicAlbumJournal"]);
+      const gates = (code: string, options?: { allowArguments?: boolean }) =>
+        gateViolations(parse(code), reads, options);
+
+      it("accepts an early exit at the top of the function", () => {
+        for (const code of [
+          "async function f(s) { if (!publicReadsEnabled()) { return null; } return getPublicAlbumJournal(s); }",
+          "async function f(s) { if (!publicReadsEnabled()) return null; return getPublicAlbumJournal(s); }",
+          "async function f(s) { await connection(); if (!publicReadsEnabled()) { throw new Error('x'); } return getPublicAlbumJournal(s); }",
+          "async function f(s) { if (!publicReadsEnabled()) { notFound(); } return getPublicAlbumJournal(s); }",
+          "async function f(s) { const o = origin(); if (!publicReadsEnabled() || o === null) { return null; } return getPublicAlbumJournal(s); }",
+          "const f = cache(async (s) => { if (!publicReadsEnabled()) { return null; } return getPublicAlbumJournal(s); });",
+          "function f() { return 1; }",
+        ]) {
+          expect(gates(code), code).toEqual([]);
+        }
+        expect(
+          gates(
+            "async function f(s) { if (!publicReadsEnabled(env)) { return null; } return getPublicAlbumJournal(s); }",
+            { allowArguments: true },
+          ),
+        ).toEqual([]);
+      });
+
+      it.each([
+        [
+          "the guard moved after the read",
+          "async function f(s) { const x = await getPublicAlbumJournal(s); if (!publicReadsEnabled()) { return null; } return x; }",
+        ],
+        [
+          "no guard at all",
+          "async function f(s) { return getPublicAlbumJournal(s); }",
+        ],
+        [
+          "the result ignored",
+          "async function f(s) { publicReadsEnabled(); return getPublicAlbumJournal(s); }",
+        ],
+        [
+          "a guard that only runs sometimes (&&)",
+          "async function f(s, x) { if (x && !publicReadsEnabled()) { return null; } return getPublicAlbumJournal(s); }",
+        ],
+        [
+          "a guard that does not exit",
+          "async function f(s) { if (!publicReadsEnabled()) { log(); } return getPublicAlbumJournal(s); }",
+        ],
+        [
+          "a guard whose exit is conditional",
+          "async function f(s, x) { if (!publicReadsEnabled()) { if (x) { return null; } } return getPublicAlbumJournal(s); }",
+        ],
+        [
+          "a guard with an else branch",
+          "async function f(s) { if (!publicReadsEnabled()) { return null; } else { x(); } return getPublicAlbumJournal(s); }",
+        ],
+        [
+          "a guard nested in another condition",
+          "async function f(s, x) { if (x) { if (!publicReadsEnabled()) { return null; } } return getPublicAlbumJournal(s); }",
+        ],
+        [
+          "a guard and a read in the same try block",
+          "async function f(s) { try { if (!publicReadsEnabled()) { return null; } return await getPublicAlbumJournal(s); } catch { return null; } }",
+        ],
+        [
+          "the read inside the guard's own condition",
+          "async function f(s) { if ((await getPublicAlbumJournal(s)) || !publicReadsEnabled()) { return null; } return 1; }",
+        ],
+        [
+          "a guard in a nested function, a read in the outer one",
+          "async function f(s) { const g = () => { if (!publicReadsEnabled()) { return null; } return 1; }; g(); return getPublicAlbumJournal(s); }",
+        ],
+        [
+          "the positive form, which has no early exit",
+          "async function f(s) { if (publicReadsEnabled()) { return getPublicAlbumJournal(s); } return null; }",
+        ],
+        ["a concise arrow body", "const f = (s) => getPublicAlbumJournal(s);"],
+        [
+          "a bare reference",
+          "const f = getPublicAlbumJournal; async function g(s) { if (!publicReadsEnabled()) { return null; } return f(s); }",
+        ],
+        [
+          "a read passed as a callback",
+          "async function g(p) { if (!publicReadsEnabled()) { return null; } return p.then(getPublicAlbumJournal); }",
+        ],
+        [
+          "a call through .call",
+          "async function g(s) { if (!publicReadsEnabled()) { return null; } return getPublicAlbumJournal.call(null, s); }",
+        ],
+        [
+          "a read called at the top of the module",
+          "const x = await getPublicAlbumJournal('a');",
+        ],
+        [
+          "an import under another name",
+          'import { getPublicAlbumJournal as read } from "@/modules/publication/public";',
+        ],
+        [
+          "the switch imported under another name",
+          'import { publicReadsEnabled as on } from "@/modules/publication/public"; const reads = getPublicAlbumJournal;',
+        ],
+      ])("rejects %s", (_label, code) => {
+        expect(gates(code).length).toBeGreaterThan(0);
+      });
+
+      it("rejects a switch call that passes its own environment, outside the routing functions", () => {
+        const code =
+          "async function f(s) { if (!publicReadsEnabled(env)) { return null; } return getPublicAlbumJournal(s); }";
+        expect(gates(code)).not.toEqual([]);
+        expect(
+          violations(code, "src/app/(public)/x/page.tsx").length,
+        ).toBeGreaterThan(0);
+      });
+    });
+
     it("a cache, a static page, a revalidation, raw HTML, or a network call", () => {
       expect(check('"use cache";\nexport const x = 1;')).toHaveLength(1);
       expect(check("export const revalidate = 60;")).toHaveLength(1);
@@ -376,6 +704,101 @@ describe("the public surface", () => {
         check("const a = <div dangerouslySetInnerHTML={{ __html: x }} />;"),
       ).toHaveLength(1);
     });
+  });
+});
+
+describe("where the switch is applied", () => {
+  const sourceOf = (file: string) =>
+    ts.createSourceFile(
+      file,
+      readFileSync(file, "utf8"),
+      ts.ScriptTarget.Latest,
+      true,
+    );
+
+  it("the routing functions apply it first, with the environment they were given, before the slug query", () => {
+    const file = "src/modules/publication/public-routing.ts";
+    expect(
+      gateViolations(sourceOf(file), new Set(["resolvePublicSlug"]), {
+        allowArguments: true,
+      }),
+    ).toEqual([]);
+    // And both exist and are guarded: the scan is not vacuous.
+    const code = readFileSync(file, "utf8");
+    expect(code).toMatch(/function routeAlbumJournalRequest/);
+    expect(code).toMatch(/function routePublicDocumentRequest/);
+    expect(code.match(/!publicReadsEnabled\(env\)/g)).toHaveLength(2);
+  });
+
+  it("every read of the reading entry point applies it first, so a caller that forgot still discloses nothing", () => {
+    const file = "src/modules/publication/public.ts";
+    const reads = new Set([
+      "getPublicAlbumJournalFrom",
+      "listPublicAlbumJournalAddressesFrom",
+      "resolvePublicSlugFrom",
+    ]);
+    expect(gateViolations(sourceOf(file), reads)).toEqual([]);
+    const code = readFileSync(file, "utf8");
+    for (const name of reads) {
+      expect(code, name).toContain(name);
+    }
+  });
+
+  it("the proxy serves only from the routing decision, and decides before it answers", () => {
+    const source = sourceOf("src/proxy.ts");
+    const nexts: ts.CallExpression[] = [];
+    const routings: string[] = [];
+    const visit = (node: ts.Node) => {
+      if (ts.isCallExpression(node)) {
+        const text = node.expression.getText();
+        if (text === "NextResponse.next") {
+          nexts.push(node);
+        }
+        if (
+          text === "routeAlbumJournalRequest" ||
+          text === "routePublicDocumentRequest"
+        ) {
+          routings.push(text);
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+    expect(routings.sort()).toEqual([
+      "routeAlbumJournalRequest",
+      "routePublicDocumentRequest",
+    ]);
+    // `NextResponse.next()` appears once, and only in the `serve` case of the
+    // switch over the decision.
+    expect(nexts).toHaveLength(1);
+    let clause: ts.Node | undefined = nexts[0];
+    while (clause && !ts.isCaseClause(clause)) {
+      clause = clause.parent;
+    }
+    expect(
+      clause && ts.isCaseClause(clause) && clause.expression.getText(),
+    ).toBe('"serve"');
+    const owner = clause!.parent.parent;
+    expect(ts.isSwitchStatement(owner) && owner.expression.getText()).toBe(
+      "decision.action",
+    );
+  });
+
+  it("every route handler checks it before it reads, and before it answers with content", () => {
+    for (const file of [
+      "src/app/sitemap.xml/route.ts",
+      "src/app/robots.txt/route.ts",
+    ]) {
+      const source = sourceOf(file);
+      expect(gateViolations(source, CALLER_READS), file).toEqual([]);
+      // The guard is the first statement after `connection()` in `GET`.
+      const code = readFileSync(file, "utf8");
+      const body = code.slice(code.indexOf("export async function GET"));
+      expect(body.indexOf("publicReadsEnabled"), file).toBeGreaterThan(-1);
+      expect(body.indexOf("publicReadsEnabled"), file).toBeLessThan(
+        body.indexOf("new Response("),
+      );
+    }
   });
 });
 
@@ -424,6 +847,148 @@ describe("the Publication reading module", () => {
         `${file} imports ${specifier}`,
       ).toBe(true);
     }
+  });
+
+  // An unchecked writer: a statement or a call that changes the database. The
+  // reading files hold none, and a reading file that gains one fails here.
+  const WRITE_SQL =
+    /\b(insert\s+into|update\s+["\w.]+\s+set|delete\s+from|truncate|alter\s+table|drop\s+(table|index|column|schema)|create\s+(table|index|schema)|grant\s|revoke\s|copy\s+\S+\s+(from|to))\b/i;
+  const WRITE_CALLS = new Set([
+    "insert",
+    "update",
+    "delete",
+    "transaction",
+    "onConflictDoUpdate",
+    "onConflictDoNothing",
+    "returning",
+  ]);
+
+  function writerFindings(code: string): string[] {
+    const found: string[] = [];
+    const visit = (node: ts.Node) => {
+      if (
+        ts.isStringLiteralLike(node) ||
+        ts.isTemplateHead(node) ||
+        ts.isTemplateMiddle(node) ||
+        ts.isTemplateTail(node)
+      ) {
+        if (WRITE_SQL.test(node.text)) {
+          found.push(`writes SQL: ${node.text.trim().slice(0, 40)}`);
+        }
+      }
+      if (
+        ts.isCallExpression(node) &&
+        ts.isPropertyAccessExpression(node.expression) &&
+        WRITE_CALLS.has(node.expression.name.text)
+      ) {
+        found.push(`calls .${node.expression.name.text}()`);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(parse(code, "x.ts"));
+    return found;
+  }
+
+  it.each(reading)("%s holds no writer", (file) => {
+    expect(writerFindings(readFileSync(file, "utf8"))).toEqual([]);
+  });
+
+  it("would notice an unchecked writer added to a reading file", () => {
+    for (const code of [
+      "await db.execute(sql`update entry_texts set status = 'published'`);",
+      "await db.execute(sql`insert into entry_slugs (slug) values (${s})`);",
+      "await db.execute(sql`delete from entries where id = ${id}`);",
+      "await db.execute(sql`truncate entries`);",
+      "await db.update(entries).set({ x: 1 });",
+      "await db.insert(entries).values({});",
+      "await db.delete(entries);",
+      "await db.transaction(async (tx) => {});",
+      "await db.insert(a).values(b).onConflictDoUpdate({});",
+    ]) {
+      expect(writerFindings(code), code).not.toEqual([]);
+    }
+    // A read, including a row lock's words, is not a writer.
+    expect(
+      writerFindings(
+        "await db.execute(sql`select * from entries e where e.id = ${id} for update`);",
+      ),
+    ).toEqual([]);
+  });
+
+  // The names the facade exports, exactly. A new export is a new capability on
+  // the public side, so it fails here until the owner's reviewer adds it.
+  function exportedNames(code: string): string[] {
+    const names: string[] = [];
+    for (const statement of parse(code, "public.ts").statements) {
+      if (ts.isExportDeclaration(statement) && statement.exportClause) {
+        if (ts.isNamedExports(statement.exportClause)) {
+          for (const element of statement.exportClause.elements) {
+            names.push(element.name.text);
+          }
+        }
+      } else if (ts.isExportDeclaration(statement)) {
+        names.push("*");
+      } else if (
+        ts.isFunctionDeclaration(statement) &&
+        statement.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)
+      ) {
+        names.push(statement.name?.text ?? "default");
+      } else if (
+        ts.isVariableStatement(statement) &&
+        statement.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)
+      ) {
+        for (const declaration of statement.declarationList.declarations) {
+          names.push(declaration.name.getText());
+        }
+      } else if (ts.isExportAssignment(statement)) {
+        names.push("default");
+      }
+    }
+    return names.sort();
+  }
+
+  const EXPECTED_EXPORTS = [
+    // Reads, bound to the application's database, each behind the switch.
+    "getPublicAlbumJournal",
+    "listPublicAlbumJournalAddresses",
+    "resolvePublicAlbumJournalSlug",
+    "routeAlbumJournalRequest",
+    "routePublicDocumentRequest",
+    "isNormalizedSlug",
+    // The switch, and the site's own origin.
+    "PUBLIC_READS_VARIABLE",
+    "publicReadsEnabled",
+    "publicSiteOrigin",
+    // Types.
+    "AlbumJournalRequest",
+    "AlbumJournalRouting",
+    "PublicAlbumJournal",
+    "PublicCredit",
+    "PublicJournalTrack",
+    "SlugResolution",
+  ].sort();
+
+  it("exports exactly the reviewed names, none of them a command", () => {
+    expect(
+      exportedNames(readFileSync("src/modules/publication/public.ts", "utf8")),
+    ).toEqual(EXPECTED_EXPORTS);
+  });
+
+  it("would notice a new export, a command, or a wildcard", () => {
+    const base = 'export { isNormalizedSlug } from "./slug";';
+    expect(exportedNames(base)).toEqual(["isNormalizedSlug"]);
+    expect(
+      exportedNames(
+        `${base}\nexport { publishLanguageVersion } from "./commands";`,
+      ),
+    ).toContain("publishLanguageVersion");
+    expect(exportedNames('export * from "./commands";')).toEqual(["*"]);
+    expect(
+      exportedNames(`${base}\nexport async function writeThing() {}`),
+    ).toContain("writeThing");
+    expect(exportedNames(`${base}\nexport const writeThing = 1;`)).toContain(
+      "writeThing",
+    );
   });
 
   it("exports reads and the switch only", () => {

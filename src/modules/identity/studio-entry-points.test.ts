@@ -296,6 +296,19 @@ function authorizationViolations(
       check("metadata function", entry);
     }
   }
+  // A public document is exempt from authorization because it reads and answers
+  // anonymously, so it may export `GET` and nothing else: no other method (a
+  // write that skipped authorization would otherwise ride on the exemption), no
+  // re-export, and no default export.
+  if (isRouteFile && PUBLIC_ROUTE_ALLOW_LIST.has(normalized)) {
+    for (const entry of exported) {
+      if (entry.name !== "GET" || !entry.fn) {
+        violations.push(
+          `${file}: a public document may export only a GET function literal, and this exports "${entry.name}"`,
+        );
+      }
+    }
+  }
   if (
     isRouteFile &&
     !ROUTE_ALLOW_LIST.has(normalized) &&
@@ -534,6 +547,33 @@ export async function bad() { await somethingElse(); await authorizeAuthor(h); r
         check(
           "export async function GET() { return new Response(); }",
           join("src", "app", "feed.xml", "route.ts"),
+        ),
+      ).toHaveLength(1);
+      // The exemption covers GET alone: any other method, a re-export, or a
+      // wrapped handler on a public document is a violation.
+      const sitemap = join("src", "app", "sitemap.xml", "route.ts");
+      for (const code of [
+        "export async function POST() { return new Response(); }",
+        "export async function DELETE() { return new Response(); }",
+        "export async function GET() { return new Response(); }\nexport async function PUT() { return new Response(); }",
+        "export const GET = handler;",
+        'export { GET } from "./other";',
+        "export default function () { return new Response(); }",
+      ]) {
+        expect(check(code, sitemap), code).not.toEqual([]);
+      }
+      // A public document under a studio path, or a route handler anywhere
+      // else, is on no list.
+      expect(
+        check(
+          "export async function GET() { return new Response(); }",
+          join("src", "app", "studio", "sitemap.xml", "route.ts"),
+        ),
+      ).toHaveLength(1);
+      expect(
+        check(
+          "export async function GET() { return new Response(); }",
+          join("src", "app", "(public)", "albums", "export", "route.ts"),
         ),
       ).toHaveLength(1);
       const guarded =
