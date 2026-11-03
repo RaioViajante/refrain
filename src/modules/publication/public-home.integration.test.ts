@@ -18,6 +18,7 @@ import {
   restoreDeletedEntry,
   unpublishLanguageVersion,
 } from "./commands";
+import { resolvePresentedJournal } from "./queries";
 import {
   getPublicHome,
   HOME_ALBUM_LIMIT,
@@ -274,6 +275,63 @@ describe("the Home's read model", () => {
       expect(
         own(await listPublicAlbums(tx, "en", BIG), p).map((card) => card.slug),
       ).toEqual([newer.slug]);
+    });
+  });
+
+  it("presents the same journal of every album to every reader, dated by the reader's version (INV-1)", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const p = `inv1-${randomUUID().slice(0, 8)}`;
+      const albums: string[] = [];
+      for (const name of ["a", "b"]) {
+        const { albumId } = await createTestAlbum(tx, {
+          title: `[Test] ${p}-${name}`,
+          artistIds: [await createTestArtist(tx, "[Test] INV-1 artist")],
+        });
+        albums.push(albumId);
+        // Featured, published in both languages on different days.
+        await journal(tx, `${p}-${name}-featured`, {
+          albumId,
+          isFeatured: true,
+          versions: [
+            published("en", later(2)),
+            published("pt-BR", later(3), false),
+          ],
+        });
+        // Newer, but not featured, and public only in Portuguese.
+        await journal(tx, `${p}-${name}-newer`, {
+          albumId,
+          versions: [
+            published("pt-BR", later(9)),
+            { locale: "en", status: "private", isOriginal: false },
+          ],
+        });
+      }
+      const chosen = async (locale: "en" | "pt-BR") =>
+        Object.fromEntries(
+          own(await listPublicAlbums(tx, locale, BIG), p).map((card) => [
+            card.slug,
+            card.publishedAt,
+          ]),
+        );
+      expect(await chosen("en")).toEqual({
+        [`${p}-a-featured`]: later(2),
+        [`${p}-b-featured`]: later(2),
+      });
+      expect(await chosen("pt-BR")).toEqual({
+        [`${p}-a-featured`]: later(3),
+        [`${p}-b-featured`]: later(3),
+      });
+      // And the same choice as the single-album resolution.
+      for (const albumId of albums) {
+        for (const locale of ["en", "pt-BR"] as const) {
+          const presented = await resolvePresentedJournal(
+            tx,
+            { kind: "album", albumId },
+            locale,
+          );
+          expect(presented?.locale).toBe(locale);
+        }
+      }
     });
   });
 

@@ -223,7 +223,12 @@ test("composes the notebook at every width without scrolling sideways", async ({
   page,
 }) => {
   await openHome(page);
-  for (const width of [320, 390, 768, 1024, 1101, 1280, 1440, 2560]) {
+  // 640px is also 200% browser zoom of a 1280px window: the page's sizes are
+  // in px, so zoom is what enlarges its text, and it lays the page out at
+  // half the window's width (WCAG 1.4.4 and 1.4.10).
+  for (const width of [
+    320, 390, 640, 768, 960, 961, 1024, 1100, 1101, 1280, 1440, 2560,
+  ]) {
     await page.setViewportSize({ width, height: 900 });
     expect(await overflow(page), `${width}px`).toBeLessThanOrEqual(0);
     const layout = await page.evaluate(() => {
@@ -270,13 +275,33 @@ test("composes the notebook at every width without scrolling sideways", async ({
     } else {
       expect(layout.headingAboveRows, `${width}px`).toBe(true);
     }
-    // Four albums to a row on a wide screen, two below 1100px.
-    expect(layout.columns, `${width}px`).toBe(width > 1100 ? 4 : 2);
+    // Four albums to a row on a wide screen, three from 961px to 1100px,
+    // two below.
+    expect(layout.columns, `${width}px`).toBe(
+      width > 1100 ? 4 : width > 960 ? 3 : 2,
+    );
   }
-  // And at 200% text.
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+});
+
+test("keeps the newest journal's link a 44px target that never widens the page", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 700 });
+  await openHome(page);
+  const link = page.locator(".ph-since-link");
+  // A title that is one very long word, then one that is a single letter.
+  await link.evaluate((el) => {
+    el.textContent = "Supercalifragilisticexpialidociouslylongalbumtitle";
+  });
   expect(await overflow(page)).toBeLessThanOrEqual(0);
+  const long = (await link.boundingBox())!;
+  expect(long.x + long.width).toBeLessThanOrEqual(320);
+  await link.evaluate((el) => {
+    el.textContent = "x";
+  });
+  const short = (await link.boundingBox())!;
+  expect(short.width).toBeGreaterThanOrEqual(43.5);
+  expect(short.height).toBeGreaterThanOrEqual(43.5);
 });
 
 test("is black ink on white paper, and every control is at least 44px", async ({
@@ -588,6 +613,52 @@ test("the skip link is the first tab stop, and the keyboard reaches every journa
   }
 });
 
+// The first public links into `/albums/*` (docs/evidence/m3-1.md left the
+// client router's reuse of a page to the milestone that adds them). A change
+// is seen on the next navigation; a stale link leads to the not-found view;
+// going back may show again what this reader was already sent, which is
+// recorded, not hidden.
+test("a change is seen on the next navigation, and a stale link leads nowhere", async ({
+  page,
+}) => {
+  const pinkMoon = shelf.find((journal) => journal.slug.endsWith("-pink-moon"))!;
+  const address = `/albums/${pinkMoon.slug}`;
+  const heading = page.getByRole("heading", { level: 1 });
+  await openHome(page);
+  await page.locator(`.ph-row[href="${address}"]`).click();
+  await expect(heading).toHaveText("Pink Moon");
+  await seed("unpublish", pinkMoon.entryId);
+  try {
+    // A push navigation to the Home reads the lists again.
+    await page.getByRole("link", { name: "Home" }).click();
+    await expect(page).toHaveURL(`${base}/`);
+    await streamed(page);
+    expect(await addresses(page)).not.toContain(address);
+
+    // Back: the browser shows this reader the journal page they were sent
+    // before. Recorded for the evidence; a reload asks the server again.
+    await page.goBack();
+    await expect(page).toHaveURL(`${base}${address}`);
+    console.log(
+      `back after unpublishing (${page.viewportSize()!.width}px): "${await heading.textContent()}"`,
+    );
+    await page.reload();
+    await expect(heading).toHaveText("Nothing here");
+
+    // A Home loaded before the change still lists it; following that stale
+    // link shows the not-found view, never the journal.
+    await seed("publish", pinkMoon.entryId, seededDate(pinkMoon.slug));
+    await openHome(page);
+    await expect(page.locator(`.ph-row[href="${address}"]`)).toHaveCount(1);
+    await seed("unpublish", pinkMoon.entryId);
+    await page.locator(`.ph-row[href="${address}"]`).click();
+    await expect(heading).toHaveText("Nothing here");
+    await expect(page.getByText("[Test] A synthetic journal")).toHaveCount(0);
+  } finally {
+    await seed("publish", pinkMoon.entryId, seededDate(pinkMoon.slug));
+  }
+});
+
 test("opens a journal from the Home, and comes back", async ({ page }) => {
   await openHome(page);
   await page.locator(`.ph-row[href="/albums/${graceSlug}"]`).click();
@@ -725,6 +796,7 @@ test("screenshots, when asked for", async ({ page }) => {
     await page.screenshot({ path: `${SHOTS}/home-skip-focus-${width}.png` });
     await page.keyboard.press("Enter");
     await page.keyboard.press("Tab");
+    await page.screenshot({ path: `${SHOTS}/home-since-focus-${width}.png` });
     await page.keyboard.press("Tab");
     await page.locator(":focus").scrollIntoViewIfNeeded();
     await page.screenshot({ path: `${SHOTS}/home-row-focus-${width}.png` });

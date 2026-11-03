@@ -20,7 +20,9 @@
 // a different order; so a page is compared as a reader receives it (status,
 // headers, visible text, every tag with its attributes), with that key masked
 // (`masked`, the helper the album-journal tests use).
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
@@ -42,6 +44,7 @@ import {
 } from "@/testing/production-server";
 import {
   corpus,
+  filesContaining,
   request,
   visibleText,
   type Snapshot,
@@ -216,6 +219,11 @@ afterAll(async () => {
 // The views of the Home before anything is published, kept for comparison.
 let emptyOn: ReturnType<typeof readerView>;
 let emptyOff: ReturnType<typeof readerView>;
+// Every request form, answered by every server whose switch is off, before
+// anything is published: the whole response, Flight data included, with only
+// the framework's per-request key masked.
+const offBaseline = new Map<string, ReturnType<typeof masked>>();
+const offServers = () => [off, ...nearMiss];
 
 describe("with nothing published", () => {
   beforeAll(async () => {
@@ -271,6 +279,18 @@ describe("with nothing published", () => {
     for (const server of nearMiss) {
       expect(readerView(await home(server))).toEqual(emptyOn);
     }
+  });
+
+  it("records every request form with the switch off, the same on every such server", async () => {
+    for (const [name, init] of FORMS) {
+      const reference = masked(await home(off, init), []);
+      for (const [index, server] of offServers().entries()) {
+        const answer = masked(await home(server, init), []);
+        expect(answer, `${name}, server ${index}`).toEqual(reference);
+        offBaseline.set(`${index}:${name}`, answer);
+      }
+    }
+    expect(offBaseline.size).toBe(FORMS.length * (1 + NEAR_MISSES.length));
   });
 });
 
@@ -356,6 +376,17 @@ describe("with journals in every state", () => {
     for (const server of nearMiss) {
       expect(readerView(await home(server))).toEqual(emptyOff);
     }
+    // In every request form, on every server whose switch is off, the whole
+    // response (Flight data included) is what it was before anything was
+    // published.
+    for (const [name, init] of FORMS) {
+      for (const [index, server] of offServers().entries()) {
+        expect(
+          masked(await home(server, init), []),
+          `${name}, server ${index}`,
+        ).toEqual(offBaseline.get(`${index}:${name}`));
+      }
+    }
   });
 
   it("lists exactly the journals a reader may open, each at its current address", async () => {
@@ -425,6 +456,119 @@ describe("with journals in every state", () => {
       expect(masked(disabled, [])).toEqual(masked(enabled, []));
       expect(enabled.body).not.toContain(prefix);
     }
+  });
+
+  // The framework lets a POST that could be a Server Action through to the
+  // page (a form body, or a `Next-Action` header), where the album addresses'
+  // proxy answers `405` to every POST. The Home's answer to these is recorded
+  // here: the same with the switch on or off, `no-store`, and with the switch
+  // off nothing about any journal.
+  it("answers a POST that could be a Server Action the same with the switch on or off", async () => {
+    const shapes: [string, RequestInit][] = [
+      [
+        "a form body",
+        {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          body: "name=x",
+        },
+      ],
+      [
+        "a multipart body",
+        {
+          method: "POST",
+          headers: {
+            "content-type": "multipart/form-data; boundary=refrain",
+          },
+          body: '--refrain\r\nContent-Disposition: form-data; name="x"\r\n\r\ny\r\n--refrain--\r\n',
+        },
+      ],
+      [
+        "an unknown action",
+        {
+          method: "POST",
+          headers: {
+            "next-action": "0".repeat(42),
+            "content-type": "text/plain;charset=UTF-8",
+          },
+          body: "[]",
+        },
+      ],
+    ];
+    for (const [name, init] of shapes) {
+      const enabled = await home(on, init);
+      const disabled = await home(off, init);
+      console.log(`POST / with ${name}: ${enabled.status}`);
+      expect(enabled.headers["cache-control"], name).toContain("no-store");
+      expect(disabled.status, name).toBe(enabled.status);
+      expect(disabled.body, name).not.toContain(prefix);
+      for (const listed of [
+        "Grace",
+        ...HOME_SHELF.map((album) => album.title),
+      ]) {
+        expect(disabled.body, `${name}: ${listed}`).not.toContain(listed);
+      }
+      for (const title of HIDDEN_TITLES) {
+        expect(enabled.body, `${name}: ${title}`).not.toContain(title);
+      }
+    }
+  });
+
+  // The build's own files for the Home are named `index…`; on `next start`
+  // they are not addresses (a hosted platform's minimal mode may differ, a G2
+  // check). Each answers the same with the switch on or off, `no-store`, and
+  // names no journal.
+  it("answers the build's index addresses the same with the switch on or off", async () => {
+    for (const path of [
+      "/index",
+      "/index.html",
+      "/index.rsc",
+      "/index.segments/_tree.segment.rsc",
+      "/index.segments/__PAGE__.segment.rsc",
+    ]) {
+      const enabled = await request(on.baseURL, path);
+      const disabled = await request(off.baseURL, path);
+      console.log(`${path}: ${enabled.status}`);
+      expect(masked(disabled, []), path).toEqual(masked(enabled, []));
+      expect(enabled.headers["cache-control"], path).toContain("no-store");
+      expect(enabled.body, path).not.toContain(prefix);
+      expect(enabled.body, path).not.toContain("Pink Moon");
+    }
+  });
+
+  // ADR 0006 A2: the framework's cache marker only on a generic build
+  // artifact, and nothing about a journal written to the server's disk.
+  it("carries the cache marker only on the Home's own build files, and writes no journal to disk", async () => {
+    const app = ".next/server/app";
+    const built = [
+      readFileSync(join(app, "index.html"), "utf8"),
+      ...readdirSync(join(app, "index.segments"), { recursive: true })
+        .map((name) => join(app, "index.segments", String(name)))
+        .filter((file) => /\.rsc$/.test(file))
+        .map((file) => readFileSync(file, "utf8")),
+    ];
+    let marked = 0;
+    for (const [name, init] of FORMS) {
+      for (const server of [on, off]) {
+        const answer = await home(server, init);
+        if (answer.headers["x-nextjs-cache"] !== undefined) {
+          marked += 1;
+          expect(answer.headers["cache-control"], name).toBe("no-store");
+          expect(
+            answer.body === "" || built.includes(answer.body),
+            `${name}: a marked response that is not a build file`,
+          ).toBe(true);
+        }
+      }
+    }
+    console.log(`Home responses with the cache marker: ${marked}`);
+    expect(
+      filesContaining(".next", [
+        prefix,
+        ...HIDDEN_TITLES,
+        ...HOME_SHELF.map((album) => album.title),
+      ]),
+    ).toEqual([]);
   });
 
   it("describes the Home and no journal in its metadata, the same with the switch off", async () => {
@@ -498,5 +642,36 @@ describe("with journals in every state", () => {
     expect(locations[0]).toBe(`${ORIGIN}/`);
     expect(locations.filter((loc) => loc === `${ORIGIN}/`)).toHaveLength(1);
     expect((await request(off.baseURL, "/sitemap.xml")).status).toBe(404);
+  });
+});
+
+describe("a database failure with reads on", () => {
+  it("shows one fixed line in place of the lists, with no detail", async () => {
+    const password = `pw-${randomUUID()}`;
+    // The server starts without touching the database; only a request does.
+    const broken = await startProductionServer({
+      withAuthor: false,
+      env: {
+        REFRAIN_PUBLIC_READS_ENABLED: "true",
+        BETTER_AUTH_URL: ORIGIN,
+        DATABASE_URL: `postgres://nobody:${password}@127.0.0.1:1/none`,
+      },
+    });
+    servers.push(broken);
+    const page = await home(broken);
+    expect(page.headers["cache-control"]).toBe("no-store");
+    const text = visibleText(page.body);
+    expect(text).toContain("The latest writing could not be loaded just now.");
+    expect(text).not.toContain("Nothing published yet.");
+    expect(text).toContain("some songs take you back.");
+    for (const leak of [
+      password,
+      "ECONNREFUSED",
+      "postgres://",
+      "127.0.0.1:1",
+    ]) {
+      expect(page.body, leak).not.toContain(leak);
+    }
+    expect(readFileSync(broken.serverLog, "utf8")).not.toContain(password);
   });
 });
