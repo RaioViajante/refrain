@@ -73,8 +73,9 @@
 }
 
 /* Header: minimal, centered navigation; no logo, wordmark, or site name. */
+/* V4.4 `.hdr4`: 22px above the navigation, 16px on a phone. */
 .public-header {
-  padding-top: 18px;
+  padding-top: 22px;
 }
 
 .public-nav {
@@ -98,7 +99,9 @@
   line-height: 1.2;
   color: var(--color-ink);
   text-decoration: none;
-  background: var(--stroke-underline) 0 calc(100% - 7px) / 0% 7px no-repeat;
+  /* The drawn underline at the foot of the 44px box, a few pixels under the
+     word, as V4.4's `.ink` draws it at the foot of its padding. */
+  background: var(--stroke-underline) 0 calc(100% - 2px) / 0% 7px no-repeat;
   transition: background-size 0.35s ease;
 }
 
@@ -131,11 +134,12 @@ a.public-link:hover,
   background: var(--stroke-rule) 0 56px / 100% 8px no-repeat;
 }
 
+/* V4.4 `.ft4 .tag`: Kalam 21px (19.5px on a phone). */
 .public-closing {
   margin: 0;
   padding-top: 36px;
   font-family: var(--font-kalam), cursive;
-  font-size: 19px;
+  font-size: 21px;
   font-weight: 400;
   color: var(--color-ink-2);
 }
@@ -943,6 +947,14 @@ details[open] > summary .pj-chevron {
 
   .public-nav {
     gap: 0 22px;
+  }
+
+  .public-header {
+    padding-top: 16px;
+  }
+
+  .public-closing {
+    font-size: 19.5px;
   }
 
   .pj {
