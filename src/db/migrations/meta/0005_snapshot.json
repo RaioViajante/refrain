@@ -55,12 +55,8 @@
           "name": "album_artists_album_fk",
           "tableFrom": "album_artists",
           "tableTo": "albums",
-          "columnsFrom": [
-            "album_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["album_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -68,12 +64,8 @@
           "name": "album_artists_artist_fk",
           "tableFrom": "album_artists",
           "tableTo": "artists",
-          "columnsFrom": [
-            "artist_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["artist_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -81,20 +73,14 @@
       "compositePrimaryKeys": {
         "album_artists_pkey": {
           "name": "album_artists_pkey",
-          "columns": [
-            "album_id",
-            "artist_id"
-          ]
+          "columns": ["album_id", "artist_id"]
         }
       },
       "uniqueConstraints": {
         "album_artists_position_unique": {
           "name": "album_artists_position_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "album_id",
-            "position"
-          ]
+          "columns": ["album_id", "position"]
         }
       },
       "policies": {},
@@ -207,12 +193,8 @@
           "name": "album_editions_album_fk",
           "tableFrom": "album_editions",
           "tableTo": "albums",
-          "columnsFrom": [
-            "album_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["album_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -222,17 +204,12 @@
         "album_editions_mb_release_id_unique": {
           "name": "album_editions_mb_release_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "mb_release_id"
-          ]
+          "columns": ["mb_release_id"]
         },
         "album_editions_id_album_unique": {
           "name": "album_editions_id_album_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "id",
-            "album_id"
-          ]
+          "columns": ["id", "album_id"]
         }
       },
       "policies": {},
@@ -333,14 +310,8 @@
           "name": "album_journals_entry_fk",
           "tableFrom": "album_journals",
           "tableTo": "entries",
-          "columnsFrom": [
-            "entry_id",
-            "kind"
-          ],
-          "columnsTo": [
-            "id",
-            "kind"
-          ],
+          "columnsFrom": ["entry_id", "kind"],
+          "columnsTo": ["id", "kind"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -348,12 +319,8 @@
           "name": "album_journals_album_fk",
           "tableFrom": "album_journals",
           "tableTo": "albums",
-          "columnsFrom": [
-            "album_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["album_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -363,10 +330,7 @@
         "album_journals_entry_album_unique": {
           "name": "album_journals_entry_album_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "entry_id",
-            "album_id"
-          ]
+          "columns": ["entry_id", "album_id"]
         }
       },
       "policies": {},
@@ -421,12 +385,8 @@
           "name": "album_tracks_album_fk",
           "tableFrom": "album_tracks",
           "tableTo": "albums",
-          "columnsFrom": [
-            "album_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["album_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -434,12 +394,8 @@
           "name": "album_tracks_track_fk",
           "tableFrom": "album_tracks",
           "tableTo": "tracks",
-          "columnsFrom": [
-            "track_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["track_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -447,10 +403,7 @@
       "compositePrimaryKeys": {
         "album_tracks_pkey": {
           "name": "album_tracks_pkey",
-          "columns": [
-            "album_id",
-            "track_id"
-          ]
+          "columns": ["album_id", "track_id"]
         }
       },
       "uniqueConstraints": {},
@@ -527,9 +480,7 @@
         "albums_mb_release_group_id_unique": {
           "name": "albums_mb_release_group_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "mb_release_group_id"
-          ]
+          "columns": ["mb_release_group_id"]
         }
       },
       "policies": {},
@@ -632,14 +583,8 @@
           "name": "artist_journals_entry_fk",
           "tableFrom": "artist_journals",
           "tableTo": "entries",
-          "columnsFrom": [
-            "entry_id",
-            "kind"
-          ],
-          "columnsTo": [
-            "id",
-            "kind"
-          ],
+          "columnsFrom": ["entry_id", "kind"],
+          "columnsTo": ["id", "kind"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -647,12 +592,8 @@
           "name": "artist_journals_artist_fk",
           "tableFrom": "artist_journals",
           "tableTo": "artists",
-          "columnsFrom": [
-            "artist_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["artist_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -773,9 +714,7 @@
         "artists_mb_artist_id_unique": {
           "name": "artists_mb_artist_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "mb_artist_id"
-          ]
+          "columns": ["mb_artist_id"]
         }
       },
       "policies": {},
@@ -911,12 +850,8 @@
           "name": "auth_accounts_user_fk",
           "tableFrom": "auth_accounts",
           "tableTo": "auth_users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -926,10 +861,7 @@
         "auth_accounts_provider_account_unique": {
           "name": "auth_accounts_provider_account_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "provider_id",
-            "account_id"
-          ]
+          "columns": ["provider_id", "account_id"]
         }
       },
       "policies": {},
@@ -978,9 +910,7 @@
         "auth_rate_limits_key_unique": {
           "name": "auth_rate_limits_key_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "key"
-          ]
+          "columns": ["key"]
         }
       },
       "policies": {},
@@ -1065,12 +995,8 @@
           "name": "auth_sessions_user_fk",
           "tableFrom": "auth_sessions",
           "tableTo": "auth_users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1080,9 +1006,7 @@
         "auth_sessions_token_unique": {
           "name": "auth_sessions_token_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "token"
-          ]
+          "columns": ["token"]
         }
       },
       "policies": {},
@@ -1163,9 +1087,7 @@
         "auth_users_email_unique": {
           "name": "auth_users_email_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         }
       },
       "policies": {},
@@ -1309,14 +1231,8 @@
           "name": "edition_tracks_edition_fk",
           "tableFrom": "edition_tracks",
           "tableTo": "album_editions",
-          "columnsFrom": [
-            "edition_id",
-            "album_id"
-          ],
-          "columnsTo": [
-            "id",
-            "album_id"
-          ],
+          "columnsFrom": ["edition_id", "album_id"],
+          "columnsTo": ["id", "album_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1324,14 +1240,8 @@
           "name": "edition_tracks_album_track_fk",
           "tableFrom": "edition_tracks",
           "tableTo": "album_tracks",
-          "columnsFrom": [
-            "album_id",
-            "track_id"
-          ],
-          "columnsTo": [
-            "album_id",
-            "track_id"
-          ],
+          "columnsFrom": ["album_id", "track_id"],
+          "columnsTo": ["album_id", "track_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1339,21 +1249,14 @@
       "compositePrimaryKeys": {
         "edition_tracks_pkey": {
           "name": "edition_tracks_pkey",
-          "columns": [
-            "edition_id",
-            "track_id"
-          ]
+          "columns": ["edition_id", "track_id"]
         }
       },
       "uniqueConstraints": {
         "edition_tracks_position_unique": {
           "name": "edition_tracks_position_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "edition_id",
-            "disc_number",
-            "position"
-          ]
+          "columns": ["edition_id", "disc_number", "position"]
         }
       },
       "policies": {},
@@ -1427,10 +1330,7 @@
         "entries_id_kind_unique": {
           "name": "entries_id_kind_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "id",
-            "kind"
-          ]
+          "columns": ["id", "kind"]
         }
       },
       "policies": {},
@@ -1527,14 +1427,8 @@
           "name": "entry_slugs_entry_fk",
           "tableFrom": "entry_slugs",
           "tableTo": "entries",
-          "columnsFrom": [
-            "entry_id",
-            "kind"
-          ],
-          "columnsTo": [
-            "id",
-            "kind"
-          ],
+          "columnsFrom": ["entry_id", "kind"],
+          "columnsTo": ["id", "kind"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -1542,10 +1436,7 @@
       "compositePrimaryKeys": {
         "entry_slugs_pkey": {
           "name": "entry_slugs_pkey",
-          "columns": [
-            "kind",
-            "slug"
-          ]
+          "columns": ["kind", "slug"]
         }
       },
       "uniqueConstraints": {},
@@ -1683,12 +1574,8 @@
           "name": "entry_texts_entry_fk",
           "tableFrom": "entry_texts",
           "tableTo": "entries",
-          "columnsFrom": [
-            "entry_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["entry_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1696,10 +1583,7 @@
       "compositePrimaryKeys": {
         "entry_texts_pkey": {
           "name": "entry_texts_pkey",
-          "columns": [
-            "entry_id",
-            "locale"
-          ]
+          "columns": ["entry_id", "locale"]
         }
       },
       "uniqueConstraints": {},
@@ -1788,14 +1672,8 @@
           "name": "memories_entry_fk",
           "tableFrom": "memories",
           "tableTo": "entries",
-          "columnsFrom": [
-            "entry_id",
-            "kind"
-          ],
-          "columnsTo": [
-            "id",
-            "kind"
-          ],
+          "columnsFrom": ["entry_id", "kind"],
+          "columnsTo": ["id", "kind"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1891,12 +1769,8 @@
           "name": "memory_music_memory_fk",
           "tableFrom": "memory_music",
           "tableTo": "memories",
-          "columnsFrom": [
-            "memory_id"
-          ],
-          "columnsTo": [
-            "entry_id"
-          ],
+          "columnsFrom": ["memory_id"],
+          "columnsTo": ["entry_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1904,12 +1778,8 @@
           "name": "memory_music_track_fk",
           "tableFrom": "memory_music",
           "tableTo": "tracks",
-          "columnsFrom": [
-            "track_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["track_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -1917,12 +1787,8 @@
           "name": "memory_music_album_fk",
           "tableFrom": "memory_music",
           "tableTo": "albums",
-          "columnsFrom": [
-            "album_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["album_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -1932,18 +1798,12 @@
         "memory_music_track_unique": {
           "name": "memory_music_track_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "memory_id",
-            "track_id"
-          ]
+          "columns": ["memory_id", "track_id"]
         },
         "memory_music_album_unique": {
           "name": "memory_music_album_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "memory_id",
-            "album_id"
-          ]
+          "columns": ["memory_id", "album_id"]
         }
       },
       "policies": {},
@@ -2004,12 +1864,8 @@
           "name": "track_artists_track_fk",
           "tableFrom": "track_artists",
           "tableTo": "tracks",
-          "columnsFrom": [
-            "track_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["track_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2017,12 +1873,8 @@
           "name": "track_artists_artist_fk",
           "tableFrom": "track_artists",
           "tableTo": "artists",
-          "columnsFrom": [
-            "artist_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["artist_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -2030,20 +1882,14 @@
       "compositePrimaryKeys": {
         "track_artists_pkey": {
           "name": "track_artists_pkey",
-          "columns": [
-            "track_id",
-            "artist_id"
-          ]
+          "columns": ["track_id", "artist_id"]
         }
       },
       "uniqueConstraints": {
         "track_artists_position_unique": {
           "name": "track_artists_position_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "track_id",
-            "position"
-          ]
+          "columns": ["track_id", "position"]
         }
       },
       "policies": {},
@@ -2112,12 +1958,8 @@
           "name": "track_reflection_texts_reflection_fk",
           "tableFrom": "track_reflection_texts",
           "tableTo": "track_reflections",
-          "columnsFrom": [
-            "track_reflection_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["track_reflection_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2125,10 +1967,7 @@
       "compositePrimaryKeys": {
         "track_reflection_texts_pkey": {
           "name": "track_reflection_texts_pkey",
-          "columns": [
-            "track_reflection_id",
-            "locale"
-          ]
+          "columns": ["track_reflection_id", "locale"]
         }
       },
       "uniqueConstraints": {},
@@ -2252,14 +2091,8 @@
           "name": "track_reflections_journal_fk",
           "tableFrom": "track_reflections",
           "tableTo": "album_journals",
-          "columnsFrom": [
-            "album_journal_id",
-            "album_id"
-          ],
-          "columnsTo": [
-            "entry_id",
-            "album_id"
-          ],
+          "columnsFrom": ["album_journal_id", "album_id"],
+          "columnsTo": ["entry_id", "album_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2267,14 +2100,8 @@
           "name": "track_reflections_album_track_fk",
           "tableFrom": "track_reflections",
           "tableTo": "album_tracks",
-          "columnsFrom": [
-            "album_id",
-            "track_id"
-          ],
-          "columnsTo": [
-            "album_id",
-            "track_id"
-          ],
+          "columnsFrom": ["album_id", "track_id"],
+          "columnsTo": ["album_id", "track_id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -2284,10 +2111,7 @@
         "track_reflections_journal_track_unique": {
           "name": "track_reflections_journal_track_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "album_journal_id",
-            "track_id"
-          ]
+          "columns": ["album_journal_id", "track_id"]
         }
       },
       "policies": {},
@@ -2362,9 +2186,7 @@
         "tracks_mb_recording_id_unique": {
           "name": "tracks_mb_recording_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "mb_recording_id"
-          ]
+          "columns": ["mb_recording_id"]
         }
       },
       "policies": {},
