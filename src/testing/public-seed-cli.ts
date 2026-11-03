@@ -15,6 +15,9 @@
 //   cover <entry-id> <url|none>
 //                             sets (or clears) the cover of the journal's
 //                             album, as the catalog stores one (M3.2)
+//   artists <slug-prefix>     the artist pages' states (M3.5), as JSON
+//   remove-artists <json> <prefix>
+//                             removes what `artists` printed
 import { randomBytes } from "node:crypto";
 
 import { Client } from "pg";
@@ -30,6 +33,11 @@ import {
   type SeededJournal,
 } from "./public-journals";
 import { publishForTest } from "./publishing";
+import {
+  removeSeededArtists,
+  seedArtistPages,
+  type SeededArtists,
+} from "./public-artists";
 import {
   assertDisposableTestDatabase,
   readTestDatabaseUrl,
@@ -103,6 +111,18 @@ async function main() {
           `update albums set cover_url = $1, cover_source = $2
             where id = (select album_id from album_journals where entry_id = $3)`,
           [coverUrl, coverUrl ? "Cover Art Archive" : null, first!],
+        );
+        break;
+      }
+      case "artists": {
+        console.log(JSON.stringify(await seedArtistPages(client, first!)));
+        break;
+      }
+      case "remove-artists": {
+        await removeSeededArtists(
+          client,
+          JSON.parse(first!) as SeededArtists,
+          second!,
         );
         break;
       }

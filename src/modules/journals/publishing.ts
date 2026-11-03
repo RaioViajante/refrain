@@ -75,6 +75,17 @@ export interface PublicationReview {
    * private. Titles only: their writing is not part of this review.
    */
   stayingPrivate: { trackId: string; trackTitle: string }[];
+  /**
+   * The artist pages publishing would open (M3.5), with their address and
+   * whether each shows a photograph, and the public artist pages whose
+   * address it would change. Both are bound into the confirmation.
+   */
+  artistPages: {
+    name: string;
+    address: string | null;
+    photo: { title: string; credit: string; license: string } | null;
+  }[];
+  artistAddressChanges: { name: string; from: string; to: string | null }[];
 }
 
 export interface PublicationPreview {
@@ -113,6 +124,22 @@ function toReview(
     })),
     flaggedWithoutText: disclosure.flaggedWithoutText,
     stayingPrivate,
+    artistPages: disclosure.artistPages.map((page) => ({
+      name: page.name,
+      address: page.address,
+      photo: page.photo
+        ? {
+            title: page.photo.title,
+            credit: page.photo.credit,
+            license: page.photo.license,
+          }
+        : null,
+    })),
+    artistAddressChanges: disclosure.artistAddressChanges.map((change) => ({
+      name: change.name,
+      from: change.from,
+      to: change.to,
+    })),
   };
 }
 

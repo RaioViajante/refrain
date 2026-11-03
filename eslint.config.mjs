@@ -93,6 +93,8 @@ const eslintConfig = defineConfig([
     // presentation restrictions are repeated.
     files: [
       "src/app/\\(public\\)/**",
+      // The artist pages (M3.5): their own route group, for their header.
+      "src/app/\\(artists\\)/**",
       // The Home (M3.4): the root page, outside the route group.
       "src/app/page.tsx",
       "src/app/sitemap.xml/**",

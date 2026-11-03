@@ -242,6 +242,20 @@ test("Publish… shows exactly what readers would see and publishes nothing unti
   });
   await expect(privateSection).toContainText(names.tracks[1]);
   await expect(dialog).not.toContainText(kept);
+  // The artist page publishing would open (M3.5), with its address: the
+  // album's artist has no page yet.
+  const artistPages = dialog.locator("section").filter({
+    hasText: "Artist pages that will open (1)",
+  });
+  await expect(artistPages).toContainText(names.artist);
+  await expect(artistPages).toContainText(
+    `/artists/${names.artist
+      .normalize("NFKD")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")}`,
+  );
+  await expect(artistPages).toContainText("Without a photograph");
   // It says, truthfully for any configuration, when the web page opens.
   await expect(dialog).toContainText("nothing opens on the web");
   await shoot(page, "publish-dialog");

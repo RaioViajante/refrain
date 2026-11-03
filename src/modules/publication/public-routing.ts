@@ -3,7 +3,7 @@ import "server-only";
 import type { DatabaseExecutor } from "@/db";
 
 import { publicReadsEnabled } from "./public-reads";
-import { resolvePublicSlug } from "./queries";
+import { resolvePublicArtistAddress, resolvePublicSlug } from "./queries";
 import { isNormalizedSlug } from "./slug";
 
 // What a public album-journal address answers (ADR 0006 § 11, gate G1). It is
@@ -70,6 +70,44 @@ export async function routeAlbumJournalRequest(
       case "not_found":
         return { action: "not_found" };
     }
+  } catch {
+    // Never log the error: a driver message can carry connection details.
+    return { action: "unavailable" };
+  }
+}
+
+/**
+ * What a public artist address answers (M3.5), in the same fixed order as an
+ * album journal's: the switch, the method, the address's form, then the
+ * publication queries. An artist that is not publicly visible (catalog-only,
+ * archived, or credited only on writing that is not public) and a malformed
+ * or unknown address all get the same unknown-address `404`. There is no
+ * redirect: no previous artist address is stored.
+ */
+export async function routeArtistRequest(
+  db: () => DatabaseExecutor,
+  request: AlbumJournalRequest,
+  env: Record<string, string | undefined> = process.env,
+): Promise<
+  Extract<
+    AlbumJournalRouting,
+    { action: "not_found" | "method_not_allowed" | "serve" | "unavailable" }
+  >
+> {
+  if (!publicReadsEnabled(env)) {
+    return { action: "not_found" };
+  }
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    return { action: "method_not_allowed" };
+  }
+  if (!isNormalizedSlug(request.slug)) {
+    return { action: "not_found" };
+  }
+  try {
+    const resolution = await resolvePublicArtistAddress(db(), request.slug);
+    return resolution.outcome === "found"
+      ? { action: "serve" }
+      : { action: "not_found" };
   } catch {
     // Never log the error: a driver message can carry connection details.
     return { action: "unavailable" };

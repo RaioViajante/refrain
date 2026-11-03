@@ -929,6 +929,371 @@ details[open] > summary .pj-chevron {
   margin: 0;
 }
 
+/* The artist page (M3.5; the approved V4.4 `Artist` screen): the album
+   journal's two columns, the photograph's 4:5 frame on the left and the name
+   on the right, then "In this journal" in the same columns. */
+article.pa-grid {
+  grid-template-areas: "art head";
+}
+
+.pa-figure {
+  grid-area: art;
+  margin: 0;
+  min-width: 0;
+}
+
+/* Without an opening sentence or an essay, the heading sits level with the
+   middle of the frame, where the approved screen's kind label and title are. */
+.pa-head {
+  align-self: center;
+}
+
+/* The photograph: a fixed 4:5 frame (V4.4 `.art.pt`) with the hatched
+   fallback underneath. The photograph covers it once loaded, at the same
+   size, so nothing moves; if it never arrives, the fallback is what remains. */
+.pa-photo {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: min(100%, 400px);
+  aspect-ratio: 4 / 5;
+  padding: 24px;
+  background:
+    var(--stroke-area) 0 0 / 100% 100% no-repeat,
+    var(--color-paper-2);
+  color: var(--color-ink-3);
+  text-align: center;
+}
+
+.pa-photo-image {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The credit: small and muted, as the screen's caption is, but never below
+   the 15px floor for credits. */
+.pa-credit {
+  width: min(100%, 400px);
+  margin-top: 12px;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--color-ink-3);
+}
+
+.pa-credit-line {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The credit on two lines: "Photo: <credit>", which may wrap and holds no
+   link, then the license, linked, on a line of its own that is a full 44px
+   target. No link shares a line with wrapping text, so each target is the
+   link's own, whatever the length of the credit. */
+.pa-credit-by,
+.pa-credit-license {
+  display: block;
+}
+
+.pa-credit-license {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 0.3em;
+  min-height: 44px;
+}
+
+/* The share-alike condition, on its own line under the license's link. */
+.pa-credit-note {
+  display: block;
+}
+
+.pa-credit-details {
+  margin-top: 0;
+}
+
+/* A disclosure, marked as one: the chevron turns when it is open, as the
+   album journal's tracks do. */
+.pa-credit-details summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  cursor: pointer;
+  color: var(--color-ink-2);
+  list-style: none;
+}
+
+.pa-credit-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.pa-credit-details[open] > summary .pj-chevron {
+  transform: rotate(90deg);
+}
+
+/* A row that holds a link is as tall as the link's 44px target; the others
+   keep the text's own height. */
+.pa-credit-details dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: baseline;
+  gap: 4px 14px;
+  margin: 4px 0 0;
+}
+
+.pa-credit-details dt {
+  color: var(--color-ink-2);
+}
+
+.pa-credit-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The name keeps the album title's sizes (104px, 62px on a phone, 54px at
+   370px and below) unless its longest word would not fit the column at that
+   size; then it is set just small enough for that word to fit, never below
+   30px, so ordinary words are not broken (the owner's visual review of M3.5).
+   `--pa-longest` is the longest word's length in characters, set by the page;
+   0.51em is the widest per-letter average of ordinary words in Kalam 700,
+   measured in the browser (0.43em for "Extraordinarily", 0.48em for
+   "Buckley", 0.506em for "Massachusetts"), so an ordinary word always fits.
+   A name keeps its size wherever it fitted before; in the narrowest
+   two-column layout (721 to about 760px), where "Buckley" used to break,
+   it is set a little smaller instead. Only a word too long
+   even at 30px is broken, with a hyphen where the browser hyphenates. Normal
+   names ("Jeff Buckley") are untouched at every width. */
+.pa-head {
+  container-type: inline-size;
+}
+
+.pj-title.pa-title {
+  --pa-fit: calc(100cqi / (var(--pa-longest, 1) * 0.51));
+  font-size: max(30px, min(104px, var(--pa-fit)));
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+@media (max-width: 720px) {
+  .pj-title.pa-title {
+    font-size: max(30px, min(62px, var(--pa-fit)));
+  }
+}
+
+@media (max-width: 370px) {
+  .pj-title.pa-title {
+    font-size: max(30px, min(54px, var(--pa-fit)));
+  }
+}
+
+.pa-section {
+  padding-top: 104px;
+}
+
+.pa-margin h2 {
+  margin: 0;
+  font-family: var(--font-kalam), cursive;
+  font-size: 31px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.pa-list-title {
+  margin: 0 0 16px;
+  font-family: var(--font-kalam), cursive;
+  font-size: 23px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.pa-list-title:not(:first-child) {
+  margin-top: 52px;
+}
+
+.pa-albums {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pa-album {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 22px;
+  align-items: center;
+  color: var(--color-ink);
+  text-decoration: none;
+}
+
+.pa-album-art {
+  width: 120px;
+}
+
+.pa-album-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pa-album-title {
+  font-family: var(--font-kalam), cursive;
+  font-size: 22px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.pa-album-facts {
+  font-size: 16px;
+  color: var(--color-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tracks: one ruled row each, a light ink rule above the first and below
+   each, as the Home's rows. */
+.pa-tracks {
+  margin: 0;
+  padding: 8px 0 0;
+  list-style: none;
+  background: var(--stroke-rule) 0 0 / 100% 8px no-repeat;
+}
+
+.pa-track-item {
+  padding-bottom: 8px;
+  background: var(--stroke-rule) 0 100% / 100% 8px no-repeat;
+}
+
+.pa-track {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 18px;
+  min-height: 44px;
+  padding: 14px 2px;
+  color: var(--color-ink);
+  text-decoration: none;
+}
+
+.pa-track-title {
+  min-width: 0;
+  font-family: var(--font-kalam), cursive;
+  font-size: 22px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.pa-track-where {
+  font-size: 15.5px;
+  color: var(--color-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.pa-album:hover .pa-album-title,
+.pa-track:hover .pa-track-title,
+.pj-artist-link:hover {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 5px;
+}
+
+/* A credited artist on the album journal links to the artist's page. When a
+   credit holds a link, the drawn underline moves from the whole credit to
+   each linked name, so a name that is not a link (an archived artist) reads
+   as plain text. A credit without links keeps the line as before. The link
+   is a 44px target: its padding is taken back by its margins, so the line
+   stays where it was. */
+.pj-artist:has(.pj-artist-link) {
+  background: none;
+}
+
+.pj-artist-link {
+  display: inline-block;
+  min-height: 44px;
+  padding: 6px 0 8px;
+  margin: -6px 0 -8px;
+  color: inherit;
+  text-decoration: none;
+  background: var(--stroke-underline) 0 100% / 100% 8px no-repeat;
+}
+
+@media (max-width: 720px) {
+  .pa-figure {
+    order: 1;
+  }
+
+  .pa-photo,
+  .pa-credit {
+    width: 100%;
+  }
+
+  .pa-head {
+    order: 2;
+    margin-top: 24px;
+  }
+
+  .pa-section {
+    padding-top: 72px;
+  }
+
+  .pa-margin h2 {
+    margin-bottom: 22px;
+    font-size: 30px;
+  }
+
+  .pa-list-title {
+    font-size: 22px;
+  }
+
+  .pa-album {
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 18px;
+  }
+
+  .pa-album-art {
+    width: 96px;
+  }
+
+  .pa-album-title,
+  .pa-track-title {
+    font-size: 20px;
+  }
+}
+
+@media (forced-colors: active) {
+  .pa-photo {
+    background-image: none;
+    border: 1px solid CanvasText;
+  }
+
+  .pa-tracks,
+  .pa-track-item,
+  .pj-artist-link {
+    background-image: none;
+  }
+
+  .pj-artist-link {
+    text-decoration: underline;
+  }
+
+  .pa-tracks {
+    border-top: 1px solid CanvasText;
+  }
+
+  .pa-track-item {
+    border-bottom: 1px solid CanvasText;
+  }
+}
+
 /* One column at 720px and below: artwork, the heading, the facts, the writing.
    The two wrappers dissolve so their children can be ordered as the design
    shows them. */
@@ -1137,6 +1502,7 @@ details[open] > summary .pj-chevron {
 
 @media (prefers-reduced-motion: reduce) {
   .public-link,
+  .pa-credit-details .pj-chevron,
   .pj-chevron {
     transition: none;
   }

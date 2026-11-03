@@ -4,10 +4,12 @@ import { sql } from "drizzle-orm";
 
 import type { DatabaseExecutor, EntryKind, Locale } from "@/db";
 
+import { artistAddresses } from "./artist-address";
 import {
   publicLanguageVersions,
   publicTrackReflectionTexts,
 } from "./predicate";
+import { isNormalizedSlug } from "./slug";
 
 // Public read queries. Each one applies the publication predicate in SQL and
 // returns a projection without private fields: no status, no deletion state,
@@ -279,6 +281,64 @@ export const servedAlbumJournalAddresses = sql`
      and exists (select 1
                    from (${publicLanguageVersions}) pv
                   where pv.entry_id = s.entry_id)`;
+
+/**
+ * The publicly visible artists (M3.5): an artist is public only because a
+ * served album journal is about an album that credits it, and only while the
+ * artist is not archived (an archived record's links become plain text,
+ * Product rule 6). Nothing else makes an artist public: not the catalog
+ * record, not a photograph, not an artist journal (which has no public
+ * reading contract yet), not writing that is draft, private, deleted, or an
+ * unpublished translation. Built from `servedAlbumJournalAddresses`, so from
+ * the predicate, and never re-implemented.
+ *
+ * Columns: artist_id, name.
+ */
+export const publicArtists = sql`
+  select distinct ar.id as artist_id, ar.name
+    from (${servedAlbumJournalAddresses}) served
+    join album_journals aj on aj.entry_id = served.entry_id
+    join album_artists aa on aa.album_id = aj.album_id
+    join artists ar on ar.id = aa.artist_id
+   where ar.archived_at is null`;
+
+/**
+ * The address of every publicly visible artist, by artist id
+ * (`artist-address.ts`). An artist that is not in the map has no page.
+ */
+export async function publicArtistAddresses(
+  db: DatabaseExecutor,
+): Promise<Map<string, string>> {
+  const result = await db.execute<{ artist_id: string; name: string }>(sql`
+    select visible.artist_id, visible.name
+      from (${publicArtists}) visible`);
+  return artistAddresses(
+    result.rows.map((row) => ({ artistId: row.artist_id, name: row.name })),
+  );
+}
+
+export type ArtistAddressResolution =
+  { outcome: "found"; artistId: string } | { outcome: "not_found" };
+
+/**
+ * Resolves a public artist address: found, or exactly the same `not_found`
+ * for an unknown address, a catalog-only, archived, or private artist, and a
+ * malformed one. There is no redirect: no previous artist address is stored.
+ */
+export async function resolvePublicArtistAddress(
+  db: DatabaseExecutor,
+  address: string,
+): Promise<ArtistAddressResolution> {
+  if (!isNormalizedSlug(address)) {
+    return { outcome: "not_found" };
+  }
+  for (const [artistId, candidate] of await publicArtistAddresses(db)) {
+    if (candidate === address) {
+      return { outcome: "found", artistId };
+    }
+  }
+  return { outcome: "not_found" };
+}
 
 /**
  * Resolves a public slug (ADR 0002, D7.5 and INV-5; ADR 0003). A current slug

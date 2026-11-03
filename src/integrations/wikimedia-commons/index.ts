@@ -31,6 +31,7 @@ export {
   PHOTO_IMAGE_HOSTS,
   PHOTO_MODIFICATIONS,
   PHOTO_SOURCE,
+  photoCreditCaption,
   photoImageOf,
   photoSourceUrl,
   photoThumbnailUrl,

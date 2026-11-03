@@ -74,9 +74,9 @@ then open `http://localhost:3000`. the studio is at `/studio` and needs the auth
 
 #### current status
 
-built and merged, local only (through m3.3): the relational core on postgresql 17, single-author sign-in, and the writing studio: artists, albums, tracks, and album journals with track-by-track reflections, ratings, and favourites; recently deleted with restore; and publishing that shows what will become public and waits for the author's confirmation. add music searches musicbrainz and takes covers from the cover art archive. the first public page, an album journal at `/albums/<slug>`, stays behind a switch that is off by default. artist photographs come from wikimedia commons, in the studio only. backups with a restore check, unit, integration, http, and browser tests, and ci.
+built and merged, local only (through m3.4): the relational core on postgresql 17, single-author sign-in, and the writing studio: artists, albums, tracks, and album journals with track-by-track reflections, ratings, and favourites; recently deleted with restore; and publishing that shows what will become public and waits for the author's confirmation. add music searches musicbrainz and takes covers from the cover art archive. the first public page, an album journal at `/albums/<slug>`, stays behind a switch that is off by default. artist photographs come from wikimedia commons. the public home lists published album journals. backups with a restore check, unit, integration, http, and browser tests, and ci.
 
-in progress: m3.4, the home from the approved design, on its own branch and not merged. its lists show only published album journals, and stay empty while the switch is off.
+in progress: m3.5, public artist pages with the photograph the author chose and its credit, on its own branch and not merged. an artist has a page only while a published album journal credits them.
 
 planned: memories, artist journals, album and artist lists, the brazilian portuguese interface and its language selector, author translations, "delete now", and the academic release (m4).
 

@@ -95,8 +95,11 @@ function MostRecent({ home }: Readonly<{ home: PublicHome }>) {
   );
 }
 
-/** An artwork frame: the fallback, and the chosen cover over it once loaded. */
-function Artwork({
+/**
+ * An artwork frame: the fallback, and the chosen cover over it once loaded.
+ * Also used by the artist page's album rows (M3.5).
+ */
+export function Artwork({
   artwork,
   className,
   sizes,

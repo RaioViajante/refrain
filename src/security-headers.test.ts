@@ -6,6 +6,7 @@ import { COVER_IMAGE_HOSTS } from "@/integrations/cover-art-archive";
 import { PHOTO_IMAGE_HOSTS } from "@/integrations/wikimedia-commons";
 
 import {
+  ARTIST_CONTENT_SECURITY_POLICY,
   CONTENT_SECURITY_POLICY,
   STUDIO_CONTENT_SECURITY_POLICY,
 } from "./security-headers";
@@ -69,6 +70,32 @@ describe("the Content-Security-Policy", () => {
     expect(privateBlock).toContain("value: STUDIO_CONTENT_SECURITY_POLICY }");
     expect(readFileSync("src/proxy.ts", "utf8")).not.toContain(
       "STUDIO_CONTENT_SECURITY_POLICY",
+    );
+  });
+
+  it("adds exactly Wikimedia's thumbnail host for the artist pages, and only under /artists/ (M3.5)", () => {
+    const artist = directivesOf(ARTIST_CONTENT_SECURITY_POLICY);
+    expect(artist.get("frame-ancestors")).toEqual(["'none'"]);
+    expect(artist.get("img-src")).toEqual([
+      "'self'",
+      "data:",
+      "blob:",
+      ...COVER_IMAGE_HOSTS,
+      ...PHOTO_IMAGE_HOSTS,
+    ]);
+    const config = readFileSync("next.config.ts", "utf8");
+    expect(config).toContain(JSON.stringify(ARTIST_CONTENT_SECURITY_POLICY));
+    expect(config).toMatch(
+      /\{ source: "\/artists\/:path\*", headers: artistHeaders \}/,
+    );
+    expect(config).toContain("value: ARTIST_CONTENT_SECURITY_POLICY");
+    // The proxy uses it only for an artist address.
+    const proxy = readFileSync("src/proxy.ts", "utf8");
+    expect(proxy).toContain(
+      '"Content-Security-Policy": ARTIST_CONTENT_SECURITY_POLICY',
+    );
+    expect(proxy).toContain(
+      "isArtist ? ARTIST_SECURITY_HEADERS : PUBLIC_SECURITY_HEADERS",
     );
   });
 });

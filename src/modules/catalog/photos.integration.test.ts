@@ -9,10 +9,16 @@ import {
   captureFailure,
   inRollbackTransaction,
   rowChecksum,
+  setPrivacyForTest,
   testAuthor,
   uniqueLabel,
   withConnections,
 } from "@/testing";
+import {
+  isArtistOnPublicPage,
+  lockAlbumCreditExposure,
+  lockArtistPublicExposure,
+} from "@/modules/publication";
 import { FIXTURE } from "@/testing/provider-fixtures";
 import { providerAnswer, providerResponse } from "@/testing/provider-mock";
 import { fixtureProviders, json } from "@/testing/provider-runtime";
@@ -23,7 +29,7 @@ import {
   photoSha1,
 } from "@/testing/wikimedia-fixtures";
 
-import { updateArtist } from "./commands";
+import { restoreArtist, updateAlbum, updateArtist } from "./commands";
 import { CatalogError } from "./errors";
 import {
   listArtistPhotoChoices,
@@ -961,28 +967,747 @@ describe("the stored-photo fingerprint", () => {
   });
 });
 
-// A published journal about an album that credits the artist: a photograph
-// change is not a change to it.
-describe("published writing", () => {
-  it("is untouched when a credited artist's photograph is set or removed", async () => {
+// The public artist page (M3.5) shows the photograph, so setting or replacing
+// one is refused while the artist's page is public (gate G8 not widened), and
+// removing one is always allowed (a strict reduction: the takedown path).
+// Visibility is the publication predicate's: a served album journal about an
+// album that credits the artist.
+describe("the public page guard", () => {
+  async function creditedJournal(
+    tx: Transaction,
+    artistId: string,
+    status: "draft" | "private" | "published",
+    options: { deletedAt?: Date } = {},
+  ) {
+    const album = await createTestAlbum(tx, { artistIds: [artistId] });
+    return createTestAlbumJournal(tx, {
+      albumId: album.albumId,
+      versions: [{ locale: "en", status }],
+      slug: `photo-guard-${status}-${uniqueLabel("x").slice(-8)}`,
+      deletedAt: options.deletedAt,
+    });
+  }
+
+  it("refuses to set or replace a photograph while the artist's page is public, and writes nothing", async () => {
     await inRollbackTransaction(async (tx) => {
-      const artistId = await createTestArtist(tx);
-      const album = await createTestAlbum(tx, { artistIds: [artistId] });
-      await createTestAlbumJournal(tx, {
-        albumId: album.albumId,
-        versions: [{ locale: "en", status: "published" }],
-        slug: "photo-guard",
-      });
-      const writing = await rowChecksum(tx);
+      const artistId = await createTestArtist(tx, uniqueLabel("Guarded"));
+      await creditedJournal(tx, artistId, "published");
+      const before = await rowChecksum(tx);
+      const columns = await photoColumns(tx, artistId);
+      expect(await refusal(tx, (t) => choose(t, artistId, PHOTO.onStage))).toBe(
+        "public_page",
+      );
+      expect(await rowChecksum(tx)).toEqual(before);
+      expect(await photoColumns(tx, artistId)).toEqual(columns);
+
+      // The studio is told before it tries.
+      const choices = await listArtistPhotoChoices(
+        tx,
+        author,
+        { artistId, query: "" },
+        fixtureProviders().providers,
+      );
+      expect(choices!.artist.onPublicPage).toBe(true);
+      const review = await reviewArtistPhoto(
+        tx,
+        author,
+        { artistId, file: PHOTO.onStage },
+        fixtureProviders().providers,
+      );
+      expect(review!.artist.onPublicPage).toBe(true);
+    });
+  });
+
+  it("refuses to replace a photograph chosen before the page became public", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const artistId = await createTestArtist(tx, uniqueLabel("Replaced"));
       await choose(tx, artistId, PHOTO.onStage);
-      expect(await rowChecksum(tx)).toEqual(writing);
+      await creditedJournal(tx, artistId, "published");
+      const columns = await photoColumns(tx, artistId);
+      expect(
+        await refusal(tx, (t) => choose(t, artistId, PHOTO.portrait)),
+      ).toBe("public_page");
+      expect(await photoColumns(tx, artistId)).toEqual(columns);
+    });
+  });
+
+  it("allows a photograph while only draft, private, deleted, or no writing credits the artist", async () => {
+    await inRollbackTransaction(async (tx) => {
+      for (const setup of [
+        (id: string) => creditedJournal(tx, id, "draft"),
+        (id: string) => creditedJournal(tx, id, "private"),
+        (id: string) =>
+          creditedJournal(tx, id, "published", { deletedAt: new Date() }),
+        async () => undefined,
+      ]) {
+        const artistId = await createTestArtist(tx, uniqueLabel("Unguarded"));
+        await setup(artistId);
+        await choose(tx, artistId, PHOTO.onStage);
+        expect((await photoColumns(tx, artistId)).photoUrl).toBe(
+          commonsThumbnail(PHOTO.onStage, 330),
+        );
+      }
+    });
+  });
+
+  it("allows removal while the page is public, and leaves every piece of writing as it was", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const artistId = await createTestArtist(tx, uniqueLabel("Takedown"));
+      await choose(tx, artistId, PHOTO.onStage);
+      await creditedJournal(tx, artistId, "published");
+      const writing = await rowChecksum(tx);
       const detail = await getArtist(tx, author, artistId);
       await removeArtistPhoto(tx, author, {
         artistId,
         expectedPhoto: detail!.photo.state,
       });
+      expect((await photoColumns(tx, artistId)).photoUrl).toBeNull();
+      // The writing and its publication are untouched: only the catalog row
+      // changed (rowChecksum covers the authored tables).
       expect(await rowChecksum(tx)).toEqual(writing);
     });
+  });
+});
+
+describe("restoring an archived artist (reviews of PR #46)", () => {
+  async function archivedOnAlbum(
+    tx: Transaction,
+    status: "published" | "private",
+  ) {
+    const artistId = await createTestArtist(tx, uniqueLabel("Archived"));
+    const album = await createTestAlbum(tx, { artistIds: [artistId] });
+    const entryId = await createTestAlbumJournal(tx, {
+      albumId: album.albumId,
+      versions: [{ locale: "en", status }],
+      slug: `restore-guard-${uniqueLabel("x").slice(-8)}`,
+    });
+    await tx.execute(
+      sql`update artists set archived_at = now() where id = ${artistId}`,
+    );
+    return { artistId, entryId };
+  }
+
+  async function archivedAt(tx: Transaction, artistId: string) {
+    const [row] = await tx
+      .select({ archivedAt: schema.artists.archivedAt })
+      .from(schema.artists)
+      .where(eq(schema.artists.id, artistId));
+    return row!.archivedAt;
+  }
+
+  it("is refused when it would give the artist a public page, with or without a photograph, and writes nothing", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const withPhoto = await archivedOnAlbum(tx, "private");
+      await tx.execute(
+        sql`update artists set archived_at = null where id = ${withPhoto.artistId}`,
+      );
+      await choose(tx, withPhoto.artistId, PHOTO.onStage);
+      await tx.execute(
+        sql`update artists set archived_at = now() where id = ${withPhoto.artistId}`,
+      );
+      await tx.execute(sql`
+        update entry_texts set status = 'published', published_at = now(),
+               first_published_at = now()
+         where entry_id = ${withPhoto.entryId}`);
+      await tx.execute(sql`
+        update entry_slugs set was_published = true
+         where entry_id = ${withPhoto.entryId}`);
+      const withoutPhoto = await archivedOnAlbum(tx, "published");
+
+      for (const { artistId } of [withPhoto, withoutPhoto]) {
+        const before = await rowChecksum(tx);
+        const photo = await photoColumns(tx, artistId);
+        expect(
+          await refusal(tx, (t) => restoreArtist(t, author, artistId)),
+        ).toBe("public_page");
+        expect(await rowChecksum(tx)).toEqual(before);
+        expect(await photoColumns(tx, artistId)).toEqual(photo);
+        expect(await archivedAt(tx, artistId)).not.toBeNull();
+      }
+      // Removing the photograph is still allowed, and does not by itself
+      // let the restore through: the page would still appear.
+      const detail = await getArtist(tx, author, withPhoto.artistId);
+      await removeArtistPhoto(tx, author, {
+        artistId: withPhoto.artistId,
+        expectedPhoto: detail!.photo.state,
+      });
+      expect(
+        await refusal(tx, (t) => restoreArtist(t, author, withPhoto.artistId)),
+      ).toBe("public_page");
+    });
+  });
+
+  it("is allowed when no public journal credits the artist, and after the journals are unpublished", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const privateOnly = await archivedOnAlbum(tx, "private");
+      await restoreArtist(tx, author, privateOnly.artistId);
+      expect(await archivedAt(tx, privateOnly.artistId)).toBeNull();
+      expect(await isArtistOnPublicPage(tx, privateOnly.artistId)).toBe(false);
+
+      // The confirmed way: unpublish, restore, and publish again through
+      // the publication review.
+      const shown = await archivedOnAlbum(tx, "published");
+      await setPrivacyForTest(tx, author, {
+        entryId: shown.entryId,
+        locale: "en",
+        status: "private",
+      });
+      await restoreArtist(tx, author, shown.artistId);
+      expect(await archivedAt(tx, shown.artistId)).toBeNull();
+      expect(await isArtistOnPublicPage(tx, shown.artistId)).toBe(false);
+    });
+  });
+});
+
+describe("changing an album's credits (review of PR #46)", () => {
+  async function publishedAlbum(
+    tx: Transaction,
+    status = "published" as "published" | "private" | "draft",
+  ) {
+    const credited = await createTestArtist(tx, uniqueLabel("Credited"));
+    const album = await createTestAlbum(tx, { artistIds: [credited] });
+    const entryId = await createTestAlbumJournal(tx, {
+      albumId: album.albumId,
+      versions: [{ locale: "en", status }],
+      slug: `credit-guard-${uniqueLabel("x").slice(-8)}`,
+    });
+    return { credited, albumId: album.albumId, entryId };
+  }
+
+  async function creditsOf(tx: Transaction, albumId: string) {
+    const rows = await tx
+      .select({
+        artistId: schema.albumArtists.artistId,
+        creditedAs: schema.albumArtists.creditedAs,
+        position: schema.albumArtists.position,
+      })
+      .from(schema.albumArtists)
+      .where(eq(schema.albumArtists.albumId, albumId));
+    return rows.sort((a, b) => a.position - b.position);
+  }
+
+  it("refuses a credit that would put an artist on a public page for the first time, and writes nothing", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const { credited, albumId } = await publishedAlbum(tx);
+      const newcomer = await createTestArtist(tx, uniqueLabel("Newcomer"));
+      await choose(tx, newcomer, PHOTO.onStage);
+      const before = await creditsOf(tx, albumId);
+      const checksum = await rowChecksum(tx);
+      for (const credits of [
+        [{ artistId: credited }, { artistId: newcomer }],
+        [{ artistId: newcomer }],
+        [{ artistId: newcomer }, { artistId: credited }],
+      ]) {
+        expect(
+          await refusal(tx, (t) =>
+            updateAlbum(t, author, albumId, {
+              title: "[Test] Renamed while refused",
+              credits,
+            }),
+          ),
+        ).toBe("public_page");
+        // Nothing of the patch is written, not even the title.
+        expect(await creditsOf(tx, albumId)).toEqual(before);
+        expect(await rowChecksum(tx)).toEqual(checksum);
+      }
+      expect(await isArtistOnPublicPage(tx, newcomer)).toBe(false);
+    });
+  });
+
+  it("allows every change that exposes no new artist", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const { credited, albumId } = await publishedAlbum(tx);
+      // An artist that already has a page, through another public album.
+      const elsewhere = await publishedAlbum(tx);
+      await updateAlbum(tx, author, albumId, {
+        credits: [{ artistId: credited }, { artistId: elsewhere.credited }],
+      });
+      // Reordering, renaming a credit, and removing one.
+      await updateAlbum(tx, author, albumId, {
+        credits: [
+          { artistId: elsewhere.credited },
+          { artistId: credited, creditedAs: "[Test] Alias" },
+        ],
+      });
+      await updateAlbum(tx, author, albumId, {
+        credits: [{ artistId: credited }],
+      });
+      // The album's other fields, without credits.
+      await updateAlbum(tx, author, albumId, { title: "[Test] Retitled" });
+      expect((await creditsOf(tx, albumId)).map((c) => c.artistId)).toEqual([
+        credited,
+      ]);
+
+      // Any credit on an album with no public journal.
+      for (const status of ["draft", "private"] as const) {
+        const hidden = await publishedAlbum(tx, status);
+        const newcomer = await createTestArtist(tx, uniqueLabel("Newcomer"));
+        await updateAlbum(tx, author, hidden.albumId, {
+          credits: [{ artistId: hidden.credited }, { artistId: newcomer }],
+        });
+        expect(await isArtistOnPublicPage(tx, newcomer)).toBe(false);
+      }
+    });
+  });
+
+  it("still refuses an archived artist, as before", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const { credited, albumId } = await publishedAlbum(tx, "draft");
+      const archived = await createTestArtist(tx, uniqueLabel("Archived"));
+      await tx.execute(
+        sql`update artists set archived_at = now() where id = ${archived}`,
+      );
+      expect(
+        await refusal(tx, (t) =>
+          updateAlbum(t, author, albumId, {
+            credits: [{ artistId: credited }, { artistId: archived }],
+          }),
+        ),
+      ).toBe("archived_reference");
+    });
+  });
+});
+
+describe("the public page guard, over real connections", () => {
+  const created: {
+    entryIds: string[];
+    albumIds: string[];
+    artistIds: string[];
+  } = { entryIds: [], albumIds: [], artistIds: [] };
+
+  afterAll(async () => {
+    const db = getDb();
+    if (created.entryIds.length > 0) {
+      await db
+        .delete(schema.entrySlugs)
+        .where(inArray(schema.entrySlugs.entryId, created.entryIds));
+      await db
+        .delete(schema.entries)
+        .where(inArray(schema.entries.id, created.entryIds));
+    }
+    if (created.albumIds.length > 0) {
+      await db
+        .delete(schema.albums)
+        .where(inArray(schema.albums.id, created.albumIds));
+    }
+    if (created.artistIds.length > 0) {
+      await db
+        .delete(schema.artists)
+        .where(inArray(schema.artists.id, created.artistIds));
+    }
+  });
+
+  /** A committed artist credited on `albums` albums, each with a draft journal. */
+  async function committedArtist(label: string, albums: number) {
+    const db = getDb();
+    const [artist] = await db
+      .insert(schema.artists)
+      .values({ name: uniqueLabel(label), kind: "person" })
+      .returning({ id: schema.artists.id });
+    created.artistIds.push(artist!.id);
+    const entryIds: string[] = [];
+    const albumIds: string[] = [];
+    for (let n = 0; n < albums; n++) {
+      const [album] = await db
+        .insert(schema.albums)
+        .values({ title: uniqueLabel(`${label} album`) })
+        .returning({ id: schema.albums.id });
+      created.albumIds.push(album!.id);
+      albumIds.push(album!.id);
+      await db
+        .insert(schema.albumArtists)
+        .values({ albumId: album!.id, artistId: artist!.id, position: 1 });
+      const [entry] = await db
+        .insert(schema.entries)
+        .values({ kind: "album_journal" })
+        .returning({ id: schema.entries.id });
+      created.entryIds.push(entry!.id);
+      entryIds.push(entry!.id);
+      await db
+        .insert(schema.entryTexts)
+        .values({ entryId: entry!.id, locale: "en", isOriginal: true });
+      await db
+        .insert(schema.albumJournals)
+        .values({ entryId: entry!.id, albumId: album!.id });
+      await db.insert(schema.entrySlugs).values({
+        kind: "album_journal",
+        slug: `photo-race-${entry!.id.slice(0, 8)}`,
+        entryId: entry!.id,
+        isCurrent: true,
+      });
+    }
+    return { artistId: artist!.id, entryIds, albumIds };
+  }
+
+  async function backendPid(db: Parameters<typeof waitsOnLock>[0]) {
+    const result = await db.execute<{ pid: number }>(
+      sql`select pg_backend_pid() as pid`,
+    );
+    return result.rows[0]!.pid;
+  }
+
+  /** Whether the backend `pid` is seen waiting on a lock within ~5 s. */
+  async function waitsOnLock(
+    db: ReturnType<typeof getDb>,
+    pid: number,
+  ): Promise<boolean> {
+    for (let tries = 0; tries < 100; tries++) {
+      const waiting = await getDb().execute<{ n: number }>(sql`
+        select count(*)::int as n from pg_stat_activity
+         where pid = ${pid} and wait_event_type = 'Lock'`);
+      if (waiting.rows[0]!.n > 0) {
+        return true;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    void db;
+    return false;
+  }
+
+  it("holds every journal entry that could show the artist, so a publish of any of them waits", async () => {
+    const { artistId, entryIds } = await committedArtist("Held", 2);
+    await withConnections(2, async ([first, second]) => {
+      let release!: () => void;
+      const held = new Promise<void>((resolve) => (release = resolve));
+      let locked!: () => void;
+      const isLocked = new Promise<void>((resolve) => (locked = resolve));
+      const guard = first!.transaction(async (tx) => {
+        expect(await lockArtistPublicExposure(tx, artistId)).toBe(false);
+        locked();
+        await held;
+      });
+      await isLocked;
+      const outcomes: string[] = [];
+      for (const entryId of entryIds) {
+        // The lock a publish takes cannot be granted meanwhile, for either.
+        outcomes.push(
+          await second!
+            .transaction(async (tx) => {
+              await tx.execute(sql`set local lock_timeout = '300ms'`);
+              await tx.execute(
+                sql`select id from entries where id = ${entryId} for update`,
+              );
+            })
+            .then(
+              () => "granted",
+              (error: unknown) =>
+                (error as { cause?: { code?: string } }).cause?.code ??
+                String(error),
+            ),
+        );
+      }
+      release();
+      await guard;
+      expect(outcomes).toEqual(["55P03", "55P03"]);
+    });
+  });
+
+  it("refuses the photograph once a publish that held a journal has committed", async () => {
+    const db = getDb();
+    const { artistId, entryIds } = await committedArtist("Raced", 2);
+    const entryId = entryIds[1]!;
+    const { providers } = fixtureProviders();
+    const review = await reviewArtistPhoto(
+      db,
+      author,
+      { artistId, file: PHOTO.onStage },
+      providers,
+    );
+    expect(review!.artist.onPublicPage).toBe(false);
+
+    await withConnections(2, async ([first, second]) => {
+      const chooserPid = await backendPid(second!);
+      let commit!: () => void;
+      const committing = new Promise<void>((resolve) => (commit = resolve));
+      let locked!: () => void;
+      const isLocked = new Promise<void>((resolve) => (locked = resolve));
+      // A publish in progress (raw SQL, as the artwork test does): the
+      // entry locked, the version and the address published.
+      const publish = first!.transaction(async (tx) => {
+        await tx.execute(
+          sql`select id from entries where id = ${entryId} for update`,
+        );
+        await tx.execute(sql`
+          update entry_texts
+             set status = 'published', published_at = now(),
+                 first_published_at = now()
+           where entry_id = ${entryId}`);
+        await tx.execute(sql`
+          update entry_slugs set was_published = true
+           where entry_id = ${entryId}`);
+        locked();
+        await committing;
+      });
+      await isLocked;
+      const change = setArtistPhoto(
+        second!,
+        author,
+        {
+          artistId,
+          file: PHOTO.onStage,
+          review: review!.review!,
+          expectedPhoto: null,
+        },
+        providers,
+      ).then(
+        () => "changed",
+        (error: unknown) => failureOf(error),
+      );
+      // The photograph change itself must be seen waiting on a lock, so the
+      // test cannot pass by timing alone.
+      // Always release the stand-in, even when the assertion fails, so a
+      // failing run never leaves a transaction holding locks.
+      let waited = false;
+      try {
+        waited = await waitsOnLock(db, chooserPid);
+      } finally {
+        commit();
+      }
+      await publish;
+      expect(waited).toBe(true);
+      expect(await change).toBe("public_page");
+    });
+    const [row] = await db
+      .select({ photoUrl: schema.artists.photoUrl })
+      .from(schema.artists)
+      .where(eq(schema.artists.id, artistId));
+    expect(row!.photoUrl).toBeNull();
+  });
+
+  /** A stand-in for a publish: holds the entry, publishes it, and waits. */
+  function holdPublish(
+    connection: Parameters<typeof backendPid>[0],
+    entryId: string,
+  ) {
+    let commit!: () => void;
+    const committing = new Promise<void>((resolve) => (commit = resolve));
+    let locked!: () => void;
+    const isLocked = new Promise<void>((resolve) => (locked = resolve));
+    const done = (
+      connection as unknown as ReturnType<typeof getDb>
+    ).transaction(async (tx) => {
+      await tx.execute(
+        sql`select id from entries where id = ${entryId} for update`,
+      );
+      await tx.execute(sql`
+        update entry_texts
+           set status = 'published', published_at = now(),
+               first_published_at = now()
+         where entry_id = ${entryId}`);
+      await tx.execute(sql`
+        update entry_slugs set was_published = true
+         where entry_id = ${entryId}`);
+      locked();
+      await committing;
+    });
+    return { isLocked, commit, done };
+  }
+
+  it("refuses a credit once a publish of the album's journal has committed while it waited", async () => {
+    const db = getDb();
+    const owner = await committedArtist("Credit owner", 1);
+    const newcomer = await committedArtist("Credit newcomer", 0);
+    const albumId = owner.albumIds[0]!;
+    await withConnections(2, async ([first, second]) => {
+      const editorPid = await backendPid(second!);
+      const publish = holdPublish(first!, owner.entryIds[0]!);
+      // Never waits forever: a stand-in that fails before it locks ends.
+      await Promise.race([publish.isLocked, publish.done]);
+      const change = updateAlbum(second!, author, albumId, {
+        credits: [
+          { artistId: owner.artistId },
+          { artistId: newcomer.artistId },
+        ],
+      }).then(
+        () => "changed",
+        (error: unknown) => failureOf(error),
+      );
+      let waited = false;
+      try {
+        waited = await waitsOnLock(db, editorPid);
+      } finally {
+        publish.commit();
+      }
+      await publish.done;
+      expect(waited).toBe(true);
+      expect(await change).toBe("public_page");
+    });
+    const credits = await db
+      .select({ artistId: schema.albumArtists.artistId })
+      .from(schema.albumArtists)
+      .where(eq(schema.albumArtists.albumId, albumId));
+    expect(credits.map((row) => row.artistId)).toEqual([owner.artistId]);
+  });
+
+  it("refuses a credit list that replaces every artist, locking the album's own journal", async () => {
+    // Only the album's own journal decides here: the newcomer is credited
+    // nowhere, and the owner is no longer in the list, so no other album's
+    // journal is reached (the review of PR #46).
+    const db = getDb();
+    const owner = await committedArtist("Replaced owner", 1);
+    const newcomer = await committedArtist("Replacing newcomer", 0);
+    const albumId = owner.albumIds[0]!;
+    await withConnections(2, async ([first, second]) => {
+      const editorPid = await backendPid(second!);
+      const publish = holdPublish(first!, owner.entryIds[0]!);
+      await Promise.race([publish.isLocked, publish.done]);
+      const change = updateAlbum(second!, author, albumId, {
+        credits: [{ artistId: newcomer.artistId }],
+      }).then(
+        () => "changed",
+        (error: unknown) => failureOf(error),
+      );
+      let waited = false;
+      try {
+        waited = await waitsOnLock(db, editorPid);
+      } finally {
+        publish.commit();
+      }
+      await publish.done;
+      expect(waited).toBe(true);
+      expect(await change).toBe("public_page");
+    });
+  });
+
+  it("holds the album's journals while a credit change decides, so a publish waits", async () => {
+    const owner = await committedArtist("Credit lock", 1);
+    await withConnections(2, async ([first, second]) => {
+      let release!: () => void;
+      const held = new Promise<void>((resolve) => (release = resolve));
+      let locked!: () => void;
+      const isLocked = new Promise<void>((resolve) => (locked = resolve));
+      const guard = first!.transaction(async (tx) => {
+        await lockAlbumCreditExposure(tx, owner.albumIds[0]!, []);
+        locked();
+        await held;
+      });
+      await Promise.race([isLocked, guard]);
+      let outcome = "granted";
+      try {
+        outcome = await second!
+          .transaction(async (tx) => {
+            await tx.execute(sql`set local lock_timeout = '300ms'`);
+            await tx.execute(
+              sql`select id from entries where id = ${owner.entryIds[0]!} for update`,
+            );
+          })
+          .then(
+            () => "granted",
+            (error: unknown) =>
+              (error as { cause?: { code?: string } }).cause?.code ??
+              String(error),
+          );
+      } finally {
+        release();
+      }
+      await guard;
+      expect(outcome).toBe("55P03");
+    });
+  });
+
+  it("refuses a restore of the artist once a publish of its album's journal has committed while it waited", async () => {
+    const db = getDb();
+    const { artistId, entryIds } = await committedArtist("Restore waits", 1);
+    await db.execute(
+      sql`update artists set archived_at = now() where id = ${artistId}`,
+    );
+    await withConnections(2, async ([first, second]) => {
+      const restorerPid = await backendPid(second!);
+      const publish = holdPublish(first!, entryIds[0]!);
+      // Never waits forever: a stand-in that fails before it locks ends.
+      await Promise.race([publish.isLocked, publish.done]);
+      const restore = restoreArtist(second!, author, artistId).then(
+        () => "restored",
+        (error: unknown) => failureOf(error),
+      );
+      let waited = false;
+      try {
+        waited = await waitsOnLock(db, restorerPid);
+      } finally {
+        publish.commit();
+      }
+      await publish.done;
+      expect(waited).toBe(true);
+      expect(await restore).toBe("public_page");
+    });
+    const [row] = await db
+      .select({ archivedAt: schema.artists.archivedAt })
+      .from(schema.artists)
+      .where(eq(schema.artists.id, artistId));
+    expect(row!.archivedAt).not.toBeNull();
+  });
+
+  it("refuses the photograph once a restore of the archived artist has committed", async () => {
+    // The artist is credited on a published journal, so it is hidden only
+    // because it is archived. A restore that commits while the photograph
+    // command waits would make the page public with a photograph nobody
+    // confirmed (review of PR #46): the command decides after the artist's
+    // row lock, so it sees the restore.
+    const db = getDb();
+    const { artistId, entryIds } = await committedArtist("Restored", 1);
+    await db.execute(sql`
+      update entry_texts set status = 'published', published_at = now(),
+             first_published_at = now()
+       where entry_id = ${entryIds[0]!}`);
+    await db.execute(sql`
+      update entry_slugs set was_published = true
+       where entry_id = ${entryIds[0]!}`);
+    await db.execute(
+      sql`update artists set archived_at = now() where id = ${artistId}`,
+    );
+    const { providers } = fixtureProviders();
+    const review = await reviewArtistPhoto(
+      db,
+      author,
+      { artistId, file: PHOTO.onStage },
+      providers,
+    );
+    expect(review!.artist.onPublicPage).toBe(false);
+
+    await withConnections(2, async ([first, second]) => {
+      const chooserPid = await backendPid(second!);
+      let commit!: () => void;
+      const committing = new Promise<void>((resolve) => (commit = resolve));
+      let locked!: () => void;
+      const isLocked = new Promise<void>((resolve) => (locked = resolve));
+      // A restore of the artist in progress, as `restoreArtist` writes it.
+      const restore = first!.transaction(async (tx) => {
+        await tx.execute(sql`
+          update artists set archived_at = null, updated_at = now()
+           where id = ${artistId}`);
+        locked();
+        await committing;
+      });
+      await isLocked;
+      const change = setArtistPhoto(
+        second!,
+        author,
+        {
+          artistId,
+          file: PHOTO.onStage,
+          review: review!.review!,
+          expectedPhoto: null,
+        },
+        providers,
+      ).then(
+        () => "changed",
+        (error: unknown) => failureOf(error),
+      );
+      let waited = false;
+      try {
+        waited = await waitsOnLock(db, chooserPid);
+      } finally {
+        commit();
+      }
+      await restore;
+      expect(waited).toBe(true);
+      expect(await change).toBe("public_page");
+    });
+    const [row] = await db
+      .select({ photoUrl: schema.artists.photoUrl })
+      .from(schema.artists)
+      .where(eq(schema.artists.id, artistId));
+    expect(row!.photoUrl).toBeNull();
   });
 });
 

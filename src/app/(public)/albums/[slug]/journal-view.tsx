@@ -1,3 +1,6 @@
+import Link from "next/link";
+import { Fragment } from "react";
+
 import type {
   PublicAlbumJournal,
   PublicArtwork,
@@ -101,7 +104,6 @@ export function JournalView({
   journal,
 }: Readonly<{ journal: PublicAlbumJournal }>) {
   const { album, credits, tracks, locale } = journal;
-  const artist = credits.map((credit) => credit.name).join(", ");
   const facts = [
     album.firstReleaseYear ? String(album.firstReleaseYear) : null,
     album.label,
@@ -146,7 +148,27 @@ export function JournalView({
             Album journal
           </p>
           <h1 className="pj-title">{album.title}</h1>
-          {artist ? <p className="pj-artist">{artist}</p> : null}
+          {credits.length > 0 ? (
+            <p className="pj-artist">
+              {credits.map((credit, index) => (
+                <Fragment key={index}>
+                  {index > 0 ? ", " : null}
+                  {credit.artistAddress ? (
+                    // Each credited artist's page (M3.5). An archived artist
+                    // has none, and its name stays plain text.
+                    <Link
+                      className="pj-artist-link"
+                      href={`/artists/${credit.artistAddress}`}
+                    >
+                      {credit.name}
+                    </Link>
+                  ) : (
+                    credit.name
+                  )}
+                </Fragment>
+              ))}
+            </p>
+          ) : null}
           {facts.length > 0 ? (
             <p className="pj-facts">{facts.join(" · ")}</p>
           ) : null}
