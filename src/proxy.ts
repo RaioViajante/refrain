@@ -2,11 +2,15 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import {
   routeAlbumJournalRequest,
+  routeArtistRequest,
   routePublicDocumentRequest,
 } from "@/modules/publication/public";
 
 import { normalizedAddress } from "./address-normalization";
-import { CONTENT_SECURITY_POLICY } from "./security-headers";
+import {
+  ARTIST_CONTENT_SECURITY_POLICY,
+  CONTENT_SECURITY_POLICY,
+} from "./security-headers";
 
 // The status line of a public address (ADR 0006 § 11, gate G1).
 //
@@ -31,6 +35,8 @@ export const config = {
     // One segment: `/albums/<slug>`. Anything deeper has no page and gets the
     // framework's own `404`, which does not depend on any journal's state.
     "/albums/:slug",
+    // The same for an artist: `/artists/<address>` (M3.5).
+    "/artists/:slug",
     "/sitemap.xml",
     "/robots.txt",
     // Every address that ends in a slash, anywhere on the site, except `/`:
@@ -59,10 +65,19 @@ const PUBLIC_SECURITY_HEADERS = {
   "Content-Security-Policy": CONTENT_SECURITY_POLICY,
 } as const;
 
-// What the three public matchers above can let through, in any of the
-// framework's transport forms: an album address, the sitemap, `robots.txt`.
+// The artist pages' (M3.5): the same, with their image policy, which adds
+// Wikimedia's thumbnail host. Every response under `/artists/` carries it,
+// a page and the unknown-address `404` alike, so the two cannot be told apart.
+const ARTIST_SECURITY_HEADERS = {
+  ...PUBLIC_SECURITY_HEADERS,
+  "Content-Security-Policy": ARTIST_CONTENT_SECURITY_POLICY,
+} as const;
+
+// What the public matchers above can let through, in any of the framework's
+// transport forms: an album or artist address, the sitemap, `robots.txt`.
 const PUBLIC_ADDRESS =
-  /^(?:\/_next\/data\/[^/]+)?\/(?:albums\/|sitemap\.xml|robots\.txt)/;
+  /^(?:\/_next\/data\/[^/]+)?\/(?:albums\/|artists\/|sitemap\.xml|robots\.txt)/;
+const ARTIST_ADDRESS = /^(?:\/_next\/data\/[^/]+)?\/artists\//;
 
 /** The path percent-decoded, or "" when it cannot be decoded. */
 function decodedOrEmpty(pathname: string): string {
@@ -112,18 +127,28 @@ export async function proxy(request: NextRequest) {
   }
   // The sitemap and robots.txt: the switch and the method only. Their routes
   // read the publication queries themselves.
+  const isArtist =
+    ARTIST_ADDRESS.test(pathname) ||
+    ARTIST_ADDRESS.test(decodedOrEmpty(pathname));
   const decision =
     pathname === "/sitemap.xml" || pathname === "/robots.txt"
       ? routePublicDocumentRequest({ method: request.method })
-      : await routeAlbumJournalRequest({
-          method: request.method,
-          slug: slugOf(pathname),
-        });
+      : isArtist
+        ? await routeArtistRequest({
+            method: request.method,
+            slug: slugOf(pathname),
+          })
+        : await routeAlbumJournalRequest({
+            method: request.method,
+            slug: slugOf(pathname),
+          });
 
   switch (decision.action) {
     case "serve":
       return NextResponse.next();
     case "redirect":
+      // Only an album journal's previous address redirects; an artist's
+      // decision is never a redirect.
       // The framework's adapter needs an absolute URL to build this response,
       // and sends it back as a path when it is the same origin. The `Location`
       // that a client receives is `/albums/<slug>`; a test sends a spoofed
@@ -151,7 +176,7 @@ export async function proxy(request: NextRequest) {
       // percent-encoded public address (`/%73itemap.xml`) reaches this proxy
       // but not those rules, and must answer exactly as an unknown one does.
       return NextResponse.rewrite(new URL(UNKNOWN_ADDRESS, request.url), {
-        headers: PUBLIC_SECURITY_HEADERS,
+        headers: isArtist ? ARTIST_SECURITY_HEADERS : PUBLIC_SECURITY_HEADERS,
       });
   }
 }

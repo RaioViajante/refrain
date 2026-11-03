@@ -932,6 +932,280 @@ details[open] > summary .pj-chevron {
 /* One column at 720px and below: artwork, the heading, the facts, the writing.
    The two wrappers dissolve so their children can be ordered as the design
    shows them. */
+/* The artist page (M3.5; the approved V4.4 `Artist` screen): the album
+   journal's two columns, the photograph's 4:5 frame on the left and the name
+   on the right, then "In this journal" in the same columns. */
+article.pa-grid {
+  grid-template-areas: "art head";
+}
+
+.pa-figure {
+  grid-area: art;
+  margin: 0;
+  min-width: 0;
+}
+
+/* Without an opening sentence or an essay, the heading sits level with the
+   middle of the frame, where the approved screen's kind label and title are. */
+.pa-head {
+  align-self: center;
+}
+
+/* The photograph: a fixed 4:5 frame (V4.4 `.art.pt`) with the hatched
+   fallback underneath. The photograph covers it once loaded, at the same
+   size, so nothing moves; if it never arrives, the fallback is what remains. */
+.pa-photo {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: min(100%, 400px);
+  aspect-ratio: 4 / 5;
+  padding: 24px;
+  background:
+    var(--stroke-area) 0 0 / 100% 100% no-repeat,
+    var(--color-paper-2);
+  color: var(--color-ink-3);
+  text-align: center;
+}
+
+.pa-photo-image {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The credit: small and muted, as the screen's caption is, but never below
+   the 15px floor for credits. */
+.pa-credit {
+  width: min(100%, 400px);
+  margin-top: 12px;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--color-ink-3);
+}
+
+.pa-credit-line {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.pa-credit-details summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+  color: var(--color-ink-2);
+}
+
+.pa-credit-details dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 14px;
+  margin: 2px 0 0;
+}
+
+.pa-credit-details dt {
+  color: var(--color-ink-2);
+}
+
+.pa-credit-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.pa-title {
+  hyphens: manual;
+}
+
+.pa-section {
+  padding-top: 104px;
+}
+
+.pa-margin h2 {
+  margin: 0;
+  font-family: var(--font-kalam), cursive;
+  font-size: 31px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.pa-list-title {
+  margin: 0 0 16px;
+  font-family: var(--font-kalam), cursive;
+  font-size: 23px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.pa-list-title:not(:first-child) {
+  margin-top: 52px;
+}
+
+.pa-albums {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pa-album {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 22px;
+  align-items: center;
+  color: var(--color-ink);
+  text-decoration: none;
+}
+
+.pa-album-art {
+  width: 120px;
+}
+
+.pa-album-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pa-album-title {
+  font-family: var(--font-kalam), cursive;
+  font-size: 22px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.pa-album-facts {
+  font-size: 16px;
+  color: var(--color-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tracks: one ruled row each, a light ink rule above the first and below
+   each, as the Home's rows. */
+.pa-tracks {
+  margin: 0;
+  padding: 8px 0 0;
+  list-style: none;
+  background: var(--stroke-rule) 0 0 / 100% 8px no-repeat;
+}
+
+.pa-track-item {
+  padding-bottom: 8px;
+  background: var(--stroke-rule) 0 100% / 100% 8px no-repeat;
+}
+
+.pa-track {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 18px;
+  min-height: 44px;
+  padding: 14px 2px;
+  color: var(--color-ink);
+  text-decoration: none;
+}
+
+.pa-track-title {
+  min-width: 0;
+  font-family: var(--font-kalam), cursive;
+  font-size: 22px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.pa-track-where {
+  font-size: 15.5px;
+  color: var(--color-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.pa-album:hover .pa-album-title,
+.pa-track:hover .pa-track-title,
+.pj-artist-link:hover {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 5px;
+}
+
+/* A credited artist on the album journal links to the artist's page; the
+   credit's drawn underline is already its mark. */
+.pj-artist-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+@media (max-width: 720px) {
+  .pa-figure {
+    order: 1;
+  }
+
+  .pa-photo,
+  .pa-credit {
+    width: 100%;
+  }
+
+  .pa-head {
+    order: 2;
+    margin-top: 24px;
+  }
+
+  .pa-section {
+    padding-top: 72px;
+  }
+
+  .pa-margin h2 {
+    margin-bottom: 22px;
+    font-size: 30px;
+  }
+
+  .pa-list-title {
+    font-size: 22px;
+  }
+
+  .pa-album {
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 18px;
+  }
+
+  .pa-album-art {
+    width: 96px;
+  }
+
+  .pa-album-title,
+  .pa-track-title {
+    font-size: 20px;
+  }
+}
+
+@media (forced-colors: active) {
+  .pa-photo {
+    background-image: none;
+    border: 1px solid CanvasText;
+  }
+
+  .pa-tracks,
+  .pa-track-item {
+    background-image: none;
+  }
+
+  .pa-tracks {
+    border-top: 1px solid CanvasText;
+  }
+
+  .pa-track-item {
+    border-bottom: 1px solid CanvasText;
+  }
+}
+
 @media (max-width: 720px) {
   .public {
     font-size: 19.5px;

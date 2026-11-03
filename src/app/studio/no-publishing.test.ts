@@ -61,7 +61,7 @@ const PUBLICATION_MODULE = /(^|\/)modules\/publication(\/|$)/;
 
 // The only files under src/app that may import its reading entry point.
 const PUBLIC_READING_FILES =
-  /^src\/app\/(\(public\)\/|page\.tsx$|not-found\.tsx$|sitemap\.xml\/route\.ts$|robots\.txt\/route\.ts$)/;
+  /^src\/app\/(\(public\)\/|\(artists\)\/|page\.tsx$|not-found\.tsx$|sitemap\.xml\/route\.ts$|robots\.txt\/route\.ts$)/;
 
 /** The module path a node names, if it names one with a string literal. */
 function moduleNamed(node: ts.Node): string | undefined {

@@ -23,6 +23,11 @@ const READS = new Set([
   "resolvePublicAlbumJournalSlug",
   "routeAlbumJournalRequest",
   "routePublicDocumentRequest",
+  // M3.5: the artist pages.
+  "getPublicArtist",
+  "listPublicArtistAddresses",
+  "resolvePublicArtistAddress",
+  "routeArtistRequest",
 ]);
 
 // The reads that a caller must guard itself. The routing functions apply the
@@ -43,6 +48,8 @@ function publicFiles(): string[] {
   const inApp = walk("src/app").filter(
     (file) =>
       file.startsWith("src/app/(public)/") ||
+      // M3.5: the artist pages, in a route group of their own.
+      file.startsWith("src/app/(artists)/") ||
       file === "src/app/page.tsx" ||
       file === "src/app/not-found.tsx" ||
       file === "src/app/public-fonts.ts" ||
@@ -473,6 +480,8 @@ describe("the public surface", () => {
     expect(files).toContain("src/app/not-found.tsx");
     expect(files).toContain("src/app/page.tsx");
     expect(files).toContain("src/app/(public)/_components/home-view.tsx");
+    expect(files).toContain("src/app/(artists)/artists/[slug]/page.tsx");
+    expect(files).toContain("src/app/(artists)/artists/[slug]/artist-view.tsx");
     expect(files.length).toBeGreaterThan(8);
   });
 
@@ -488,10 +497,15 @@ describe("the public surface", () => {
     ).toHaveLength(1);
   });
 
-  it("renders the Home on the server before sending it, so it needs no client JavaScript", () => {
-    expect(readFileSync("src/app/page.tsx", "utf8")).toMatch(
-      /^export const instant = false;$/m,
-    );
+  it("renders the Home and the artist pages on the server before sending them, so they need no client JavaScript", () => {
+    for (const file of [
+      "src/app/page.tsx",
+      "src/app/(artists)/artists/[slug]/page.tsx",
+    ]) {
+      expect(readFileSync(file, "utf8"), file).toMatch(
+        /^export const instant = false;$/m,
+      );
+    }
   });
 
   it("applies the switch in every route handler and in the page's loader", () => {
@@ -499,6 +513,7 @@ describe("the public surface", () => {
       "src/app/sitemap.xml/route.ts",
       "src/app/robots.txt/route.ts",
       "src/app/(public)/albums/[slug]/page.tsx",
+      "src/app/(artists)/artists/[slug]/page.tsx",
       "src/app/page.tsx",
     ]) {
       expect(readFileSync(file, "utf8"), file).toMatch(
@@ -510,9 +525,12 @@ describe("the public surface", () => {
   it("has the proxy ask both routing decisions, with exactly the matcher the routes need", () => {
     const code = readFileSync("src/proxy.ts", "utf8");
     expect(code).toContain("routeAlbumJournalRequest");
+    expect(code).toContain("routeArtistRequest");
     expect(code).toContain("routePublicDocumentRequest");
     expect(matcherOf(code)).toEqual([
       "/albums/:slug",
+      // M3.5: one segment, `/artists/<address>`.
+      "/artists/:slug",
       "/sitemap.xml",
       "/robots.txt",
       // Trailing-slash addresses, for the no-store 308 (ADR 0006, A2).
@@ -529,6 +547,8 @@ describe("the public surface", () => {
       /^src\/app\/api\/auth\/\[\.\.\.all\]\/route\.ts$/,
       // The public surface, scanned above.
       /^src\/app\/\(public\)\//,
+      // M3.5: the artist pages and their layout, scanned above.
+      /^src\/app\/\(artists\)\//,
       /^src\/app\/sitemap\.xml\/route\.ts$/,
       /^src\/app\/robots\.txt\/route\.ts$/,
       /^src\/app\/not-found\.tsx$/,
@@ -866,15 +886,18 @@ describe("where the switch is applied", () => {
   it("the routing functions apply it first, with the environment they were given, before the slug query", () => {
     const file = "src/modules/publication/public-routing.ts";
     expect(
-      gateViolations(sourceOf(file), new Set(["resolvePublicSlug"]), {
-        allowArguments: true,
-      }),
+      gateViolations(
+        sourceOf(file),
+        new Set(["resolvePublicSlug", "resolvePublicArtistAddress"]),
+        { allowArguments: true },
+      ),
     ).toEqual([]);
-    // And both exist and are guarded: the scan is not vacuous.
+    // And all three exist and are guarded: the scan is not vacuous.
     const code = readFileSync(file, "utf8");
     expect(code).toMatch(/function routeAlbumJournalRequest/);
+    expect(code).toMatch(/function routeArtistRequest/);
     expect(code).toMatch(/function routePublicDocumentRequest/);
-    expect(code.match(/!publicReadsEnabled\(env\)/g)).toHaveLength(2);
+    expect(code.match(/!publicReadsEnabled\(env\)/g)).toHaveLength(3);
   });
 
   it("every read of the reading entry point applies it first, so a caller that forgot still discloses nothing", () => {
@@ -884,6 +907,9 @@ describe("where the switch is applied", () => {
       "getPublicHomeFrom",
       "listPublicAlbumJournalAddressesFrom",
       "resolvePublicSlugFrom",
+      "getPublicArtistFrom",
+      "listPublicArtistAddressesFrom",
+      "resolvePublicArtistAddressFrom",
     ]);
     expect(gateViolations(sourceOf(file), reads)).toEqual([]);
     const code = readFileSync(file, "utf8");
@@ -904,6 +930,7 @@ describe("where the switch is applied", () => {
         }
         if (
           text === "routeAlbumJournalRequest" ||
+          text === "routeArtistRequest" ||
           text === "routePublicDocumentRequest"
         ) {
           routings.push(text);
@@ -914,6 +941,7 @@ describe("where the switch is applied", () => {
     visit(source);
     expect(routings.sort()).toEqual([
       "routeAlbumJournalRequest",
+      "routeArtistRequest",
       "routePublicDocumentRequest",
     ]);
     // `NextResponse.next()` appears twice: in the `serve` case of the switch
@@ -973,6 +1001,9 @@ describe("the Publication reading module", () => {
     "src/modules/publication/public-routing.ts",
     "src/modules/publication/public-album-journal.ts",
     "src/modules/publication/public-home.ts",
+    // M3.5: the artist pages' read model and their addresses.
+    "src/modules/publication/public-artist.ts",
+    "src/modules/publication/artist-address.ts",
     "src/modules/publication/queries.ts",
     "src/modules/publication/predicate.ts",
     "src/modules/publication/slug.ts",
@@ -984,7 +1015,11 @@ describe("the Publication reading module", () => {
     // M3.2: the pure parser of a stored cover, and nothing else from it (the
     // next test). No provider is ever called while reading a public page.
     /^@\/integrations\/cover-art-archive$/,
-    /^\.\/(public|public-reads|public-routing|public-album-journal|public-home|queries|predicate|slug)$/,
+    // M3.5: the pure parser of a stored photograph and its caption, and
+    // nothing else from it (below); and the hash of an artist's address.
+    /^@\/integrations\/wikimedia-commons$/,
+    /^node:crypto$/,
+    /^\.\/(public|public-reads|public-routing|public-album-journal|public-home|public-artist|artist-address|queries|predicate|slug)$/,
   ];
 
   it("uses only the pure cover parser from the Cover Art Archive integration", () => {
@@ -1014,29 +1049,65 @@ describe("the Publication reading module", () => {
     ]);
   });
 
-  // M3.3: no public page shows an artist photograph, which is why changing
-  // one is not a change to a public page (gate G8 is not widened; see
-  // src/modules/catalog/photos.ts). A public surface that starts to show one
-  // must first get the guard the artwork commands have, so this fails until
-  // that is decided.
+  it("uses only the pure photograph parser and its caption from the Wikimedia integration", () => {
+    const imported: string[] = [];
+    for (const file of reading) {
+      const source = parse(readFileSync(file, "utf8"), file);
+      for (const statement of source.statements) {
+        if (
+          ts.isImportDeclaration(statement) &&
+          ts.isStringLiteral(statement.moduleSpecifier) &&
+          statement.moduleSpecifier.text === "@/integrations/wikimedia-commons"
+        ) {
+          const bindings = statement.importClause?.namedBindings;
+          expect(bindings && ts.isNamedImports(bindings), file).toBe(true);
+          if (bindings && ts.isNamedImports(bindings)) {
+            imported.push(
+              ...bindings.elements.map(
+                (element) => `${file}:${element.name.text}`,
+              ),
+            );
+          }
+        }
+      }
+    }
+    expect(imported.sort()).toEqual([
+      "src/modules/publication/public-artist.ts:artistPhotoOf",
+      "src/modules/publication/public-artist.ts:photoCreditCaption",
+    ]);
+  });
+
+  // M3.3 kept every photograph off public pages, which is why changing one
+  // was not a change to a public page. M3.5 shows the artist's photograph on
+  // the artist page, so: only the artist read model reads the photo columns,
+  // only the artist page's components show one, and the command that sets a
+  // photograph holds the guard that refuses while that page is public (gate
+  // G8 not widened; ADR 0006, proposed amendment A5).
   const PHOTO_WORDS =
     /photo_url|photo_credit|photo_license|photo_source_url|photo_file_|photo_chosen_at|photoUrl|photoCredit|photoLicense|photoSourceUrl|photoFile|photoChosenAt|wikimedia/i;
+  const PHOTO_READERS = [
+    "src/modules/publication/public-artist.ts",
+    "src/app/(artists)/artists/[slug]/artist-view.tsx",
+    "src/app/(public)/_components/artist-photograph.tsx",
+    "src/app/(public)/_components/public-photo-image.tsx",
+  ];
 
   function publicPhotoMentions(files: string[]) {
     return files.filter((file) => PHOTO_WORDS.test(readFileSync(file, "utf8")));
   }
 
-  it("never reads an artist photograph, in the reading module or on a public page", () => {
-    const pages = [
-      ...readdirSync("src/app/(public)", { recursive: true, encoding: "utf8" })
-        .filter((name) => /\.(ts|tsx)$/.test(name) && !name.includes(".test."))
-        .map((name) => join("src/app/(public)", name)),
-      "src/app/page.tsx",
-      "src/app/sitemap.xml/route.ts",
-      "src/app/robots.txt/route.ts",
-    ];
+  it("reads an artist photograph only in the artist read model, and shows one only on the artist page", () => {
+    const pages = publicFiles().filter((file) => file.startsWith("src/app/"));
     expect(pages.length).toBeGreaterThan(3);
-    expect(publicPhotoMentions([...reading, ...pages])).toEqual([]);
+    expect(publicPhotoMentions([...reading, ...pages]).sort()).toEqual(
+      [...PHOTO_READERS].sort(),
+    );
+    // The artist page's components are used only by the artist page.
+    for (const file of pages) {
+      if (/artist-photograph/.test(readFileSync(file, "utf8"))) {
+        expect(file, file).toMatch(/^src\/app\/\(artists\)\//);
+      }
+    }
   });
 
   it("would notice a photo column read by a public file", () => {
@@ -1046,6 +1117,30 @@ describe("the Publication reading module", () => {
       true,
     );
     expect(PHOTO_WORDS.test("select a.name from artists a")).toBe(false);
+  });
+
+  it("keeps the guard in the command that sets a photograph, before the artist row", () => {
+    const code = readFileSync("src/modules/catalog/photos.ts", "utf8");
+    const set = code.slice(
+      code.indexOf("export async function setArtistPhoto"),
+      code.indexOf("export async function removeArtistPhoto"),
+    );
+    const guard = set.indexOf("await lockArtistPublicExposure(tx, artistId)");
+    expect(guard).toBeGreaterThan(-1);
+    expect(set.slice(guard, guard + 160)).toContain(
+      'throw new CatalogError("public_page")',
+    );
+    // The entries are locked before the artist row (ADR 0006 § 7, L3).
+    expect(guard).toBeLessThan(set.indexOf("artistRow(tx, artistId, true)"));
+    // The lock is a share lock on the entries, in id order.
+    const exposure = readFileSync(
+      "src/modules/publication/catalog-exposure.ts",
+      "utf8",
+    );
+    const lock = exposure.slice(
+      exposure.indexOf("export async function lockArtistPublicExposure"),
+    );
+    expect(lock).toMatch(/order by e\.id\s+for share of e/);
   });
 
   it.each(reading)("%s imports no command, token, or other module", (file) => {
@@ -1183,6 +1278,11 @@ describe("the Publication reading module", () => {
     "resolvePublicAlbumJournalSlug",
     "routeAlbumJournalRequest",
     "routePublicDocumentRequest",
+    // M3.5: the artist pages, each behind the switch.
+    "getPublicArtist",
+    "listPublicArtistAddresses",
+    "resolvePublicArtistAddress",
+    "routeArtistRequest",
     "isNormalizedSlug",
     // The switch, and the site's own origin.
     "PUBLIC_READS_VARIABLE",
@@ -1191,7 +1291,13 @@ describe("the Publication reading module", () => {
     // Types.
     "AlbumJournalRequest",
     "AlbumJournalRouting",
+    "ArtistAddressResolution",
     "PublicAlbumJournal",
+    // M3.5: the artist page, with no identifier.
+    "PublicArtist",
+    "PublicArtistAlbum",
+    "PublicArtistPhoto",
+    "PublicArtistTrack",
     // M3.2: the cover's image sources (a src and a srcSet), never an address
     // from the database.
     "PublicArtwork",

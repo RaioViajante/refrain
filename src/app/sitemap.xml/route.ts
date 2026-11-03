@@ -2,12 +2,13 @@ import { connection } from "next/server";
 
 import {
   listPublicAlbumJournalAddresses,
+  listPublicArtistAddresses,
   publicReadsEnabled,
   publicSiteOrigin,
 } from "@/modules/publication/public";
 
-// The sitemap lists the Home and the address of every publicly visible album
-// journal, and nothing else, read through the publication queries (the same
+// The sitemap lists the Home, the address of every publicly visible album
+// journal, and of every public artist page (M3.5), and nothing else, read through the publication queries (the same
 // rule that `resolvePublicSlug` applies, so every listed address is served). It is a
 // route handler, and not the `sitemap.ts` convention, because that convention
 // sends `Cache-Control: public, max-age=0, must-revalidate`, and ADR 0006
@@ -34,9 +35,13 @@ export async function GET() {
     return new Response("Not Found", { status: 404, headers: NO_STORE });
   }
   const addresses = await listPublicAlbumJournalAddresses();
+  // The artist pages (M3.5): exactly the addresses `resolvePublicArtistAddress`
+  // finds, from the same visible-artist rule.
+  const artists = await listPublicArtistAddresses();
   const entries = [
     `${origin}/`,
     ...addresses.map((slug) => `${origin}/albums/${slug}`),
+    ...artists.map((address) => `${origin}/artists/${address}`),
   ]
     .map((address) => `  <url><loc>${escapeXml(address)}</loc></url>`)
     .join("\n");

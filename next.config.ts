@@ -10,6 +10,10 @@ const CONTENT_SECURITY_POLICY =
   "frame-ancestors 'none'; img-src 'self' data: blob: https://coverartarchive.org https://archive.org https://*.archive.org";
 const STUDIO_CONTENT_SECURITY_POLICY =
   "frame-ancestors 'none'; img-src 'self' data: blob: https://coverartarchive.org https://archive.org https://*.archive.org https://thumb.wikimedia.org";
+// The public artist pages (M3.5): the public policy plus exactly Wikimedia's
+// thumbnail host, for the artist's photograph; nothing else.
+const ARTIST_CONTENT_SECURITY_POLICY =
+  "frame-ancestors 'none'; img-src 'self' data: blob: https://coverartarchive.org https://archive.org https://*.archive.org https://thumb.wikimedia.org";
 
 const nextConfig: NextConfig = {
   // Data is dynamic unless it is explicitly cached with `use cache`, so nothing
@@ -49,11 +53,18 @@ const nextConfig: NextConfig = {
       { key: "X-Frame-Options", value: "DENY" },
       { key: "Content-Security-Policy", value: CONTENT_SECURITY_POLICY },
     ];
+    // The same, with the artist pages' image policy (M3.5).
+    const artistHeaders = publicHeaders.map((header) =>
+      header.key === "Content-Security-Policy"
+        ? { key: header.key, value: ARTIST_CONTENT_SECURITY_POLICY }
+        : header,
+    );
     return [
       // The Home (M3.4): exactly `/`. It lists public journals per request, so
       // it is `no-store` like every other public response.
       { source: "/", headers: publicHeaders },
       { source: "/albums/:path*", headers: publicHeaders },
+      { source: "/artists/:path*", headers: artistHeaders },
       // The same headers, so that these answer as every other public address
       // does when public reads are off.
       { source: "/sitemap.xml", headers: publicHeaders },
