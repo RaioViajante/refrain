@@ -6,9 +6,10 @@ import { Suspense } from "react";
 
 import { accessDenied } from "@/app/studio/access";
 import {
+  creditCaption,
+  LicenseName,
   PhotoAttribution,
   PhotoFrame,
-  LicenseName,
 } from "@/app/studio/artist-photograph";
 import { plural } from "@/app/studio/format";
 import { StudioFrame } from "@/app/studio/frame";
@@ -381,7 +382,8 @@ function ChoiceGrid({
           <p className="studio-photo-credit">
             {choice.title}
             <br />
-            Photo: {choice.credit} · <LicenseName license={choice.license} />
+            {creditCaption(choice.credit)} ·{" "}
+            <LicenseName license={choice.license} />
           </p>
           <Link href={reviewHref(choice.fileName)} className="studio-button">
             Review

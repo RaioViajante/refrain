@@ -1018,6 +1018,10 @@ html:has(.studio-editorbar[data-mode="edit"]) {
   cursor: pointer;
 }
 
+.studio-photo-details[open] {
+  margin-bottom: 12px;
+}
+
 .studio-photo-details .studio-facts {
   margin-top: 6px;
   font-size: 15px;

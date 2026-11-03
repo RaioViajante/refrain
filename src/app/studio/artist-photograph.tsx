@@ -3,6 +3,8 @@ import type {
   PhotoLicense,
 } from "@/integrations/wikimedia-commons";
 
+import { PhotoImage } from "./photo-image";
+
 // An artist's photograph (M3.3): the approved V4.4 4:5 frame (`.art.pt`) with
 // its fallback underneath, the chosen Wikimedia Commons thumbnail over it once
 // loaded, and the attribution the license asks for. Presentational only, with
@@ -13,7 +15,8 @@ import type {
 // (src/integrations/wikimedia-commons/photo.ts) or comes from the fixed
 // license table: nothing from a provider response is rendered, and the
 // credit is plain text, which React escapes. Images are requested without a
-// referrer, and the frame keeps its size whether or not the image arrives.
+// referrer, and the frame keeps its size whether or not the image arrives;
+// an image that fails is removed (./photo-image.tsx).
 
 export function PhotoFrame({
   image,
@@ -44,20 +47,21 @@ export function PhotoFrame({
     >
       <span aria-hidden>no photograph yet</span>
       {image ? (
-        // eslint-disable-next-line @next/next/no-img-element -- a remote, credited photograph, not routed through an image optimizer (docs/evidence/m3-3.md)
-        <img
-          src={image.src}
-          srcSet={image.srcSet}
-          sizes={`${size}px`}
-          width={330}
-          height={412}
-          alt=""
-          decoding="async"
-          referrerPolicy="no-referrer"
-        />
+        <PhotoImage src={image.src} srcSet={image.srcSet} sizes={`${size}px`} />
       ) : null}
     </div>
   );
+}
+
+/**
+ * The credit as a caption. A file's own attribution sometimes begins with
+ * "Photo:" already; the stored credit stays exactly as the file asks, and
+ * only the caption's prefix is left out, so it never reads "Photo: Photo:".
+ */
+export function creditCaption(credit: string): string {
+  return /^(?:photo|photograph|foto)(?:\s+by)?\s*[:©]/i.test(credit)
+    ? credit
+    : `Photo: ${credit}`;
 }
 
 /** The license's name, linked to its deed when it has one. */
@@ -80,8 +84,8 @@ export function PhotoAttribution({ photo }: { photo: ArtistPhoto }) {
   return (
     <div className="studio-photo-attribution">
       <p className="studio-photo-credit">
-        Photo: {photo.credit} · <LicenseName license={photo.license} /> · via
-        Wikimedia Commons
+        {creditCaption(photo.credit)} · <LicenseName license={photo.license} />{" "}
+        · via Wikimedia Commons
       </p>
       <details className="studio-photo-details">
         <summary>Photo details</summary>
