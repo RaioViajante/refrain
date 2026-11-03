@@ -11,6 +11,7 @@ import {
   type Transaction,
 } from "@/db";
 import type { AuthorizedAuthor } from "@/modules/identity";
+import { lockArtistRestoreExposure } from "@/modules/publication";
 import { fieldErrorsOf } from "@/validation";
 
 import { CatalogError, type CatalogBlocker } from "./errors";
@@ -198,22 +199,43 @@ export async function archiveArtist(
   });
 }
 
+/**
+ * Restores an archived artist. Refused with `public_page` when the artist
+ * holds a photograph and restoring would give it a public page (a served
+ * album journal credits it): the photograph would reach readers without a
+ * confirmation (M3.5; gate G8). Removing the photograph first, which is
+ * always allowed, or unpublishing those journals, lets the restore through.
+ * Decided after the entries' share locks and the artist's row lock, in the
+ * photograph command's order (proposed ADR 0006 A5).
+ */
 export async function restoreArtist(
   db: DatabaseExecutor,
   _author: AuthorizedAuthor,
   artistId: unknown,
 ): Promise<void> {
   const id = idOf(artistId);
-  await guarded(async () => {
-    const updated = await db
-      .update(schema.artists)
-      .set({ archivedAt: null })
-      .where(eq(schema.artists.id, id))
-      .returning({ id: schema.artists.id });
-    if (updated.length === 0) {
-      throw new CatalogError("not_found");
-    }
-  });
+  await guarded(() =>
+    db.transaction(async (tx) => {
+      const wouldShow = await lockArtistRestoreExposure(tx, id);
+      const found = await tx.execute<{ archived: boolean; photo: boolean }>(
+        sql`
+        select archived_at is not null as archived,
+               photo_url is not null as photo
+          from artists where id = ${id}`,
+      );
+      const row = found.rows[0];
+      if (!row) {
+        throw new CatalogError("not_found");
+      }
+      if (row.archived && row.photo && wouldShow) {
+        throw new CatalogError("public_page");
+      }
+      await tx
+        .update(schema.artists)
+        .set({ archivedAt: null })
+        .where(eq(schema.artists.id, id));
+    }),
+  );
 }
 
 /**

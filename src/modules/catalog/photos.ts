@@ -601,10 +601,11 @@ export async function setArtistPhoto(
   }
 
   await db.transaction(async (tx) => {
-    // The entries first, then the artist (ADR 0006 § 7, L3): every journal
-    // entry that could put the artist on a public page is locked FOR SHARE
-    // and the predicate decides, so a publish waits for this change, or this
-    // change sees the publish.
+    // The entries first, then the artist (ADR 0006 § 7, L3), then the
+    // decision: every journal entry that could put the artist on a public
+    // page is locked FOR SHARE, and the artist row (whose archiving also
+    // decides) FOR NO KEY UPDATE, so a publish or a restore of the artist
+    // waits for this change, or this change sees it.
     if (await lockArtistPublicExposure(tx, artistId)) {
       throw new CatalogError("public_page");
     }

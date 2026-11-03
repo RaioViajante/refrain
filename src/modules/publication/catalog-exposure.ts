@@ -5,7 +5,7 @@ import { sql } from "drizzle-orm";
 import type { DatabaseExecutor, Transaction } from "@/db";
 
 import { publicLanguageVersions } from "./predicate";
-import { publicArtists } from "./queries";
+import { publicArtists, servedAlbumJournalAddresses } from "./queries";
 
 // Whether an album is shown on a public page, for the catalog's guard on
 // changes a reader would see without a confirmation (ADR 0006 D5, gap C11,
@@ -50,13 +50,20 @@ export async function isArtistOnPublicPage(
 
 /**
  * The same answer inside the photograph command's transaction (M3.5; ADR
- * 0006, proposed amendment A5), after locking `FOR SHARE`, in ascending id
- * order, every album-journal entry about an album that credits the artist:
- * the journals whose publication decides whether the artist's page exists.
- * Publishing, unpublishing, deleting, and restoring lock the entry
- * `FOR UPDATE`, so none of them can change the answer before the command
- * commits. The artist row is locked by the caller afterwards (L3: catalog
- * locks after entry locks).
+ * 0006, proposed amendment A5), decided only after two locks, in this order:
+ *
+ * 1. `FOR SHARE`, in ascending id order, every album-journal entry about an
+ *    album that credits the artist: the journals whose publication decides
+ *    whether the artist's page exists. Publishing, unpublishing, deleting,
+ *    and restoring lock the entry `FOR UPDATE`, so none of them can change
+ *    the answer before the command commits.
+ * 2. The artist row, `FOR NO KEY UPDATE` (L3: catalog locks after entry
+ *    locks). The answer also depends on `archived_at`, which archiving and
+ *    restoring the artist change under the same row lock, so neither can
+ *    change it either.
+ *
+ * What still can, recorded in A5: a journal created after step 1, and a
+ * credit added to an album meanwhile (gap C11).
  */
 export async function lockArtistPublicExposure(
   tx: Transaction,
@@ -71,6 +78,8 @@ export async function lockArtistPublicExposure(
                             where aa.artist_id = ${artistId})
      order by e.id
        for share of e`);
+  await tx.execute(sql`
+    select id from artists where id = ${artistId} for no key update`);
   return isArtistOnPublicPage(tx, artistId);
 }
 
@@ -92,4 +101,37 @@ export async function lockAlbumPublicExposure(
      order by e.id
        for share of e`);
   return isAlbumOnPublicPage(tx, albumId);
+}
+
+/**
+ * For restoring an archived artist (M3.5, review of PR #46): whether the
+ * artist **would** have a public page once it is no longer archived, after
+ * the same locks as `lockArtistPublicExposure`, in the same order (the
+ * entries `FOR SHARE` in id order, then the artist row `FOR NO KEY UPDATE`).
+ * It is `publicArtists` without its archived condition, from the same
+ * served-address rule.
+ */
+export async function lockArtistRestoreExposure(
+  tx: Transaction,
+  artistId: string,
+): Promise<boolean> {
+  await tx.execute(sql`
+    select e.id
+      from entries e
+      join album_journals aj on aj.entry_id = e.id
+     where aj.album_id in (select aa.album_id
+                             from album_artists aa
+                            where aa.artist_id = ${artistId})
+     order by e.id
+       for share of e`);
+  await tx.execute(sql`
+    select id from artists where id = ${artistId} for no key update`);
+  const result = await tx.execute<{ shown: boolean }>(sql`
+    select exists (
+      select 1
+        from (${servedAlbumJournalAddresses}) served
+        join album_journals aj on aj.entry_id = served.entry_id
+        join album_artists aa on aa.album_id = aj.album_id
+       where aa.artist_id = ${artistId}) as shown`);
+  return result.rows[0]?.shown ?? false;
 }

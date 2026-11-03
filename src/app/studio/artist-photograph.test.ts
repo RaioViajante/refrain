@@ -9,6 +9,7 @@ describe("a photograph's credit as a caption", () => {
     );
     // A name that merely starts with the word is still prefixed.
     expect(creditCaption("Photon Studio")).toBe("Photo: Photon Studio");
+    expect(creditCaption("Photobyte Studio")).toBe("Photo: Photobyte Studio");
   });
 
   it("never doubles a prefix the file's attribution already has", () => {
@@ -18,6 +19,9 @@ describe("a photograph's credit as a caption", () => {
       "photo by: [Test] Someone",
       "Foto: [Test] Alguém",
       "Photo © [Test] Someone",
+      // M3.5 review: "by" without a colon is a prefix too.
+      "Photo by [Test] Someone",
+      "Photograph by [Test] Someone",
     ]) {
       expect(creditCaption(credit)).toBe(credit);
     }

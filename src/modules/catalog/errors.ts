@@ -26,9 +26,10 @@ import type { FieldErrors } from "@/validation";
  * - `already_linked`: the record already has a different MusicBrainz identity;
  *   it is never replaced.
  * - `not_linked`: the album has no MusicBrainz identity to find artwork with.
- * - `public_page`: the album is shown on a public page, so its artwork does
- *   not change without a confirmation that does not exist yet (ADR 0006 D5,
- *   gate G8).
+ * - `public_page`: the album or artist is shown on a public page, so its
+ *   artwork, its photograph (M3.5), or an artist's restore that would show a
+ *   photograph does not happen without a confirmation that does not exist
+ *   yet (ADR 0006 D5, gate G8).
  *
  * Wikimedia Commons (M3.3), with `provider_*` and `review_stale` above:
  *

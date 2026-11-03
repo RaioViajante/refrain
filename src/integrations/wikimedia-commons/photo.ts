@@ -214,7 +214,7 @@ export function isPlainCredit(value: unknown): value is string {
  * "Photo: Photo:". Shared by the studio and the public artist page.
  */
 export function photoCreditCaption(credit: string): string {
-  return /^(?:photo|photograph|foto)(?:\s+by)?\s*[:©]/i.test(credit)
+  return /^(?:photo|photograph|foto)(?:\s+by\b|\s*[:©])/i.test(credit)
     ? credit
     : `Photo: ${credit}`;
 }

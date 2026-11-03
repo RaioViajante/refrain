@@ -1104,8 +1104,14 @@ describe("the Publication reading module", () => {
     );
     // The artist page's components are used only by the artist page.
     for (const file of pages) {
-      if (/artist-photograph/.test(readFileSync(file, "utf8"))) {
+      const code = readFileSync(file, "utf8");
+      if (/from "[^"]*artist-photograph"/.test(code)) {
         expect(file, file).toMatch(/^src\/app\/\(artists\)\//);
+      }
+      if (/from "[^"]*public-photo-image"/.test(code)) {
+        expect(file, file).toBe(
+          "src/app/(public)/_components/artist-photograph.tsx",
+        );
       }
     }
   });
@@ -1141,6 +1147,16 @@ describe("the Publication reading module", () => {
       exposure.indexOf("export async function lockArtistPublicExposure"),
     );
     expect(lock).toMatch(/order by e\.id\s+for share of e/);
+    // Then the artist row, before the decision: archiving and restoring the
+    // artist change the answer too.
+    const entries = lock.indexOf("for share of e");
+    const artist = lock.indexOf(
+      "from artists where id = ${artistId} for no key update",
+    );
+    const decision = lock.indexOf("return isArtistOnPublicPage(tx, artistId)");
+    expect(entries).toBeGreaterThan(-1);
+    expect(artist).toBeGreaterThan(entries);
+    expect(decision).toBeGreaterThan(artist);
   });
 
   it.each(reading)("%s imports no command, token, or other module", (file) => {

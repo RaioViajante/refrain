@@ -45,6 +45,7 @@ export {
   isArtistOnPublicPage,
   lockAlbumPublicExposure,
   lockArtistPublicExposure,
+  lockArtistRestoreExposure,
 } from "./catalog-exposure";
 // The publication predicate itself (./predicate) is internal: other modules
 // read public data only through these functions.

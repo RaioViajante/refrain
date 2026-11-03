@@ -13,7 +13,10 @@ import {
   uniqueLabel,
   withConnections,
 } from "@/testing";
-import { lockArtistPublicExposure } from "@/modules/publication";
+import {
+  isArtistOnPublicPage,
+  lockArtistPublicExposure,
+} from "@/modules/publication";
 import { FIXTURE } from "@/testing/provider-fixtures";
 import { providerAnswer, providerResponse } from "@/testing/provider-mock";
 import { fixtureProviders, json } from "@/testing/provider-runtime";
@@ -24,7 +27,7 @@ import {
   photoSha1,
 } from "@/testing/wikimedia-fixtures";
 
-import { updateArtist } from "./commands";
+import { restoreArtist, updateArtist } from "./commands";
 import { CatalogError } from "./errors";
 import {
   listArtistPhotoChoices,
@@ -1064,6 +1067,81 @@ describe("the public page guard", () => {
   });
 });
 
+describe("restoring an archived artist (review of PR #46)", () => {
+  async function archivedOnPublicAlbum(
+    tx: Transaction,
+    status: "published" | "private",
+  ) {
+    const artistId = await createTestArtist(tx, uniqueLabel("Archived"));
+    const album = await createTestAlbum(tx, { artistIds: [artistId] });
+    await createTestAlbumJournal(tx, {
+      albumId: album.albumId,
+      versions: [{ locale: "en", status }],
+      slug: `restore-guard-${uniqueLabel("x").slice(-8)}`,
+    });
+    return artistId;
+  }
+
+  async function archive(tx: Transaction, artistId: string) {
+    await tx.execute(
+      sql`update artists set archived_at = now() where id = ${artistId}`,
+    );
+  }
+
+  it("is refused when it would put a photograph on a public page, and writes nothing", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const artistId = await archivedOnPublicAlbum(tx, "private");
+      await choose(tx, artistId, PHOTO.onStage);
+      await archive(tx, artistId);
+      // Published while the artist is archived: still no artist page.
+      await tx.execute(sql`
+        update entry_texts set status = 'published', published_at = now(),
+               first_published_at = now()
+         where entry_id in (select aj.entry_id from album_journals aj
+                              join album_artists aa on aa.album_id = aj.album_id
+                             where aa.artist_id = ${artistId})`);
+      await tx.execute(sql`
+        update entry_slugs set was_published = true
+         where entry_id in (select aj.entry_id from album_journals aj
+                              join album_artists aa on aa.album_id = aj.album_id
+                             where aa.artist_id = ${artistId})`);
+      const before = await photoColumns(tx, artistId);
+      expect(await refusal(tx, (t) => restoreArtist(t, author, artistId))).toBe(
+        "public_page",
+      );
+      expect(await photoColumns(tx, artistId)).toEqual(before);
+      const [row] = await tx
+        .select({ archivedAt: schema.artists.archivedAt })
+        .from(schema.artists)
+        .where(eq(schema.artists.id, artistId));
+      expect(row!.archivedAt).not.toBeNull();
+
+      // Removing the photograph (always allowed) lets the restore through.
+      const detail = await getArtist(tx, author, artistId);
+      await removeArtistPhoto(tx, author, {
+        artistId,
+        expectedPhoto: detail!.photo.state,
+      });
+      await restoreArtist(tx, author, artistId);
+      expect(await isArtistOnPublicPage(tx, artistId)).toBe(true);
+    });
+  });
+
+  it("is allowed with a photograph when no public journal credits the artist, and without one when it does", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const privateOnly = await archivedOnPublicAlbum(tx, "private");
+      await choose(tx, privateOnly, PHOTO.onStage);
+      await archive(tx, privateOnly);
+      await restoreArtist(tx, author, privateOnly);
+
+      const noPhoto = await archivedOnPublicAlbum(tx, "published");
+      await archive(tx, noPhoto);
+      await restoreArtist(tx, author, noPhoto);
+      expect(await isArtistOnPublicPage(tx, noPhoto)).toBe(true);
+    });
+  });
+});
+
 describe("the public page guard, over real connections", () => {
   const created: {
     entryIds: string[];
@@ -1133,6 +1211,31 @@ describe("the public page guard, over real connections", () => {
     return { artistId: artist!.id, entryIds };
   }
 
+  async function backendPid(db: Parameters<typeof waitsOnLock>[0]) {
+    const result = await db.execute<{ pid: number }>(
+      sql`select pg_backend_pid() as pid`,
+    );
+    return result.rows[0]!.pid;
+  }
+
+  /** Whether the backend `pid` is seen waiting on a lock within ~5 s. */
+  async function waitsOnLock(
+    db: ReturnType<typeof getDb>,
+    pid: number,
+  ): Promise<boolean> {
+    for (let tries = 0; tries < 100; tries++) {
+      const waiting = await getDb().execute<{ n: number }>(sql`
+        select count(*)::int as n from pg_stat_activity
+         where pid = ${pid} and wait_event_type = 'Lock'`);
+      if (waiting.rows[0]!.n > 0) {
+        return true;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    void db;
+    return false;
+  }
+
   it("holds every journal entry that could show the artist, so a publish of any of them waits", async () => {
     const { artistId, entryIds } = await committedArtist("Held", 2);
     await withConnections(2, async ([first, second]) => {
@@ -1185,6 +1288,7 @@ describe("the public page guard, over real connections", () => {
     expect(review!.artist.onPublicPage).toBe(false);
 
     await withConnections(2, async ([first, second]) => {
+      const chooserPid = await backendPid(second!);
       let commit!: () => void;
       const committing = new Promise<void>((resolve) => (commit = resolve));
       let locked!: () => void;
@@ -1221,17 +1325,91 @@ describe("the public page guard, over real connections", () => {
         () => "changed",
         (error: unknown) => failureOf(error),
       );
-      // Wait until the photograph change is queued behind the publish's lock.
-      for (let tries = 0; tries < 100; tries++) {
-        const waiting = await db.execute<{ n: number }>(sql`
-          select count(*)::int as n from pg_stat_activity
-           where application_name = 'refrain-concurrency-tests'
-             and wait_event_type = 'Lock'`);
-        if (waiting.rows[0]!.n > 0) break;
-        await new Promise((resolve) => setTimeout(resolve, 50));
+      // The photograph change itself must be seen waiting on a lock, so the
+      // test cannot pass by timing alone.
+      // Always release the stand-in, even when the assertion fails, so a
+      // failing run never leaves a transaction holding locks.
+      let waited = false;
+      try {
+        waited = await waitsOnLock(db, chooserPid);
+      } finally {
+        commit();
       }
-      commit();
       await publish;
+      expect(waited).toBe(true);
+      expect(await change).toBe("public_page");
+    });
+    const [row] = await db
+      .select({ photoUrl: schema.artists.photoUrl })
+      .from(schema.artists)
+      .where(eq(schema.artists.id, artistId));
+    expect(row!.photoUrl).toBeNull();
+  });
+
+  it("refuses the photograph once a restore of the archived artist has committed", async () => {
+    // The artist is credited on a published journal, so it is hidden only
+    // because it is archived. A restore that commits while the photograph
+    // command waits would make the page public with a photograph nobody
+    // confirmed (review of PR #46): the command decides after the artist's
+    // row lock, so it sees the restore.
+    const db = getDb();
+    const { artistId, entryIds } = await committedArtist("Restored", 1);
+    await db.execute(sql`
+      update entry_texts set status = 'published', published_at = now(),
+             first_published_at = now()
+       where entry_id = ${entryIds[0]!}`);
+    await db.execute(sql`
+      update entry_slugs set was_published = true
+       where entry_id = ${entryIds[0]!}`);
+    await db.execute(
+      sql`update artists set archived_at = now() where id = ${artistId}`,
+    );
+    const { providers } = fixtureProviders();
+    const review = await reviewArtistPhoto(
+      db,
+      author,
+      { artistId, file: PHOTO.onStage },
+      providers,
+    );
+    expect(review!.artist.onPublicPage).toBe(false);
+
+    await withConnections(2, async ([first, second]) => {
+      const chooserPid = await backendPid(second!);
+      let commit!: () => void;
+      const committing = new Promise<void>((resolve) => (commit = resolve));
+      let locked!: () => void;
+      const isLocked = new Promise<void>((resolve) => (locked = resolve));
+      // A restore of the artist in progress, as `restoreArtist` writes it.
+      const restore = first!.transaction(async (tx) => {
+        await tx.execute(sql`
+          update artists set archived_at = null, updated_at = now()
+           where id = ${artistId}`);
+        locked();
+        await committing;
+      });
+      await isLocked;
+      const change = setArtistPhoto(
+        second!,
+        author,
+        {
+          artistId,
+          file: PHOTO.onStage,
+          review: review!.review!,
+          expectedPhoto: null,
+        },
+        providers,
+      ).then(
+        () => "changed",
+        (error: unknown) => failureOf(error),
+      );
+      let waited = false;
+      try {
+        waited = await waitsOnLock(db, chooserPid);
+      } finally {
+        commit();
+      }
+      await restore;
+      expect(waited).toBe(true);
       expect(await change).toBe("public_page");
     });
     const [row] = await db

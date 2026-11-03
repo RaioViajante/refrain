@@ -233,6 +233,22 @@ describe("which artists are public", () => {
     });
   });
 
+  it("is not made public by a credit on a track alone", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const albumArtist = await artistNamed(tx, "Album credit");
+      const trackOnly = await artistNamed(tx, "Track credit only");
+      const journal = await journalFor(tx, [albumArtist.id], {
+        slug: slugOf("track-credit"),
+      });
+      await tx.execute(sql`
+        insert into track_artists (track_id, artist_id, position)
+        values (${journal.trackIds[0]!}, ${trackOnly.id}, 1)`);
+      const addresses = await publicArtistAddresses(tx);
+      expect(addresses.has(albumArtist.id)).toBe(true);
+      expect(addresses.has(trackOnly.id)).toBe(false);
+    });
+  });
+
   it("counts a translation only when it is itself published", async () => {
     await inRollbackTransaction(async (tx) => {
       const artist = await artistNamed(tx, "Translated");
