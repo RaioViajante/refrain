@@ -209,6 +209,16 @@ async function removeSyntheticRecords(): Promise<void> {
     await client.query(`delete from entries where id in (${journals})`, [
       albums,
     ]);
+    // Memories (M3.6) are found by their title, and go before the recordings
+    // they link, which their links would otherwise keep (RESTRICT).
+    const memories = `select m.entry_id from memories m
+                        join entry_texts t on t.entry_id = m.entry_id
+                       where t.title like $1`;
+    await client.query(
+      `delete from entry_slugs where entry_id in (${memories})`,
+      [own],
+    );
+    await client.query(`delete from entries where id in (${memories})`, [own]);
     await client.query("delete from albums where title like any($1)", [albums]);
     // The review's sample tracks carry the catalog's own titles, so they are
     // found by the artists they are credited to, as well as by the prefix.

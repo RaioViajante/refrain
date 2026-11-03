@@ -8,6 +8,7 @@ import {
   FormStatus,
   TextAreaField,
   TextField,
+  TitleField,
   useSubmission,
   useUnsavedGuard,
 } from "@/app/studio/form-kit";
@@ -229,15 +230,13 @@ export function MemoryEditor({
 
       <div className="studio-columns">
         <div className="studio-writing-column">
-          <TextField
+          <TitleField
             label="Title"
-            hideLabel
             placeholder="A title for this memory"
             value={draft.title}
             onChange={(value) => edited({ title: value })}
             maxLength={MAX_TITLE}
             lang="en"
-            variant="title"
             problem={problemWith(failure, "title")}
           />
           <TextField

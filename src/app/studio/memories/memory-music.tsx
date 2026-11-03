@@ -147,7 +147,7 @@ export function MemoryMusic({
                     type="button"
                     ref={register(`${recording.trackId}:up`)}
                     className="studio-icon-button"
-                    aria-label={`Move ${recording.title} up`}
+                    aria-label={`Move ${recording.title} up (song ${index + 1} of ${recordings.length})`}
                     disabled={index === 0}
                     onClick={() => move(index, "up")}
                   >
@@ -157,7 +157,7 @@ export function MemoryMusic({
                     type="button"
                     ref={register(`${recording.trackId}:down`)}
                     className="studio-icon-button"
-                    aria-label={`Move ${recording.title} down`}
+                    aria-label={`Move ${recording.title} down (song ${index + 1} of ${recordings.length})`}
                     disabled={index === recordings.length - 1}
                     onClick={() => move(index, "down")}
                   >
@@ -167,7 +167,7 @@ export function MemoryMusic({
                     type="button"
                     ref={register(`${recording.trackId}:remove`)}
                     className="studio-icon-button"
-                    aria-label={`Remove ${recording.title} from this memory`}
+                    aria-label={`Remove ${recording.title} from this memory (song ${index + 1} of ${recordings.length})`}
                     onClick={() => remove(index)}
                   >
                     <Icon name="close" size={18} />

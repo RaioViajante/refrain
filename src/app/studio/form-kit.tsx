@@ -128,11 +128,8 @@ interface TextFieldProps {
   width?: string;
   placeholder?: string;
   hideLabel?: boolean;
-  /**
-   * "opening" draws the sentence in Kalam light, with one line under it;
-   * "title" draws a memory's title in Kalam, large, with one line under it.
-   */
-  variant?: "opening" | "title";
+  /** "opening" draws the sentence in Kalam light, with one line under it. */
+  variant?: "opening";
 }
 
 export function TextField({
@@ -169,11 +166,7 @@ export function TextField({
         id={id}
         type={type}
         className={
-          variant === "opening"
-            ? "studio-opening-field"
-            : variant === "title"
-              ? "studio-opening-field studio-title-field"
-              : "studio-field"
+          variant === "opening" ? "studio-opening-field" : "studio-field"
         }
         placeholder={placeholder}
         style={width ? { maxWidth: width } : undefined}
@@ -188,6 +181,81 @@ export function TextField({
         inputMode={inputMode}
         autoComplete={autoComplete}
         lang={lang}
+        aria-invalid={problem ? true : undefined}
+        aria-describedby={describedBy}
+      />
+    </FieldFrame>
+  );
+}
+
+/**
+ * A title written as one line in Kalam, as large as an editor's heading, with
+ * one drawn line under it. It wraps instead of scrolling out of sight, and it
+ * grows with what is written: a textarea that holds one line, where Enter
+ * adds nothing and a pasted line break becomes a space. Its label is read by
+ * assistive technology, and the placeholder is what is drawn.
+ */
+export function TitleField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  problem,
+  maxLength,
+  lang,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  problem?: string;
+  maxLength?: number;
+  lang?: string;
+}) {
+  const id = useId();
+  const describedBy = `${id}-note`;
+  const area = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const element = area.current;
+    if (!element) {
+      return;
+    }
+    const fit = () => {
+      element.style.height = "auto";
+      element.style.height = `${element.scrollHeight}px`;
+    };
+    fit();
+    // The width changes the number of lines too.
+    const observer = new ResizeObserver(fit);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [value]);
+  return (
+    <FieldFrame
+      label={label}
+      hideLabel
+      problem={problem}
+      htmlFor={id}
+      describedBy={describedBy}
+    >
+      <textarea
+        id={id}
+        ref={area}
+        rows={1}
+        className="studio-opening-field studio-title-field"
+        value={value}
+        placeholder={placeholder}
+        maxLength={maxLength}
+        lang={lang}
+        spellCheck
+        onChange={(event) =>
+          onChange(event.target.value.replace(/\r?\n/g, " "))
+        }
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+          }
+        }}
         aria-invalid={problem ? true : undefined}
         aria-describedby={describedBy}
       />

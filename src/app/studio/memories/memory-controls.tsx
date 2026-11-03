@@ -10,7 +10,6 @@ import {
   setMemoryPrivacyAction,
 } from "@/app/studio/memories/actions";
 import { failureMessage } from "@/app/studio/messages";
-import { StatusMark } from "@/app/studio/status-mark";
 import type { VisibilityStatus } from "@/modules/journals";
 
 const VISIBILITY_WORDS: Record<VisibilityStatus, string> = {
@@ -79,9 +78,6 @@ export function MemoryControls({
         <h2 id={visibilityId} className="studio-label">
           Visibility
         </h2>
-        <p className="studio-meta">
-          <StatusMark status={status} />
-        </p>
         <p className="studio-hint">{VISIBILITY_WORDS[status]}</p>
         {status === "published" ? (
           <div className="studio-actions">

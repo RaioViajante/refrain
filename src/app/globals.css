@@ -938,6 +938,8 @@ html:has(.studio-editorbar[data-mode="edit"]) {
    line under it, like the opening sentence. Its label is read, not drawn. */
 .studio-title-field {
   min-height: 72px;
+  overflow: hidden;
+  resize: none;
   font-weight: 700;
   font-size: 52px;
   line-height: 1.15;
@@ -964,12 +966,41 @@ html:has(.studio-editorbar[data-mode="edit"]) {
   padding: 0;
 }
 
+/* A song: its square, its title and facts, and under them its controls, so
+   the words keep the column's whole width. */
 .studio-memory-song {
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) auto;
-  gap: 10px;
+  grid-template-columns: 44px minmax(0, 1fr);
+  grid-template-areas:
+    "thumb body"
+    ". controls";
+  gap: 2px 10px;
   align-items: center;
   padding: 8px 0;
+}
+
+.studio-memory-thumb {
+  grid-area: thumb;
+  align-self: start;
+}
+
+.studio-memory-song-body {
+  grid-area: body;
+}
+
+.studio-memory-song-controls {
+  grid-area: controls;
+  margin-left: -12px;
+}
+
+/* A catalog match has one control, which fits beside its words. */
+.studio-memory-choices .studio-memory-song {
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  grid-template-areas: "thumb body controls";
+}
+
+.studio-memory-choices .studio-memory-song-controls {
+  margin-left: 0;
 }
 
 .studio-memory-thumb {
@@ -1057,6 +1088,11 @@ html:has(.studio-editorbar[data-mode="edit"]) {
 
 .studio-memory-add-field .studio-field {
   padding-left: 46px;
+}
+
+/* The browser's own clear button is colored; Escape clears the field. */
+.studio-memory-add-field input::-webkit-search-cancel-button {
+  appearance: none;
 }
 
 /* The catalog's matches, in a drawn box under the field, in the page's flow
