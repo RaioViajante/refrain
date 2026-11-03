@@ -29,6 +29,12 @@ import type { FieldErrors } from "@/validation";
  * - `public_page`: the album is shown on a public page, so its artwork does
  *   not change without a confirmation that does not exist yet (ADR 0006 D5,
  *   gate G8).
+ *
+ * Wikimedia Commons (M3.3), with `provider_*` and `review_stale` above:
+ *
+ * - `photo_not_usable`: the file no longer meets the license and attribution
+ *   policy (its license, credit, format, or size changed on Commons).
+ *   Nothing was written.
  */
 export type CatalogFailure =
   | "invalid_input"
@@ -42,7 +48,8 @@ export type CatalogFailure =
   | "unsupported_release"
   | "already_linked"
   | "not_linked"
-  | "public_page";
+  | "public_page"
+  | "photo_not_usable";
 
 /** What stands in the way of a delete or removal. */
 export type CatalogBlocker =

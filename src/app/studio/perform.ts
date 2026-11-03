@@ -86,6 +86,7 @@ function failed(error: unknown): ActionResult<never> {
       case "already_linked":
       case "not_linked":
       case "public_page":
+      case "photo_not_usable":
         return { ok: false, code: error.failure };
       case "review_stale":
         return { ok: false, code: "stale" };
