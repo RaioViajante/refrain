@@ -1125,6 +1125,45 @@ describe("the Publication reading module", () => {
     expect(PHOTO_WORDS.test("select a.name from artists a")).toBe(false);
   });
 
+  it("has every catalog command that changes who has an artist page, or its name or address, take the entries' locks first", () => {
+    const code = readFileSync("src/modules/catalog/commands.ts", "utf8");
+    const body = (name: string) => {
+      const start = code.indexOf(`export async function ${name}(`);
+      expect(start, name).toBeGreaterThan(-1);
+      const next = code.indexOf("\nexport ", start + 1);
+      return code.slice(start, next === -1 ? undefined : next);
+    };
+    for (const [name, lock, write] of [
+      [
+        "updateArtist",
+        "lockArtistPublicExposure(tx, id)",
+        ".update(schema.artists)",
+      ],
+      ["archiveArtist", "lockArtistPublicExposure(tx, id)", "update artists"],
+      [
+        "restoreArtist",
+        "lockArtistRestoreExposure(tx, id)",
+        ".update(schema.artists)",
+      ],
+      [
+        "updateAlbum",
+        "lockAlbumCreditExposure(tx, id, creditedIds)",
+        "lockAlbum(tx, id)",
+      ],
+    ] as const) {
+      const text = body(name);
+      const locked = text.indexOf(lock);
+      expect(locked, `${name} takes ${lock}`).toBeGreaterThan(-1);
+      expect(locked, `${name} locks before it writes`).toBeLessThan(
+        text.indexOf(write),
+      );
+    }
+    expect(body("updateAlbum")).toContain(
+      "artistsNewlyExposedByCredit(tx, id, added)).length > 0",
+    );
+    expect(body("restoreArtist")).toContain("if (row.archived && wouldShow)");
+  });
+
   it("keeps the guard in the command that sets a photograph, before the artist row", () => {
     const code = readFileSync("src/modules/catalog/photos.ts", "utf8");
     const set = code.slice(

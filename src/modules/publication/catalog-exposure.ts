@@ -135,3 +135,72 @@ export async function lockArtistRestoreExposure(
        where aa.artist_id = ${artistId}) as shown`);
   return result.rows[0]?.shown ?? false;
 }
+
+/**
+ * For a change of an album's credits (M3.5, the owner's review of PR #46):
+ * locks `FOR SHARE`, in ascending id order, every album-journal entry that
+ * decides whether the album and the credited artists are on public pages:
+ * the journals about this album, and about every album that credits one of
+ * `artistIds`. The caller then locks the album row and the artists' rows
+ * (L3: catalog locks after entry locks) and decides with
+ * `artistsNewlyExposedByCredit`.
+ */
+export async function lockAlbumCreditExposure(
+  tx: Transaction,
+  albumId: string,
+  artistIds: readonly string[],
+): Promise<void> {
+  const others =
+    artistIds.length > 0
+      ? sql`or aj.album_id in (select aa.album_id
+                                 from album_artists aa
+                                where aa.artist_id in (${idList(artistIds)}))`
+      : sql``;
+  await tx.execute(sql`
+    select e.id
+      from entries e
+      join album_journals aj on aj.entry_id = e.id
+     where aj.album_id = ${albumId}
+           ${others}
+     order by e.id
+       for share of e`);
+}
+
+/** `id1, id2, …` as bound parameters, for `in (…)`. Never empty here. */
+function idList(ids: readonly string[]) {
+  return sql.join(
+    ids.map((id) => sql`${id}`),
+    sql`, `,
+  );
+}
+
+/**
+ * The artists of `addedArtistIds` that crediting them on the album would put
+ * on a public page for the first time: the album has a served journal, and
+ * the artist is not archived and has no public page today. Empty when the
+ * album is on no public page. Decided by the same rule as the pages
+ * (`publicArtists`, `servedAlbumJournalAddresses`).
+ */
+export async function artistsNewlyExposedByCredit(
+  tx: Transaction,
+  albumId: string,
+  addedArtistIds: readonly string[],
+): Promise<string[]> {
+  if (addedArtistIds.length === 0) {
+    return [];
+  }
+  const result = await tx.execute<{ id: string }>(sql`
+    select ar.id
+      from artists ar
+     where ar.id in (${idList(addedArtistIds)})
+       and ar.archived_at is null
+       and exists (select 1
+                     from (${servedAlbumJournalAddresses}) served
+                     join album_journals aj on aj.entry_id = served.entry_id
+                    where aj.album_id = ${albumId})
+       and not exists (select 1
+                         from (${publicArtists}) visible
+                        where visible.artist_id = ar.id)
+     order by ar.id`);
+  return result.rows.map((row) => row.id);
+}

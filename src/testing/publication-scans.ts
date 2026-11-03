@@ -670,6 +670,9 @@ export const PUBLICATION_INDEX_EXPORTS: ReadonlySet<string> = new Set([
   "isArtistOnPublicPage",
   "lockArtistPublicExposure",
   "lockArtistRestoreExposure",
+  // The owner's review of PR #46: credits that would expose an artist.
+  "lockAlbumCreditExposure",
+  "artistsNewlyExposedByCredit",
 ]);
 
 function localCalls(body: ts.Node): Set<string> {

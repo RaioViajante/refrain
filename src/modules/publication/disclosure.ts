@@ -11,11 +11,15 @@ import type {
   VisibilityStatus,
 } from "@/db";
 
+import { artistPhotoOf } from "@/integrations/wikimedia-commons";
+
+import { artistAddresses } from "./artist-address";
 import { PublicationError } from "./errors";
 import {
   publicLanguageVersions,
   trackReflectionTextsWithStatus,
 } from "./predicate";
+import { publicArtists } from "./queries";
 
 // What a reader would see if one language version of one entry were published
 // (ADR 0006 §§ 1 and 2), and the fingerprint that binds a confirmation to it.
@@ -40,6 +44,37 @@ export interface DisclosedReflection {
 }
 
 export type DisclosedMusicLink = { trackId: string } | { albumId: string };
+
+/**
+ * An artist page that publishing this version would open for the first time
+ * (M3.5; proposed ADR 0006 A5): an artist credited on the journal's album,
+ * not archived, with no public page today. Bound into the fingerprint.
+ */
+export interface DisclosedArtistPage {
+  artistId: string;
+  name: string;
+  /** The page's address, `/artists/<address>`, or null if none is served. */
+  address: string | null;
+  /** The photograph the page would show, or null for its empty frame. */
+  photo: {
+    title: string;
+    sha1: string;
+    credit: string;
+    license: string;
+  } | null;
+}
+
+/**
+ * An artist page that is public already and whose address publishing this
+ * version would change: a namesake opening beside it (artist-address.ts).
+ */
+export interface DisclosedArtistAddressChange {
+  artistId: string;
+  name: string;
+  from: string;
+  /** Null when no address would be served for it any more. */
+  to: string | null;
+}
 
 /**
  * The disclosure for one language version. It is private writing: it is
@@ -78,6 +113,10 @@ export interface PublishDisclosure {
   reflections: DisclosedReflection[];
   /** Flagged reflections with no text in this language: not public in it. */
   flaggedWithoutText: number;
+  /** The artist pages publishing this version would open (M3.5). */
+  artistPages: DisclosedArtistPage[];
+  /** The public artist pages whose address it would change. */
+  artistAddressChanges: DisclosedArtistAddressChange[];
 }
 
 /** Everything read for one version, before any rule is applied to it. */
@@ -104,6 +143,8 @@ export interface PublishState {
   memory: { rememberedWhen: string | null; music: DisclosedMusicLink[] } | null;
   reflections: DisclosedReflection[];
   flaggedWithoutText: number;
+  artistPages: DisclosedArtistPage[];
+  artistAddressChanges: DisclosedArtistAddressChange[];
 }
 
 // UTC text with microseconds, so the connection's TimeZone setting cannot
@@ -252,6 +293,11 @@ export async function readPublishState(
     flaggedWithoutText = withoutText.rows[0]?.n ?? 0;
   }
 
+  const artists =
+    row.kind === "album_journal"
+      ? await readArtistExposure(db, entryId)
+      : { pages: [], changes: [] };
+
   return {
     kind: row.kind,
     deleted: row.deleted,
@@ -272,7 +318,105 @@ export async function readPublishState(
     memory,
     reflections,
     flaggedWithoutText,
+    artistPages: artists.pages,
+    artistAddressChanges: artists.changes,
   };
+}
+
+/**
+ * The artist pages that publishing a version of this album journal would open,
+ * and the public pages whose address that would change (M3.5; proposed ADR
+ * 0006 A5). Publishing makes the journal served, so every artist credited on
+ * its album that is not archived and has no public page today would get one:
+ * the same rule as the pages (`publicArtists`). When the journal is public
+ * already, every such artist has a page already, and both lists are empty.
+ * The addresses are computed exactly as the pages compute them, over the
+ * visible artists with and without the new ones. In artist id order.
+ */
+async function readArtistExposure(
+  db: DatabaseExecutor,
+  entryId: string,
+): Promise<{
+  pages: DisclosedArtistPage[];
+  changes: DisclosedArtistAddressChange[];
+}> {
+  const opening = await db.execute<{
+    id: string;
+    name: string;
+    photo_url: string | null;
+    photo_credit: string | null;
+    photo_license: string | null;
+    photo_source_url: string | null;
+    photo_file_sha1: string | null;
+    photo_file_timestamp: string | null;
+    photo_chosen_at: string | null;
+  }>(sql`
+    select distinct ar.id, ar.name, ar.photo_url, ar.photo_credit,
+           ar.photo_license, ar.photo_source_url, ar.photo_file_sha1,
+           ${utcText(sql`ar.photo_file_timestamp`)} as photo_file_timestamp,
+           ${utcText(sql`ar.photo_chosen_at`)} as photo_chosen_at
+      from album_journals aj
+      join album_artists aa on aa.album_id = aj.album_id
+      join artists ar on ar.id = aa.artist_id
+     where aj.entry_id = ${entryId}
+       and ar.archived_at is null
+       and not exists (select 1
+                         from (${publicArtists}) visible
+                        where visible.artist_id = ar.id)
+     order by ar.id`);
+  if (opening.rows.length === 0) {
+    return { pages: [], changes: [] };
+  }
+  const visible = await db.execute<{ artist_id: string; name: string }>(sql`
+    select visible.artist_id, visible.name
+      from (${publicArtists}) visible
+     order by visible.artist_id`);
+  const now = visible.rows.map((artist) => ({
+    artistId: artist.artist_id,
+    name: artist.name,
+  }));
+  const before = artistAddresses(now);
+  const after = artistAddresses([
+    ...now,
+    ...opening.rows.map((artist) => ({
+      artistId: artist.id,
+      name: artist.name,
+    })),
+  ]);
+
+  const pages = opening.rows.map((artist): DisclosedArtistPage => {
+    const photo = artistPhotoOf({
+      photoUrl: artist.photo_url,
+      photoCredit: artist.photo_credit,
+      photoLicense: artist.photo_license,
+      photoSourceUrl: artist.photo_source_url,
+      photoFileSha1: artist.photo_file_sha1,
+      photoFileTimestamp: artist.photo_file_timestamp,
+      photoChosenAt: artist.photo_chosen_at,
+    });
+    return {
+      artistId: artist.id,
+      name: artist.name,
+      address: after.get(artist.id) ?? null,
+      photo: photo
+        ? {
+            title: photo.title,
+            sha1: artist.photo_file_sha1!,
+            credit: photo.credit,
+            license: photo.license.name,
+          }
+        : null,
+    };
+  });
+  const changes: DisclosedArtistAddressChange[] = [];
+  for (const artist of now) {
+    const from = before.get(artist.artistId);
+    const to = after.get(artist.artistId) ?? null;
+    if (from !== undefined && from !== to) {
+      changes.push({ artistId: artist.artistId, name: artist.name, from, to });
+    }
+  }
+  return { pages, changes };
 }
 
 /**
@@ -313,6 +457,8 @@ export function disclosureOf(
     memory: state.memory,
     reflections: state.reflections,
     flaggedWithoutText: state.flaggedWithoutText,
+    artistPages: state.artistPages,
+    artistAddressChanges: state.artistAddressChanges,
   };
 }
 
@@ -342,7 +488,12 @@ export function canonicalJson(value: unknown): string {
  * states are the same. The token is what carries authority.
  *
  * Catalog wording (a track's title) is deliberately not in it: that is the
- * documented gap C11, closed by gate G8, not accepted as harmless.
+ * documented gap C11, closed by gate G8, not accepted as harmless. The one
+ * exception (M3.5; proposed ADR 0006 A5) is the artist pages publishing
+ * would open, with their names, addresses, and photographs, and the public
+ * pages whose address would change: a new page is exposure, not wording, so
+ * a change to any of them between the preview and the publication makes the
+ * confirmation stale.
  */
 export function fingerprintOf(
   state: PublishState,
@@ -372,6 +523,8 @@ export function fingerprintOf(
       isStillWriting: reflection.isStillWriting,
       body: reflection.body,
     })),
+    artistPages: disclosure.artistPages,
+    artistAddressChanges: disclosure.artistAddressChanges,
   };
   return createHash("sha256")
     .update(canonicalJson(material), "utf8")

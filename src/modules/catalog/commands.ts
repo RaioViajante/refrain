@@ -11,7 +11,12 @@ import {
   type Transaction,
 } from "@/db";
 import type { AuthorizedAuthor } from "@/modules/identity";
-import { lockArtistRestoreExposure } from "@/modules/publication";
+import {
+  artistsNewlyExposedByCredit,
+  lockAlbumCreditExposure,
+  lockArtistPublicExposure,
+  lockArtistRestoreExposure,
+} from "@/modules/publication";
 import { fieldErrorsOf } from "@/validation";
 
 import { CatalogError, type CatalogBlocker } from "./errors";
@@ -168,16 +173,25 @@ export async function updateArtist(
 ): Promise<void> {
   const id = idOf(artistId);
   const data = present(parse(artistPatch, patch));
-  await guarded(async () => {
-    const updated = await db
-      .update(schema.artists)
-      .set(data)
-      .where(eq(schema.artists.id, id))
-      .returning({ id: schema.artists.id });
-    if (updated.length === 0) {
-      throw new CatalogError("not_found");
-    }
-  });
+  await guarded(() =>
+    db.transaction(async (tx) => {
+      // A name is part of what a publication review shows and binds (the
+      // artist pages it would open, and their addresses; M3.5). Taking the
+      // entries' share locks first, then the artist row (L3), means a rename
+      // waits for a publication in progress, or the publication sees it: it
+      // can never land between that publication's check and its commit. It
+      // is not refused: renaming a public artist is catalog wording (G8).
+      await lockArtistPublicExposure(tx, id);
+      const updated = await tx
+        .update(schema.artists)
+        .set(data)
+        .where(eq(schema.artists.id, id))
+        .returning({ id: schema.artists.id });
+      if (updated.length === 0) {
+        throw new CatalogError("not_found");
+      }
+    }),
+  );
 }
 
 /** Archives an artist: hidden from pickers; writing and credits stay. */
@@ -187,24 +201,31 @@ export async function archiveArtist(
   artistId: unknown,
 ): Promise<void> {
   const id = idOf(artistId);
-  await guarded(async () => {
-    const result = await db.execute(sql`
-      update artists
-         set archived_at = coalesce(archived_at, now()), updated_at = now()
-       where id = ${id}
-      returning id`);
-    if (result.rows.length === 0) {
-      throw new CatalogError("not_found");
-    }
-  });
+  await guarded(() =>
+    db.transaction(async (tx) => {
+      // Archiving only takes a page away, but it can change a namesake's
+      // address, which a publication review binds (M3.5): the same lock
+      // order as a rename, so it never lands between a publication's check
+      // and its commit.
+      await lockArtistPublicExposure(tx, id);
+      const result = await tx.execute(sql`
+        update artists
+           set archived_at = coalesce(archived_at, now()), updated_at = now()
+         where id = ${id}
+        returning id`);
+      if (result.rows.length === 0) {
+        throw new CatalogError("not_found");
+      }
+    }),
+  );
 }
 
 /**
- * Restores an archived artist. Refused with `public_page` when the artist
- * holds a photograph and restoring would give it a public page (a served
- * album journal credits it): the photograph would reach readers without a
- * confirmation (M3.5; gate G8). Removing the photograph first, which is
- * always allowed, or unpublishing those journals, lets the restore through.
+ * Restores an archived artist. Refused with `public_page` when restoring
+ * would give it a public page (a served album journal credits it), with or
+ * without a photograph: the page would appear without a confirmation (M3.5,
+ * the owner's review of PR #46). The way to do it is to unpublish those
+ * journals, restore, and publish again through the publication review.
  * Decided after the entries' share locks and the artist's row lock, in the
  * photograph command's order (proposed ADR 0006 A5).
  */
@@ -217,17 +238,14 @@ export async function restoreArtist(
   await guarded(() =>
     db.transaction(async (tx) => {
       const wouldShow = await lockArtistRestoreExposure(tx, id);
-      const found = await tx.execute<{ archived: boolean; photo: boolean }>(
-        sql`
-        select archived_at is not null as archived,
-               photo_url is not null as photo
-          from artists where id = ${id}`,
-      );
+      const found = await tx.execute<{ archived: boolean }>(sql`
+        select archived_at is not null as archived
+          from artists where id = ${id}`);
       const row = found.rows[0];
       if (!row) {
         throw new CatalogError("not_found");
       }
-      if (row.archived && row.photo && wouldShow) {
+      if (row.archived && wouldShow) {
         throw new CatalogError("public_page");
       }
       await tx
@@ -421,15 +439,36 @@ export async function updateAlbum(
 ): Promise<void> {
   const id = idOf(albumId);
   const { credits, edition, ...fields } = parse(albumPatch, patch);
+  const creditedIds = [
+    ...new Set((credits ?? []).map((credit) => credit.artistId)),
+  ].sort();
   await guarded(() =>
     db.transaction(async (tx) => {
+      // Credits decide which artists have a public page (M3.5). The entries
+      // first, then the album, then the credited artists (ADR 0006 § 7, L3),
+      // then the decision: a credit that would put an artist on a public page
+      // for the first time is refused, because no confirmation covers it;
+      // the way to do it is to unpublish, change the credits, and publish
+      // again, through the publication review.
+      if (credits) {
+        await lockAlbumCreditExposure(tx, id, creditedIds);
+      }
       await lockAlbum(tx, id);
       if (credits) {
-        await assertArtistsLinkable(
-          tx,
-          credits.map((credit) => credit.artistId),
-          await linkedAlbumArtists(tx, id),
-        );
+        await tx.execute(sql`
+          select id from artists
+           where id in (${sql.join(
+             creditedIds.map((artistId) => sql`${artistId}`),
+             sql`, `,
+           )})
+           order by id
+             for share`);
+        const linked = await linkedAlbumArtists(tx, id);
+        await assertArtistsLinkable(tx, creditedIds, linked);
+        const added = creditedIds.filter((artistId) => !linked.has(artistId));
+        if ((await artistsNewlyExposedByCredit(tx, id, added)).length > 0) {
+          throw new CatalogError("public_page");
+        }
       }
       const albumFields = present(fields);
       if (Object.keys(albumFields).length > 0) {

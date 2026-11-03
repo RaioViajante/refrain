@@ -263,6 +263,52 @@ function OpenPublishDialog({
               </p>
             </ReviewSection>
 
+            {ready.artistPages.length > 0 ? (
+              <ReviewSection
+                title={`Artist pages that will open (${ready.artistPages.length})`}
+              >
+                <ul className="studio-review-list">
+                  {ready.artistPages.map((page) => (
+                    <li key={`${page.name}:${page.address ?? ""}`}>
+                      <p className="studio-label">{page.name}</p>
+                      <p lang="en">
+                        {page.address
+                          ? `/artists/${page.address}`
+                          : "No address: another artist has the same one, so neither page is shown."}
+                      </p>
+                      <p className="studio-hint" lang="en">
+                        {page.photo
+                          ? `With the photograph ${page.photo.title} (${page.photo.credit}, ${page.photo.license})`
+                          : "Without a photograph"}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+                <p className="studio-hint" lang="en">
+                  Each artist credited on this album gets a public page when
+                  this is published, if they have none yet. To leave one out,
+                  change the album’s credits first, then review again.
+                </p>
+              </ReviewSection>
+            ) : null}
+
+            {ready.artistAddressChanges.length > 0 ? (
+              <ReviewSection title="Artist pages whose address changes">
+                <ul className="studio-review-list">
+                  {ready.artistAddressChanges.map((change) => (
+                    <li key={change.from}>
+                      <p lang="en">
+                        {change.name}: /artists/{change.from} becomes{" "}
+                        {change.to ? `/artists/${change.to}` : "no address"},
+                        because an artist with the same name gets a page. The
+                        old address will stop working.
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </ReviewSection>
+            ) : null}
+
             {ready.albumRating ? (
               <ReviewSection title="Your rating for the album">
                 <p lang="en">
