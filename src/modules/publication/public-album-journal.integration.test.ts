@@ -319,7 +319,14 @@ describe("the public album journal's projection", () => {
         "title",
       ]);
       expect(page.album.artwork).toBeNull();
-      expect(Object.keys(page.credits[0]!)).toEqual(["name"]);
+      // M3.5: the credited artist's public address, never an identifier.
+      expect(Object.keys(page.credits[0]!).sort()).toEqual([
+        "artistAddress",
+        "name",
+      ]);
+      expect(page.credits[0]!.artistAddress).toMatch(
+        /^[a-z0-9]+(-[a-z0-9]+)*$/,
+      );
       // A track row carries no database id.
       expect(Object.keys(page.tracks[0]!).sort()).toEqual([
         "credit",

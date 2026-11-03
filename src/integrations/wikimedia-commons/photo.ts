@@ -207,6 +207,18 @@ export function isPlainCredit(value: unknown): value is string {
   );
 }
 
+/**
+ * The credit as a caption under the photograph. A file's own attribution
+ * sometimes begins with "Photo:" already; the stored credit stays exactly as
+ * the file asks, and only the caption's prefix is left out, so it never reads
+ * "Photo: Photo:". Shared by the studio and the public artist page.
+ */
+export function photoCreditCaption(credit: string): string {
+  return /^(?:photo|photograph|foto)(?:\s+by)?\s*[:©]/i.test(credit)
+    ? credit
+    : `Photo: ${credit}`;
+}
+
 /** A stored artist photograph, with everything an attribution needs. */
 export interface ArtistPhoto extends PhotoImage {
   fileName: string;

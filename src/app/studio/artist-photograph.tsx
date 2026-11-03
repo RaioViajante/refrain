@@ -1,6 +1,7 @@
-import type {
-  ArtistPhoto,
-  PhotoLicense,
+import {
+  photoCreditCaption,
+  type ArtistPhoto,
+  type PhotoLicense,
 } from "@/integrations/wikimedia-commons";
 
 import { PhotoImage } from "./photo-image";
@@ -61,15 +62,10 @@ export function PhotoFrame({
 }
 
 /**
- * The credit as a caption. A file's own attribution sometimes begins with
- * "Photo:" already; the stored credit stays exactly as the file asks, and
- * only the caption's prefix is left out, so it never reads "Photo: Photo:".
+ * The credit as a caption (shared with the public artist page since M3.5,
+ * `photoCreditCaption`).
  */
-export function creditCaption(credit: string): string {
-  return /^(?:photo|photograph|foto)(?:\s+by)?\s*[:©]/i.test(credit)
-    ? credit
-    : `Photo: ${credit}`;
-}
+export const creditCaption = photoCreditCaption;
 
 /** The license's name, linked to its deed when it has one. */
 export function LicenseName({ license }: { license: PhotoLicense }) {

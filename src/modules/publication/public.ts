@@ -19,16 +19,24 @@ import {
   listPublicAlbumJournalAddresses as listPublicAlbumJournalAddressesFrom,
 } from "./public-album-journal";
 import {
+  getPublicArtist as getPublicArtistFrom,
+  listPublicArtistAddresses as listPublicArtistAddressesFrom,
+  type PublicArtist,
+} from "./public-artist";
+import {
   getPublicHome as getPublicHomeFrom,
   type PublicHome,
 } from "./public-home";
 import {
   routeAlbumJournalRequest as routeAlbumJournalRequestWith,
+  routeArtistRequest as routeArtistRequestWith,
   type AlbumJournalRequest,
 } from "./public-routing";
 import { publicReadsEnabled } from "./public-reads";
 import {
+  resolvePublicArtistAddress as resolvePublicArtistAddressFrom,
   resolvePublicSlug as resolvePublicSlugFrom,
+  type ArtistAddressResolution,
   type SlugResolution,
 } from "./queries";
 
@@ -48,8 +56,14 @@ export type {
   PublicCredit,
   PublicJournalTrack,
 } from "./public-album-journal";
+export type {
+  PublicArtist,
+  PublicArtistAlbum,
+  PublicArtistPhoto,
+  PublicArtistTrack,
+} from "./public-artist";
 export type { PublicHome, PublicJournalCard } from "./public-home";
-export type { SlugResolution } from "./queries";
+export type { ArtistAddressResolution, SlugResolution } from "./queries";
 export { isNormalizedSlug } from "./slug";
 
 export async function getPublicAlbumJournal(
@@ -94,4 +108,41 @@ export async function resolvePublicAlbumJournalSlug(
 /** What the address answers; see `public-routing.ts`. */
 export function routeAlbumJournalRequest(request: AlbumJournalRequest) {
   return routeAlbumJournalRequestWith(getDb, request);
+}
+
+/**
+ * A public artist's page (M3.5), or null when the artist is not publicly
+ * visible. While reads are off it is null for every artist.
+ */
+export async function getPublicArtist(
+  artistId: string,
+  readerLocale: Locale,
+): Promise<PublicArtist | null> {
+  if (!publicReadsEnabled()) {
+    return null;
+  }
+  return getPublicArtistFrom(getDb(), artistId, readerLocale);
+}
+
+/** Resolves an artist address: found, or not found. */
+export async function resolvePublicArtistAddress(
+  address: string,
+): Promise<ArtistAddressResolution> {
+  if (!publicReadsEnabled()) {
+    return { outcome: "not_found" };
+  }
+  return resolvePublicArtistAddressFrom(getDb(), address);
+}
+
+/** Every public artist address, for the sitemap. */
+export async function listPublicArtistAddresses(): Promise<string[]> {
+  if (!publicReadsEnabled()) {
+    return [];
+  }
+  return listPublicArtistAddressesFrom(getDb());
+}
+
+/** What an artist address answers; see `public-routing.ts`. */
+export function routeArtistRequest(request: AlbumJournalRequest) {
+  return routeArtistRequestWith(getDb, request);
 }

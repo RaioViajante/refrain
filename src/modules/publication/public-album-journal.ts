@@ -10,6 +10,7 @@ import {
   getPublicLanguageVersion,
   listPublicLanguageVersions,
   listPublicTrackReflections,
+  publicArtistAddresses,
   servedAlbumJournalAddresses,
   type PublicLanguageVersionSummary,
   type PublicTrackReflection,
@@ -42,6 +43,12 @@ export function choosePublicVersion(
 
 export interface PublicCredit {
   name: string;
+  /**
+   * The credited artist's public address (`/artists/<address>`, M3.5), or
+   * null when the artist has no page (an archived artist: its credit is plain
+   * text, Product rule 6).
+   */
+  artistAddress: string | null;
 }
 
 export interface PublicJournalTrack {
@@ -101,6 +108,7 @@ interface FrameRow extends Record<string, unknown> {
 }
 
 interface CreditRow extends Record<string, unknown> {
+  artist_id: string;
   name: string;
 }
 
@@ -147,7 +155,7 @@ export async function getPublicAlbumJournal(
   }
 
   const credits = await db.execute<CreditRow>(sql`
-    select coalesce(aa.credited_as, ar.name) as name
+    select ar.id as artist_id, coalesce(aa.credited_as, ar.name) as name
       from (${publicLanguageVersions}) pv
       join album_journals aj on aj.entry_id = pv.entry_id
       join album_artists aa on aa.album_id = aj.album_id
@@ -170,6 +178,13 @@ export async function getPublicAlbumJournal(
     entryId,
     version.locale,
   );
+  // Only read when there is a credit to link. Built from the same served
+  // addresses as this page, so every credited artist that is not archived has
+  // one; the identifier never leaves this function.
+  const artistAddresses =
+    credits.rows.length > 0
+      ? await publicArtistAddresses(db)
+      : new Map<string, string>();
 
   return {
     entryId,
@@ -186,7 +201,10 @@ export async function getPublicAlbumJournal(
       label: frameRow.label,
       artwork: publicArtworkOf(frameRow.cover_url, frameRow.cover_source),
     },
-    credits: credits.rows.map((row) => ({ name: row.name })),
+    credits: credits.rows.map((row) => ({
+      name: row.name,
+      artistAddress: artistAddresses.get(row.artist_id) ?? null,
+    })),
     tracks: mergeTracks(listed.rows, reflections),
   };
 }
