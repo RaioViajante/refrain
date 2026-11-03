@@ -45,6 +45,78 @@ describe("catalog constraints", () => {
             photoUrl: "https://commons.wikimedia.org/[test].jpg",
           }),
       );
+      // M3.3: a photograph always carries its provenance, and provenance
+      // never outlives its photograph.
+      const sha1 = "0123456789abcdef0123456789abcdef01234567";
+      const photo = {
+        photoUrl: "https://thumb.wikimedia.org/[test].jpg",
+        photoCredit: "[Test] Photographer",
+        photoLicense: "CC BY 4.0",
+        photoSourceUrl: "https://commons.wikimedia.org/wiki/File:[test].jpg",
+      };
+      for (const missing of [
+        "photoFileSha1",
+        "photoFileTimestamp",
+        "photoChosenAt",
+      ] as const) {
+        const provenance = {
+          photoFileSha1: sha1,
+          photoFileTimestamp: new Date("2020-01-01T00:00:00Z"),
+          photoChosenAt: new Date("2026-11-02T00:00:00Z"),
+          [missing]: null,
+        };
+        await expectRejected(
+          tx,
+          {
+            code: checkViolation,
+            constraint: "artists_photo_provenance_check",
+          },
+          (sp) =>
+            sp.insert(schema.artists).values({
+              name: "[Test] Artist",
+              kind: "person",
+              ...photo,
+              ...provenance,
+            }),
+        );
+      }
+      await expectRejected(
+        tx,
+        { code: checkViolation, constraint: "artists_photo_provenance_check" },
+        (sp) =>
+          sp.insert(schema.artists).values({
+            name: "[Test] Artist",
+            kind: "person",
+            photoFileSha1: sha1,
+          }),
+      );
+      for (const badSha1 of [
+        "ABCDEF0123456789ABCDEF0123456789ABCDEF01",
+        "0123",
+        `${sha1}0`,
+      ]) {
+        await expectRejected(
+          tx,
+          { code: checkViolation, constraint: "artists_photo_file_sha1_check" },
+          (sp) =>
+            sp.insert(schema.artists).values({
+              name: "[Test] Artist",
+              kind: "person",
+              ...photo,
+              photoFileSha1: badSha1,
+              photoFileTimestamp: new Date("2020-01-01T00:00:00Z"),
+              photoChosenAt: new Date("2026-11-02T00:00:00Z"),
+            }),
+        );
+      }
+      await tx.insert(schema.artists).values({
+        name: "[Test] Photographed artist",
+        kind: "person",
+        ...photo,
+        photoFileSha1: sha1,
+        photoFileTimestamp: new Date("2020-01-01T00:00:00Z"),
+        photoChosenAt: new Date("2026-11-02T00:00:00Z"),
+      });
       await expectRejected(
         tx,
         { code: checkViolation, constraint: "albums_first_release_year_check" },

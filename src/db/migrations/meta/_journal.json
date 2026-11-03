@@ -36,6 +36,13 @@
       "when": 1793484602195,
       "tag": "0004_identity_authentication",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793665504192,
+      "tag": "0005_artist_photo_provenance",
+      "breakpoints": true
     }
   ]
 }
