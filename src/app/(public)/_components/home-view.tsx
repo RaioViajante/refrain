@@ -46,15 +46,13 @@ const addressOf = (card: PublicJournalCard) => `/albums/${card.slug}`;
 const creditOf = (card: PublicJournalCard) => card.credits.join(", ");
 
 /**
- * The drawing, the introduction, and the line under it: the part of the Home
- * that is the same for every reader and every state of the journal. The
- * drawing is the original character, as its production copy (a WebP made
+ * The drawing and the introduction: the part of the Home that is the same for
+ * every reader and every state of the journal, and so its prerendered shell.
+ * The drawing is the original character, as its production copy (a WebP made
  * from the original with its transparency kept bit for bit,
  * docs/design-system.md § Assets), served as that file: no further copy.
  */
-export function HomeOpening({
-  children,
-}: Readonly<{ children: React.ReactNode }>) {
+export function HomeOpening() {
   return (
     <section className="ph-opening" aria-labelledby="ph-title">
       <h1 id="ph-title" className="pj-visually-hidden">
@@ -71,7 +69,6 @@ export function HomeOpening({
         alt={CHARACTER_ALT}
       />
       <p className="ph-intro">{HOME_INTRODUCTION}</p>
-      {children}
     </section>
   );
 }
@@ -80,7 +77,7 @@ export function HomeOpening({
  * "Most recent:" and the newest journal, or, when nothing is published (or
  * public reads are off, which answers the same), one quiet line.
  */
-export function MostRecent({ home }: Readonly<{ home: PublicHome }>) {
+function MostRecent({ home }: Readonly<{ home: PublicHome }>) {
   const newest = home.recent[0];
   if (!newest) {
     return <p className="ph-since">Nothing published yet.</p>;
@@ -230,15 +227,18 @@ function Albums({ cards }: Readonly<{ cards: readonly PublicJournalCard[] }>) {
   );
 }
 
-/** The notebook sections. Nothing at all when nothing is published. */
+/**
+ * Everything the Home reads, as one streamed part: the line under the
+ * introduction, then the notebook sections (none when nothing is published).
+ * One part, appended below the shell, so nothing already on the screen is
+ * pushed when it arrives; the footer waits for it (public.css, `.ph-lists`).
+ */
 export function HomeListings({ home }: Readonly<{ home: PublicHome }>) {
-  if (home.recent.length === 0 && home.albums.length === 0) {
-    return null;
-  }
   return (
-    <>
+    <div className="ph-lists">
+      <MostRecent home={home} />
       {home.recent.length > 0 ? <RecentlyWritten cards={home.recent} /> : null}
       {home.albums.length > 0 ? <Albums cards={home.albums} /> : null}
-    </>
+    </div>
   );
 }

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
-import { cache, Suspense } from "react";
+import { Suspense } from "react";
 
 import {
   getPublicHome,
@@ -13,7 +13,6 @@ import {
   HOME_INTRODUCTION,
   HomeListings,
   HomeOpening,
-  MostRecent,
 } from "@/app/(public)/_components/home-view";
 import {
   PUBLIC_CONTENT_ID,
@@ -38,15 +37,14 @@ const READER_LOCALE = "en";
 
 const NOTHING_PUBLISHED: PublicHome = { recent: [], albums: [] };
 
-// Deduplicated within one request, so both parts of the page agree.
-const load = cache(async (): Promise<PublicHome> => {
+async function load(): Promise<PublicHome> {
   // Runtime only, never at build time.
   await connection();
   if (!publicReadsEnabled()) {
     return NOTHING_PUBLISHED;
   }
   return getPublicHome(READER_LOCALE);
-});
+}
 
 export async function generateMetadata(): Promise<Metadata> {
   // The site's own origin is read when a request is served, never at build
@@ -74,21 +72,14 @@ export default function HomePage() {
   return (
     <PublicFrame current="home">
       <main className="public-shell ph" id={PUBLIC_CONTENT_ID} tabIndex={-1}>
-        <HomeOpening>
-          <Suspense fallback={null}>
-            <MostRecentLine />
-          </Suspense>
-        </HomeOpening>
+        <HomeOpening />
+        {/* One streamed part, below the shell: see HomeListings. */}
         <Suspense fallback={null}>
           <Listings />
         </Suspense>
       </main>
     </PublicFrame>
   );
-}
-
-async function MostRecentLine() {
-  return <MostRecent home={await load()} />;
 }
 
 async function Listings() {

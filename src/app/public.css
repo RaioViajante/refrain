@@ -215,6 +215,16 @@ a.public-link:hover,
   margin: 16px auto 0;
   font-size: 23px;
   line-height: 1.6;
+  /* Centered lines of even length: no single word left on the last one. */
+  text-wrap: balance;
+}
+
+/* The Home's lists, the line under the introduction included, are read per
+   request and streamed after the shell is painted. Until they are in place
+   the footer is left out of the layout: it appears once, at its place,
+   instead of being painted under the introduction and then pushed down. */
+.public:has(> main.ph):not(:has(.ph-lists)) > .public-footer {
+  display: none;
 }
 
 .ph-since {
@@ -430,9 +440,20 @@ a.public-link:hover,
 
 .ph-album-rating {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 4px 8px;
   margin-top: 4px;
+}
+
+/* Between the phone layout and a wide screen (721px to 1100px), four albums
+   beside the margin column would be about 90px each at 768px, too narrow for
+   a title or a rating. The approved screens show only 1440px and 390px; this
+   keeps the notebook and uses the phone's two albums to a row. */
+@media (max-width: 1100px) {
+  .ph-albums {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .ph-rating-value {
