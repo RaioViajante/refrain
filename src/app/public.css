@@ -1056,10 +1056,40 @@ article.pa-grid {
   overflow-wrap: anywhere;
 }
 
-/* A name longer than its column breaks with a hyphen, never silently in the
-   middle of a word. */
-.pa-title {
+/* The name keeps the album title's sizes (104px, 62px on a phone, 54px at
+   370px and below) unless its longest word would not fit the column at that
+   size; then it is set just small enough for that word to fit, never below
+   30px, so ordinary words are not broken (the owner's visual review of M3.5).
+   `--pa-longest` is the longest word's length in characters, set by the page;
+   0.51em is the widest per-letter average of ordinary words in Kalam 700,
+   measured in the browser (0.43em for "Extraordinarily", 0.48em for
+   "Buckley", 0.506em for "Massachusetts"), so an ordinary word always fits.
+   A name keeps its size wherever it fitted before; in the narrowest
+   two-column layout (721 to about 760px), where "Buckley" used to break,
+   it is set a little smaller instead. Only a word too long
+   even at 30px is broken, with a hyphen where the browser hyphenates. Normal
+   names ("Jeff Buckley") are untouched at every width. */
+.pa-head {
+  container-type: inline-size;
+}
+
+.pj-title.pa-title {
+  --pa-fit: calc(100cqi / (var(--pa-longest, 1) * 0.51));
+  font-size: max(30px, min(104px, var(--pa-fit)));
+  overflow-wrap: break-word;
   hyphens: auto;
+}
+
+@media (max-width: 720px) {
+  .pj-title.pa-title {
+    font-size: max(30px, min(62px, var(--pa-fit)));
+  }
+}
+
+@media (max-width: 370px) {
+  .pj-title.pa-title {
+    font-size: max(30px, min(54px, var(--pa-fit)));
+  }
 }
 
 .pa-section {

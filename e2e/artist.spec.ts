@@ -81,6 +81,35 @@ async function serveImages(page: Page, requested: string[] = []) {
 
 const isMobile = (page: Page) => (page.viewportSize()?.width ?? 1440) <= 720;
 
+/**
+ * The words of the page's title that the browser split across lines: each
+ * word's rectangles must share one top, or it was broken in the middle.
+ */
+const brokenWords = (page: Page) =>
+  page.locator("h1").evaluate((heading) => {
+    const text = heading.firstChild;
+    if (!text || text.nodeType !== Node.TEXT_NODE) {
+      return ["(no text)"];
+    }
+    const content = text.textContent ?? "";
+    const broken: string[] = [];
+    for (const match of content.matchAll(/[^\s\u2010\u2011-]+/gu)) {
+      const range = document.createRange();
+      range.setStart(text, match.index);
+      range.setEnd(text, match.index + match[0].length);
+      const tops = new Set(
+        [...range.getClientRects()].map((rect) => Math.round(rect.top)),
+      );
+      if (tops.size > 1) {
+        broken.push(match[0]);
+      }
+    }
+    return broken;
+  });
+
+const titleSize = (page: Page) =>
+  page.locator("h1").evaluate((heading) => getComputedStyle(heading).fontSize);
+
 const overflow = (page: Page) =>
   page.evaluate(
     () =>
@@ -282,10 +311,12 @@ test("shows the empty frame and the whole name for a band without a photograph",
   await expect(page.locator(".pa-photo-image")).toHaveCount(0);
   expect(requested).toEqual([]);
   const mobile = isMobile(page);
-  // The name wraps inside its column, at every width.
-  for (const width of [320, 390, 768, 1440, 2560]) {
+  // The name wraps inside its column, at every width, between words: no
+  // ordinary word is broken in the middle (the owner's visual review).
+  for (const width of [320, 360, 390, 721, 768, 1024, 1440, 2560]) {
     await page.setViewportSize({ width, height: 900 });
     expect(await overflow(page), `${width}px`).toBeLessThanOrEqual(0);
+    expect(await brokenWords(page), `${width}px`).toEqual([]);
     const title = (await page
       .getByRole("heading", { level: 1 })
       .boundingBox())!;
@@ -474,9 +505,22 @@ test("is laid out without sideways scrolling, and the photograph keeps its size 
   );
 
   const mobile = isMobile(page);
-  for (const width of [320, 390, 768, 1024, 1440, 2560]) {
+  for (const width of [320, 390, 721, 768, 1024, 1440, 2560]) {
     await page.setViewportSize({ width, height: 900 });
     expect(await overflow(page), `${width}px`).toBeLessThanOrEqual(0);
+    // A name of ordinary length keeps the approved sizes exactly, except
+    // in the narrowest two-column layout, where 104px would break "Buckley"
+    // in the middle: there it is set a little smaller instead.
+    if (width === 721) {
+      const size = parseFloat(await titleSize(page));
+      expect(size).toBeLessThan(104);
+      expect(size).toBeGreaterThan(90);
+    } else {
+      expect(await titleSize(page), `${width}px`).toBe(
+        width <= 370 ? "54px" : width <= 720 ? "62px" : "104px",
+      );
+    }
+    expect(await brokenWords(page), `${width}px`).toEqual([]);
   }
   if (!mobile) {
     await page.setViewportSize({ width: 768, height: 1024 });

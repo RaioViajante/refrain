@@ -15,6 +15,8 @@ import { PersonIcon } from "@/app/(public)/_components/person-icon";
 import { PUBLIC_CONTENT_ID } from "@/app/(public)/_components/public-frame";
 import { RecordIcon } from "@/app/(public)/_components/record-icon";
 
+import { longestWordLength } from "./title-fit";
+
 // The public artist page (M3.5; the approved V4.4 `Artist` screen). It renders
 // only what the Publication read model returned: the artist's name, the
 // photograph the author chose with its attribution, and the album journals
@@ -90,7 +92,18 @@ export function ArtistView({ artist }: Readonly<{ artist: PublicArtist }>) {
             <PersonIcon />
             Artist
           </p>
-          <h1 className="pj-title pa-title">{artist.name}</h1>
+          {/* The longest word sizes the title on a narrow screen, so that
+              ordinary words stay whole (public.css, `.pa-title`). */}
+          <h1
+            className="pj-title pa-title"
+            style={
+              {
+                "--pa-longest": longestWordLength(artist.name),
+              } as React.CSSProperties
+            }
+          >
+            {artist.name}
+          </h1>
         </header>
       </article>
 
