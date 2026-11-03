@@ -1,7 +1,6 @@
 import type { PublicArtistPhoto } from "@/modules/publication/public";
 
-import { PersonIcon } from "./person-icon";
-import { PublicPhotoImage } from "./public-photo-image";
+import { PublicPhotoFrame } from "./public-photo-image";
 
 // An artist's photograph on the public artist page (M3.5; the V4.4 `Artist`
 // screen): the fixed 4:5 frame with its hatched fallback underneath, the
@@ -22,27 +21,10 @@ export function ArtistPhotoFrame({
   photo,
 }: Readonly<{ name: string; photo: PublicArtistPhoto | null }>) {
   return (
-    <div
-      className="pa-photo"
-      role="img"
-      aria-label={
-        photo ? `Photograph of ${name}` : `No photograph of ${name} yet`
-      }
-    >
-      <span className="pj-cover-hatch" aria-hidden="true" />
-      <span className="pj-cover-text" aria-hidden="true">
-        <PersonIcon size={26} />
-        <b>Artist photograph</b>
-        <i>{photo ? "from Wikimedia Commons" : "not available yet"}</i>
-      </span>
-      {photo ? (
-        <PublicPhotoImage
-          src={photo.src}
-          srcSet={photo.srcSet}
-          sizes="(max-width: 720px) calc(100vw - 36px), 400px"
-        />
-      ) : null}
-    </div>
+    <PublicPhotoFrame
+      name={name}
+      image={photo ? { src: photo.src, srcSet: photo.srcSet } : null}
+    />
   );
 }
 

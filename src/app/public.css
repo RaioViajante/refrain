@@ -994,6 +994,13 @@ article.pa-grid {
   overflow-wrap: anywhere;
 }
 
+/* A link in the credit keeps its 44px target, but takes only a line's height
+   in the text, so a credit that wraps does not open a gap between its lines.
+   The target overlaps the line's leading, never another link. */
+.pa-credit .public-link-inline {
+  margin-block: -12px;
+}
+
 .pa-credit-details summary {
   display: inline-flex;
   align-items: center;
@@ -1018,8 +1025,10 @@ article.pa-grid {
   overflow-wrap: anywhere;
 }
 
+/* A name longer than its column breaks with a hyphen, never silently in the
+   middle of a word. */
 .pa-title {
-  hyphens: manual;
+  hyphens: auto;
 }
 
 .pa-section {
