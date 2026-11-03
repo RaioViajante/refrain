@@ -162,6 +162,47 @@ describe("what the build prerenders for the public routes", () => {
     expect(html).not.toContain("__refrain-unknown-address");
   });
 
+  // The Home (M3.4; ADR 0006, amendment A4). Its shell is the frame, the
+  // drawing, and the introduction: the same for every state of the journal.
+  // What it lists, and even whether it says "Nothing published yet.", is
+  // decided per request, so neither is in the build.
+  it("has a Home shell that is the frame, the drawing, and the introduction only", () => {
+    expect(manifest.routes["/"]?.renderingMode).toBe("PARTIALLY_STATIC");
+    const html = text(join(APP, "index.html"));
+    expect(visibleText(html)).toBe(
+      "Skip to content Home refrain A personal music journal about albums, songs, and the memories attached to them. some songs take you back.",
+    );
+    expect(
+      [...html.matchAll(/<a [^>]*href="([^"]*)"/g)].map((m) => m[1]),
+    ).toEqual(["#main", "/"]);
+    const images = [...html.matchAll(/<img\b[^>]*>/g)].map((m) => m[0]);
+    expect(images).toHaveLength(1);
+    expect(images[0]).toContain('src="/artwork/refrain-home-character.webp"');
+    expect(html).not.toContain("/_next/image");
+    expect(html).not.toContain("reference/");
+    // The metadata is read per request (the site's origin), so none is here.
+    expect(html).not.toMatch(/<title/);
+    expect(html).not.toMatch(/<link[^>]+rel="canonical"/);
+    expect(html).not.toMatch(/application\/(?:ld\+)?json/);
+    for (const file of [
+      join(APP, "index.html"),
+      ...files(join(APP, "index.segments")),
+    ]) {
+      const body = text(file);
+      for (const needle of [
+        "/albums/",
+        "Nothing published yet",
+        "Most recent",
+        "Recently written",
+        "[Test]",
+        "Grace",
+        "Buckley",
+      ]) {
+        expect(body, `${file} contains ${needle}`).not.toContain(needle);
+      }
+    }
+  });
+
   it("contains no journal text anywhere in the album or not-found output", () => {
     const everything = [
       ...files(join(APP, "albums")),
