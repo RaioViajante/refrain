@@ -448,9 +448,7 @@ describe("the sitemap", () => {
     expect(sitemap.status).toBe(200);
     expect(sitemap.headers["cache-control"]).toBe("no-store");
     const listed = [
-      ...sitemap.body.matchAll(
-        /<loc>[^<]*\/artists\/([^<]+)<\/loc>/g,
-      ),
+      ...sitemap.body.matchAll(/<loc>[^<]*\/artists\/([^<]+)<\/loc>/g),
     ].map((match) => match[1]!);
     for (const address of Object.values(addresses)) {
       expect(listed).toContain(address);
