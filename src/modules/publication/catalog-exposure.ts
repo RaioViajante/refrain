@@ -62,8 +62,10 @@ export async function isArtistOnPublicPage(
  *    restoring the artist change under the same row lock, so neither can
  *    change it either.
  *
- * What still can, recorded in A5: a journal created after step 1, and a
- * credit added to an album meanwhile (gap C11).
+ * What still can, recorded in A5's residual windows: a journal created
+ * after step 1, or a credit to the artist added on another album after step
+ * 1, followed by that journal's publication, all before this command
+ * commits.
  */
 export async function lockArtistPublicExposure(
   tx: Transaction,

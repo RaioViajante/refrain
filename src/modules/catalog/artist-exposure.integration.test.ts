@@ -182,6 +182,38 @@ describe("the artist pages a publication review discloses", () => {
   });
 });
 
+describe("a rename of a public artist (audit, the owner's review of PR #46)", () => {
+  it("moves the page to the new name's address at once; the old address answers as an unknown one", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const { publicArtistAddresses, resolvePublicArtistAddress } =
+        await import("@/modules/publication/queries");
+      const artistId = await publicArtist(tx);
+      const before = (await publicArtistAddresses(tx)).get(artistId)!;
+      const renamed = uniqueLabel("Renamed");
+      await updateArtist(tx, author, artistId, { name: renamed });
+      const after = (await publicArtistAddresses(tx)).get(artistId)!;
+      expect(after).not.toBe(before);
+      expect((await resolvePublicArtistAddress(tx, after)).outcome).toBe(
+        "found",
+      );
+      expect((await resolvePublicArtistAddress(tx, before)).outcome).toBe(
+        "not_found",
+      );
+
+      // Renamed into a public namesake: both pages take suffixed addresses,
+      // and neither keeps the bare name.
+      const other = await publicArtist(tx);
+      await updateArtist(tx, author, other, { name: renamed });
+      const both = await publicArtistAddresses(tx);
+      expect(both.get(artistId)).toMatch(new RegExp(`^${after}-[0-9a-f]{10}$`));
+      expect(both.get(other)).toMatch(new RegExp(`^${after}-[0-9a-f]{10}$`));
+      expect((await resolvePublicArtistAddress(tx, after)).outcome).toBe(
+        "not_found",
+      );
+    });
+  });
+});
+
 describe("a confirmation is stale after any change to the artist pages it disclosed", () => {
   const changes: [
     string,
@@ -264,6 +296,38 @@ describe("a confirmation is stale after any change to the artist pages it disclo
         opening.entryId,
         await preview(tx, opening.entryId),
       );
+    });
+  });
+
+  it("is stale when a namesake's page goes away, which changes the disclosed address", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const opening = await draftWithNewArtist(tx);
+      const [row] = await tx
+        .select({ name: schema.artists.name })
+        .from(schema.artists)
+        .where(sql`id = ${opening.artistId}`);
+      const namesake = await publicArtist(tx, row!.name);
+      const reviewed = await preview(tx, opening.entryId);
+      expect(reviewed.disclosure.artistPages[0]!.address).toMatch(
+        /-[0-9a-f]{10}$/,
+      );
+      // Archiving the namesake would give the opening page the bare name.
+      await archiveArtist(tx, author, namesake);
+      expect(await failureOf(publishWith(tx, opening.entryId, reviewed))).toBe(
+        "confirmation_stale",
+      );
+    });
+  });
+
+  it("discloses a photograph that is not in the stored form as none, as the page would show it", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const opening = await draftWithNewArtist(tx);
+      await setTestArtistPhoto(tx, opening.artistId, GRACE_ARTIST_PHOTO);
+      await tx.execute(sql`
+        update artists set photo_url = 'https://evil.example/x.jpg'
+         where id = ${opening.artistId}`);
+      const reviewed = await preview(tx, opening.entryId);
+      expect(reviewed.disclosure.artistPages[0]!.photo).toBeNull();
     });
   });
 
@@ -355,7 +419,7 @@ describe("a rename or an archive while a publication holds the journal", () => {
         locked();
         await held;
       });
-      await isLocked;
+      await Promise.race([isLocked, rename]);
       let outcome = "granted";
       try {
         outcome = await second!
@@ -406,7 +470,7 @@ describe("a rename or an archive while a publication holds the journal", () => {
           locked();
           await held;
         });
-        await isLocked;
+        await Promise.race([isLocked, publication]);
         const change = command(second!).then(
           () => "done",
           (error: unknown) => String(error),

@@ -268,8 +268,10 @@ function OpenPublishDialog({
                 title={`Artist pages that will open (${ready.artistPages.length})`}
               >
                 <ul className="studio-review-list">
-                  {ready.artistPages.map((page) => (
-                    <li key={`${page.name}:${page.address ?? ""}`}>
+                  {ready.artistPages.map((page, index) => (
+                    // Two artists can share a name and, rarely, have no
+                    // address: the position keeps the key unique.
+                    <li key={`${index}:${page.name}`}>
                       <p className="studio-label">{page.name}</p>
                       <p lang="en">
                         {page.address

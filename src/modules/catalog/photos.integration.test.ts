@@ -16,6 +16,7 @@ import {
 } from "@/testing";
 import {
   isArtistOnPublicPage,
+  lockAlbumCreditExposure,
   lockArtistPublicExposure,
 } from "@/modules/publication";
 import { FIXTURE } from "@/testing/provider-fixtures";
@@ -1510,7 +1511,8 @@ describe("the public page guard, over real connections", () => {
     await withConnections(2, async ([first, second]) => {
       const editorPid = await backendPid(second!);
       const publish = holdPublish(first!, owner.entryIds[0]!);
-      await publish.isLocked;
+      // Never waits forever: a stand-in that fails before it locks ends.
+      await Promise.race([publish.isLocked, publish.done]);
       const change = updateAlbum(second!, author, albumId, {
         credits: [
           { artistId: owner.artistId },
@@ -1537,6 +1539,72 @@ describe("the public page guard, over real connections", () => {
     expect(credits.map((row) => row.artistId)).toEqual([owner.artistId]);
   });
 
+  it("refuses a credit list that replaces every artist, locking the album's own journal", async () => {
+    // Only the album's own journal decides here: the newcomer is credited
+    // nowhere, and the owner is no longer in the list, so no other album's
+    // journal is reached (the review of PR #46).
+    const db = getDb();
+    const owner = await committedArtist("Replaced owner", 1);
+    const newcomer = await committedArtist("Replacing newcomer", 0);
+    const albumId = owner.albumIds[0]!;
+    await withConnections(2, async ([first, second]) => {
+      const editorPid = await backendPid(second!);
+      const publish = holdPublish(first!, owner.entryIds[0]!);
+      await Promise.race([publish.isLocked, publish.done]);
+      const change = updateAlbum(second!, author, albumId, {
+        credits: [{ artistId: newcomer.artistId }],
+      }).then(
+        () => "changed",
+        (error: unknown) => failureOf(error),
+      );
+      let waited = false;
+      try {
+        waited = await waitsOnLock(db, editorPid);
+      } finally {
+        publish.commit();
+      }
+      await publish.done;
+      expect(waited).toBe(true);
+      expect(await change).toBe("public_page");
+    });
+  });
+
+  it("holds the album's journals while a credit change decides, so a publish waits", async () => {
+    const owner = await committedArtist("Credit lock", 1);
+    await withConnections(2, async ([first, second]) => {
+      let release!: () => void;
+      const held = new Promise<void>((resolve) => (release = resolve));
+      let locked!: () => void;
+      const isLocked = new Promise<void>((resolve) => (locked = resolve));
+      const guard = first!.transaction(async (tx) => {
+        await lockAlbumCreditExposure(tx, owner.albumIds[0]!, []);
+        locked();
+        await held;
+      });
+      await Promise.race([isLocked, guard]);
+      let outcome = "granted";
+      try {
+        outcome = await second!
+          .transaction(async (tx) => {
+            await tx.execute(sql`set local lock_timeout = '300ms'`);
+            await tx.execute(
+              sql`select id from entries where id = ${owner.entryIds[0]!} for update`,
+            );
+          })
+          .then(
+            () => "granted",
+            (error: unknown) =>
+              (error as { cause?: { code?: string } }).cause?.code ??
+              String(error),
+          );
+      } finally {
+        release();
+      }
+      await guard;
+      expect(outcome).toBe("55P03");
+    });
+  });
+
   it("refuses a restore of the artist once a publish of its album's journal has committed while it waited", async () => {
     const db = getDb();
     const { artistId, entryIds } = await committedArtist("Restore waits", 1);
@@ -1546,7 +1614,8 @@ describe("the public page guard, over real connections", () => {
     await withConnections(2, async ([first, second]) => {
       const restorerPid = await backendPid(second!);
       const publish = holdPublish(first!, entryIds[0]!);
-      await publish.isLocked;
+      // Never waits forever: a stand-in that fails before it locks ends.
+      await Promise.race([publish.isLocked, publish.done]);
       const restore = restoreArtist(second!, author, artistId).then(
         () => "restored",
         (error: unknown) => failureOf(error),

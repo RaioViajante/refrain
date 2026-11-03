@@ -178,9 +178,11 @@ export async function updateArtist(
       // A name is part of what a publication review shows and binds (the
       // artist pages it would open, and their addresses; M3.5). Taking the
       // entries' share locks first, then the artist row (L3), means a rename
-      // waits for a publication in progress, or the publication sees it: it
-      // can never land between that publication's check and its commit. It
-      // is not refused: renaming a public artist is catalog wording (G8).
+      // waits for a publication in progress of a journal that credits this
+      // artist, or that publication sees it. A publication of a journal
+      // crediting a namesake is not locked: there the result is as if the
+      // rename came just after it (proposed ADR 0006 A5, residual windows).
+      // It is not refused: renaming a public artist is catalog wording (G8).
       await lockArtistPublicExposure(tx, id);
       const updated = await tx
         .update(schema.artists)
@@ -203,10 +205,10 @@ export async function archiveArtist(
   const id = idOf(artistId);
   await guarded(() =>
     db.transaction(async (tx) => {
-      // Archiving only takes a page away, but it can change a namesake's
-      // address, which a publication review binds (M3.5): the same lock
-      // order as a rename, so it never lands between a publication's check
-      // and its commit.
+      // Archiving only takes a page away. It takes the same locks as a
+      // rename, so a publication of a journal crediting this artist sees it
+      // or is seen by it; a namesake's address it changes is a residual
+      // window of proposed ADR 0006 A5.
       await lockArtistPublicExposure(tx, id);
       const result = await tx.execute(sql`
         update artists
