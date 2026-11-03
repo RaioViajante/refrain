@@ -223,14 +223,6 @@ a.public-link:hover,
   text-wrap: balance;
 }
 
-/* The Home's lists, the line under the introduction included, are read per
-   request and streamed after the shell is painted. Until they are in place
-   the footer is left out of the layout: it appears once, at its place,
-   instead of being painted under the introduction and then pushed down. */
-.public:has(> main.ph):not(:has(.ph-lists)) > .public-footer {
-  display: none;
-}
-
 .ph-since {
   display: flex;
   flex-wrap: wrap;

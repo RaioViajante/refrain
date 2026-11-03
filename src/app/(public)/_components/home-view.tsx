@@ -47,7 +47,7 @@ const creditOf = (card: PublicJournalCard) => card.credits.join(", ");
 
 /**
  * The drawing and the introduction: the part of the Home that is the same for
- * every reader and every state of the journal, and so its prerendered shell.
+ * every reader and every state of the journal.
  * The drawing is the original character, as its production copy (a WebP made
  * from the original with its transparency kept bit for bit,
  * docs/design-system.md § Assets), served as that file: no further copy.
@@ -228,10 +228,9 @@ function Albums({ cards }: Readonly<{ cards: readonly PublicJournalCard[] }>) {
 }
 
 /**
- * Everything the Home reads, as one streamed part: the line under the
- * introduction, then the notebook sections (none when nothing is published).
- * One part, appended below the shell, so nothing already on the screen is
- * pushed when it arrives; the footer waits for it (public.css, `.ph-lists`).
+ * Everything the Home reads: the line under the introduction, then the
+ * notebook sections (none when nothing is published). It is rendered on the
+ * server with the rest of the page, so it is in the HTML without JavaScript.
  */
 export function HomeListings({ home }: Readonly<{ home: PublicHome }>) {
   return (

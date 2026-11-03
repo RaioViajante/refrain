@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
-import { Suspense } from "react";
 
 import {
   getPublicHome,
@@ -21,16 +20,29 @@ import {
 } from "@/app/(public)/_components/public-frame";
 
 // The public Home (M3.4; the approved V4.4 `Home` screen), anonymous. It always
-// answers 200: its drawing and introduction are the same for every reader and
-// every state of the journal, so they are a generic, data-free shell
-// (ADR 0006, amendments A2 and A4). What it lists is read through the
+// answers 200 (ADR 0006, amendment A4). What it lists is read through the
 // Publication module's reading entry point alone, per request, after
-// `connection()`, behind Suspense: nothing about a journal is rendered at
-// build time or cached, and every response is `no-store` (next.config.ts).
+// `connection()`: nothing about a journal is rendered at build time or cached,
+// and every response is `no-store` (next.config.ts).
 //
-// While public reads are off, the list is the one for a site with nothing
-// published, so the page is byte for byte what an empty journal would answer
-// and reveals nothing (ADR 0006, A4; src/testing/public-home.http.test.ts).
+// The whole page is rendered on the server, per request, in one pass, and
+// sent complete: the lists are in the HTML itself, so the page reads the same
+// with JavaScript off. Under Cache Components a page whose data sits behind
+// Suspense is sent as a prerendered shell, and its data streams afterwards in
+// hidden markup that only a script reveals, so a reader without JavaScript
+// saw no lists. `instant = false` (below) allows this route to block instead;
+// it caches nothing and prerenders nothing about a journal.
+//
+// While public reads are off, the lists are the ones for a site with nothing
+// published, so the page is what an empty journal would answer and reveals
+// nothing (ADR 0006, A4; src/testing/public-home.http.test.ts).
+
+/**
+ * This route renders on the server per request and waits for its data before
+ * it sends the page, instead of sending a prerendered shell first: the Home
+ * must be complete without client JavaScript.
+ */
+export const instant = false;
 
 // The interface is English until next-intl arrives; this selects the version
 // of each journal only (ADR 0002, D1.2).
@@ -77,21 +89,14 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default function HomePage() {
+export default async function HomePage() {
+  const home = await load();
   return (
     <PublicFrame current="home">
       <main className="public-shell ph" id={PUBLIC_CONTENT_ID} tabIndex={-1}>
         <HomeOpening />
-        {/* One streamed part, below the shell: see HomeListings. */}
-        <Suspense fallback={null}>
-          <Listings />
-        </Suspense>
+        {home ? <HomeListings home={home} /> : <HomeUnavailable />}
       </main>
     </PublicFrame>
   );
-}
-
-async function Listings() {
-  const home = await load();
-  return home ? <HomeListings home={home} /> : <HomeUnavailable />;
 }
