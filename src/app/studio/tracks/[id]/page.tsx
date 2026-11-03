@@ -114,7 +114,10 @@ async function Track({ params }: { params: Promise<{ id: string }> }) {
             {memories.map((memory) => (
               <li key={memory.entryId} className="studio-row">
                 <span className="studio-row-title">
-                  <Link href={`/studio/memories/${memory.entryId}`} lang="en">
+                  <Link
+                    href={`/studio/memories/${memory.entryId}`}
+                    lang={memory.locale}
+                  >
                     {memory.title}
                   </Link>
                 </span>

@@ -5,6 +5,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { Icon } from "@/app/studio/icons";
 import {
+  MAX_MATCHES,
   matchRecordings,
   moveRecording,
   recordingFacts,
@@ -289,10 +290,17 @@ export function MemoryMusic({
         </>
       )}
 
+      {/* Two live regions, so a change to the list is said even while the
+          search field holds a query. */}
+      <p role="status" className="studio-sr-only">
+        {announcement}
+      </p>
       <p role="status" className="studio-sr-only">
         {query.trim()
-          ? `${matches.length} ${matches.length === 1 ? "song" : "songs"} found.`
-          : announcement}
+          ? matches.length === MAX_MATCHES
+            ? `The first ${MAX_MATCHES} songs found. Type more to narrow them.`
+            : `${matches.length} ${matches.length === 1 ? "song" : "songs"} found.`
+          : ""}
       </p>
     </section>
   );

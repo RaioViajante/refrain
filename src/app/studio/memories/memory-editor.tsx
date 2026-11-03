@@ -185,7 +185,11 @@ export function MemoryEditor({
 
   return (
     <form onSubmit={save} className="studio-editor" noValidate>
-      <div className="studio-editorbar" data-mode={create ? "create" : "edit"}>
+      <div
+        className="studio-editorbar"
+        data-mode={create ? "create" : "edit"}
+        data-subject="memory"
+      >
         <div className="studio-editorbar-start">
           <Link href="/studio/memories" className="studio-crumb">
             ← Memories

@@ -138,6 +138,9 @@ function DeletedMemory({
           This memory has been in Recently deleted since{" "}
           {formatDate(memory.deletedAt!)}. Its writing and its songs are kept,
           and it can’t be changed there until you restore it.
+          {memory.versions.some((version) => version.status === "published")
+            ? " It was marked as published, and it returns as private."
+            : ""}
         </p>
         <RestoreMemoryButton
           entryId={memory.entryId}

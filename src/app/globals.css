@@ -1063,8 +1063,9 @@ html:has(.studio-editorbar[data-mode="edit"]) {
   outline-offset: -2px;
 }
 
+/* At an end of the list there is no place to move to: the arrow fades. */
 .studio-icon-button:disabled {
-  color: var(--color-ink-3);
+  opacity: 0.3;
   cursor: default;
 }
 
@@ -1806,6 +1807,13 @@ html:has(.studio-editorbar[data-mode="edit"]) {
   .studio-title-field {
     min-height: 52px;
     font-size: 30px;
+  }
+
+  /* A refusal is said in the bar, and on a phone its words make the bar tall
+     enough to cover the field that takes focus next (WCAG 2.4.11). While it
+     says one, the memory editor's bar scrolls with the page. */
+  .studio-editorbar[data-subject="memory"]:has(.studio-problem) {
+    position: static;
   }
 
   .studio-editor-head .studio-title-editor {

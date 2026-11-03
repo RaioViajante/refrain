@@ -203,7 +203,11 @@ async function Desk() {
             {plural(memoryStatistics.total, "memory", "memories")}:{" "}
             {memoryStatistics.draft}{" "}
             {memoryStatistics.draft === 1 ? "draft" : "drafts"},{" "}
-            {memoryStatistics.private} private.
+            {memoryStatistics.private} private
+            {memoryStatistics.published > 0
+              ? `, ${memoryStatistics.published} marked as published`
+              : ""}
+            .
           </p>
           <MemoryRows
             memories={memories.slice(0, DESK_MEMORY_LIMIT)}

@@ -102,7 +102,7 @@ async function Memories({ searchParams }: MemoriesProps) {
         </Link>
       </p>
       <p className="studio-hint" style={{ maxWidth: "62ch" }}>
-        Memories stay private: publishing them isn’t available yet.
+        Publishing memories isn’t available yet.
       </p>
     </StudioFrame>
   );

@@ -144,9 +144,15 @@ export function MemoryControls({
         <button
           type="button"
           className="studio-button"
-          disabled={pending || dirty}
+          disabled={pending}
+          // While there are unsaved changes it stays focusable, so the hint
+          // under it is reached, and does nothing.
+          aria-disabled={dirty || undefined}
           aria-describedby={`${visibilityId}-delete`}
           onClick={() => {
+            if (dirty) {
+              return;
+            }
             clearFailure();
             setAsking("delete");
           }}

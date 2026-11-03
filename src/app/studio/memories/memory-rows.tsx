@@ -38,7 +38,10 @@ export function MemoryRows({
           </span>
           <span className="studio-entry-body">
             <span className="studio-row-title">
-              <Link href={`/studio/memories/${memory.entryId}`} lang="en">
+              <Link
+                href={`/studio/memories/${memory.entryId}`}
+                lang={memory.locale}
+              >
                 {memory.title}
               </Link>
             </span>
