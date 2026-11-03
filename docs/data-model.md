@@ -111,7 +111,7 @@ Each subtype table carries a constant `kind` column (default and `CHECK` fix its
 | --- | --- | --- |
 | `album_journals` | `entry_id PK`, `album_id`, `is_featured boolean NOT NULL DEFAULT false`, `rating_half_steps smallint` | FK `album_id` → `albums`, `RESTRICT`. **Not unique per album** (ADR 0002, D1). Partial unique index on `(album_id) WHERE is_featured`: at most one featured journal (INV-1). Rating `BETWEEN 1 AND 10`, `NULL` = no rating. `UNIQUE (entry_id, album_id)` is the target of the track-reflection key. |
 | `artist_journals` | `entry_id PK`, `artist_id`, `is_featured` | FK → `artists`, `RESTRICT`. Partial unique index on `(artist_id) WHERE is_featured`. |
-| `memories` | `entry_id PK`, `remembered_when text` | Free text ("a date, a season, a year") |
+| `memories` | `entry_id PK`, `remembered_when text` | Free text ("a date, a season, a year"). **One value for the entry, shared by every language version** (see [below](#language-versions-and-missing-translations)) |
 
 ### Ratings
 
@@ -149,6 +149,8 @@ The displayed state is derived:
 | `position smallint NOT NULL` | `>= 1`. `UNIQUE (memory_id, position) DEFERRABLE INITIALLY DEFERRED`, so items can be reordered with ordinary updates in one transaction. Drizzle cannot declare deferrable constraints, so this one is in the custom migration `0001_memory_music_deferrable_position.sql`. |
 | `track_id`, `album_id` | FKs, `RESTRICT`. `CHECK (num_nonnulls(track_id, album_id) = 1)`. `UNIQUE (memory_id, track_id)` and `UNIQUE (memory_id, album_id)`: an item appears once per memory. |
 | `created_at` | |
+
+Since M3.6 the studio writes only recording links (`track_id`), in the order the author chose, numbered from 1 with no gaps (a list that a save leaves unchanged is not renumbered, so gaps written outside the studio stay until the next reorder). A save names the whole ordered list: a link left out is deleted (only the link row), a kept link keeps its row and takes its new place, and a new one is inserted. Album links are allowed by the schema but written by no command; a memory that has one shows it, and its recording list is then refused (`unsupported_content`) rather than saved without it.
 
 ### `entry_slugs`
 
@@ -193,6 +195,7 @@ Each language version is written by the author and has its own status. There is 
 - For a journal presented on an album or artist page, the version shown is the reader's language if visible, otherwise the original if visible, otherwise the remaining visible version (ADR 0002, D1.2).
 - A translation that is not published is not served, linked, or mentioned. `listPublicLanguageVersions` returns only visible versions, so the interface can link a translation only when it exists publicly.
 - Track reflections follow the language of the version being read: a reflection appears in a language only if it has text in that language.
+- **A memory's "when" is not per language.** `memories.remembered_when` belongs to the entry, so a translation of a memory would show the original's "when", and a translation could not phrase it differently. M3.6 writes memories in English only (owner decision), so nothing depends on it yet. When memory translations or the public memory page (M3.7) arrive, the owner decides between showing the shared value in every language and moving it to `entry_texts` (a migration through `/refrain-db-change`); see [Open questions](#open-questions). The publication disclosure already treats it as one atom for the entry (ADR 0006 § 1).
 
 ### `entry_revisions` (later)
 
@@ -236,8 +239,8 @@ These rules hold through transactions, module functions, and tests, not through 
 
 | Rule | Where it is enforced |
 | --- | --- |
-| Every entry has exactly one subtype row and one original version | `createAlbumJournal` (album journals); artist journals and memories arrive in M2 |
-| Every entry has exactly one current slug (D7.1); "at most one" is a constraint | `createAlbumJournal` (through `reserveInitialSlug`) and `changeEntrySlug` |
+| Every entry has exactly one subtype row and one original version | `createAlbumJournal` (album journals) and `createMemory` (memories, M3.6); artist journals arrive later |
+| Every entry has exactly one current slug (D7.1); "at most one" is a constraint | `createAlbumJournal` and `createMemory` (through `reserveInitialSlug`) and `changeEntrySlug` |
 | Previous-slug rows stay while their entry exists (D7.5): they are only added, marked non-current, or retired, never deleted or re-pointed to another entry | `changeEntrySlug` and `permanentlyDeleteEntry`. The primary key prevents two rows holding one slug; it does not prevent a raw `DELETE` of a row. |
 | `was_published` is set on a slug before it is served, and never cleared | `publishLanguageVersion` and `changeEntrySlug` set it. `resolvePublicSlug` serves only marked slugs, so a missing mark makes an address unreachable rather than releasable. |
 | A retired row is never deleted, re-attached to an entry, or unmarked | No command does so. The constraints cannot see previous values, so a raw `UPDATE` or `DELETE` could; the database role is not restricted; production database access is decided with the deployment target. |
@@ -246,10 +249,12 @@ These rules hold through transactions, module functions, and tests, not through 
 | `entries.first_published_at` equals the earliest `entry_texts.first_published_at` | `publishLanguageVersion`. Rows written before migration 0002 may keep an earlier entry-level value with no recorded version history; migrations 0002 and 0003 backfill what can be derived. |
 | A slug is frozen after the first publication; later changes keep the old slug | `changeEntrySlug` |
 | A deleted entry's visibility and slug are not changed | The publication commands refuse deleted entries |
-| Saves do not overwrite newer writing | `saveAlbumJournal` locks the entry and checks `entries.version`; other kinds arrive in M2 |
+| Saves do not overwrite newer writing | `saveAlbumJournal` and `saveMemory` (M3.6) lock the entry and check and bump `entries.version`; artist journals arrive later |
 | Nothing becomes public without a server-authenticated confirmation token bound to the author's session, the entry version, the locale, and the disclosed set ([ADR 0006](decisions/0006-publication-decision-and-acknowledgement.md); built in M2.1 for publishing) | `publishLanguageVersion`, under the entry lock; the write of `published` is exported by no file. Out-of-process writers are not bound until gates G3 and G4 close |
 | Any edit of a public version's text, and any addition to the public surface, needs a matching confirmation; every command that changes the public surface bumps `entries.version` ([ADR 0006](decisions/0006-publication-decision-and-acknowledgement.md); built in M2.2) | `saveAlbumJournal` (text, album rating, and track reflections), under the entry lock, through the Publication module's gate. Since M2.3 the studio obtains the confirmation through its change dialog (a preview, then the save with the token that dialog sends) |
-| Memory titles are present; opening and margin note only on journals | Zod validation at the server boundary (album journals: M1.3B; memories: M2) |
+| Memory titles are present; opening and margin note only on journals | Zod validation at the server boundary (album journals: M1.3B; memories: M3.6, where `createMemory` and `saveMemory` refuse a blank title and write no opening or margin note) |
+| A memory with a published version is not saved without the author's confirmation of the change | `saveMemory` refuses it (`memory_published`) before any write, until M3.7 builds the memory's confirmed save. No studio path publishes a memory |
+| A new memory link is to a recording that exists and is not archived; an existing link to a recording archived since is kept | `createMemory` and `saveMemory` (plain reads, no catalog lock, ADR 0006 L3); a recording deleted between the check and the insert is refused by `memory_music_track_fk` and reported as `track_not_found`. **Residual window:** a recording archived between the check and the insert can still be linked (archiving takes no lock that conflicts with the link's foreign-key check), as with a new track reflection; the link is then an ordinary link to an archived recording |
 | The Tiptap node and mark schema | Plain text becomes paragraphs, text, and hard breaks only (`textToDocument`); a stored document is editable in the plain editor only if saving would reproduce it exactly (`editableText`), and is otherwise refused as `unsupported_content` and left untouched. The full schema is validated when Tiptap arrives (M2) |
 | Public reads see only visible writing | The [publication predicate](security.md#publication-predicate), implemented once and tested; no public route exists yet. No Studio command can change a version to `published` |
 
@@ -270,13 +275,13 @@ These rules hold through transactions, module functions, and tests, not through 
 Each item below is one transaction (the numbers are stable):
 
 1. **Import from MusicBrainz** (`importMusicRelease`; built in M3.2): reuse each artist and recording already in the catalog by its MusicBrainz identifier, **unchanged** (an archived one is refused), and insert the rest; insert the album (the release group), its reference edition (the chosen release), `album_artists`, `track_artists` for new recordings, `album_tracks`, and `edition_tracks`; an album or edition already in the catalog is refused. The release is fetched again before the transaction opens, and nothing is written unless it still matches the plan the author reviewed.
-2. **Create an entry**: `entries`, the original `entry_texts` row, the subtype row, and the initial `entry_slugs` row.
+2. **Create an entry**: `entries`, the original `entry_texts` row, the subtype row, and the initial `entry_slugs` row (`createAlbumJournal`; `createMemory` since M3.6, which also inserts the memory's ordered recording links).
 3. **Save an album journal** (`saveAlbumJournal`; M2.2): the original language version's opening sentence and reflection, the album rating, and any number of track reflections (a row per language for each text, the favourite mark, the "still writing" label, the track rating, and the "include when published" flag), in one transaction. It locks the entry, refuses a deleted entry and a stale `entries.version` instead of overwriting, validates every reflection against the rows (the recording belongs to the journal's album and a new reflection is not on an archived recording), asks the Publication gate whether the change adds or edits anything a reader sees (and then needs a `change_public` token for exactly that change), writes, bumps the version, and checks that what a reader would see is what was confirmed. A blank text removes that language's row, so a row always means text. The favourite mark belongs to the reflection, that is to the track **in this journal**, with no limit on how many tracks carry it.
 4. **Change visibility** of a language version (`unpublishLanguageVersion`, and publishing through boundary 12): `status`, `published_at`, the version's and the entry's `first_published_at` on a first publication, and the current slug's `was_published`, after locking the entry and verifying that it is not deleted.
 5. **Feature a journal**: clear the previous featured journal, then set the new one (the partial unique index enforces at most one, so the order matters).
 6. **Change a slug** (`changeEntrySlug`): release or keep the old slug as described above, and insert or reinstate the new current slug.
 7. **Change the reference edition**: clear the old flag, then set the new one.
-8. **Reorder memory music** (deferred unique constraint).
+8. **Reorder memory music** (deferred unique constraint). Since M3.6 this is part of `saveMemory`, which saves the memory's title, writing, "when", and ordered recordings together under the entry lock: unlink what is left out, move what is kept, insert what is new, bump `entries.version`.
 9. **Permanent delete** (`permanentlyDeleteEntry`): release or retire the slugs, then delete the entry and everything it owns.
 10. **Restore a deleted entry** (`restoreDeletedEntry`, through `restoreAlbumJournal`): lock the entry (refusing one that is not deleted), set its `published` language versions to `private` and clear their `published_at`, then clear `deleted_at`. The writing, the publication history, the slugs, and `entries.version` are not touched, so nothing becomes public by a restore.
 11. **Preview a publication** (`previewPublication`; built in M2.1, [ADR 0006](decisions/0006-publication-decision-and-acknowledgement.md)): one read-only snapshot (`REPEATABLE READ`) of the disclosure, with a confirmation token authenticated by a server-only key. No lock, no write, and the only place a publication token is minted. The same for a change to a public version (`previewPublicChange`, built in M2.2; it returns the exposure delta and a `change_public` token and is reached only through the Journals wrappers `previewAlbumJournalChange` and `previewAlbumJournalPublicChange`, which only the two preview Server Actions of M2.3 call; the publish preview is reached through `previewAlbumJournalPublication`, likewise).
@@ -484,5 +489,6 @@ Permanently deleting an entry removes only the rows it owns, retires its publish
 
 1. ~~Whether published language versions return as private when an entry is restored.~~ Decided by the owner at the M1.3B merge: they return as private, and restoring never republishes ([Roadmap](roadmap.md#follow-ups-from-the-m13b-review)). Built in M1.3C as `restoreDeletedEntry` ([ADR 0005](decisions/0005-restoring-deleted-journals.md)); there is no schema impact.
 2. How the automatic purge will run once enabled: a scheduled job or an on-access check (it stays disabled).
+3. Whether a memory's "when" stays one value for the entry or becomes per language (`entry_texts`), before memory translations exist (recorded in M3.6; [above](#language-versions-and-missing-translations)).
 
 Enum representation, publication history, and slug retention after permanent deletion are settled by [ADR 0003](decisions/0003-relational-schema-conventions.md).
