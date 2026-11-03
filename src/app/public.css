@@ -233,10 +233,18 @@ a.public-link:hover,
   justify-content: center;
   align-items: baseline;
   gap: 4px 10px;
-  margin: 12px 0 0;
+  /* The screen's 22px above a 35px line, with the link 44px tall. */
+  margin: 17px 0 0;
+  min-height: 44px;
   font-size: 17px;
   line-height: 1.5;
   color: var(--color-ink-2);
+}
+
+/* A line with no link (nothing published, or the lists could not be read)
+   sits where the "Most recent" line does. */
+.ph-since-alone {
+  align-items: center;
 }
 
 .ph-quiet {
@@ -248,7 +256,13 @@ a.public-link:hover,
 .ph-since-link {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   min-height: 44px;
+  /* A one-letter title still makes a 44px target; a long one-word title
+     wraps instead of widening the page. */
+  min-width: 44px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   font-family: var(--font-kalam), cursive;
   font-size: 21px;
   line-height: 1.2;
@@ -312,14 +326,19 @@ a.public-link:hover,
   text-decoration: none;
 }
 
+/* The title comes first in the link, so a screen reader names a row by its
+   title; the grid shows the date first, as the screen does. */
 .ph-row-date {
+  grid-column: 1;
+  grid-row: 1;
   font-size: 16px;
-  line-height: 1.4;
   color: var(--color-ink-2);
   font-variant-numeric: tabular-nums;
 }
 
 .ph-row-text {
+  grid-column: 2;
+  grid-row: 1;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -334,7 +353,6 @@ a.public-link:hover,
 
 .ph-row-kind {
   font-size: 16px;
-  line-height: 1.5;
   color: var(--color-ink-3);
 }
 
@@ -391,12 +409,17 @@ a.public-link:hover,
 }
 
 .ph-thumb {
+  grid-column: 3;
+  grid-row: 1;
   justify-self: end;
   width: 48px;
 }
 
 .ph-thumb .ph-art-fallback {
   padding: 0;
+  /* At 48px the large frame's wobble shrinks to nothing; this one is drawn
+     at the thumbnail's own scale. */
+  background-image: var(--stroke-frame-small);
 }
 
 /* Albums: four to a row, each the cover, the title, the credit and year,
@@ -433,7 +456,7 @@ a.public-link:hover,
 }
 
 .ph-album-facts {
-  font-size: 15.5px;
+  font-size: 17px;
   line-height: 1.55;
   color: var(--color-ink-3);
 }
@@ -446,11 +469,18 @@ a.public-link:hover,
   margin-top: 4px;
 }
 
-/* Between the phone layout and a wide screen (721px to 1100px), four albums
-   beside the margin column would be about 90px each at 768px, too narrow for
-   a title or a rating. The approved screens show only 1440px and 390px; this
-   keeps the notebook and uses the phone's two albums to a row. */
+/* Between the phone layout and a wide screen, four albums beside the margin
+   column would be about 90px each at 768px, too narrow for a title or a
+   rating. The approved screens show only 1440px and 390px; this keeps the
+   notebook with three albums to a row from 961px to 1100px, and the phone's
+   two from 721px to 960px, so a cover is never much larger than at 1440px. */
 @media (max-width: 1100px) {
+  .ph-albums {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 960px) {
   .ph-albums {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1121,7 +1151,8 @@ details[open] > summary .pj-chevron {
     background: #fff;
   }
 
-  .ph-art-fallback {
+  .ph-art-fallback,
+  .ph-thumb .ph-art-fallback {
     background-image: none;
     border: 1px solid CanvasText;
   }
@@ -1165,6 +1196,11 @@ details[open] > summary .pj-chevron {
 
   .pj-stars {
     color: CanvasText;
+  }
+
+  /* Inside a Home card the stars are part of a link, and take its color. */
+  .ph-album .pj-stars {
+    color: LinkText;
   }
 }
 

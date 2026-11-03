@@ -54,7 +54,7 @@ const creditOf = (card: PublicJournalCard) => card.credits.join(", ");
  */
 export function HomeOpening() {
   return (
-    <section className="ph-opening" aria-labelledby="ph-title">
+    <div className="ph-opening">
       <h1 id="ph-title" className="pj-visually-hidden">
         refrain
       </h1>
@@ -69,7 +69,7 @@ export function HomeOpening() {
         alt={CHARACTER_ALT}
       />
       <p className="ph-intro">{HOME_INTRODUCTION}</p>
-    </section>
+    </div>
   );
 }
 
@@ -80,7 +80,7 @@ export function HomeOpening() {
 function MostRecent({ home }: Readonly<{ home: PublicHome }>) {
   const newest = home.recent[0];
   if (!newest) {
-    return <p className="ph-since">Nothing published yet.</p>;
+    return <p className="ph-since ph-since-alone">Nothing published yet.</p>;
   }
   return (
     <p className="ph-since">
@@ -142,9 +142,6 @@ function RecentlyWritten({
         {cards.map((card) => (
           <li key={card.slug} className="ph-row-item">
             <Link className="ph-row" href={addressOf(card)}>
-              <span className="ph-row-date">
-                <Published at={card.publishedAt} />
-              </span>{" "}
               <span className="ph-row-text">
                 <span className="ph-row-title">{card.albumTitle}</span>{" "}
                 <span className="ph-row-kind">
@@ -152,7 +149,10 @@ function RecentlyWritten({
                     ? `Album journal · ${creditOf(card)}`
                     : "Album journal"}
                 </span>
-              </span>
+              </span>{" "}
+              <span className="ph-row-date">
+                <Published at={card.publishedAt} />
+              </span>{" "}
               <Artwork
                 artwork={card.artwork}
                 className="ph-art ph-thumb"
@@ -239,6 +239,21 @@ export function HomeListings({ home }: Readonly<{ home: PublicHome }>) {
       <MostRecent home={home} />
       {home.recent.length > 0 ? <RecentlyWritten cards={home.recent} /> : null}
       {home.albums.length > 0 ? <Albums cards={home.albums} /> : null}
+    </div>
+  );
+}
+
+/**
+ * When public reads are on but the database could not answer: one fixed line
+ * in the place of the lists, so the page still reads as a page. It says
+ * nothing about why, and nothing about what exists.
+ */
+export function HomeUnavailable() {
+  return (
+    <div className="ph-lists">
+      <p className="ph-since ph-since-alone">
+        The latest writing could not be loaded just now.
+      </p>
     </div>
   );
 }

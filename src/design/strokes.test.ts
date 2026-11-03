@@ -40,6 +40,7 @@ describe("hand-drawn strokes", () => {
       "underline",
       "button-disabled",
       "frame",
+      "frame-small",
     ]);
     for (const [name, markup] of Object.entries(strokes())) {
       if (NOT_BOUNDARIES.has(name)) {
@@ -67,6 +68,7 @@ describe("hand-drawn strokes", () => {
       "field-hover": [600, 48],
       area: [760, 440],
       frame: [400, 400],
+      "frame-small": [60, 60],
       dialog: [540, 300],
     };
     // Generated once: each call redraws every stroke (about 200 ms), and
@@ -95,7 +97,7 @@ describe("hand-drawn strokes", () => {
       ),
     );
     expect([...colors].sort()).toEqual(
-      ["#111111", "#767676", "#C8C8C8", "#CFCFCF"].sort(),
+      ["#111111", "#767676", "#BDBDBD", "#C8C8C8", "#CFCFCF"].sort(),
     );
   });
 });

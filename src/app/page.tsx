@@ -13,6 +13,7 @@ import {
   HOME_INTRODUCTION,
   HomeListings,
   HomeOpening,
+  HomeUnavailable,
 } from "@/app/(public)/_components/home-view";
 import {
   PUBLIC_CONTENT_ID,
@@ -37,13 +38,21 @@ const READER_LOCALE = "en";
 
 const NOTHING_PUBLISHED: PublicHome = { recent: [], albums: [] };
 
-async function load(): Promise<PublicHome> {
-  // Runtime only, never at build time.
+/** What the Home lists, or null when the database could not answer. */
+async function load(): Promise<PublicHome | null> {
+  // Runtime only, never at build time. Outside the `try`: the framework uses
+  // it to defer rendering, and that must never be caught.
   await connection();
   if (!publicReadsEnabled()) {
     return NOTHING_PUBLISHED;
   }
-  return getPublicHome(READER_LOCALE);
+  try {
+    return await getPublicHome(READER_LOCALE);
+  } catch {
+    // Never logged: a driver message can carry connection details. The page
+    // says, in a fixed sentence, that the lists could not be read.
+    return null;
+  }
 }
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -83,5 +92,6 @@ export default function HomePage() {
 }
 
 async function Listings() {
-  return <HomeListings home={await load()} />;
+  const home = await load();
+  return home ? <HomeListings home={home} /> : <HomeUnavailable />;
 }
