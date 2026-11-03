@@ -964,6 +964,85 @@ html:has(.studio-editorbar[data-mode="edit"]) {
   object-fit: cover;
 }
 
+/* Artist photographs (M3.3): the approved V4.4 4:5 frame (`.art.pt`), its
+   fallback underneath, and the image over it once loaded, so nothing moves
+   while it loads or if it fails. The credit is small and quiet, with the
+   details behind a disclosure. */
+.studio-photo {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: min(100%, 150px);
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  padding: 0 12px;
+  border: 1px solid var(--color-rule);
+  background: var(--color-paper-2);
+  color: var(--color-ink-3);
+  font-family: var(--font-kalam), cursive;
+  font-size: 17px;
+  text-align: center;
+}
+
+.studio-photo img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.studio-photo-figure {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+  margin: 0;
+}
+
+.studio-photo-credit {
+  max-width: 46ch;
+  margin: 0;
+  color: var(--color-ink-3);
+  font-size: 15px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.studio-photo-details summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-ink-2);
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.studio-photo-details .studio-facts {
+  margin-top: 6px;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+.studio-choice .studio-photo {
+  width: 100%;
+}
+
+/* The review of one photograph: the frame beside its facts, stacked on a
+   narrow screen. */
+.studio-review-photo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 24px 40px;
+}
+
+.studio-review-photo .studio-facts {
+  flex: 1 1 320px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 /* Add music (M3.2): the search field with its magnifier, the kind of record
    to search for, and the result rows. */
 .studio-search {

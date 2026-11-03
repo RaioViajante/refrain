@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
 
-import { CONTENT_SECURITY_POLICY } from "@/security-headers";
+import { STUDIO_CONTENT_SECURITY_POLICY } from "@/security-headers";
 import {
   mintAuthorSession,
   removeMintedSessions,
@@ -166,7 +166,7 @@ describe("Add music with the author's session", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toContain("no-store");
     expect(response.headers.get("content-security-policy")).toBe(
-      CONTENT_SECURITY_POLICY,
+      STUDIO_CONTENT_SECURITY_POLICY,
     );
     expect(html).toContain("From MusicBrainz");
     expect(html).toContain("[Test] Paper Moon (Legacy Edition)");

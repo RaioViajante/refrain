@@ -1,0 +1,117 @@
+import type {
+  ArtistPhoto,
+  PhotoLicense,
+} from "@/integrations/wikimedia-commons";
+
+// An artist's photograph (M3.3): the approved V4.4 4:5 frame (`.art.pt`) with
+// its fallback underneath, the chosen Wikimedia Commons thumbnail over it once
+// loaded, and the attribution the license asks for. Presentational only, with
+// no administrative control, so a public artist page could reuse it when one
+// is approved; today it appears in the studio alone.
+//
+// Every address here was rebuilt by the Catalog from the stored file name
+// (src/integrations/wikimedia-commons/photo.ts) or comes from the fixed
+// license table: nothing from a provider response is rendered, and the
+// credit is plain text, which React escapes. Images are requested without a
+// referrer, and the frame keeps its size whether or not the image arrives.
+
+export function PhotoFrame({
+  image,
+  name,
+  label,
+  size = 150,
+}: {
+  image?: { src: string; srcSet: string } | null;
+  /** The artist's name, for the frame's label. */
+  name: string;
+  /**
+   * The label of a candidate, which may not show the artist at all: it is
+   * named by its file, never presented as a photograph of them.
+   */
+  label?: string;
+  /** The frame's largest width, in CSS pixels. */
+  size?: number;
+}) {
+  return (
+    <div
+      className="studio-photo"
+      role="img"
+      aria-label={
+        label ??
+        (image ? `Photograph of ${name}` : `No photograph of ${name} yet`)
+      }
+      style={{ width: `min(100%, ${size}px)` }}
+    >
+      <span aria-hidden>no photograph yet</span>
+      {image ? (
+        // eslint-disable-next-line @next/next/no-img-element -- a remote, credited photograph, not routed through an image optimizer (docs/evidence/m3-3.md)
+        <img
+          src={image.src}
+          srcSet={image.srcSet}
+          sizes={`${size}px`}
+          width={330}
+          height={412}
+          alt=""
+          decoding="async"
+          referrerPolicy="no-referrer"
+        />
+      ) : null}
+    </div>
+  );
+}
+
+/** The license's name, linked to its deed when it has one. */
+export function LicenseName({ license }: { license: PhotoLicense }) {
+  return license.url ? (
+    <a href={license.url} className="studio-link" rel="noreferrer license">
+      {license.name}
+    </a>
+  ) : (
+    <>{license.name} (no license applies)</>
+  );
+}
+
+/**
+ * The credit under a photograph, and a disclosure with everything an
+ * attribution needs: the work, its creator, its source, its license, and the
+ * changes Refrain makes.
+ */
+export function PhotoAttribution({ photo }: { photo: ArtistPhoto }) {
+  return (
+    <div className="studio-photo-attribution">
+      <p className="studio-photo-credit">
+        Photo: {photo.credit} · <LicenseName license={photo.license} /> · via
+        Wikimedia Commons
+      </p>
+      <details className="studio-photo-details">
+        <summary>Photo details</summary>
+        <dl className="studio-facts">
+          <dt>Photograph</dt>
+          <dd>
+            <a href={photo.sourceUrl} className="studio-link" rel="noreferrer">
+              {photo.title}
+            </a>
+          </dd>
+          <dt>Credit</dt>
+          <dd>{photo.credit}</dd>
+          <dt>Source</dt>
+          <dd>
+            Wikimedia Commons,{" "}
+            <a href={photo.sourceUrl} className="studio-link" rel="noreferrer">
+              the file’s page
+            </a>
+          </dd>
+          <dt>License</dt>
+          <dd>
+            <LicenseName license={photo.license} />
+            {photo.license.shareAlike
+              ? ". Adaptations must use the same license."
+              : null}
+          </dd>
+          <dt>Changes</dt>
+          <dd>{photo.modifications}</dd>
+        </dl>
+      </details>
+    </div>
+  );
+}

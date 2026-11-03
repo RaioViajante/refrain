@@ -23,7 +23,12 @@ import {
   tamperedCookie,
   type MintedSession,
 } from "@/testing/http-session";
-import { artistReview, releaseReviews } from "@/testing/music-reviews";
+import {
+  artistReview,
+  photoReview,
+  releaseReviews,
+} from "@/testing/music-reviews";
+import { PHOTO } from "@/testing/wikimedia-fixtures";
 import { FIXTURE } from "@/testing/provider-fixtures";
 import { assertDisposableTestDatabase } from "@/testing/test-database";
 
@@ -2017,12 +2022,18 @@ describe("publishing from the studio, through real HTTP and PostgreSQL", () => {
 describe("what a request without the author's session can do", () => {
   // The fingerprints a review page would carry for the fixture records
   // (M3.2), so an approval that got past the checks would really import.
-  const music = { review: "", linkReview: "", artistReview: "" };
+  const music = {
+    review: "",
+    linkReview: "",
+    artistReview: "",
+    photoReview: "",
+  };
   beforeAll(async () => {
     const reviews = await releaseReviews(FIXTURE.firstPressing);
     music.review = reviews.review!;
     music.linkReview = reviews.linkReview;
     music.artistReview = await artistReview(FIXTURE.paperSinger);
+    music.photoReview = await photoReview(PHOTO.onStage);
   });
 
   // Every action, called with valid arguments for records that exist, so a
@@ -2079,6 +2090,22 @@ describe("what a request without the author's session can do", () => {
       removeAlbumArtworkAction: {
         args: [{ albumId: ids.album, expectedCoverUrl: null }],
         routeId: ids.album,
+      },
+      // An artist's photograph (M3.3).
+      setArtistPhotoAction: {
+        args: [
+          {
+            artistId: ids.artist,
+            file: PHOTO.onStage,
+            review: music.photoReview,
+            expectedPhoto: null,
+          },
+        ],
+        routeId: ids.artist,
+      },
+      removeArtistPhotoAction: {
+        args: [{ artistId: ids.artist, expectedPhoto: null }],
+        routeId: ids.artist,
       },
       createArtistAction: {
         args: [{ name: `${label} Intruder`, kind: "person" }],
