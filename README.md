@@ -32,7 +32,7 @@ part of this is built and runs locally; nothing is online yet, and the interface
 #### what's inside
 
 ```
-src/app/           routes · the studio, one public page, a placeholder home
+src/app/           routes · the studio, the home, one public journal page
 src/modules/       catalog, journals, publication, identity
 src/integrations/  musicbrainz, cover art archive
 src/db/            database client, schema, migrations
@@ -74,11 +74,11 @@ then open `http://localhost:3000`. the studio is at `/studio` and needs the auth
 
 #### current status
 
-built and merged, local only (through m3.2): the relational core on postgresql 17, single-author sign-in, and the writing studio: artists, albums, tracks, and album journals with track-by-track reflections, ratings, and favourites; recently deleted with restore; and publishing that shows what will become public and waits for the author's confirmation. add music searches musicbrainz and takes covers from the cover art archive. the first public page, an album journal at `/albums/<slug>`, stays behind a switch that is off by default. backups with a restore check, unit, integration, http, and browser tests, and ci.
+built and merged, local only (through m3.3): the relational core on postgresql 17, single-author sign-in, and the writing studio: artists, albums, tracks, and album journals with track-by-track reflections, ratings, and favourites; recently deleted with restore; and publishing that shows what will become public and waits for the author's confirmation. add music searches musicbrainz and takes covers from the cover art archive. the first public page, an album journal at `/albums/<slug>`, stays behind a switch that is off by default. artist photographs come from wikimedia commons, in the studio only. backups with a restore check, unit, integration, http, and browser tests, and ci.
 
-in progress: m3.3, artist photographs from wikimedia commons, on its own branch and not merged.
+in progress: m3.4, the home from the approved design, on its own branch and not merged. its lists show only published album journals, and stay empty while the switch is off.
 
-planned: memories, artist journals, the homepage, album and artist lists, the brazilian portuguese interface and its language selector, author translations, "delete now", and the academic release (m4).
+planned: memories, artist journals, album and artist lists, the brazilian portuguese interface and its language selector, author translations, "delete now", and the academic release (m4).
 
 nothing is deployed. public pages stay off until the [release gates](docs/security.md#public-page-release-gates) are closed. see [roadmap.md](docs/roadmap.md).
 
