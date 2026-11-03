@@ -27,17 +27,20 @@ each track can have its own reflection, rating, and favourite mark. ratings are 
 
 black ink on white paper; the only color comes from album art and photographs. the interface speaks english and brazilian portuguese, and writing stays in the language it was written in.
 
-none of this is built yet. the approved design is written down in [design-system](docs/design-system.md).
+part of this is built and runs locally; nothing is online yet, and the interface is english only for now. what exists and what doesn't is under [status](#current-status). the approved design is written down in [design-system](docs/design-system.md).
 
 #### what's inside
 
 ```
-src/app/      routes · a dev page for now
-src/db/       database client and schema
-docs/         the long version
-public/       app assets · the illustration
-compose.yaml  local postgresql 17
-.github/      ci on every pull request
+src/app/           routes · the studio, one public page
+src/modules/       catalog, journals, publication, identity
+src/integrations/  musicbrainz, cover art archive
+src/db/            database client, schema, migrations
+e2e/               browser tests
+docs/              the long version
+public/            app assets · the illustration
+compose.yaml       local postgresql 17
+.github/           ci on every pull request
 ```
 
 #### run it
@@ -48,10 +51,11 @@ needs node 24.22.2 (`.nvmrc`), pnpm 12, and docker.
 pnpm install
 cp .env.example .env
 pnpm db:up
+pnpm db:migrate
 pnpm dev
 ```
 
-then open `http://localhost:3000`. checks: `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm test:integration` after `pnpm db:test:up`. the rest is in [development.md](docs/development.md).
+then open `http://localhost:3000`. the studio is at `/studio` and needs the author account first: see [development.md](docs/development.md#first-time-setup-of-the-author-account). checks: `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm test:integration` after `pnpm db:test:up`. the rest is in [development.md](docs/development.md).
 
 #### read next
 
@@ -70,6 +74,12 @@ then open `http://localhost:3000`. checks: `pnpm lint`, `pnpm typecheck`, `pnpm 
 
 #### current status
 
-m1.3a, identity: the schema for the catalog, journals, memories, and track reflections, with migrations and integration tests on postgresql 17, and a single-author sign-in for the writing studio. the studio itself is not built yet, and there is no journal page. see [roadmap.md](docs/roadmap.md).
+built and merged, local only (through m3.2): the relational core on postgresql 17, single-author sign-in, and the writing studio: artists, albums, tracks, and album journals with track-by-track reflections, ratings, and favourites; recently deleted with restore; and publishing that shows what will become public and waits for the author's confirmation. add music searches musicbrainz and takes covers from the cover art archive. the first public page, an album journal at `/albums/<slug>`, stays behind a switch that is off by default. backups with a restore check, unit, integration, http, and browser tests, and ci.
+
+in progress: m3.3, artist photographs from wikimedia commons, on its own branch and not merged.
+
+planned: memories, artist journals, the homepage, album and artist lists, the brazilian portuguese interface and its language selector, translations, "delete now", and the academic release (m4).
+
+nothing is deployed. public pages stay off until the [release gates](docs/security.md#public-page-release-gates) are closed. see [roadmap.md](docs/roadmap.md).
 
 refrain is also a university project, presented on november 16, 2026. see [requirements.md](docs/requirements.md).
