@@ -70,9 +70,27 @@ async function openHome(page: Page, from = base) {
   expect(response?.status()).toBe(200);
   await expect(page.getByRole("img", { name: CHARACTER_ALT })).toBeVisible();
   await expect(page.getByText(INTRODUCTION)).toBeVisible();
-  // The streamed part has arrived once the line under the introduction is
-  // there: "Most recent" or the empty line.
   await expect(page.locator(".ph-since")).toBeVisible();
+  await streamed(page);
+}
+
+/**
+ * Waits until React has revealed every streamed part of the page. Each
+ * Suspense boundary arrives hidden (`<div hidden id="S:n">`, at the end of
+ * the body) and is revealed on its own, a little later: reading the page
+ * before then finds the lists outside the page's frame, unstyled, or not yet
+ * in it.
+ */
+async function streamed(page: Page) {
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          document.querySelectorAll('template[id^="B:"], div[hidden][id^="S:"]')
+            .length,
+      ),
+    )
+    .toBe(0);
 }
 
 const isMobile = (page: Page) => (page.viewportSize()?.width ?? 1440) <= 720;
@@ -205,7 +223,7 @@ test("composes the notebook at every width without scrolling sideways", async ({
   page,
 }) => {
   await openHome(page);
-  for (const width of [320, 390, 768, 1280, 1440, 2560]) {
+  for (const width of [320, 390, 768, 1024, 1101, 1280, 1440, 2560]) {
     await page.setViewportSize({ width, height: 900 });
     expect(await overflow(page), `${width}px`).toBeLessThanOrEqual(0);
     const layout = await page.evaluate(() => {
@@ -218,6 +236,21 @@ test("composes the notebook at every width without scrolling sideways", async ({
       const columns = getComputedStyle(
         document.querySelector(".ph-albums")!,
       ).gridTemplateColumns.split(" ").length;
+      // Nothing in a card or a row reaches past its own box (a rating that
+      // ran into the next album at 768px once did).
+      const spilled: string[] = [];
+      for (const card of document.querySelectorAll(".ph-album, .ph-row")) {
+        const edge = card.getBoundingClientRect();
+        for (const part of card.querySelectorAll("*")) {
+          const r = part.getBoundingClientRect();
+          if (
+            r.width > 0 &&
+            (r.right > edge.right + 0.5 || r.left < edge.left - 0.5)
+          ) {
+            spilled.push(`${part.tagName}.${part.getAttribute("class")}`);
+          }
+        }
+      }
       return {
         shellWidth: shell.width,
         shellLeft: shell.left,
@@ -225,18 +258,20 @@ test("composes the notebook at every width without scrolling sideways", async ({
         headingBesideRows: heading.right <= rows.left,
         headingAboveRows: heading.bottom <= rows.top,
         columns,
+        spilled,
       };
     });
     // The RaioViajante lateral contract: 17.6px each side, at most 1320px.
     expect(layout.shellWidth).toBeCloseTo(Math.min(width - 35.2, 1320), 0);
     expect(layout.characterCenter).toBeCloseTo(width / 2, 0);
+    expect(layout.spilled, `${width}px`).toEqual([]);
     if (width > 720) {
       expect(layout.headingBesideRows, `${width}px`).toBe(true);
-      expect(layout.columns).toBe(4);
     } else {
       expect(layout.headingAboveRows, `${width}px`).toBe(true);
-      expect(layout.columns).toBe(2);
     }
+    // Four albums to a row on a wide screen, two below 1100px.
+    expect(layout.columns, `${width}px`).toBe(width > 1100 ? 4 : 2);
   }
   // And at 200% text.
   await page.setViewportSize({ width: 390, height: 844 });
@@ -392,10 +427,12 @@ test("shows a chosen cover in its frame, with nothing moving, and the fallback w
       });
     });
     await page.goto(`${base}/`, { waitUntil: "domcontentloaded" });
+    await streamed(page);
     const card = page.locator(`.ph-album[href="/albums/${twinFantasy.slug}"]`);
     const title = card.locator(".ph-album-title");
     await expect(title).toHaveText("Twin Fantasy");
     const before = await title.boundingBox();
+    expect(before).not.toBeNull();
     release();
     const image = card.locator(".ph-art-image");
     await expect
@@ -418,11 +455,81 @@ test("shows a chosen cover in its frame, with nothing moving, and the fallback w
       route.abort(),
     );
     await page.reload();
+    await streamed(page);
+    await expect(card.locator(".ph-art-words")).toBeVisible();
     await expect(card.locator(".ph-art-words")).toHaveText("no artwork yet");
     expect(await overflow(page)).toBeLessThanOrEqual(0);
   } finally {
     await seed("cover", twinFantasy.entryId, "none");
   }
+});
+
+// The lists are streamed after the shell is painted. Nothing painted may move
+// when they arrive (a footer painted under the introduction once jumped down
+// by 0.08 at 1440 px). Whether a paint falls between the two depends on
+// timing, so this measurement can pass by luck; the next test is the
+// deterministic guarantee, and a mutation that removed it failed there.
+test("does not move once shown: the lists arrive without a visible shift", async ({
+  page,
+}) => {
+  await serveTestCovers(page);
+  await page.addInitScript(() => {
+    const record = { total: 0, entries: [] as string[] };
+    (window as unknown as { __shifts: typeof record }).__shifts = record;
+    new PerformanceObserver((list) => {
+      for (const entry of list.getEntries() as (PerformanceEntry & {
+        value: number;
+        hadRecentInput: boolean;
+        sources?: { node?: Node | null }[];
+      })[]) {
+        if (!entry.hadRecentInput) {
+          record.total += entry.value;
+          record.entries.push(
+            `${entry.value.toFixed(4)} ${(entry.sources ?? [])
+              .map((source) => (source.node as Element | null)?.className)
+              .join(",")}`,
+          );
+        }
+      }
+    }).observe({ type: "layout-shift", buffered: true });
+  });
+  await openHome(page);
+  await page.waitForLoadState("networkidle");
+  const shifts = await page.evaluate(
+    () =>
+      (window as unknown as { __shifts: { total: number; entries: string[] } })
+        .__shifts,
+  );
+  // A web font replacing its fallback can nudge a line by a fraction of a
+  // pixel (a score that rounds to 0.0000); anything a reader could see is
+  // far above this.
+  expect(shifts.total, shifts.entries.join("; ")).toBeLessThan(0.001);
+});
+
+test("paints a shell with no footer, which appears only with the lists", async ({
+  browser,
+  page,
+}) => {
+  // Without scripts React never reveals the streamed part (its reveal is an
+  // inline script), so the page stays as the shell was first painted: the
+  // drawing and the introduction, the lists still hidden outside the frame,
+  // and no footer to push down.
+  const context = await browser.newContext({
+    javaScriptEnabled: false,
+    viewport: page.viewportSize()!,
+  });
+  try {
+    const shell = await context.newPage();
+    await shell.goto(`${base}/`);
+    await expect(shell.getByText(INTRODUCTION)).toBeVisible();
+    await expect(shell.locator(".public .ph-lists")).toHaveCount(0);
+    await expect(shell.locator(".public-footer")).toBeHidden();
+  } finally {
+    await context.close();
+  }
+  await openHome(page);
+  await expect(page.locator(".public .ph-lists")).toHaveCount(1);
+  await expect(page.locator(".public-footer")).toBeVisible();
 });
 
 test("has no accessibility violations (WCAG 2.2 A and AA)", async ({
@@ -606,6 +713,12 @@ test("screenshots, when asked for", async ({ page }) => {
         fullPage: true,
       });
     }
+    // The states at the reference widths: 1440 and 390.
+    await page.setViewportSize({
+      width: mobile ? 390 : 1440,
+      height: mobile ? 844 : 900,
+    });
+    await page.evaluate(() => window.scrollTo(0, 0));
     const width = page.viewportSize()!.width;
     // Keyboard focus: the skip link, then a journal row.
     await page.keyboard.press("Tab");
