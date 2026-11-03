@@ -162,6 +162,45 @@ describe("what the build prerenders for the public routes", () => {
     expect(html).not.toContain("__refrain-unknown-address");
   });
 
+  // The Home (M3.4; ADR 0006, amendment A4). It is rendered on the server per
+  // request, in one pass (`instant = false`), so the build prerenders nothing
+  // of it: its entry is empty and blocking, and its segment files are the
+  // framework's generic not-found fallback. What it lists, and whether it says
+  // "Nothing published yet.", is decided per request.
+  it("prerenders nothing of the Home: an empty, blocking entry", () => {
+    const route = manifest.routes["/"] as unknown as {
+      response?: string;
+      compute?: string;
+      htmlSize?: number;
+    };
+    expect(route).toBeDefined();
+    expect(route.response).toBe("empty");
+    expect(route.compute).toBe("blocking");
+    expect(route.htmlSize).toBe(0);
+    expect(text(join(APP, "index.html"))).toBe("");
+    // The segments, and the postponed state and headers the server resumes
+    // from (`index.meta`).
+    for (const file of [
+      ...files(join(APP, "index.segments")),
+      join(APP, "index.meta"),
+    ]) {
+      const body = text(file);
+      for (const needle of [
+        "/albums/",
+        "A personal music journal",
+        "refrain-home-character",
+        "Nothing published yet",
+        "Most recent",
+        "Recently written",
+        "[Test]",
+        "Grace",
+        "Buckley",
+      ]) {
+        expect(body, `${file} contains ${needle}`).not.toContain(needle);
+      }
+    }
+  });
+
   it("contains no journal text anywhere in the album or not-found output", () => {
     const everything = [
       ...files(join(APP, "albums")),

@@ -6,9 +6,9 @@ import {
   publicSiteOrigin,
 } from "@/modules/publication/public";
 
-// The sitemap lists the address of every publicly visible album journal and
-// nothing else, read through the publication queries (the same rule that
-// `resolvePublicSlug` applies, so every listed address is served). It is a
+// The sitemap lists the Home and the address of every publicly visible album
+// journal, and nothing else, read through the publication queries (the same
+// rule that `resolvePublicSlug` applies, so every listed address is served). It is a
 // route handler, and not the `sitemap.ts` convention, because that convention
 // sends `Cache-Control: public, max-age=0, must-revalidate`, and ADR 0006
 // § 11 requires `no-store` on every public response (M3.1 spike).
@@ -34,16 +34,16 @@ export async function GET() {
     return new Response("Not Found", { status: 404, headers: NO_STORE });
   }
   const addresses = await listPublicAlbumJournalAddresses();
-  const entries = addresses
-    .map(
-      (slug) =>
-        `  <url><loc>${escapeXml(`${origin}/albums/${slug}`)}</loc></url>`,
-    )
+  const entries = [
+    `${origin}/`,
+    ...addresses.map((slug) => `${origin}/albums/${slug}`),
+  ]
+    .map((address) => `  <url><loc>${escapeXml(address)}</loc></url>`)
     .join("\n");
   const xml =
     `<?xml version="1.0" encoding="UTF-8"?>\n` +
     `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
-    (entries ? `${entries}\n` : "") +
+    `${entries}\n` +
     `</urlset>\n`;
   return new Response(xml, {
     headers: {

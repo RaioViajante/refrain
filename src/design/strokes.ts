@@ -18,6 +18,7 @@ const INK = "#111111";
 // The V4.4 mockups used #ABABAB (2.3:1), which does not.
 const QUIET = "#767676";
 const RULE = "#CFCFCF"; // rule, the light divider (decorative, never a control)
+const FRAME_INK = "#BDBDBD"; // the outline of an artwork frame (V4.4 `.artfb`), decorative
 const DISABLED = "#C8C8C8";
 
 const generator = rough.generator();
@@ -350,6 +351,10 @@ const BUTTON = { w: 160, h: 44 };
 const FIELD = { w: 600, h: 48 };
 const AREA = { w: 760, h: 440 };
 const DIALOG = { w: 540, h: 300 };
+// The Home's artwork frames (M3.4): square, as a cover is. The small one is
+// drawn at a thumbnail's own scale (48px), so its wobble stays visible.
+const FRAME = { w: 400, h: 400 };
+const FRAME_SMALL = { w: 60, h: 60 };
 
 /** Every stroke, by the name its CSS custom property gets. */
 export function strokes(): Record<string, string> {
@@ -390,6 +395,23 @@ export function strokes(): Record<string, string> {
     ]),
     "area-focus": svg(AREA.w, AREA.h, [
       { d: area(41), stroke: INK, width: 1.6 },
+    ]),
+    // The light outline of an artwork frame on the Home (V4.4 `Home`,
+    // `.artfb .o path{stroke:#BDBDBD;stroke-width:1}`): a decorative edge
+    // around a picture, never a control boundary.
+    frame: svg(FRAME.w, FRAME.h, [
+      {
+        d: rectangle(FRAME.w, FRAME.h, 91, 1.2, FIELD_CHARACTER),
+        stroke: FRAME_INK,
+        width: 1,
+      },
+    ]),
+    "frame-small": svg(FRAME_SMALL.w, FRAME_SMALL.h, [
+      {
+        d: rectangle(FRAME_SMALL.w, FRAME_SMALL.h, 95, 0.8, FIELD_CHARACTER),
+        stroke: FRAME_INK,
+        width: 1,
+      },
     ]),
     dialog: svg(DIALOG.w, DIALOG.h, [
       {

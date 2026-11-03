@@ -22,6 +22,7 @@ import {
   listPublicAlbumJournalAddresses,
 } from "./public-album-journal";
 import { changeEntrySlug } from "./commands";
+import { listPublicAlbums, listRecentPublicAlbumJournals } from "./public-home";
 import { routeAlbumJournalRequest } from "./public-routing";
 import { resolvePublicSlug } from "./queries";
 
@@ -73,6 +74,12 @@ function states(): State[] {
 
 const EN_TEXT = "[Test] English body";
 const PT_TEXT = "[Test] Portuguese body";
+// Each language is published on its own day, so the date a list shows says
+// which version it chose.
+const PUBLISHED_ON = {
+  en: new Date("2026-01-05T00:00:00Z"),
+  "pt-BR": new Date("2026-02-05T00:00:00Z"),
+} as const;
 const RATING = 7;
 
 // The oracle: what a reader of an English-speaking interface may see.
@@ -119,6 +126,7 @@ describe("the public album journal in every state", () => {
             status: state.en,
             isOriginal: state.original === "en",
             text: EN_TEXT,
+            publishedAt: PUBLISHED_ON.en,
           },
         ];
         if (state.pt !== null) {
@@ -127,6 +135,7 @@ describe("the public album journal in every state", () => {
             status: state.pt,
             isOriginal: state.original === "pt-BR",
             text: PT_TEXT,
+            publishedAt: PUBLISHED_ON["pt-BR"],
           });
         }
         const entryId = await createTestAlbumJournal(tx, {
@@ -203,6 +212,49 @@ describe("the public album journal in every state", () => {
             want.locale === "en" ? "pt reflection" : "en reflection";
           if (!text.includes(wantText) || text.includes(otherText)) {
             mismatches.push(`${label}: reflection text of the wrong language`);
+          }
+        }
+      }
+
+      // The Home (M3.4): both of its lists, read once over every state, hold
+      // exactly the visible journals, each dated by the version the oracle
+      // chose. Every album here has one journal, so it presents that one.
+      const recent = new Map(
+        (await listRecentPublicAlbumJournals(tx, "en", 100_000)).map((card) => [
+          card.slug,
+          card,
+        ]),
+      );
+      const albums = new Map(
+        (await listPublicAlbums(tx, "en", 100_000)).map((card) => [
+          card.slug,
+          card,
+        ]),
+      );
+      for (const [index, state] of all.entries()) {
+        const slug = `matrix-${index}`;
+        const want = expected(state);
+        const label = JSON.stringify(state);
+        for (const [name, list] of [
+          ["Recently written", recent],
+          ["Albums", albums],
+        ] as const) {
+          const card = list.get(slug);
+          if (want === null) {
+            if (card) mismatches.push(`${label}: ${name} listed it`);
+            continue;
+          }
+          if (!card) {
+            mismatches.push(`${label}: ${name} lacks it`);
+            continue;
+          }
+          if (
+            card.publishedAt.getTime() !== PUBLISHED_ON[want.locale].getTime()
+          ) {
+            mismatches.push(`${label}: ${name} dated another version`);
+          }
+          if (card.ratingHalfSteps !== want.rating) {
+            mismatches.push(`${label}: ${name} rating ${card.ratingHalfSteps}`);
           }
         }
       }

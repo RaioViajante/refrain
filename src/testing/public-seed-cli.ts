@@ -5,9 +5,12 @@
 // database: the same five safety checks as every test apply to
 // TEST_DATABASE_URL, and a record is removed only by the ids it printed.
 //
-//   seed <slug-prefix>        prints a JSON description of what it created
+//   seed <slug-prefix>        prints a JSON description of what it created:
+//                             Grace, a draft, and the Home's shelf (M3.4)
 //   unpublish <entry-id>      the real command, as the author's unpublish
-//   publish <entry-id>        the real preview-then-publish, for a test
+//   publish <entry-id> [at]   the real preview-then-publish, for a test; with
+//                             an ISO date, the English version's publication
+//                             date is then set back to it (the Home's order)
 //   remove <json> <prefix>    removes what `seed` printed
 //   cover <entry-id> <url|none>
 //                             sets (or clears) the cover of the journal's
@@ -22,6 +25,7 @@ import {
   PUBLIC_TEXT,
   removeSeeded,
   seedGrace,
+  seedHomeShelf,
   seedSimple,
   type SeededJournal,
 } from "./public-journals";
@@ -59,10 +63,12 @@ async function main() {
           status: "draft",
           marker: "[Test] PRIVATE-DRAFT-MARKER",
         });
+        const shelf = await seedHomeShelf(client, prefix);
         console.log(
           JSON.stringify({
             grace,
             draft,
+            shelf,
             opening: PUBLIC_TEXT.opening,
           }),
         );
@@ -82,6 +88,13 @@ async function main() {
       }
       case "publish": {
         await publishForTest(fixtureDatabase(client), first!, "en");
+        if (second) {
+          await client.query(
+            `update entry_texts set published_at = $2
+              where entry_id = $1 and locale = 'en' and status = 'published'`,
+            [first!, new Date(second)],
+          );
+        }
         break;
       }
       case "cover": {
@@ -97,8 +110,13 @@ async function main() {
         const seeded = JSON.parse(first!) as {
           grace: SeededJournal;
           draft: SeededJournal;
+          shelf?: SeededJournal[];
         };
-        await removeSeeded(client, [seeded.grace, seeded.draft], second!);
+        await removeSeeded(
+          client,
+          [seeded.grace, seeded.draft, ...(seeded.shelf ?? [])],
+          second!,
+        );
         break;
       }
       default:

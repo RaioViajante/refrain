@@ -18,6 +18,7 @@ import { describe, expect, it } from "vitest";
 
 const READS = new Set([
   "getPublicAlbumJournal",
+  "getPublicHome",
   "listPublicAlbumJournalAddresses",
   "resolvePublicAlbumJournalSlug",
   "routeAlbumJournalRequest",
@@ -42,6 +43,7 @@ function publicFiles(): string[] {
   const inApp = walk("src/app").filter(
     (file) =>
       file.startsWith("src/app/(public)/") ||
+      file === "src/app/page.tsx" ||
       file === "src/app/not-found.tsx" ||
       file === "src/app/public-fonts.ts" ||
       file === "src/app/sitemap.xml/route.ts" ||
@@ -331,6 +333,65 @@ function gateViolations(
   return found;
 }
 
+// The route-segment settings that could cache, prerender, or keep a page's
+// data (the framework reads them from a module's exports by name, however
+// they are written: node_modules/next/dist/build/segment-config/app).
+// `instant` is allowed only as `false`, the Home's (M3.4): it lets a page
+// render on the server before it sends anything.
+const CONFIG_EXPORTS = new Set([
+  "revalidate",
+  "dynamic",
+  "fetchCache",
+  "ensureStatic",
+  "dynamicParams",
+  "prefetch",
+  "unstable_dynamicStaleTime",
+  "unstable_paramMatching",
+  "unstable_generateParamMatching",
+]);
+
+/** A cache directive, or a route-segment setting that could keep data. */
+function configExports(source: ts.SourceFile): string[] {
+  const found: string[] = [];
+  const visit = (node: ts.Node) => {
+    if (
+      ts.isVariableStatement(node) &&
+      node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)
+    ) {
+      for (const declaration of node.declarationList.declarations) {
+        const name = declaration.name.getText();
+        if (CONFIG_EXPORTS.has(name)) {
+          found.push(`exports ${name}`);
+        }
+        if (
+          name === "instant" &&
+          (declaration.initializer?.getText() !== "false" ||
+            (node.declarationList.flags & ts.NodeFlags.Const) === 0)
+        ) {
+          found.push("exports instant other than const false");
+        }
+      }
+    }
+    // `export { revalidate }` and `export { x as revalidate }`.
+    if (
+      ts.isExportSpecifier(node) &&
+      (CONFIG_EXPORTS.has(node.name.text) || node.name.text === "instant")
+    ) {
+      found.push(`exports ${node.name.text} by name`);
+    }
+    if (
+      ts.isExpressionStatement(node) &&
+      ts.isStringLiteral(node.expression) &&
+      /^use cache/.test(node.expression.text)
+    ) {
+      found.push('uses "use cache"');
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return found;
+}
+
 function violations(code: string, file: string): string[] {
   const source = parse(code, file);
   const found: string[] = [];
@@ -388,33 +449,11 @@ function violations(code: string, file: string): string[] {
     if (ts.isIdentifier(node) && node.text === "generateStaticParams") {
       found.push("generates static params");
     }
-    // A cache or a static page of journal data: `export const revalidate`,
-    // `dynamic = "force-static"`, `"use cache"`.
-    if (
-      ts.isVariableStatement(node) &&
-      node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)
-    ) {
-      for (const declaration of node.declarationList.declarations) {
-        const name = declaration.name.getText();
-        if (
-          name === "revalidate" ||
-          name === "dynamic" ||
-          name === "fetchCache"
-        ) {
-          found.push(`exports ${name}`);
-        }
-      }
-    }
-    if (
-      ts.isExpressionStatement(node) &&
-      ts.isStringLiteral(node.expression) &&
-      /^use cache/.test(node.expression.text)
-    ) {
-      found.push('uses "use cache"');
-    }
+
     ts.forEachChild(node, visit);
   };
   visit(source);
+  found.push(...configExports(source));
 
   // Every function that reads public content applies the switch first, as an
   // early exit that dominates the read.
@@ -432,6 +471,8 @@ describe("the public surface", () => {
     expect(files).toContain("src/app/sitemap.xml/route.ts");
     expect(files).toContain("src/app/robots.txt/route.ts");
     expect(files).toContain("src/app/not-found.tsx");
+    expect(files).toContain("src/app/page.tsx");
+    expect(files).toContain("src/app/(public)/_components/home-view.tsx");
     expect(files.length).toBeGreaterThan(8);
   });
 
@@ -439,11 +480,26 @@ describe("the public surface", () => {
     expect(violations(readFileSync(file, "utf8"), file)).toEqual([]);
   });
 
+  it("keeps the root layout, which wraps the Home, free of caching and route settings", () => {
+    const file = "src/app/layout.tsx";
+    expect(configExports(parse(readFileSync(file, "utf8"), file))).toEqual([]);
+    expect(
+      configExports(parse("export const revalidate = 60;", file)),
+    ).toHaveLength(1);
+  });
+
+  it("renders the Home on the server before sending it, so it needs no client JavaScript", () => {
+    expect(readFileSync("src/app/page.tsx", "utf8")).toMatch(
+      /^export const instant = false;$/m,
+    );
+  });
+
   it("applies the switch in every route handler and in the page's loader", () => {
     for (const file of [
       "src/app/sitemap.xml/route.ts",
       "src/app/robots.txt/route.ts",
       "src/app/(public)/albums/[slug]/page.tsx",
+      "src/app/page.tsx",
     ]) {
       expect(readFileSync(file, "utf8"), file).toMatch(
         /publicReadsEnabled\(\)/,
@@ -476,17 +532,18 @@ describe("the public surface", () => {
       /^src\/app\/sitemap\.xml\/route\.ts$/,
       /^src\/app\/robots\.txt\/route\.ts$/,
       /^src\/app\/not-found\.tsx$/,
-      // The root layout and the homepage placeholder, which reads nothing.
-      /^src\/app\/layout\.tsx$/,
+      // The Home (M3.4), scanned above as a public file.
       /^src\/app\/page\.tsx$/,
+      // The root layout, which reads nothing.
+      /^src\/app\/layout\.tsx$/,
     ];
     const unclassified = walk("src/app").filter(
       (file) => routeLike.test(file) && !known.some((rule) => rule.test(file)),
     );
     expect(unclassified).toEqual([]);
-    // The placeholder homepage is public and anonymous: it imports nothing from
-    // a module and calls nothing that reads the system.
-    expect(readFileSync("src/app/page.tsx", "utf8")).not.toMatch(
+    // The root layout wraps every page, the studio's included: it imports
+    // nothing from a module and calls nothing that reads the system.
+    expect(readFileSync("src/app/layout.tsx", "utf8")).not.toMatch(
       /from "@\/|import\(/,
     );
   });
@@ -756,6 +813,32 @@ describe("the public surface", () => {
       expect(check('"use cache";\nexport const x = 1;')).toHaveLength(1);
       expect(check("export const revalidate = 60;")).toHaveLength(1);
       expect(check('export const dynamic = "force-static";')).toHaveLength(1);
+      expect(check("export const ensureStatic = true;")).toHaveLength(1);
+      for (const name of [
+        "dynamicParams = false",
+        'prefetch = "partial"',
+        "unstable_dynamicStaleTime = 300",
+        "unstable_paramMatching = true",
+      ]) {
+        expect(check(`export const ${name};`), name).toHaveLength(1);
+      }
+      // However the export is written.
+      expect(
+        check("const revalidate = 60;\nexport { revalidate };"),
+      ).toHaveLength(1);
+      expect(check("const x = 60;\nexport { x as revalidate };")).toHaveLength(
+        1,
+      );
+      expect(check("const instant = false;\nexport { instant };")).toHaveLength(
+        1,
+      );
+      expect(check("export let instant = false;")).toHaveLength(1);
+      // The Home's own setting, and nothing else under that name.
+      expect(check("export const instant = false;")).toEqual([]);
+      expect(check("export const instant = true;")).toHaveLength(1);
+      expect(
+        check('export const instant = { level: "warning" };'),
+      ).toHaveLength(1);
       expect(
         check("export async function generateStaticParams() { return []; }"),
       ).not.toEqual([]);
@@ -798,6 +881,7 @@ describe("where the switch is applied", () => {
     const file = "src/modules/publication/public.ts";
     const reads = new Set([
       "getPublicAlbumJournalFrom",
+      "getPublicHomeFrom",
       "listPublicAlbumJournalAddressesFrom",
       "resolvePublicSlugFrom",
     ]);
@@ -888,6 +972,7 @@ describe("the Publication reading module", () => {
     "src/modules/publication/public-reads.ts",
     "src/modules/publication/public-routing.ts",
     "src/modules/publication/public-album-journal.ts",
+    "src/modules/publication/public-home.ts",
     "src/modules/publication/queries.ts",
     "src/modules/publication/predicate.ts",
     "src/modules/publication/slug.ts",
@@ -899,7 +984,7 @@ describe("the Publication reading module", () => {
     // M3.2: the pure parser of a stored cover, and nothing else from it (the
     // next test). No provider is ever called while reading a public page.
     /^@\/integrations\/cover-art-archive$/,
-    /^\.\/(public|public-reads|public-routing|public-album-journal|queries|predicate|slug)$/,
+    /^\.\/(public|public-reads|public-routing|public-album-journal|public-home|queries|predicate|slug)$/,
   ];
 
   it("uses only the pure cover parser from the Cover Art Archive integration", () => {
@@ -946,6 +1031,7 @@ describe("the Publication reading module", () => {
       ...readdirSync("src/app/(public)", { recursive: true, encoding: "utf8" })
         .filter((name) => /\.(ts|tsx)$/.test(name) && !name.includes(".test."))
         .map((name) => join("src/app/(public)", name)),
+      "src/app/page.tsx",
       "src/app/sitemap.xml/route.ts",
       "src/app/robots.txt/route.ts",
     ];
@@ -1091,6 +1177,8 @@ describe("the Publication reading module", () => {
   const EXPECTED_EXPORTS = [
     // Reads, bound to the application's database, each behind the switch.
     "getPublicAlbumJournal",
+    // M3.4: what the Home lists.
+    "getPublicHome",
     "listPublicAlbumJournalAddresses",
     "resolvePublicAlbumJournalSlug",
     "routeAlbumJournalRequest",
@@ -1108,6 +1196,8 @@ describe("the Publication reading module", () => {
     // from the database.
     "PublicArtwork",
     "PublicCredit",
+    "PublicHome",
+    "PublicJournalCard",
     "PublicJournalTrack",
     "SlugResolution",
   ].sort();

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   getPublicAlbumJournal,
+  getPublicHome,
   listPublicAlbumJournalAddresses,
   resolvePublicAlbumJournalSlug,
 } from "./public";
@@ -60,6 +61,10 @@ describe("the reading entry point with reads not enabled", () => {
       }
       expect(await getPublicAlbumJournal("any-entry", "en")).toBeNull();
       expect(await listPublicAlbumJournalAddresses()).toEqual([]);
+      // The Home's answer is the one for a site with nothing published
+      // (ADR 0006, amendment A4), in either reader language.
+      expect(await getPublicHome("en")).toEqual({ recent: [], albums: [] });
+      expect(await getPublicHome("pt-BR")).toEqual({ recent: [], albums: [] });
       expect(await resolvePublicAlbumJournalSlug("any-slug")).toEqual({
         outcome: "not_found",
       });
@@ -73,5 +78,6 @@ describe("the reading entry point with reads not enabled", () => {
     await expect(resolvePublicAlbumJournalSlug("any-slug")).rejects.toThrow();
     await expect(listPublicAlbumJournalAddresses()).rejects.toThrow();
     await expect(getPublicAlbumJournal("any-entry", "en")).rejects.toThrow();
+    await expect(getPublicHome("en")).rejects.toThrow();
   });
 });

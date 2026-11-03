@@ -405,7 +405,7 @@ select al.id, al.title,
  order by al.title, al.id;
 ```
 
-**Featured resolution: the journal presented for an album** (ADR 0002, D1.2 and INV-1; [`resolvePresentedJournal`](../src/modules/publication/queries.ts)). `public_versions` is the [publication predicate](security.md#publication-predicate). The `ORDER BY` makes the choice deterministic, and the reader's language (`$2`) appears only in the lateral subquery that picks the version to show:
+**Featured resolution: the journal presented for an album** (ADR 0002, D1.2 and INV-1; [`resolvePresentedJournal`](../src/modules/publication/queries.ts)). `public_versions` is the [publication predicate](security.md#publication-predicate). The `ORDER BY` makes the choice deterministic, and the reader's language (`$2`) appears only in the lateral subquery that picks the version to show. Below is the form for one album; since M3.4 the rule is defined once, in `presentedJournals`, which makes the same choice for every album at once (`distinct on`), and both `resolvePresentedJournal` and the Home's Albums read through it:
 
 ```sql
 with public_versions as (

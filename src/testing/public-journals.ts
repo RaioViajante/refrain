@@ -358,6 +358,77 @@ export async function seedSimple(
   });
 }
 
+/**
+ * Three more published album journals for the Home (M3.4), beside Grace:
+ * public catalog facts (title, artist, year) and synthetic "[Test]" writing,
+ * each published on its own day, all before Grace (2026-10-20), and none
+ * rated, so the Home shows a rated and an unrated card.
+ */
+export const HOME_SHELF = [
+  {
+    name: "pink-moon",
+    title: "Pink Moon",
+    artist: "Nick Drake",
+    year: 1972,
+    publishedAt: new Date("2026-10-18T12:00:00Z"),
+  },
+  {
+    name: "twin-fantasy",
+    title: "Twin Fantasy",
+    artist: "Car Seat Headrest",
+    year: 2018,
+    publishedAt: new Date("2026-10-12T12:00:00Z"),
+  },
+  {
+    name: "cleopatra",
+    title: "Cleopatra",
+    artist: "The Lumineers",
+    year: 2016,
+    publishedAt: new Date("2026-10-05T12:00:00Z"),
+  },
+] as const;
+
+export async function seedHomeShelf(
+  client: Client,
+  slugPrefix: string,
+): Promise<SeededJournal[]> {
+  const db = fixtureDatabase(client);
+  const seeded: SeededJournal[] = [];
+  for (const album of HOME_SHELF) {
+    seeded.push(
+      await db.transaction(async (tx) => {
+        const artistId = await createTestArtist(tx, album.artist);
+        const created = await createTestAlbum(tx, {
+          title: album.title,
+          artistIds: [artistId],
+          firstReleaseYear: album.year,
+        });
+        const slug = `${slugPrefix}-${album.name}`;
+        const entryId = await createTestAlbumJournal(tx, {
+          albumId: created.albumId,
+          versions: [
+            {
+              locale: "en",
+              status: "published",
+              text: `[Test] A synthetic journal about ${album.title}.`,
+              publishedAt: album.publishedAt,
+            },
+          ],
+          slug,
+        });
+        return {
+          entryId,
+          albumId: created.albumId,
+          artistId,
+          trackIds: created.trackIds,
+          slug,
+        };
+      }),
+    );
+  }
+  return seeded;
+}
+
 /** A run-unique prefix for slugs, so concurrent runs never collide. */
 export function runPrefix(): string {
   return `t${randomUUID().slice(0, 8)}`;

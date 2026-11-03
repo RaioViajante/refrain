@@ -131,6 +131,31 @@ export default defineConfig({
       },
     },
     {
+      // The public Home (M3.4), anonymous: from the server with public reads
+      // on (populated) and from the studio's server, whose switch is off. At
+      // 1440 px, and at 390 px on a touch screen; the layout test also checks
+      // 390, 768, 1280, 1440, and 2560 px.
+      name: "home-desktop",
+      testMatch: /home\.spec\.ts/,
+      use: {
+        browserName: "chromium",
+        viewport: { width: 1440, height: 900 },
+        storageState: undefined,
+      },
+    },
+    {
+      name: "home-390",
+      testMatch: /home\.spec\.ts/,
+      use: {
+        browserName: "chromium",
+        viewport: { width: 390, height: 844 },
+        isMobile: true,
+        hasTouch: true,
+        deviceScaleFactor: 2,
+        storageState: undefined,
+      },
+    },
+    {
       // Add music and artwork (M3.2) again at a phone width.
       name: "music-390",
       testMatch: /music\.spec\.ts/,

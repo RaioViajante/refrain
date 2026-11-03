@@ -514,7 +514,8 @@ describe("address normalization", () => {
   it("leaves the homepage and every address without a trailing slash as they were", async () => {
     const home = await request(on.baseURL, "/");
     expect(home.status).toBe(200);
-    expect(home.body).toContain("Development build");
+    // The Home itself (M3.4), not a redirect to anything else.
+    expect(home.body).toContain('<h1 id="ph-title"');
     const page = await request(on.baseURL, `/albums/${slug("grace")}`);
     expect(page.status).toBe(200);
     const signIn = await request(off.baseURL, "/studio/sign-in");

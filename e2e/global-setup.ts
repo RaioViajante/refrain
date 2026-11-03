@@ -128,12 +128,17 @@ export default async function setup() {
   const seeded = JSON.parse(seededPublic) as {
     grace: { slug: string; entryId: string };
     draft: { slug: string };
+    shelf: { slug: string; entryId: string }[];
     opening: string;
   };
   process.env.E2E_PUBLIC_URL = pub.baseURL;
   process.env.E2E_PUBLIC_SLUG = seeded.grace.slug;
   process.env.E2E_PUBLIC_ENTRY_ID = seeded.grace.entryId;
   process.env.E2E_PUBLIC_DRAFT_SLUG = seeded.draft.slug;
+  // The Home's shelf (M3.4): three more published journals beside Grace.
+  process.env.E2E_PUBLIC_SHELF = JSON.stringify(
+    seeded.shelf.map(({ slug, entryId }) => ({ slug, entryId })),
+  );
   process.env.E2E_PUBLIC_OPENING = seeded.opening;
   process.env.E2E_PUBLIC_SERVER_LOG = pub.serverLog;
   process.env.E2E_PUBLIC_SEED_PREFIX = publicPrefix;
