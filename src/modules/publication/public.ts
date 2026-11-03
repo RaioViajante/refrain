@@ -19,6 +19,10 @@ import {
   listPublicAlbumJournalAddresses as listPublicAlbumJournalAddressesFrom,
 } from "./public-album-journal";
 import {
+  getPublicHome as getPublicHomeFrom,
+  type PublicHome,
+} from "./public-home";
+import {
   routeAlbumJournalRequest as routeAlbumJournalRequestWith,
   type AlbumJournalRequest,
 } from "./public-routing";
@@ -44,6 +48,7 @@ export type {
   PublicCredit,
   PublicJournalTrack,
 } from "./public-album-journal";
+export type { PublicHome, PublicJournalCard } from "./public-home";
 export type { SlugResolution } from "./queries";
 export { isNormalizedSlug } from "./slug";
 
@@ -62,6 +67,18 @@ export async function listPublicAlbumJournalAddresses() {
     return [];
   }
   return listPublicAlbumJournalAddressesFrom(getDb());
+}
+
+/**
+ * What the public Home lists (M3.4). While reads are off it is the answer for
+ * a site with nothing published, so the Home cannot tell the two apart
+ * (ADR 0006, amendment A4).
+ */
+export async function getPublicHome(readerLocale: Locale): Promise<PublicHome> {
+  if (!publicReadsEnabled()) {
+    return { recent: [], albums: [] };
+  }
+  return getPublicHomeFrom(getDb(), readerLocale);
 }
 
 /** Resolves an album-journal address: found, a redirect, or not found. */
