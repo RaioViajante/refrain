@@ -1,6 +1,6 @@
 # Design System
 
-**Status:** visual identity approved (design V4.4, October 31, 2026). **Implemented for the Writing Studio** ([working specification](design/studio-visual-fidelity.md)), **since M3.1 for the first public page, the album journal** ([below](#public-album-journal-m31)), **and since M3.4 for the Home** ([below](#public-home-m34)); the other public pages (lists, artist journals, memories) do not exist yet. This document summarizes the approved design for implementation. It does not redesign anything.
+**Status:** visual identity approved (design V4.4, October 31, 2026). **Implemented for the Writing Studio** ([working specification](design/studio-visual-fidelity.md)), **since M3.1 for the first public page, the album journal** ([below](#public-album-journal-m31)), **since M3.4 for the Home** ([below](#public-home-m34)), **and since M3.5 for the artist page** ([below](#public-artist-page-m35)); the other public pages (lists, artist journals, memories) do not exist yet. This document summarizes the approved design for implementation. It does not redesign anything.
 
 ## Authority
 
@@ -233,6 +233,31 @@ What the Home lists is read through the Publication module only: publicly visibl
 
 Rendering: the whole Home is rendered on the server per request, in one pass, and sent complete, so it reads the same without JavaScript: the lists, their links, and the footer are in the HTML (M3.4 owner review; an earlier version streamed the lists into hidden markup that only a script revealed). Nothing arrives later, so nothing on the screen moves as the page loads. The drawing has its width and height declared, so nothing shifts while it loads, and in forced colors it keeps its own white ground. Checked in a browser, also with JavaScript disabled, at 320, 390, 640 (which is also 200% zoom of a 1280px window: the sizes are in px, so zoom is what enlarges the text), 768, 960, 961, 1024, 1100, 1101, 1280, 1440, and 2560px, with axe (WCAG 2.2 A and AA), 44px targets (also with a one-letter and a very long title), keyboard and skip link, reduced motion, and forced colors (`e2e/home.spec.ts`).
 
+## Public artist page (M3.5)
+
+The artist page follows the approved `Artist` screen (`refrainV44-Artist`, desktop and mobile) at `/artists/<address>`, on the RaioViajante lateral contract and the album journal's two columns (5fr and 7fr, 88px apart): the photograph's **4:5 frame** on the left, at most 400px wide, with the hatched fallback underneath (the person mark, "Artist photograph", and "not available yet" when there is none); the kind label with the person mark and the name in Kalam 700 at 104px (62px on a phone, 54px at 370px and below) on the right, level with the middle of the frame; then **In this journal** (Kalam 700, 31px) in the left column beside **Album journals** (each album once, by its presented journal: a 120px artwork frame, the title in Kalam at 22px, and "<year> · <written> / <total> tracks") and **Tracks I wrote about** (one ruled row per track with a public reflection: the title in Kalam at 22px and "in <album> · <number>"). On a phone the order is the photograph, its credit, the name, and the lists, with 96px artwork frames. The header marks Artists as the current page (not a link), and the footer is the closing line. Implemented in [`src/app/(artists)/`](../src/app/(artists)/), [`artist-photograph.tsx`](../src/app/(public)/_components/artist-photograph.tsx), [`public-photo-image.tsx`](../src/app/(public)/_components/public-photo-image.tsx), [`person-icon.tsx`](../src/app/(public)/_components/person-icon.tsx), and [`public.css`](../src/app/public.css); no stroke was added. The album journal's credit now links each credited artist to their page; an archived artist's name stays plain text.
+
+The photograph is shown as it is, with no filter, tint, or overlay: it and the album covers are the page's only color. It is the one the author chose in the studio (M3.3), never one picked automatically, and it covers its frame with `object-fit: cover`, so nothing moves while it loads. If it cannot be loaded, it is removed and the frame says "not available just now" (and its accessible name says so too), with no broken-image icon; without JavaScript a failed image draws nothing, so the fallback shows.
+
+Where the approved screen shows something that does not exist yet, or that the data cannot honestly supply, the page shows less, never something invented:
+
+| Approved screen | Public artist page | Why |
+| --- | --- | --- |
+| "Artist journal" as the kind | "Artist" | The page is not an artist journal: artist journals have no public reading contract yet, and their text is never read |
+| A facts line ("Singer and songwriter · 1966–1997") | Not shown | The catalog holds no biography, and none is ever generated |
+| "[Your opening sentence about him.]" and the essay | Not shown | The author's own words; they arrive with artist journals |
+| "Last edited [DATE]" and "Written in English" under the photograph | Not shown | They describe an artist journal |
+| The caption "Photo: Wikimedia Commons · [photographer, licence]" | "Photo: [credit] · [license, linked] · via Wikimedia Commons", then **Photo details**, a native disclosure with the work (linked to its file on Commons), the credit, the source, the license (linked, with the share-alike condition when it applies), and the changes ("Resized, and cropped to fit the frame. No other changes.") | What the license asks for, from the stored provenance alone, kept discreet; the same wording as the studio's. Credits are 15px, the floor for credits; their links keep 44px targets without spreading the lines |
+| "Album journals: Grace, 1994 · 4 / 10 tracks" | The same form; read aloud as "4 of 10 tracks written about" | "4 / 10" is the count of tracks with a public reflection in the journal shown, out of the reference edition's tracks |
+| "Tracks I wrote about" | The same, linking to the album journal's tracks | Only reflections that are public in the version a reader is shown, from the presented journal of each album |
+| "Memories with his music: None yet." | Not shown | Memories have no public page; "None yet" would claim a feature that does not exist |
+| "All artists" | Not shown | No artist list exists ([Evidence](evidence/m3-5.md#navigation-and-discovery)) |
+| The language selector | Not shown | It arrives with next-intl |
+| The header's four links | Home, and Artists as the current page | As on the album journal |
+| A name that does not fit its column | It wraps, with an automatic hyphen when a word must break | Checked with a 99-character band name from 320 to 2560px |
+
+The page reads the same without JavaScript (it is rendered on the server per request in one pass, as the Home is), and was checked in a browser at 320, 390, 768, 1024, 1440, and 2560px, with axe (WCAG 2.2 A and AA), 44px targets, keyboard and the skip link, a visible focus ring, reduced motion, forced colors (the frame and the rules keep real borders), and no layout shift while the photograph loads (`e2e/artist.spec.ts`).
+
 ## Add music and artwork (M3.2)
 
 **Add music** follows the approved `Search` screen (`refrainV44-Search`): the title and lead, the search field with its magnifier, the kinds to search for, "Already in your catalog" and "From MusicBrainz" as ruled rows with the record icon and an **Add** control (or "In catalog" with its filled dot), the source line ("Data from MusicBrainz. Artwork from Cover Art Archive, added only if you choose it."), and the three states ("Searching MusicBrainz…", "Nothing found for “…”." with its hint, "Couldn’t reach MusicBrainz." with its reassurance and **Try again**). Where it differs:
@@ -259,7 +284,7 @@ The photograph follows the approved `ArtistEditor` and `Artist` screens: the **4
 | **Choose from Wikimedia Commons…** opens a picker | It opens a page: suggestions through Wikidata, a search, the photograph on file and how it compares with Commons, then a review page with **Use this photograph** and **Cancel** | The author must see the license, the creator, and the rights notes before choosing, and a page survives a reload |
 | A candidate shown as the artist | Candidates are named by their file ("Candidate: …"), with "A search finds words, not people." | Neither a search nor Wikidata proves who is in a photograph |
 
-The frame and the attribution are presentational components with no administrative control ([`artist-photograph.tsx`](../src/app/studio/artist-photograph.tsx)), so a public `Artist` page could reuse them once it is approved; no public page shows a photograph today. A photograph whose thumbnail fails to load is removed from the frame, so only the fallback remains (no broken-image icon). Checked in a browser at 1280px and 390px with axe, 44px targets, and no sideways scrolling (`e2e/photos.spec.ts`).
+The frame and the attribution are presentational components with no administrative control ([`artist-photograph.tsx`](../src/app/studio/artist-photograph.tsx)). Since M3.5 the public artist page shows the photograph with its own components in the public style, sharing the caption rule ([below](#public-artist-page-m35)). A photograph whose thumbnail fails to load is removed from the frame, so only the fallback remains (no broken-image icon). Checked in a browser at 1280px and 390px with axe, 44px targets, and no sideways scrolling (`e2e/photos.spec.ts`).
 
 ## Writing Studio controls for ADR 0002
 

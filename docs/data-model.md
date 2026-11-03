@@ -311,6 +311,8 @@ Integration tests omit, clear, and update a field while the unrelated fields hol
 
 No migration: the identifiers and the cover columns existed since M1.2.
 
+**Since M3.5:** `setArtistPhoto` locks `FOR SHARE`, in id order, every album-journal entry about an album that credits the artist, and refuses while the artist's public page exists (`public_page`, decided by the Publication module's `publicArtists` in a statement after the locks), then locks the artist row `FOR NO KEY UPDATE`, as the artwork commands do (proposed [ADR 0006 A5](decisions/0006-publication-decision-and-acknowledgement.md#a5-the-photograph-command-takes-entry-locks-then-a-catalog-lock-proposed-awaiting-the-owners-decision)). `removeArtistPhoto` takes no entry lock and is always allowed: it only takes the photograph away. No migration.
+
 **Journal commands added in M1.3B:** `createAlbumJournal` (boundary 2: the entry, its original version as a `draft`, the `album_journals` row, and a slug reserved by `reserveInitialSlug`), `saveAlbumJournal` (the version check of boundary 3 for an album journal's text), `setAlbumJournalPrivacy` (only `draft` or `private`, through `unpublishLanguageVersion`), and `deleteAlbumJournal` (sets `deleted_at`; recoverable).
 
 **Journal command added in M1.3C:** `restoreAlbumJournal` (boundary 10: restore from Recently deleted under the owner-accepted policy; no schema change).
