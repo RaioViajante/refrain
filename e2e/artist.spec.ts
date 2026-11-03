@@ -183,8 +183,11 @@ test("shows the approved composition: the photograph, the name, and what is in t
   expect(
     requested.every((url) => url.startsWith("https://thumb.wikimedia.org/")),
   ).toBe(true);
-  await expect(page.locator(".pa-credit-line")).toHaveText(
-    "Photo: [Test] Photographer One · CC BY-SA 4.0 · via Wikimedia Commons",
+  await expect(page.locator(".pa-credit-by")).toHaveText(
+    "Photo: [Test] Photographer One",
+  );
+  await expect(page.locator(".pa-credit-license")).toHaveText(
+    "CC BY-SA 4.0 · via Wikimedia Commons",
   );
   await expect(
     page.getByRole("link", { name: "CC BY-SA 4.0" }).first(),
@@ -233,11 +236,25 @@ test("leads from an album journal's credit to the artist, and back to the journa
 }) => {
   await serveImages(page);
   await page.goto(`${base}/albums/${seeded.sketches.slug}`);
+  // The album journal streams its content (issue #44): wait for it.
+  await expect(page.locator(".pj-artist a")).toBeVisible();
   await expect(page.locator(".pj-artist")).toContainText(
     "Jeff Buckley, [Test] Archived Credit Artist",
   );
-  // The archived artist has no page: plain text, no link.
-  await expect(page.locator(".pj-artist a")).toHaveCount(1);
+  // The archived artist has no page: plain text, no link. Only the linked
+  // name carries the drawn underline, so the two read differently; the link
+  // is a 44px target.
+  const link = page.locator(".pj-artist a");
+  await expect(link).toHaveCount(1);
+  expect(
+    await page
+      .locator(".pj-artist")
+      .evaluate((element) => getComputedStyle(element).backgroundImage),
+  ).toBe("none");
+  expect(
+    await link.evaluate((element) => getComputedStyle(element).backgroundImage),
+  ).not.toBe("none");
+  expect((await link.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   await shot(page, "8-album-journal-links-to-artist", false);
   await page.locator(".pj-artist a").click();
   await expect(page).toHaveURL(`${base}/artists/${address.grace}`);
@@ -370,6 +387,35 @@ test("passes axe, with keyboard operation, a visible focus ring, and 44px target
   expect(durations.every((duration) => /^0s(, 0s)*$/.test(duration))).toBe(
     true,
   );
+
+  // Every link of the credit, the summary included, owns a 44px target
+  // where it is: at the top and the bottom of its box, the element there is
+  // the link itself, never a neighbour drawn over it.
+  await page.getByText("Photo details").click();
+  const credit = page.locator(".pa-credit a, .pa-credit summary");
+  expect(await credit.count()).toBe(4);
+  for (const target of await credit.all()) {
+    const label = (await target.textContent()) ?? "";
+    // In the middle of the viewport, where every edge can be hit.
+    const edges = await target.evaluate((element) => {
+      element.scrollIntoView({ block: "center" });
+      const rect = element.getBoundingClientRect();
+      const x = rect.left + Math.min(rect.width / 2, 8);
+      return {
+        height: rect.height,
+        hits: [rect.top + 2, rect.bottom - 2].map((y) => {
+          const found = document.elementFromPoint(x, y);
+          return found !== null &&
+            (found === element || element.contains(found))
+            ? "itself"
+            : `${found?.tagName}.${found?.className}`;
+        }),
+      };
+    });
+    expect(edges.height, label).toBeGreaterThanOrEqual(44);
+    expect(edges.hits, label).toEqual(["itself", "itself"]);
+  }
+  await page.getByText("Photo details").click();
 });
 
 test("keeps the frame and its rules visible in forced colors", async ({

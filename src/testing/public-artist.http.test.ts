@@ -11,7 +11,8 @@
 // and no private artist's name, photograph credit, or writing may appear in
 // any response, header, payload, or server log.
 import { randomBytes } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
 
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
@@ -172,6 +173,50 @@ function candidateAddresses(name: string, id: string) {
   return [base, `${base}-${artistAddressSuffix(id)}`];
 }
 
+/** Every file the build wrote for the artist route and the not-found view. */
+function buildFiles(): Map<string, string> {
+  const root = ".next/server/app";
+  const found = new Map<string, string>();
+  const walk = (directory: string) => {
+    for (const name of readdirSync(directory)) {
+      const path = join(directory, name);
+      if (statSync(path).isDirectory()) {
+        walk(path);
+      } else {
+        found.set(path, readFileSync(path, "utf8"));
+      }
+    }
+  };
+  walk(join(root, "artists"));
+  walk(join(root, "(artists)"));
+  walk(join(root, "_not-found.segments"));
+  for (const name of ["_not-found.html", "_not-found.rsc"]) {
+    found.set(join(root, name), readFileSync(join(root, name), "utf8"));
+  }
+  return found;
+}
+const BUILD_FILES = buildFiles();
+
+/**
+ * ADR 0006 A2: the framework's cache marker only on a response that is empty
+ * or byte-identical to a file of the build, and `no-store`.
+ */
+function checkMarker(
+  response: { headers: Record<string, string>; body: string },
+  name: string,
+) {
+  if (response.headers["x-nextjs-cache"] === undefined) {
+    return;
+  }
+  expect(response.headers["cache-control"], name).toContain("no-store");
+  if (response.body !== "") {
+    expect(
+      [...BUILD_FILES.values()].includes(response.body),
+      `${name}: a marked response that is not a build file`,
+    ).toBe(true);
+  }
+}
+
 beforeAll(async () => {
   client = new Client({
     connectionString: databaseUrl,
@@ -301,6 +346,11 @@ describe("a public artist's page, with public reads on", () => {
       ]) {
         expect(page.headers[indicator], indicator).toBeUndefined();
       }
+      // A2: the framework's marker never on a response rendered from the
+      // database.
+      if (address === addresses.grace) {
+        expect(page.headers["x-nextjs-cache"]).toBeUndefined();
+      }
     }
     // Only the artist pages allow Wikimedia's host; the album page does not.
     const album = await request(on.baseURL, `/albums/${seeded!.grace.slug}`);
@@ -325,6 +375,7 @@ describe("a public artist's page, with public reads on", () => {
   it("answers every transport form without caching it", async () => {
     for (const [name, path, headers] of forms(addresses.grace)) {
       const response = await ask(on, path, headers);
+      checkMarker(response, name);
       expect(response.status, name).toBeLessThan(500);
       expect(response.headers["cache-control"], name).toContain("no-store");
     }
@@ -387,13 +438,52 @@ describe("an artist address that is not served", () => {
     }
   });
 
-  it("answers as an unknown one in every transport form", async () => {
+  it("answers as an unknown one in every transport form, for every kind of hidden artist", async () => {
+    for (const marker of [
+      ARTIST_MARKERS.catalogOnly,
+      ARTIST_MARKERS.draftOnly,
+      ARTIST_MARKERS.privateOnly,
+      ARTIST_MARKERS.deletedOnly,
+      ARTIST_MARKERS.translationOnly,
+      ARTIST_MARKERS.archived,
+    ]) {
+      const hidden = artistAddressBase(marker);
+      for (const [index, [name, path, headers]] of forms(hidden).entries()) {
+        const [, unknownPath, unknownHeaders] = forms(UNKNOWN)[index]!;
+        // The marker is checked on the response as it was sent; the
+        // comparison masks the address and the framework's request key.
+        const raw = await ask(on, path, headers);
+        checkMarker(raw, `${marker} ${name}`);
+        const a = masked(raw, hidden);
+        const b = masked(await ask(on, unknownPath, unknownHeaders), UNKNOWN);
+        expect(a, `${marker} ${name}`).toEqual(b);
+      }
+    }
+  });
+
+  it("answers percent-encoded and slashed forms as an unknown one", async () => {
     const hidden = artistAddressBase(ARTIST_MARKERS.draftOnly);
-    for (const [index, [name, path, headers]] of forms(hidden).entries()) {
-      const [, unknownPath, unknownHeaders] = forms(UNKNOWN)[index]!;
-      const a = masked(await ask(on, path, headers), hidden);
-      const b = masked(await ask(on, unknownPath, unknownHeaders), UNKNOWN);
-      expect(a, name).toEqual(b);
+    const encodedForms = (s: string) => [
+      `/%61rtists/${s}`,
+      `/artists%2F${s}`,
+      `/artists/${s.replace("t", "%74")}`,
+      `/artists/${s}/.segments/_tree.segment.rsc`,
+      `/_next/data/${buildId}/artists/${s}.json/`,
+    ];
+    const hiddenForms = encodedForms(hidden);
+    const unknownForms = encodedForms(UNKNOWN);
+    for (const [index, path] of hiddenForms.entries()) {
+      const a = masked(await request(on.baseURL, path), hidden);
+      const b = masked(
+        await request(on.baseURL, unknownForms[index]!),
+        UNKNOWN,
+      );
+      // The `%74` form names a different string from the unknown one only
+      // in that letter, which the mask leaves alone in a redirect.
+      expect(a.status, path).toBe(b.status);
+      expect(a.body.replaceAll("%74", "t"), path).toBe(
+        b.body.replaceAll("%74", "t"),
+      );
     }
   });
 
@@ -533,6 +623,62 @@ describe("a change shows on the next request", () => {
       ),
     ).toEqual(unknown);
     expect(await artistLinks(on, seeded!.long.slug)).toEqual([]);
+  });
+});
+
+describe("the build and what the requests left on disk (ADR 0006 A2)", () => {
+  it("prerenders no artist address, and nothing about any artist", () => {
+    const manifest = JSON.parse(
+      readFileSync(".next/prerender-manifest.json", "utf8"),
+    ) as { routes: Record<string, unknown> };
+    expect(
+      Object.keys(manifest.routes).filter((route) =>
+        route.startsWith("/artists/"),
+      ),
+    ).toEqual([]);
+    expect(readFileSync(".next/server/app/artists/[slug].html", "utf8")).toBe(
+      "",
+    );
+    for (const [file, body] of BUILD_FILES) {
+      if (!file.includes("artists")) {
+        continue;
+      }
+      for (const needle of [
+        "[Test]",
+        "Buckley",
+        "wikimedia",
+        "Photographer",
+        "In this journal",
+        ...PRIVATE_ARTIST_MARKER_LIST,
+      ]) {
+        expect(body, `${file} contains ${needle}`).not.toContain(needle);
+      }
+    }
+  });
+
+  it("added no file named for an artist address after every request", () => {
+    expect(readdirSync(".next/server/app/artists").sort()).toEqual([
+      "[slug].html",
+      "[slug].meta",
+      "[slug].segments",
+    ]);
+    const names: string[] = [];
+    const walk = (directory: string) => {
+      for (const name of readdirSync(directory)) {
+        names.push(name);
+        const path = join(directory, name);
+        if (statSync(path).isDirectory()) {
+          walk(path);
+        }
+      }
+    };
+    walk(".next/server/app/artists");
+    for (const address of [...Object.values(addresses), UNKNOWN]) {
+      expect(
+        names.some((name) => name.includes(address)),
+        address,
+      ).toBe(false);
+    }
   });
 });
 

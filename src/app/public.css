@@ -929,9 +929,6 @@ details[open] > summary .pj-chevron {
   margin: 0;
 }
 
-/* One column at 720px and below: artwork, the heading, the facts, the writing.
-   The two wrappers dissolve so their children can be ordered as the design
-   shows them. */
 /* The artist page (M3.5; the approved V4.4 `Artist` screen): the album
    journal's two columns, the photograph's 4:5 frame on the left and the name
    on the right, then "In this journal" in the same columns. */
@@ -994,26 +991,60 @@ article.pa-grid {
   overflow-wrap: anywhere;
 }
 
-/* A link in the credit keeps its 44px target, but takes only a line's height
-   in the text, so a credit that wraps does not open a gap between its lines.
-   The target overlaps the line's leading, never another link. */
-.pa-credit .public-link-inline {
-  margin-block: -12px;
+/* The credit on two lines: "Photo: <credit>", which may wrap and holds no
+   link, then the license, linked, on a line of its own that is a full 44px
+   target. No link shares a line with wrapping text, so each target is the
+   link's own, whatever the length of the credit. */
+.pa-credit-by,
+.pa-credit-license {
+  display: block;
 }
 
+.pa-credit-license {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 0.3em;
+  min-height: 44px;
+}
+
+/* The share-alike condition, on its own line under the license's link. */
+.pa-credit-note {
+  display: block;
+}
+
+.pa-credit-details {
+  margin-top: 0;
+}
+
+/* A disclosure, marked as one: the chevron turns when it is open, as the
+   album journal's tracks do. */
 .pa-credit-details summary {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
   min-height: 44px;
   cursor: pointer;
   color: var(--color-ink-2);
+  list-style: none;
 }
 
+.pa-credit-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.pa-credit-details[open] > summary .pj-chevron {
+  transform: rotate(90deg);
+}
+
+/* A row that holds a link is as tall as the link's 44px target; the others
+   keep the text's own height. */
 .pa-credit-details dl {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
+  align-items: baseline;
   gap: 4px 14px;
-  margin: 2px 0 0;
+  margin: 4px 0 0;
 }
 
 .pa-credit-details dt {
@@ -1145,11 +1176,24 @@ article.pa-grid {
   text-underline-offset: 5px;
 }
 
-/* A credited artist on the album journal links to the artist's page; the
-   credit's drawn underline is already its mark. */
+/* A credited artist on the album journal links to the artist's page. When a
+   credit holds a link, the drawn underline moves from the whole credit to
+   each linked name, so a name that is not a link (an archived artist) reads
+   as plain text. A credit without links keeps the line as before. The link
+   is a 44px target: its padding is taken back by its margins, so the line
+   stays where it was. */
+.pj-artist:has(.pj-artist-link) {
+  background: none;
+}
+
 .pj-artist-link {
+  display: inline-block;
+  min-height: 44px;
+  padding: 6px 0 8px;
+  margin: -6px 0 -8px;
   color: inherit;
   text-decoration: none;
+  background: var(--stroke-underline) 0 100% / 100% 8px no-repeat;
 }
 
 @media (max-width: 720px) {
@@ -1202,8 +1246,13 @@ article.pa-grid {
   }
 
   .pa-tracks,
-  .pa-track-item {
+  .pa-track-item,
+  .pj-artist-link {
     background-image: none;
+  }
+
+  .pj-artist-link {
+    text-decoration: underline;
   }
 
   .pa-tracks {
@@ -1215,6 +1264,9 @@ article.pa-grid {
   }
 }
 
+/* One column at 720px and below: artwork, the heading, the facts, the writing.
+   The two wrappers dissolve so their children can be ordered as the design
+   shows them. */
 @media (max-width: 720px) {
   .public {
     font-size: 19.5px;
@@ -1420,6 +1472,7 @@ article.pa-grid {
 
 @media (prefers-reduced-motion: reduce) {
   .public-link,
+  .pa-credit-details .pj-chevron,
   .pj-chevron {
     transition: none;
   }

@@ -55,11 +55,30 @@ export function ArtistPhotoCredit({
   return (
     <div className="pa-credit">
       <p className="pa-credit-line">
-        {photo.caption} · <LicenseName license={photo.license} /> · via
-        Wikimedia Commons
+        <span className="pa-credit-by">{photo.caption}</span>
+        <span className="pa-credit-license">
+          <LicenseName license={photo.license} /> · via Wikimedia Commons
+        </span>
       </p>
       <details className="pa-credit-details">
-        <summary>Photo details</summary>
+        <summary>
+          Photo details
+          <svg
+            className="pj-chevron"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path d="m9 6 6 6-6 6" />
+          </svg>
+        </summary>
         <dl>
           <dt>Photograph</dt>
           <dd>
@@ -73,23 +92,17 @@ export function ArtistPhotoCredit({
           </dd>
           <dt>Credit</dt>
           <dd>{photo.credit}</dd>
+          {/* The work above links to its file's page, which is the source. */}
           <dt>Source</dt>
-          <dd>
-            Wikimedia Commons,{" "}
-            <a
-              className="public-link-inline"
-              href={photo.sourceUrl}
-              rel="noreferrer"
-            >
-              the file’s page
-            </a>
-          </dd>
+          <dd>Wikimedia Commons</dd>
           <dt>License</dt>
           <dd>
             <LicenseName license={photo.license} />
-            {photo.license.shareAlike
-              ? ". Adaptations must use the same license."
-              : null}
+            {photo.license.shareAlike ? (
+              <span className="pa-credit-note">
+                Adaptations must use the same license.
+              </span>
+            ) : null}
           </dd>
           <dt>Changes</dt>
           <dd>{photo.modifications}</dd>
