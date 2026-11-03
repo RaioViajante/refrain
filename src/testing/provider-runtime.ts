@@ -1,6 +1,7 @@
 import { createCoverArtArchiveClient } from "@/integrations/cover-art-archive";
 import { createMusicBrainzClient } from "@/integrations/musicbrainz";
 import type { ProviderRuntime } from "@/integrations/provider";
+import { createWikimediaClient } from "@/integrations/wikimedia-commons";
 
 import { providerResponse } from "./provider-mock";
 
@@ -56,6 +57,12 @@ export function fixtureProviders(
       }),
       coverArt: createCoverArtArchiveClient({
         baseUrl: "http://127.0.0.1:1/caa/",
+        runtime: fake.runtime,
+        minIntervalMs: 0,
+      }),
+      wikimedia: createWikimediaClient({
+        commonsBaseUrl: "http://127.0.0.1:1/commons/w/",
+        wikidataBaseUrl: "http://127.0.0.1:1/wikidata/w/",
         runtime: fake.runtime,
         minIntervalMs: 0,
       }),
