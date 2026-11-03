@@ -33,7 +33,14 @@ describe("hand-drawn strokes", () => {
   it("draw every control boundary with at least 3:1 contrast on white (WCAG 2.2, 1.4.11)", () => {
     // Decorative lines are not control boundaries, and a disabled control is
     // exempt: it is a dashed gray on purpose.
-    const NOT_BOUNDARIES = new Set(["rule", "underline", "button-disabled"]);
+    // The Home's artwork frame is the edge of a picture inside a link whose
+    // text names it, not the boundary of a control.
+    const NOT_BOUNDARIES = new Set([
+      "rule",
+      "underline",
+      "button-disabled",
+      "frame",
+    ]);
     for (const [name, markup] of Object.entries(strokes())) {
       if (NOT_BOUNDARIES.has(name)) {
         continue;
@@ -59,6 +66,7 @@ describe("hand-drawn strokes", () => {
       field: [600, 48],
       "field-hover": [600, 48],
       area: [760, 440],
+      frame: [400, 400],
       dialog: [540, 300],
     };
     // Generated once: each call redraws every stroke (about 200 ms), and
