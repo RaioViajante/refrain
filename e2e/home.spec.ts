@@ -3,7 +3,7 @@ import { mkdirSync } from "node:fs";
 import { promisify } from "node:util";
 
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Browser, type Page } from "@playwright/test";
 
 import { env } from "./support";
 
@@ -489,14 +489,10 @@ test("shows a chosen cover in its frame, with nothing moving, and the fallback w
   }
 });
 
-// The lists are streamed after the shell is painted. Nothing painted may move
-// when they arrive (a footer painted under the introduction once jumped down
-// by 0.08 at 1440 px). Whether a paint falls between the two depends on
-// timing, so this measurement can pass by luck; the next test is the
-// deterministic guarantee, and a mutation that removed it failed there.
-test("does not move once shown: the lists arrive without a visible shift", async ({
-  page,
-}) => {
+// Nothing painted may move as the page loads (a streamed first version
+// pushed its footer down by 0.08 at 1440 px). The Home is now sent complete,
+// so there is nothing to arrive late; this measures it.
+test("does not move as it loads", async ({ page }) => {
   await serveTestCovers(page);
   await page.addInitScript(() => {
     const record = { total: 0, entries: [] as string[] };
@@ -531,30 +527,119 @@ test("does not move once shown: the lists arrive without a visible shift", async
   expect(shifts.total, shifts.entries.join("; ")).toBeLessThan(0.001);
 });
 
-test("paints a shell with no footer, which appears only with the lists", async ({
-  browser,
-  page,
-}) => {
-  // Without scripts React never reveals the streamed part (its reveal is an
-  // inline script), so the page stays as the shell was first painted: the
-  // drawing and the introduction, the lists still hidden outside the frame,
-  // and no footer to push down.
+// Without JavaScript (M3.4 owner review): the Home is rendered on the server
+// in one pass, so its lists, their links, and the footer are in the HTML a
+// reader receives, with public reads on; with them off, the empty Home. No
+// part of the page waits hidden for a script to reveal it.
+async function withoutJavaScript<Result>(
+  browser: Browser,
+  work: (page: Page) => Promise<Result>,
+): Promise<Result> {
+  const { viewport, isMobile, hasTouch, deviceScaleFactor } =
+    test.info().project.use;
   const context = await browser.newContext({
     javaScriptEnabled: false,
-    viewport: page.viewportSize()!,
+    viewport,
+    isMobile,
+    hasTouch,
+    deviceScaleFactor,
   });
   try {
-    const shell = await context.newPage();
-    await shell.goto(`${base}/`);
-    await expect(shell.getByText(INTRODUCTION)).toBeVisible();
-    await expect(shell.locator(".public .ph-lists")).toHaveCount(0);
-    await expect(shell.locator(".public-footer")).toBeHidden();
+    const page = await context.newPage();
+    await serveTestCovers(page);
+    return await work(page);
   } finally {
     await context.close();
   }
-  await openHome(page);
-  await expect(page.locator(".public .ph-lists")).toHaveCount(1);
-  await expect(page.locator(".public-footer")).toBeVisible();
+}
+
+test("works without JavaScript: the lists, their links, and the footer", async ({
+  browser,
+}) => {
+  await withoutJavaScript(browser, async (page) => {
+    const response = await page.goto(`${base}/`);
+    expect(response?.status()).toBe(200);
+    await expect(page.getByRole("img", { name: CHARACTER_ALT })).toBeVisible();
+    await expect(page.locator(".ph-since")).toContainText("Most recent:");
+    await expect(page.getByRole("heading", { level: 2 })).toHaveText([
+      "Recently written",
+      "Albums",
+    ]);
+    const rows = page.locator(".public .ph-row");
+    expect(await rows.count()).toBeGreaterThanOrEqual(4);
+    await expect(rows.first()).toBeVisible();
+    for (const slug of [graceSlug, ...shelf.map((journal) => journal.slug)]) {
+      await expect(
+        page.locator(`.public .ph-row[href="/albums/${slug}"]`),
+      ).toBeVisible();
+    }
+    await expect(page.locator(".public .ph-album").first()).toBeVisible();
+    await expect(page.locator(".public-footer")).toBeVisible();
+    await expect(page.locator(".public-closing")).toHaveText(
+      "some songs take you back.",
+    );
+    // Nothing is left hidden for a script to reveal.
+    await expect(page.locator("div[hidden][id^='S:']")).toHaveCount(0);
+    await expect(page.getByText("[Test] Draft album")).toHaveCount(0);
+    expect(await overflow(page)).toBeLessThanOrEqual(0);
+    // A link is an ordinary link: following it loads the journal's address.
+    await page.locator(`.ph-row[href="/albums/${graceSlug}"]`).click();
+    await expect(page).toHaveURL(`${base}/albums/${graceSlug}`);
+    if (process.env.E2E_SCREENSHOTS === "1") {
+      await page.goto(`${base}/`);
+      mkdirSync(SHOTS, { recursive: true });
+      await page.screenshot({
+        path: `${SHOTS}/home-no-js-${page.viewportSize()!.width}.png`,
+        fullPage: true,
+      });
+    }
+  });
+});
+
+test("works without JavaScript with public reads off: the empty Home and its footer", async ({
+  browser,
+}) => {
+  await withoutJavaScript(browser, async (page) => {
+    const response = await page.goto(`${offBase}/`);
+    expect(response?.status()).toBe(200);
+    await expect(page.locator(".ph-since")).toHaveText(
+      "Nothing published yet.",
+    );
+    await expect(page.getByRole("heading", { level: 2 })).toHaveCount(0);
+    expect(await addresses(page)).toEqual([]);
+    await expect(page.locator(".public-footer")).toBeVisible();
+    await expect(page.locator("div[hidden][id^='S:']")).toHaveCount(0);
+    if (process.env.E2E_SCREENSHOTS === "1") {
+      mkdirSync(SHOTS, { recursive: true });
+      await page.screenshot({
+        path: `${SHOTS}/home-no-js-reads-off-${page.viewportSize()!.width}.png`,
+        fullPage: true,
+      });
+    }
+  });
+});
+
+test("the shared header and footer render without JavaScript on the album journal and the not-found view", async ({
+  browser,
+}) => {
+  await withoutJavaScript(browser, async (page) => {
+    await page.goto(`${base}/albums/${graceSlug}`);
+    await expect(
+      page.getByRole("navigation", { name: "Main" }).getByRole("link", {
+        name: "Home",
+      }),
+    ).toBeVisible();
+    await expect(page.locator(".public-footer")).toBeVisible();
+    const notFound = await page.goto(`${base}/albums/e2e-no-such-journal`);
+    expect(notFound?.status()).toBe(404);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+      "Nothing here",
+    );
+    await expect(
+      page.getByRole("link", { name: "Back to the start" }),
+    ).toBeVisible();
+    await expect(page.locator(".public-footer")).toBeVisible();
+  });
 });
 
 test("has no accessibility violations (WCAG 2.2 A and AA)", async ({

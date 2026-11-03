@@ -401,9 +401,18 @@ function violations(code: string, file: string): string[] {
         if (
           name === "revalidate" ||
           name === "dynamic" ||
-          name === "fetchCache"
+          name === "fetchCache" ||
+          name === "ensureStatic"
         ) {
           found.push(`exports ${name}`);
+        }
+        // `instant = false` lets a page render on the server before it sends
+        // anything (the Home, M3.4); any other value is not a public page's.
+        if (
+          name === "instant" &&
+          declaration.initializer?.getText() !== "false"
+        ) {
+          found.push("exports instant other than false");
         }
       }
     }
@@ -441,6 +450,12 @@ describe("the public surface", () => {
 
   it.each(files)("%s is clean", (file) => {
     expect(violations(readFileSync(file, "utf8"), file)).toEqual([]);
+  });
+
+  it("renders the Home on the server before sending it, so it needs no client JavaScript", () => {
+    expect(readFileSync("src/app/page.tsx", "utf8")).toMatch(
+      /^export const instant = false;$/m,
+    );
   });
 
   it("applies the switch in every route handler and in the page's loader", () => {
@@ -762,6 +777,13 @@ describe("the public surface", () => {
       expect(check('"use cache";\nexport const x = 1;')).toHaveLength(1);
       expect(check("export const revalidate = 60;")).toHaveLength(1);
       expect(check('export const dynamic = "force-static";')).toHaveLength(1);
+      expect(check("export const ensureStatic = true;")).toHaveLength(1);
+      // The Home's own setting, and nothing else under that name.
+      expect(check("export const instant = false;")).toEqual([]);
+      expect(check("export const instant = true;")).toHaveLength(1);
+      expect(
+        check('export const instant = { level: "warning" };'),
+      ).toHaveLength(1);
       expect(
         check("export async function generateStaticParams() { return []; }"),
       ).not.toEqual([]);
