@@ -630,6 +630,18 @@ test("the shared header and footer render without JavaScript on the album journa
       }),
     ).toBeVisible();
     await expect(page.locator(".public-footer")).toBeVisible();
+    // Recorded for the evidence: the album journal (M3.1) still streams its
+    // content after a shell, which needs a script to reveal it; without one,
+    // the shell's <main> shows and the journal's stays in hidden markup.
+    const mains = await page
+      .locator("main")
+      .evaluateAll((elements) =>
+        elements.map(
+          (element) =>
+            `${element.closest("[hidden]") ? "hidden" : "shown"}: ${(element as HTMLElement).innerText.trim().slice(0, 40)}`,
+        ),
+      );
+    console.log(`album journal without JavaScript: ${JSON.stringify(mains)}`);
     const notFound = await page.goto(`${base}/albums/e2e-no-such-journal`);
     expect(notFound?.status()).toBe(404);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(
