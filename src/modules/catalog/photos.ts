@@ -23,6 +23,10 @@ import {
   type WikimediaClient,
 } from "@/integrations/wikimedia-commons";
 import type { AuthorizedAuthor } from "@/modules/identity";
+import {
+  isArtistOnPublicPage,
+  lockArtistPublicExposure,
+} from "@/modules/publication";
 import { fieldErrorsOf } from "@/validation";
 
 import { CatalogError } from "./errors";
@@ -57,15 +61,17 @@ import { reviewOf } from "./music";
 //    removing only takes something away (a rights holder's request need not
 //    wait for a restore).
 //
-// Public pages: no public page shows an artist photograph (the only public
-// page, the album journal, shows artists' names only, and its read model
-// never selects a photo column; src/app/public-surface.test.ts checks this).
-// Changing a photograph therefore changes nothing a reader sees, and gate G8
-// is not widened. A future public surface that shows a photograph needs the
-// same protection the M3.2 artwork commands have before it is built (lock
-// the journals that show the artist, then refuse while one is public); that
-// command would hold several entry locks, which ADR 0006 A3 says needs its
-// own decision. Recorded in docs/evidence/m3-3.md.
+// Public pages (M3.5): the public artist page shows the photograph, so a
+// change to it would reach readers without a confirmation (gate G8). Setting
+// or replacing a photograph is therefore refused while the artist's page is
+// public (`public_page`), decided by the publication predicate under
+// `FOR SHARE` locks on every album-journal entry about an album that credits
+// the artist, taken before the artist's row (ADR 0006 § 7, L3; the multi-entry
+// share lock is proposed amendment A5, for the owner's review). Removing a
+// photograph is always allowed: it only takes something away from a page (the
+// fallback frame shows instead), as unpublishing does (ADR 0006, R4), and it
+// is the takedown path for a rights holder or a person shown. The studio asks
+// before it removes.
 
 export interface PhotoProviders {
   wikimedia: WikimediaClient;
@@ -293,7 +299,14 @@ export type SuggestionState =
   "not_linked" | "no_item" | "found" | "unavailable";
 
 export interface ArtistPhotoChoices {
-  artist: { id: string; name: string; archived: boolean; linked: boolean };
+  artist: {
+    id: string;
+    name: string;
+    archived: boolean;
+    linked: boolean;
+    /** The artist has a public page, so its photograph cannot be replaced. */
+    onPublicPage: boolean;
+  };
   current: StoredPhotoView;
   currentCheck: CurrentPhotoCheck | null;
   query: string;
@@ -418,6 +431,7 @@ export async function listArtistPhotoChoices(
       name: row.name,
       archived: row.archived,
       linked: row.mbArtistId !== null,
+      onPublicPage: await isArtistOnPublicPage(db, artistId),
     },
     current,
     query,
@@ -482,7 +496,13 @@ export async function listArtistPhotoChoices(
 // ---------------------------------------------------------------------------
 
 export interface ArtistPhotoReview {
-  artist: { id: string; name: string; archived: boolean };
+  artist: {
+    id: string;
+    name: string;
+    archived: boolean;
+    /** The artist has a public page, so its photograph cannot be replaced. */
+    onPublicPage: boolean;
+  };
   current: StoredPhotoView;
   /** Null when Commons has no such file. */
   assessment: PhotoAssessment | null;
@@ -517,7 +537,12 @@ export async function reviewArtistPhoto(
   const plan = assessment ? photoPlanOf(assessment) : null;
   const current = storedPhotoView(row.stored);
   return {
-    artist: { id: artistId, name: row.name, archived: row.archived },
+    artist: {
+      id: artistId,
+      name: row.name,
+      archived: row.archived,
+      onPublicPage: await isArtistOnPublicPage(db, artistId),
+    },
     current,
     assessment,
     review: plan ? reviewOf(plan) : null,
@@ -547,8 +572,9 @@ const setPhotoInput = z.object({
  * provenance. Refused if the file or its metadata changed since the review
  * (`review_stale`), if it is no longer usable (`photo_not_usable`), if
  * Commons no longer has it (`provider_not_found`), if the stored photograph
- * changed since the author looked (`review_stale`), or if the artist is
- * archived (`archived_reference`). Writes nothing else.
+ * changed since the author looked (`review_stale`), if the artist is
+ * archived (`archived_reference`), or while the artist has a public page
+ * (`public_page`, gate G8). Writes nothing else.
  */
 export async function setArtistPhoto(
   db: DatabaseExecutor,
@@ -575,6 +601,13 @@ export async function setArtistPhoto(
   }
 
   await db.transaction(async (tx) => {
+    // The entries first, then the artist (ADR 0006 § 7, L3): every journal
+    // entry that could put the artist on a public page is locked FOR SHARE
+    // and the predicate decides, so a publish waits for this change, or this
+    // change sees the publish.
+    if (await lockArtistPublicExposure(tx, artistId)) {
+      throw new CatalogError("public_page");
+    }
     const row = await artistRow(tx, artistId, true);
     if (!row) {
       throw new CatalogError("not_found");
@@ -603,8 +636,10 @@ const removePhotoInput = z.object({ artistId: z.uuid(), expectedPhoto });
 
 /**
  * Removes an artist's photograph and its provenance, if it is still the one
- * the author saw. Allowed for an archived artist too: removing only takes
- * something away. Asks nothing of Commons, so it works while Commons is down.
+ * the author saw. Allowed for an archived artist, and while the artist has a
+ * public page: removing only takes something away (the page shows its
+ * fallback frame instead), so it is the takedown path. Asks nothing of
+ * Commons, so it works while Commons is down.
  */
 export async function removeArtistPhoto(
   db: DatabaseExecutor,

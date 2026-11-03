@@ -665,6 +665,10 @@ export const PUBLICATION_INDEX_EXPORTS: ReadonlySet<string> = new Set([
   // They write nothing; the second only adds a FOR SHARE lock.
   "isAlbumOnPublicPage",
   "lockAlbumPublicExposure",
+  // M3.5: the same for an artist's page, for the photograph guard. They write
+  // nothing; the second only adds FOR SHARE locks on the album-journal entries.
+  "isArtistOnPublicPage",
+  "lockArtistPublicExposure",
 ]);
 
 function localCalls(body: ts.Node): Set<string> {

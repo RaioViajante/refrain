@@ -84,7 +84,7 @@ export function failureMessage(failure: Failure): string {
     case "not_linked":
       return "This album isn’t linked to MusicBrainz yet, so there is no artwork to choose from.";
     case "public_page":
-      return "A published journal shows this album, so its artwork can’t change without a confirmation, and that confirmation isn’t built yet. Nothing was changed.";
+      return "A published journal shows this on a public page, so its artwork or photograph can’t change without a confirmation, and that confirmation isn’t built yet. Nothing was changed. A photograph can still be removed.";
     case "photo_not_usable":
       return "This photograph can no longer be used: its license, credit, or file changed on Wikimedia Commons. Nothing was changed. Choose another, or review it again.";
     case "failed":

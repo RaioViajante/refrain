@@ -298,6 +298,8 @@ async function ReviewPhoto({
                     photograph.
                   </p>
                 </div>
+              ) : artist.onPublicPage ? (
+                <PublicPageNotice back={back} />
               ) : review.isCurrent ? (
                 <div className="studio-panel" role="status">
                   <p>This is the photograph on file, in this version.</p>
@@ -322,5 +324,30 @@ async function ReviewPhoto({
         </>
       )}
     </StudioFrame>
+  );
+}
+
+/**
+ * Why the photograph cannot be replaced (M3.5): the artist has a public page,
+ * and a new photograph would reach readers without a confirmation, which is
+ * not built (gate G8). Removing stays possible on the photograph page.
+ */
+function PublicPageNotice({ back }: { back: string }) {
+  return (
+    <div className="studio-panel" role="status">
+      <p className="studio-section-title">Shown on a public page</p>
+      <p>
+        A published journal puts this artist on a public page, so its photograph
+        can’t be replaced here: a new one would reach readers without a
+        confirmation, and that confirmation isn’t built yet. You can still
+        remove the photograph, and the page then shows its empty frame. To
+        choose another, unpublish the journals that show this artist first.
+      </p>
+      <p>
+        <Link href={back} className="studio-button">
+          Back to the photograph
+        </Link>
+      </p>
+    </div>
   );
 }

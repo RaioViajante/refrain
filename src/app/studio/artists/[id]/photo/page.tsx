@@ -231,6 +231,18 @@ async function Choices({
 
   return (
     <>
+      {found.artist.onPublicPage ? (
+        <div className="studio-panel" role="status">
+          <p className="studio-section-title">Shown on a public page</p>
+          <p>
+            A published journal puts this artist on a public page, so its
+            photograph can’t be replaced: a new one would reach readers without
+            a confirmation, and that confirmation isn’t built yet. You can still
+            remove it above. To choose another, unpublish the journals that show
+            this artist first.
+          </p>
+        </div>
+      ) : null}
       {found.currentCheck && found.currentCheck !== "unchanged" ? (
         <div
           className="studio-panel"
