@@ -78,19 +78,18 @@ interface LockedMemory {
 // L1), so saves, privacy changes, deletions, and restores of one memory run
 // one after the other. Joining the subtype table means an entry of another
 // kind is never found.
+//
+// The language versions are read in a second statement, after the lock is
+// held. Read in the locking statement, they would come from the snapshot it
+// started with: a publication that committed while this transaction waited
+// for the lock would not be seen (READ COMMITTED re-reads only the locked
+// row), and a save could then change writing that had just become public.
 async function lockMemory(
   tx: Transaction,
   entryId: string,
 ): Promise<LockedMemory> {
-  const result = await tx.execute<{
-    deleted: boolean;
-    version: number;
-    published: boolean;
-  }>(sql`
-    select e.deleted_at is not null as deleted, e.version,
-           exists (select 1 from entry_texts t
-                    where t.entry_id = e.id and t.status = 'published')
-             as published
+  const result = await tx.execute<{ deleted: boolean; version: number }>(sql`
+    select e.deleted_at is not null as deleted, e.version
       from entries e
       join memories m on m.entry_id = e.id
      where e.id = ${entryId}
@@ -99,10 +98,14 @@ async function lockMemory(
   if (!row) {
     throw new JournalError("entry_not_found");
   }
+  const versions = await tx.execute<{ published: boolean }>(sql`
+    select exists (select 1 from entry_texts
+                    where entry_id = ${entryId} and status = 'published')
+             as published`);
   return {
     deleted: row.deleted,
     version: row.version,
-    published: row.published,
+    published: versions.rows[0]!.published,
   };
 }
 

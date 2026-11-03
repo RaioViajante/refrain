@@ -95,9 +95,21 @@ async function setUp(tx: Transaction) {
 }
 
 async function links(tx: Transaction, memoryId: string) {
-  const result = await tx.execute<{ id: string; track_id: string }>(sql`
-    select id, track_id from memory_music
+  // The rolled-back test transaction never reaches the commit, where
+  // UNIQUE (memory_id, position) is checked; check it now, as a commit would.
+  await tx.execute(sql`set constraints memory_music_position_unique immediate`);
+  await tx.execute(sql`set constraints memory_music_position_unique deferred`);
+  const result = await tx.execute<{
+    id: string;
+    track_id: string;
+    position: number;
+  }>(sql`
+    select id, track_id, position from memory_music
      where memory_id = ${memoryId} order by position`);
+  // Numbered 1..n, with no gap.
+  expect(result.rows.map((row) => row.position)).toEqual(
+    result.rows.map((_, index) => index + 1),
+  );
   return result.rows;
 }
 

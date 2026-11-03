@@ -59,6 +59,21 @@ async function newMemory(trackIds: string[] = []): Promise<string> {
   return entryId;
 }
 
+/** Whether a test connection is waiting for a lock, within two seconds. */
+async function sawLockWait(): Promise<boolean> {
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const waiting = await getDb().execute<{ n: number }>(sql`
+      select count(*)::int as n from pg_stat_activity
+       where application_name = 'refrain-concurrency-tests'
+         and wait_event_type = 'Lock'`);
+    if (waiting.rows[0]!.n > 0) {
+      return true;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  return false;
+}
+
 function failureOf(result: PromiseSettledResult<unknown>): string | undefined {
   if (result.status === "fulfilled") {
     return undefined;
@@ -191,25 +206,20 @@ describe("concurrent memory commands", () => {
         await hold;
       });
       await deletedYet;
+      // With a title too: its write, made earlier in the same transaction,
+      // must be rolled back with the rest.
       const saving = saveMemory(two!, author, {
         entryId: memoryId,
         expectedVersion: 1,
+        title: "[Test] Never saved",
         trackIds: [kept!, doomed!],
       }).then(
         () => undefined,
         (error: unknown) =>
           error instanceof JournalError ? error.failure : error,
       );
-      for (let attempt = 0; attempt < 200; attempt++) {
-        const waiting = await getDb().execute<{ n: number }>(sql`
-          select count(*)::int as n from pg_stat_activity
-           where application_name = 'refrain-concurrency-tests'
-             and wait_event_type = 'Lock'`);
-        if (waiting.rows[0]!.n > 0) {
-          break;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 10));
-      }
+      // The race is real only if the save is seen waiting for the lock.
+      expect(await sawLockWait()).toBe(true);
       release();
       await deleting;
       return saving;
@@ -220,6 +230,59 @@ describe("concurrent memory commands", () => {
     expect(await positions(memoryId)).toEqual([
       { track_id: kept!, position: 1 },
     ]);
-    expect((await getMemory(getDb(), author, memoryId))!.version).toBe(1);
+    const unchanged = await getMemory(getDb(), author, memoryId);
+    expect(unchanged!.version).toBe(1);
+    expect(unchanged!.title).not.toBe("[Test] Never saved");
+  });
+
+  it("refuses a save that waited for the lock while the memory was published, writing nothing", async () => {
+    const memoryId = await newMemory();
+    const refused = await withConnections(2, async ([one, two]) => {
+      let release!: () => void;
+      const hold = new Promise<void>((resolve) => (release = resolve));
+      let publishedYet!: () => void;
+      const published = new Promise<void>(
+        (resolve) => (publishedYet = resolve),
+      );
+      // Stands in for a publication (M3.7, or a write from outside the
+      // application): it holds the entry lock, as the publish command does,
+      // and commits while the save waits for that lock.
+      const publishing = one!.transaction(async (tx) => {
+        await tx.execute(
+          sql`select id from entries where id = ${memoryId} for update`,
+        );
+        await tx.execute(sql`
+          update entry_texts
+             set status = 'published', published_at = now(),
+                 first_published_at = coalesce(first_published_at, now()),
+                 updated_at = now()
+           where entry_id = ${memoryId}`);
+        publishedYet();
+        await hold;
+      });
+      await published;
+      const saving = saveMemory(two!, author, {
+        entryId: memoryId,
+        expectedVersion: 1,
+        body: "[Test] Written over what just became public.",
+      }).then(
+        () => undefined,
+        (error: unknown) =>
+          error instanceof JournalError ? error.failure : error,
+      );
+      // The race is real only if the save is seen waiting for the lock.
+      expect(await sawLockWait()).toBe(true);
+      release();
+      await publishing;
+      return saving;
+    });
+    expect(refused).toBe("memory_published");
+    const memory = await getMemory(getDb(), author, memoryId);
+    expect(memory!.body).toBe("[Test] Words.");
+    expect(memory!.version).toBe(1);
+    // Back to private, so the clean-up deletes it like the others.
+    await getDb().execute(sql`
+      update entry_texts set status = 'private', published_at = null
+       where entry_id = ${memoryId}`);
   });
 });

@@ -271,6 +271,8 @@ export async function getMemory(
 export interface MemoryOfRecording {
   entryId: string;
   title: string;
+  /** The language the title is written in. */
+  locale: Locale;
   status: VisibilityStatus;
 }
 
@@ -289,9 +291,10 @@ export async function listMemoriesOfRecording(
   const result = await db.execute<{
     entry_id: string;
     title: string | null;
+    locale: Locale;
     status: VisibilityStatus;
   }>(sql`
-    select e.id as entry_id, o.title, o.status
+    select e.id as entry_id, o.title, o.locale, o.status
       from memory_music mm
       join entries e     on e.id = mm.memory_id
       join entry_texts o on o.entry_id = e.id and o.is_original
@@ -301,6 +304,7 @@ export async function listMemoriesOfRecording(
   return result.rows.map((row) => ({
     entryId: row.entry_id,
     title: row.title ?? "Untitled memory",
+    locale: row.locale,
     status: row.status,
   }));
 }
