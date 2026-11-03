@@ -55,6 +55,7 @@ export type {
   ArtistDetail,
   ArtistSummary,
   CatalogStatistics,
+  RecordingChoice,
   TrackDetail,
   TrackSummary,
 } from "./queries";
@@ -92,6 +93,7 @@ export {
   listAlbumTrackCounts,
   listAlbumUsage,
   listArtists,
+  listRecordingChoices,
   listTracks,
   moveTrackInAlbum,
   removeTrackFromAlbum,

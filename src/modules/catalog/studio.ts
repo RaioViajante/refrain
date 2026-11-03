@@ -43,6 +43,7 @@ export const listAlbumUsage = withDatabase(queries.listAlbumUsage);
 export const listAlbumTrackCounts = withDatabase(queries.listAlbumTrackCounts);
 export const getAlbum = withDatabase(queries.getAlbum);
 export const listTracks = withDatabase(queries.listTracks);
+export const listRecordingChoices = withDatabase(queries.listRecordingChoices);
 export const getTrack = withDatabase(queries.getTrack);
 export const getCatalogStatistics = withDatabase(queries.getCatalogStatistics);
 

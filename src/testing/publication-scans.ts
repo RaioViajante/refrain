@@ -116,6 +116,16 @@ export const WRITER_ALLOWLIST: ReadonlySet<string> = new Set([
   "src/modules/journals/reflections.ts#writeReflection",
   // An explicit, author-only deletion that cascades through foreign keys.
   "src/modules/journals/commands.ts#permanentlyDeleteEntry",
+  // Memories (M3.6), added in review. The create writes a new draft entry
+  // that no other transaction can see (L1), like createAlbumJournal. The
+  // save writes the title, the body, `memories`, and `memory_music` under the
+  // entry lock, and refuses (`memory_published`) before any write when a
+  // version is published: no public memory can change without the confirmed
+  // save that M3.7 builds, which is the same position saveAlbumJournal held
+  // before M2.2 (ADR 0006 § 9). Neither writes a status other than the
+  // literal draft of the create.
+  "src/modules/journals/memories.ts#createMemory",
+  "src/modules/journals/memories.ts#saveMemory",
 ]);
 
 /**
