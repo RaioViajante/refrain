@@ -57,7 +57,12 @@ async function serveThumbnails(page: Page, requested: string[] = []) {
   return requested;
 }
 
-async function screenshot(page: Page, name: string, project: string) {
+async function screenshot(
+  page: Page,
+  name: string,
+  project: string,
+  { fullPage = true }: { fullPage?: boolean } = {},
+) {
   if (process.env.E2E_SCREENSHOTS !== "1") {
     return;
   }
@@ -68,7 +73,7 @@ async function screenshot(page: Page, name: string, project: string) {
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({
     path: `visual-review/m3-3/${project}-${name}.png`,
-    fullPage: true,
+    fullPage,
   });
 }
 
@@ -322,8 +327,117 @@ test("removes the photograph only after a confirmation", async ({
   await expect(dialog).toBeVisible();
   await noAxeViolations(page);
   await screenshot(page, "photo-remove-dialog", testInfo.project.name);
+  // A full-page capture stretches the page past the viewport, and the
+  // backdrop, which covers the viewport, then looks partial; this one shows
+  // what the author sees.
+  await screenshot(
+    page,
+    "photo-remove-dialog-viewport",
+    testInfo.project.name,
+    {
+      fullPage: false,
+    },
+  );
+  const opener = page.getByRole("button", { name: "Remove the photograph…" });
+
+  // The browser's own modal dialog: its backdrop covers the whole viewport,
+  // so every corner and edge hits the dialog, never the page under it.
+  const viewport = page.viewportSize() ?? { width: 1280, height: 720 };
+  expect(
+    await page.evaluate(({ width, height }) => {
+      const open = document.querySelector("dialog[open]");
+      const points: [number, number][] = [
+        [1, 1],
+        [width - 2, 1],
+        [1, height - 2],
+        [width - 2, height - 2],
+        [width / 2, 1],
+        [width / 2, height - 2],
+      ];
+      return {
+        modal: open?.matches(":modal") ?? false,
+        backdrop: open
+          ? getComputedStyle(open, "::backdrop").backgroundColor
+          : "",
+        covered: points.every(
+          ([x, y]) => document.elementFromPoint(x, y) === open,
+        ),
+      };
+    }, viewport),
+  ).toEqual({ modal: true, backdrop: "rgba(17, 17, 17, 0.4)", covered: true });
+
+  // The page under it cannot be used: a click on a link behind the
+  // backdrop goes nowhere, and the dialog stays open. The page is scrolled
+  // to the top first, so the header's links are in view at every width.
+  const behind = await page.evaluate(() => {
+    window.scrollTo(0, 0);
+    const open = document.querySelector("dialog[open]");
+    const box = open?.getBoundingClientRect();
+    for (const link of document.querySelectorAll<HTMLAnchorElement>(
+      "a[href]",
+    )) {
+      const rect = link.getBoundingClientRect();
+      const inViewport =
+        rect.width > 0 &&
+        rect.top >= 0 &&
+        rect.bottom <= window.innerHeight &&
+        rect.right <= window.innerWidth;
+      const underDialog =
+        box !== undefined &&
+        rect.left < box.right &&
+        rect.right > box.left &&
+        rect.top < box.bottom &&
+        rect.bottom > box.top;
+      if (!open?.contains(link) && inViewport && !underDialog) {
+        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      }
+    }
+    return null;
+  });
+  expect(behind).not.toBeNull();
+  const before = page.url();
+  await page.mouse.click(behind!.x, behind!.y);
+  await expect(dialog).toBeVisible();
+  expect(page.url()).toBe(before);
+
+  // Focus stays in the dialog: Tab and Shift+Tab never reach the page under
+  // it (between cycles Chromium may move focus to its own interface, which
+  // the page sees as the body).
+  await dialog.getByRole("button", { name: "Cancel" }).focus();
+  for (const key of [
+    "Tab",
+    "Tab",
+    "Tab",
+    "Tab",
+    "Shift+Tab",
+    "Shift+Tab",
+    "Shift+Tab",
+  ]) {
+    await page.keyboard.press(key);
+    expect(
+      await page.evaluate(() => {
+        const active = document.activeElement;
+        return (
+          active === null ||
+          active === document.body ||
+          (document.querySelector("dialog[open]")?.contains(active) ?? false)
+        );
+      }),
+    ).toBe(true);
+  }
+
+  // Escape closes it, and focus returns to the control that opened it.
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(opener).toBeFocused();
+  expect((await storedPhoto()).photo_url).not.toBeNull();
+
+  // So does Cancel.
+  await opener.click();
+  await expect(dialog).toBeVisible();
   await dialog.getByRole("button", { name: "Cancel" }).click();
   await expect(dialog).toBeHidden();
+  await expect(opener).toBeFocused();
   expect((await storedPhoto()).photo_url).not.toBeNull();
 
   // With the keyboard only: open, confirm, and hear what happened.
