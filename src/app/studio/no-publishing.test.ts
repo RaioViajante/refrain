@@ -61,7 +61,7 @@ const PUBLICATION_MODULE = /(^|\/)modules\/publication(\/|$)/;
 
 // The only files under src/app that may import its reading entry point.
 const PUBLIC_READING_FILES =
-  /^src\/app\/(\(public\)\/|not-found\.tsx$|sitemap\.xml\/route\.ts$|robots\.txt\/route\.ts$)/;
+  /^src\/app\/(\(public\)\/|page\.tsx$|not-found\.tsx$|sitemap\.xml\/route\.ts$|robots\.txt\/route\.ts$)/;
 
 /** The module path a node names, if it names one with a string literal. */
 function moduleNamed(node: ts.Node): string | undefined {
@@ -294,12 +294,15 @@ describe("the studio cannot publish, re-address, or permanently delete", () => {
         "src/app/sitemap.xml/route.ts",
         "src/app/robots.txt/route.ts",
         "src/app/not-found.tsx",
+        // The Home (M3.4), and only the root one.
+        "src/app/page.tsx",
       ]) {
         expect(violations(reading, file), file).toEqual([]);
       }
       for (const file of [
         "src/app/studio/journals/page.tsx",
-        "src/app/page.tsx",
+        "src/app/studio/page.tsx",
+        "src/app/x/page.tsx",
         "src/app/layout.tsx",
         "src/app/api/auth/[...all]/route.ts",
         "src/app/api/export/route.ts",

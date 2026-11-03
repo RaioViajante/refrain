@@ -4,6 +4,7 @@ import type {
 } from "@/modules/publication/public";
 
 import { PUBLIC_CONTENT_ID } from "@/app/(public)/_components/public-frame";
+import { RecordIcon } from "@/app/(public)/_components/record-icon";
 import { renderDocument } from "@/app/(public)/_components/rich-text";
 import { ratingText, Stars } from "@/app/(public)/_components/stars";
 
@@ -21,28 +22,6 @@ const date = new Intl.DateTimeFormat("en", {
   dateStyle: "long",
   timeZone: "UTC",
 });
-
-function RecordIcon() {
-  return (
-    <svg
-      className="pj-icon"
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <rect x="3.5" y="3.5" width="17" height="17" rx="2.5" />
-      <circle cx="12" cy="12" r="4" />
-      <circle cx="12" cy="12" r="0.9" fill="currentColor" />
-    </svg>
-  );
-}
 
 function Chevron({ className }: Readonly<{ className?: string }>) {
   return (

@@ -50,6 +50,9 @@ const nextConfig: NextConfig = {
       { key: "Content-Security-Policy", value: CONTENT_SECURITY_POLICY },
     ];
     return [
+      // The Home (M3.4): exactly `/`. It lists public journals per request, so
+      // it is `no-store` like every other public response.
+      { source: "/", headers: publicHeaders },
       { source: "/albums/:path*", headers: publicHeaders },
       // The same headers, so that these answer as every other public address
       // does when public reads are off.

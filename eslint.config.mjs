@@ -11,7 +11,8 @@ const publicEntryPointsOnly = {
 
 // The Publication module's second entry point, `public`, exports reads and the
 // public-reads switch, never a command (src/modules/publication/public.ts). Only
-// the public pages, the sitemap, robots.txt, and the proxy may use it, through
+// the public pages (the Home among them), the sitemap, robots.txt, and the
+// proxy may use it, through
 // the override below; src/app/public-surface.test.ts holds the same list.
 const publicEntryPointsPlusReads = {
   group: [...publicEntryPointsOnly.group, "!@/modules/publication/public"],
@@ -92,6 +93,8 @@ const eslintConfig = defineConfig([
     // presentation restrictions are repeated.
     files: [
       "src/app/\\(public\\)/**",
+      // The Home (M3.4): the root page, outside the route group.
+      "src/app/page.tsx",
       "src/app/sitemap.xml/**",
       "src/app/robots.txt/**",
     ],

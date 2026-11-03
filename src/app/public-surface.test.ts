@@ -18,6 +18,7 @@ import { describe, expect, it } from "vitest";
 
 const READS = new Set([
   "getPublicAlbumJournal",
+  "getPublicHome",
   "listPublicAlbumJournalAddresses",
   "resolvePublicAlbumJournalSlug",
   "routeAlbumJournalRequest",
@@ -42,6 +43,7 @@ function publicFiles(): string[] {
   const inApp = walk("src/app").filter(
     (file) =>
       file.startsWith("src/app/(public)/") ||
+      file === "src/app/page.tsx" ||
       file === "src/app/not-found.tsx" ||
       file === "src/app/public-fonts.ts" ||
       file === "src/app/sitemap.xml/route.ts" ||
@@ -432,6 +434,8 @@ describe("the public surface", () => {
     expect(files).toContain("src/app/sitemap.xml/route.ts");
     expect(files).toContain("src/app/robots.txt/route.ts");
     expect(files).toContain("src/app/not-found.tsx");
+    expect(files).toContain("src/app/page.tsx");
+    expect(files).toContain("src/app/(public)/_components/home-view.tsx");
     expect(files.length).toBeGreaterThan(8);
   });
 
@@ -444,6 +448,7 @@ describe("the public surface", () => {
       "src/app/sitemap.xml/route.ts",
       "src/app/robots.txt/route.ts",
       "src/app/(public)/albums/[slug]/page.tsx",
+      "src/app/page.tsx",
     ]) {
       expect(readFileSync(file, "utf8"), file).toMatch(
         /publicReadsEnabled\(\)/,
@@ -476,17 +481,18 @@ describe("the public surface", () => {
       /^src\/app\/sitemap\.xml\/route\.ts$/,
       /^src\/app\/robots\.txt\/route\.ts$/,
       /^src\/app\/not-found\.tsx$/,
-      // The root layout and the homepage placeholder, which reads nothing.
-      /^src\/app\/layout\.tsx$/,
+      // The Home (M3.4), scanned above as a public file.
       /^src\/app\/page\.tsx$/,
+      // The root layout, which reads nothing.
+      /^src\/app\/layout\.tsx$/,
     ];
     const unclassified = walk("src/app").filter(
       (file) => routeLike.test(file) && !known.some((rule) => rule.test(file)),
     );
     expect(unclassified).toEqual([]);
-    // The placeholder homepage is public and anonymous: it imports nothing from
-    // a module and calls nothing that reads the system.
-    expect(readFileSync("src/app/page.tsx", "utf8")).not.toMatch(
+    // The root layout wraps every page, the studio's included: it imports
+    // nothing from a module and calls nothing that reads the system.
+    expect(readFileSync("src/app/layout.tsx", "utf8")).not.toMatch(
       /from "@\/|import\(/,
     );
   });
@@ -798,6 +804,7 @@ describe("where the switch is applied", () => {
     const file = "src/modules/publication/public.ts";
     const reads = new Set([
       "getPublicAlbumJournalFrom",
+      "getPublicHomeFrom",
       "listPublicAlbumJournalAddressesFrom",
       "resolvePublicSlugFrom",
     ]);
@@ -888,6 +895,7 @@ describe("the Publication reading module", () => {
     "src/modules/publication/public-reads.ts",
     "src/modules/publication/public-routing.ts",
     "src/modules/publication/public-album-journal.ts",
+    "src/modules/publication/public-home.ts",
     "src/modules/publication/queries.ts",
     "src/modules/publication/predicate.ts",
     "src/modules/publication/slug.ts",
@@ -899,7 +907,7 @@ describe("the Publication reading module", () => {
     // M3.2: the pure parser of a stored cover, and nothing else from it (the
     // next test). No provider is ever called while reading a public page.
     /^@\/integrations\/cover-art-archive$/,
-    /^\.\/(public|public-reads|public-routing|public-album-journal|queries|predicate|slug)$/,
+    /^\.\/(public|public-reads|public-routing|public-album-journal|public-home|queries|predicate|slug)$/,
   ];
 
   it("uses only the pure cover parser from the Cover Art Archive integration", () => {
@@ -946,6 +954,7 @@ describe("the Publication reading module", () => {
       ...readdirSync("src/app/(public)", { recursive: true, encoding: "utf8" })
         .filter((name) => /\.(ts|tsx)$/.test(name) && !name.includes(".test."))
         .map((name) => join("src/app/(public)", name)),
+      "src/app/page.tsx",
       "src/app/sitemap.xml/route.ts",
       "src/app/robots.txt/route.ts",
     ];
@@ -1091,6 +1100,8 @@ describe("the Publication reading module", () => {
   const EXPECTED_EXPORTS = [
     // Reads, bound to the application's database, each behind the switch.
     "getPublicAlbumJournal",
+    // M3.4: what the Home lists.
+    "getPublicHome",
     "listPublicAlbumJournalAddresses",
     "resolvePublicAlbumJournalSlug",
     "routeAlbumJournalRequest",
@@ -1108,6 +1119,8 @@ describe("the Publication reading module", () => {
     // from the database.
     "PublicArtwork",
     "PublicCredit",
+    "PublicHome",
+    "PublicJournalCard",
     "PublicJournalTrack",
     "SlugResolution",
   ].sort();
