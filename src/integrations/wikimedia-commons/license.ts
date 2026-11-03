@@ -10,11 +10,17 @@
 // - Everything else is refused: non-commercial and no-derivatives variants,
 //   jurisdiction ports ("CC BY-SA 3.0 de"), GFDL-only and other licenses,
 //   files marked non-free, and any file whose short name, code, and deed
-//   address do not all name the same accepted license. CommonsMetadata says
-//   its license values are unreliable for multi-licensed files; requiring the
-//   three to agree is how an ambiguous value is caught. Where they agree, the
-//   file is offered under that license, which a reuser of a multi-licensed
-//   file may choose.
+//   address do not all name the same accepted license (malformed or
+//   inconsistent license metadata).
+// - What agreement does NOT catch: CommonsMetadata reports one license per
+//   file (it says its license values are unreliable for multi-licensed
+//   files), so a file with several license templates shows one of them. When
+//   the licenses are alternatives, a reuser may choose; when they are
+//   cumulative (a crop of a CC BY-SA original, a photograph of another
+//   work), the one shown may not be the only one that applies. The studio
+//   cannot tell these apart, so the review sends the author to the file's
+//   page, and the hosted-release review checks it (docs/security.md §
+//   Deployment gate, item 7).
 // - A free license covers the copyright in the photograph. It does not cover
 //   the rights of the people shown in it (personality and privacy rights),
 //   which the studio states separately on every review.

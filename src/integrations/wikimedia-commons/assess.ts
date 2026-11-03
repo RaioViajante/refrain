@@ -48,8 +48,18 @@ export type PhotoRefusal =
   | "too_small"
   | "unexpected_address";
 
+// A credit that says the creator is not known, anywhere in it: "Unknown
+// author (Columbia Records)", "Unidentified photographer", or a template's
+// visible and hidden copies run together. Refused even if a real name
+// contains one of these words; the file can still be chosen by another means
+// later, never credited to nobody.
 const UNKNOWN_CREDIT =
-  /^(?:unknown|anonymous|unknown author|author unknown|unknown photographer|photographer unknown|not provided|not known|see below|see source|see file history|n\/?a|none|\?+|-+)\.?$/i;
+  /\b(?:unknown|anonymous|anonym|unidentified|unattributed|not provided|not known|see below|see source|see file history|unbekannt|desconhecido|desconocido|inconnu|sconosciuto)\b|^(?:n\/?a|none|\?+|-+)\.?$/i;
+
+/** Long provider text, shortened for display (never stored). */
+function shortened(text: string, max = 400): string {
+  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
+}
 
 export interface PhotoAssessment {
   fileName: string;
@@ -177,10 +187,10 @@ export function assessCommonsFile(file: CommonsFile): PhotoAssessment {
     timestamp: file.timestamp,
     license: matched.ok ? matched.license : null,
     credit,
-    creator,
+    creator: shortened(creator),
     creditFromAttribution,
-    sourceCredit: metadataText(meta.Credit),
-    usageTerms: metadataText(meta.UsageTerms),
+    sourceCredit: shortened(metadataText(meta.Credit)),
+    usageTerms: shortened(metadataText(meta.UsageTerms)),
     restrictions: restrictionsOf(meta.Restrictions),
     modifications: PHOTO_MODIFICATIONS,
     refusals,
@@ -196,6 +206,12 @@ export interface PhotoPlan {
   photoSourceUrl: string;
   photoLicense: string;
   photoCredit: string;
+  /**
+   * Commons' restriction keywords when reviewed (a personality-rights
+   * warning, for example). Not stored; part of the fingerprint, so one added
+   * between the review and the approval makes the approval stale.
+   */
+  restrictions: string[];
 }
 
 export function photoPlanOf(assessment: PhotoAssessment): PhotoPlan | null {
@@ -214,5 +230,6 @@ export function photoPlanOf(assessment: PhotoAssessment): PhotoPlan | null {
     photoSourceUrl: assessment.sourceUrl,
     photoLicense: assessment.license.name,
     photoCredit: assessment.credit,
+    restrictions: assessment.restrictions,
   };
 }

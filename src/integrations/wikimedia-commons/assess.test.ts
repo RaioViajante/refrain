@@ -54,6 +54,7 @@ describe("assessing a Commons file", () => {
       photoSourceUrl: photoSourceUrl(PHOTO.onStage),
       photoLicense: "CC BY-SA 4.0",
       photoCredit: "[Test] Photographer One",
+      restrictions: ["personality"],
     });
   });
 
@@ -124,6 +125,70 @@ describe("assessing a Commons file", () => {
         metadata: { ...base.metadata, Artist: "x".repeat(301) },
       }).refusals,
     ).toEqual(["credit_too_long"]);
+  });
+
+  it.each([
+    "Unknown author (Columbia Records)",
+    "Unidentified photographer",
+    "Unknown authorUnknown author",
+    '<span>Unknown author</span><span style="display:none">Unknown author</span>',
+    "Anonymous press photographer",
+    "Photographer: unknown",
+    "Autor desconhecido",
+    "n/a",
+  ])("refuses a credit that names nobody: %j", async (artist) => {
+    const base = await fileNamed(PHOTO.onStage);
+    expect(
+      assessCommonsFile({
+        ...base,
+        metadata: { ...base.metadata, Artist: artist },
+      }).refusals,
+    ).toEqual(["no_creator"]);
+  });
+
+  it.each([
+    ["a right-to-left override", "[Test] \u202Eone"],
+    ["an isolate", "[Test] \u2067one\u2069"],
+    ["a zero-width space", "[Test]\u200BOne"],
+    ["a C1 control", "[Test] \u0085One"],
+    ["a soft hyphen", "[Test] Pho\u00ADtographer"],
+  ])("refuses a credit with %s", async (_label, artist) => {
+    const base = await fileNamed(PHOTO.onStage);
+    expect(
+      assessCommonsFile({
+        ...base,
+        metadata: { ...base.metadata, Artist: artist },
+      }).refusals,
+    ).toEqual(["credit_not_plain"]);
+  });
+
+  it("keeps the joiners some scripts need, and shortens long provider text for display", async () => {
+    const base = await fileNamed(PHOTO.onStage);
+    expect(
+      assessCommonsFile({
+        ...base,
+        metadata: { ...base.metadata, Artist: "[Test] می\u200Cخواهم" },
+      }).refusals,
+    ).toEqual([]);
+    const long = assessCommonsFile({
+      ...base,
+      metadata: { ...base.metadata, Credit: "x".repeat(5000) },
+    });
+    expect(long.sourceCredit.length).toBeLessThanOrEqual(400);
+    expect(long.sourceCredit.endsWith("…")).toBe(true);
+  });
+
+  it("puts the restrictions in the approved plan, so a new warning makes a review stale", async () => {
+    const base = await fileNamed(PHOTO.portrait);
+    const before = photoPlanOf(assessCommonsFile(base));
+    const after = photoPlanOf(
+      assessCommonsFile({
+        ...base,
+        metadata: { ...base.metadata, Restrictions: "personality" },
+      }),
+    );
+    expect(before!.restrictions).toEqual([]);
+    expect(after!.restrictions).toEqual(["personality"]);
   });
 
   it("refuses addresses Refrain could not rebuild exactly", async () => {

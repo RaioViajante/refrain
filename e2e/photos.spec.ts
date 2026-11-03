@@ -250,7 +250,9 @@ test("keeps the frame still and shows the fallback when the thumbnail fails", as
   );
   await page.goto(artistUrl);
   await expect(frame).toBeVisible();
-  await expect(frame.getByText("no photograph yet")).toBeAttached();
+  // The fallback says the photograph on file is not shown, not that none
+  // exists.
+  await expect(frame.getByText("photograph not shown")).toBeAttached();
   // The failed image is removed: no broken-image icon over the fallback.
   await expect(frame.locator("img")).toHaveCount(0);
   const failed = await frame.boundingBox();
@@ -315,7 +317,7 @@ test("removes the photograph only after a confirmation", async ({
   await page.goto(`${artistUrl}/photo`);
   await page.getByRole("button", { name: "Remove the photograph…" }).click();
   const dialog = page.getByRole("dialog", {
-    name: `Remove ${artistName}’s photograph?`,
+    name: `Remove the photograph of ${artistName}?`,
   });
   await expect(dialog).toBeVisible();
   await noAxeViolations(page);
@@ -324,11 +326,23 @@ test("removes the photograph only after a confirmation", async ({
   await expect(dialog).toBeHidden();
   expect((await storedPhoto()).photo_url).not.toBeNull();
 
-  await page.getByRole("button", { name: "Remove the photograph…" }).click();
-  await dialog.getByRole("button", { name: "Remove" }).click();
+  // With the keyboard only: open, confirm, and hear what happened.
+  await page.getByRole("button", { name: "Remove the photograph…" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Remove" }).focus();
+  await page.keyboard.press("Enter");
   await expect(
     page.getByRole("img", { name: `No photograph of ${artistName} yet` }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("status").filter({ hasText: "Photograph removed" }),
+  ).toBeVisible();
+  // Focus is not lost with the button: it is on the section's heading.
+  await expect(page.getByRole("heading", { name: "On file" })).toBeFocused();
+  await expect(
+    page.getByRole("button", { name: "Remove the photograph…" }),
+  ).toHaveCount(0);
   expect(await storedPhoto()).toMatchObject({
     photo_url: null,
     photo_credit: null,

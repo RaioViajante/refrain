@@ -23,6 +23,7 @@ export function PhotoFrame({
   name,
   label,
   size = 150,
+  fluid = false,
 }: {
   image?: { src: string; srcSet: string } | null;
   /** The artist's name, for the frame's label. */
@@ -34,6 +35,8 @@ export function PhotoFrame({
   label?: string;
   /** The frame's largest width, in CSS pixels. */
   size?: number;
+  /** Fill the containing column instead (a grid sets the width). */
+  fluid?: boolean;
 }) {
   return (
     <div
@@ -43,9 +46,13 @@ export function PhotoFrame({
         label ??
         (image ? `Photograph of ${name}` : `No photograph of ${name} yet`)
       }
-      style={{ width: `min(100%, ${size}px)` }}
+      style={fluid ? undefined : { width: `min(100%, ${size}px)` }}
     >
-      <span aria-hidden>no photograph yet</span>
+      {/* Under an image, the fallback says only that it is not shown: there
+          is a photograph, and it did not load. */}
+      <span aria-hidden>
+        {image || label ? "photograph not shown" : "no photograph yet"}
+      </span>
       {image ? (
         <PhotoImage src={image.src} srcSet={image.srcSet} sizes={`${size}px`} />
       ) : null}
@@ -71,7 +78,7 @@ export function LicenseName({ license }: { license: PhotoLicense }) {
       {license.name}
     </a>
   ) : (
-    <>{license.name} (no license applies)</>
+    <>{license.name} (as marked on Wikimedia Commons)</>
   );
 }
 

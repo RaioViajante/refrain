@@ -93,7 +93,7 @@ async function Photo({
       </p>
 
       <section aria-labelledby="photo-current" className="space-y-3">
-        <h2 id="photo-current" className="studio-section-title">
+        <h2 id="photo-current" className="studio-section-title" tabIndex={-1}>
           On file
         </h2>
         <figure className="studio-photo-figure">
@@ -120,18 +120,20 @@ async function Photo({
         ) : artist.photo.photo ? null : (
           <p className="studio-hint">No photo. The page works without one.</p>
         )}
-        {artist.photo.state !== null && !artist.archived ? (
-          <RemovePhoto
-            artistId={id}
-            name={artist.name}
-            expectedPhoto={artist.photo.state}
-          />
-        ) : null}
+        <RemovePhoto
+          artistId={id}
+          name={artist.name}
+          expectedPhoto={artist.photo.state}
+          focusId="photo-current"
+        />
       </section>
 
       {artist.archived ? (
         <div className="studio-panel" role="status">
-          <p>This artist is archived. Restore it to change its photograph.</p>
+          <p>
+            This artist is archived. Restore it to choose a photograph; the
+            photograph on file can still be removed.
+          </p>
         </div>
       ) : (
         <>
@@ -372,12 +374,13 @@ function ChoiceGrid({
   return (
     <ul className="studio-choices">
       {choices.map((choice) => (
-        <li key={choice.fileName} className="studio-choice">
+        <li key={choice.fileName} className="studio-choice studio-photo-choice">
           <PhotoFrame
             image={choice.image}
             name={name}
             label={`Candidate: ${choice.title}`}
             size={220}
+            fluid
           />
           <p className="studio-photo-credit">
             {choice.title}

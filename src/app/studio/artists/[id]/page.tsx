@@ -71,7 +71,7 @@ async function Artist({ params }: { params: Promise<{ id: string }> }) {
 
       <section aria-labelledby="artist-photo" className="space-y-3">
         <h2 id="artist-photo" className="studio-section-title">
-          Photograph <span className="studio-meta">(optional)</span>
+          Photograph <span className="studio-optional">(optional)</span>
         </h2>
         <figure className="studio-photo-figure">
           <PhotoFrame image={artist.photo.photo} name={artist.name} />

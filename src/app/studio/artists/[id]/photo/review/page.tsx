@@ -190,7 +190,13 @@ async function ReviewPhoto({
               {assessment.creditFromAttribution ? (
                 <>
                   <dt>Creator</dt>
-                  <dd>{assessment.creator || "Not named"}</dd>
+                  <dd>
+                    {assessment.creator ? (
+                      <bdi>{assessment.creator}</bdi>
+                    ) : (
+                      "Not named"
+                    )}
+                  </dd>
                 </>
               ) : null}
               <dt>Source</dt>
@@ -203,9 +209,11 @@ async function ReviewPhoto({
                 >
                   the file’s page
                 </a>
-                {assessment.sourceCredit
-                  ? `. Its source note: ${assessment.sourceCredit}`
-                  : null}
+                {assessment.sourceCredit ? (
+                  <>
+                    . Its source note: <bdi>{assessment.sourceCredit}</bdi>
+                  </>
+                ) : null}
               </dd>
               <dt>License</dt>
               <dd>
@@ -214,7 +222,12 @@ async function ReviewPhoto({
                 ) : (
                   "Not one Refrain accepts"
                 )}
-                {assessment.usageTerms ? ` (${assessment.usageTerms})` : null}
+                {assessment.usageTerms ? (
+                  <>
+                    {" "}
+                    (<bdi>{assessment.usageTerms}</bdi>)
+                  </>
+                ) : null}
               </dd>
               <dt>Size</dt>
               <dd>
@@ -230,30 +243,6 @@ async function ReviewPhoto({
               <dd>{assessment.modifications}</dd>
             </dl>
           </div>
-
-          {assessment.restrictions.includes("personality") ? (
-            <div className="studio-panel" role="note">
-              <p className="studio-section-title">Personality rights</p>
-              <p>
-                Wikimedia Commons warns that the people shown may have rights
-                that restrict some uses of their image, whatever the license.
-              </p>
-            </div>
-          ) : null}
-          {assessment.restrictions.some((word) => word !== "personality") ? (
-            <p className="studio-hint">
-              Other restrictions noted on Wikimedia Commons:{" "}
-              {assessment.restrictions
-                .filter((word) => word !== "personality")
-                .join(", ")}
-              .
-            </p>
-          ) : null}
-          <p className="studio-hint" style={{ maxWidth: "62ch" }}>
-            A free license covers the photograph itself, not the people in it.
-            Before a photograph appears on a public page, it needs the rights
-            review in Refrain’s hosted-release checklist.
-          </p>
 
           {assessment.refusals.length > 0 || !review.review ? (
             <div className="studio-panel" role="status">
@@ -271,30 +260,64 @@ async function ReviewPhoto({
                 </Link>
               </p>
             </div>
-          ) : artist.archived ? (
-            <div className="studio-panel" role="status">
-              <p>
-                This artist is archived. Restore it to change its photograph.
-              </p>
-            </div>
-          ) : review.isCurrent ? (
-            <div className="studio-panel" role="status">
-              <p>This is the photograph on file, in this version.</p>
-              <p>
-                <Link href={back} className="studio-button">
-                  Back to the photograph
-                </Link>
-              </p>
-            </div>
           ) : (
-            <ApprovePhoto
-              artistId={artist.id}
-              file={assessment.fileName}
-              review={review.review}
-              expectedPhoto={review.current.state}
-              replacing={review.current.state !== null}
-              cancelHref={back}
-            />
+            <>
+              {assessment.restrictions.includes("personality") ? (
+                <div className="studio-panel" role="note">
+                  <p className="studio-section-title">Personality rights</p>
+                  <p>
+                    Wikimedia Commons warns that the people shown may have
+                    rights that restrict some uses of their image, whatever the
+                    license.
+                  </p>
+                </div>
+              ) : null}
+              {assessment.restrictions.some(
+                (word) => word !== "personality",
+              ) ? (
+                <p className="studio-hint">
+                  Other restrictions noted on Wikimedia Commons:{" "}
+                  {assessment.restrictions
+                    .filter((word) => word !== "personality")
+                    .join(", ")}
+                  .
+                </p>
+              ) : null}
+              <p className="studio-hint" style={{ maxWidth: "62ch" }}>
+                A free license covers the photograph itself, not the people in
+                it. If the file’s page lists more than one license, check that
+                they are alternatives, not conditions that all apply. Before a
+                photograph appears on a public page, it needs the rights review
+                in Refrain’s hosted-release checklist.
+              </p>
+
+              {artist.archived ? (
+                <div className="studio-panel" role="status">
+                  <p>
+                    This artist is archived. Restore it to change its
+                    photograph.
+                  </p>
+                </div>
+              ) : review.isCurrent ? (
+                <div className="studio-panel" role="status">
+                  <p>This is the photograph on file, in this version.</p>
+                  <p>
+                    <Link href={back} className="studio-button">
+                      Back to the photograph
+                    </Link>
+                  </p>
+                </div>
+              ) : (
+                <ApprovePhoto
+                  artistId={artist.id}
+                  file={assessment.fileName}
+                  review={review.review}
+                  expectedPhoto={review.current.state}
+                  replacing={review.current.state !== null}
+                  cancelHref={back}
+                />
+              )}
+            </>
           )}
         </>
       )}

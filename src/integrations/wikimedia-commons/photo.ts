@@ -183,7 +183,18 @@ export function photoImageOf(fileName: string): PhotoImage {
 export const PHOTO_MODIFICATIONS =
   "Resized, and cropped to fit the frame. No other changes.";
 
-/** A credit line as stored: plain text on one line, nothing that reads as markup. */
+// Characters that can change how a credit reads without being visible:
+// bidirectional embeddings, overrides, isolates, and marks (an unclosed
+// override would reorder the rest of the caption, including the license),
+// zero-width and other invisible format characters (except the joiners some
+// scripts need), and C1 controls.
+const HIDDEN_FORMATTING =
+  /[\u0080-\u009F\u00AD\u061C\u180E\u200B\u200E\u200F\u202A-\u202E\u2060-\u2064\u2066-\u206F\uFEFF\uFFF9-\uFFFB]/;
+
+/**
+ * A credit line as stored: plain text on one line, nothing that reads as
+ * markup, and nothing invisible that could change how it reads.
+ */
 export function isPlainCredit(value: unknown): value is string {
   return (
     typeof value === "string" &&
@@ -191,6 +202,7 @@ export function isPlainCredit(value: unknown): value is string {
     value.length <= MAX_CREDIT_LENGTH &&
     value === value.trim() &&
     !/[\u0000-\u001F\u007F<>]/.test(value) &&
+    !HIDDEN_FORMATTING.test(value) &&
     !/\s{2,}/.test(value)
   );
 }

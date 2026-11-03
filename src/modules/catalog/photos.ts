@@ -53,7 +53,9 @@ import { reviewOf } from "./music";
 //    author was looking at (`expectedPhoto`, a fingerprint of the seven photo
 //    columns, or null for none), compared under the artist's row lock. A
 //    change made elsewhere meanwhile is never silently replaced.
-// 6. An archived artist's photograph does not change.
+// 6. An archived artist's photograph is not set; it can be removed, because
+//    removing only takes something away (a rights holder's request need not
+//    wait for a restore).
 //
 // Public pages: no public page shows an artist photograph (the only public
 // page, the album journal, shows artists' names only, and its read model
@@ -433,13 +435,24 @@ export async function listArtistPhotoChoices(
     };
   }
 
-  // In series: one request at a time (the client spaces them anyway).
+  // In series: one request at a time (the client spaces them anyway). Once
+  // Wikimedia has failed, nothing more is asked of it for this page, so a
+  // slow or unreachable provider costs one deadline, not one per call.
   const currentCheck = await checkCurrent(current, providers);
-  const suggestions = await suggestionsFor(row.mbArtistId, providers);
+  let down = currentCheck === "unavailable";
+  const suggestions = down
+    ? row.mbArtistId
+      ? { state: "unavailable" as const, choices: [], refused: 0 }
+      : { state: "not_linked" as const, choices: [], refused: 0 }
+    : await suggestionsFor(row.mbArtistId, providers);
+  down ||= suggestions.state === "unavailable";
   let results: PhotoChoice[] | null = null;
   let refused = 0;
   let searchUnavailable = false;
-  if (query !== "") {
+  if (query !== "" && down) {
+    searchUnavailable = true;
+    results = [];
+  } else if (query !== "") {
     try {
       const found = choicesOf(await providers.wikimedia.searchFiles(query));
       results = found.choices;
@@ -589,8 +602,9 @@ export async function setArtistPhoto(
 const removePhotoInput = z.object({ artistId: z.uuid(), expectedPhoto });
 
 /**
- * Removes an artist's photograph and its provenance, under the same
- * conditions. Asks nothing of Commons, so it works while Commons is down.
+ * Removes an artist's photograph and its provenance, if it is still the one
+ * the author saw. Allowed for an archived artist too: removing only takes
+ * something away. Asks nothing of Commons, so it works while Commons is down.
  */
 export async function removeArtistPhoto(
   db: DatabaseExecutor,
@@ -602,9 +616,6 @@ export async function removeArtistPhoto(
     const row = await artistRow(tx, artistId, true);
     if (!row) {
       throw new CatalogError("not_found");
-    }
-    if (row.archived) {
-      throw new CatalogError("archived_reference");
     }
     if (photoStateOf(row.stored) !== expectedPhoto) {
       throw new CatalogError("review_stale");
