@@ -87,10 +87,10 @@ export function MostRecent({ home }: Readonly<{ home: PublicHome }>) {
   }
   return (
     <p className="ph-since">
-      <span className="ph-quiet">Most recent:</span>
+      <span className="ph-quiet">Most recent:</span>{" "}
       <Link className="ph-since-link" href={addressOf(newest)}>
         {newest.albumTitle}
-      </Link>
+      </Link>{" "}
       <span className="ph-quiet">
         · Album journal · <Published at={newest.publishedAt} />
       </span>
@@ -147,9 +147,9 @@ function RecentlyWritten({
             <Link className="ph-row" href={addressOf(card)}>
               <span className="ph-row-date">
                 <Published at={card.publishedAt} />
-              </span>
+              </span>{" "}
               <span className="ph-row-text">
-                <span className="ph-row-title">{card.albumTitle}</span>
+                <span className="ph-row-title">{card.albumTitle}</span>{" "}
                 <span className="ph-row-kind">
                   {creditOf(card)
                     ? `Album journal · ${creditOf(card)}`
@@ -204,10 +204,10 @@ function Albums({ cards }: Readonly<{ cards: readonly PublicJournalCard[] }>) {
                   }
                 />
                 <span className="ph-album-text">
-                  <span className="ph-album-title">{card.albumTitle}</span>
+                  <span className="ph-album-title">{card.albumTitle}</span>{" "}
                   {facts.length > 0 ? (
                     <span className="ph-album-facts">{facts.join(" · ")}</span>
-                  ) : null}
+                  ) : null}{" "}
                   {rating !== null ? (
                     <span className="ph-album-rating">
                       <Stars

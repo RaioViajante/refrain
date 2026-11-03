@@ -8,7 +8,9 @@
 //   seed <slug-prefix>        prints a JSON description of what it created:
 //                             Grace, a draft, and the Home's shelf (M3.4)
 //   unpublish <entry-id>      the real command, as the author's unpublish
-//   publish <entry-id>        the real preview-then-publish, for a test
+//   publish <entry-id> [at]   the real preview-then-publish, for a test; with
+//                             an ISO date, the English version's publication
+//                             date is then set back to it (the Home's order)
 //   remove <json> <prefix>    removes what `seed` printed
 //   cover <entry-id> <url|none>
 //                             sets (or clears) the cover of the journal's
@@ -86,6 +88,13 @@ async function main() {
       }
       case "publish": {
         await publishForTest(fixtureDatabase(client), first!, "en");
+        if (second) {
+          await client.query(
+            `update entry_texts set published_at = $2
+              where entry_id = $1 and locale = 'en' and status = 'published'`,
+            [first!, new Date(second)],
+          );
+        }
         break;
       }
       case "cover": {
