@@ -621,7 +621,9 @@ test("the skip link is the first tab stop, and the keyboard reaches every journa
 test("a change is seen on the next navigation, and a stale link leads nowhere", async ({
   page,
 }) => {
-  const pinkMoon = shelf.find((journal) => journal.slug.endsWith("-pink-moon"))!;
+  const pinkMoon = shelf.find((journal) =>
+    journal.slug.endsWith("-pink-moon"),
+  )!;
   const address = `/albums/${pinkMoon.slug}`;
   const heading = page.getByRole("heading", { level: 1 });
   await openHome(page);
