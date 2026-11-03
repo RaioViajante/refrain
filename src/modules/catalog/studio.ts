@@ -4,6 +4,7 @@ import { withDatabase } from "@/db";
 
 import * as commands from "./commands";
 import * as music from "./music";
+import * as photos from "./photos";
 import * as queries from "./queries";
 
 // The Writing Studio's interface to the catalog: every command and query,
@@ -61,3 +62,12 @@ export const listAlbumArtworkChoices = withDatabase(
 );
 export const setAlbumArtwork = withDatabase(music.setAlbumArtwork);
 export const removeAlbumArtwork = withDatabase(music.removeAlbumArtwork);
+
+// Artist photographs from Wikimedia Commons (M3.3). The same shape: the
+// provider first, then, if at all, one short transaction.
+export const listArtistPhotoChoices = withDatabase(
+  photos.listArtistPhotoChoices,
+);
+export const reviewArtistPhoto = withDatabase(photos.reviewArtistPhoto);
+export const setArtistPhoto = withDatabase(photos.setArtistPhoto);
+export const removeArtistPhoto = withDatabase(photos.removeArtistPhoto);

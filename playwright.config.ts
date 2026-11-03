@@ -69,7 +69,7 @@ export default defineConfig({
     {
       name: "desktop",
       testMatch:
-        /(catalog|journal|tracks|recovery|publication|academic|navigation|layout|accessibility|music)\.spec\.ts/,
+        /(catalog|journal|tracks|recovery|publication|academic|navigation|layout|accessibility|music|photos)\.spec\.ts/,
       use: {
         browserName: "chromium",
         viewport: { width: 1280, height: 900 },
@@ -134,6 +134,20 @@ export default defineConfig({
       // Add music and artwork (M3.2) again at a phone width.
       name: "music-390",
       testMatch: /music\.spec\.ts/,
+      use: {
+        browserName: "chromium",
+        viewport: { width: 390, height: 844 },
+        isMobile: true,
+        hasTouch: true,
+        deviceScaleFactor: 2,
+        storageState: AUTH_FILE,
+      },
+      dependencies: ["desktop"],
+    },
+    {
+      // Artist photographs (M3.3) again at a phone width.
+      name: "photos-390",
+      testMatch: /photos\.spec\.ts/,
       use: {
         browserName: "chromium",
         viewport: { width: 390, height: 844 },

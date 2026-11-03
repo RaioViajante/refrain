@@ -964,6 +964,103 @@ html:has(.studio-editorbar[data-mode="edit"]) {
   object-fit: cover;
 }
 
+/* Artist photographs (M3.3): the approved V4.4 4:5 frame (`.art.pt`), its
+   fallback underneath, and the image over it once loaded, so nothing moves
+   while it loads or if it fails. The credit is small and quiet, with the
+   details behind a disclosure. */
+.studio-photo {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: min(100%, 150px);
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  padding: 0 12px;
+  border: 1px solid var(--color-rule);
+  background: var(--color-paper-2);
+  color: var(--color-ink-3);
+  font-family: var(--font-kalam), cursive;
+  font-size: 17px;
+  text-align: center;
+}
+
+.studio-photo img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.studio-photo-figure {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+  margin: 0;
+}
+
+.studio-photo-credit {
+  max-width: 46ch;
+  margin: 0;
+  color: var(--color-ink-3);
+  font-size: 15px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+/* The browser's own disclosure marker stays (`list-item`), so it reads as
+   something that opens; the padding makes a 44px target. */
+.studio-photo-details summary {
+  display: list-item;
+  padding: 11px 0;
+  color: var(--color-ink-2);
+  font-size: 15px;
+  line-height: 22px;
+  cursor: pointer;
+}
+
+.studio-photo-details[open] {
+  margin-bottom: 12px;
+}
+
+.studio-photo-details .studio-facts {
+  margin-top: 6px;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+/* A candidate: the frame, its title and credit, and Review at the foot, so
+   the buttons of a row line up whatever the credit's length. */
+.studio-photo-choice {
+  grid-template-rows: auto 1fr auto;
+}
+
+.studio-photo-choice .studio-photo {
+  width: 100%;
+}
+
+/* The optional mark in a section title is Alegreya Sans, as in the approved
+   editor, whatever the title's own font weight. */
+.studio-section-title .studio-optional {
+  font-weight: 400;
+}
+
+/* The review of one photograph: the frame beside its facts, stacked on a
+   narrow screen. */
+.studio-review-photo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 24px 40px;
+}
+
+.studio-review-photo .studio-facts {
+  flex: 1 1 320px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 /* Add music (M3.2): the search field with its magnifier, the kind of record
    to search for, and the result rows. */
 .studio-search {

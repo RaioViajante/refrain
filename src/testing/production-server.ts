@@ -247,10 +247,13 @@ export async function startProductionServer(
   // The public-reads switch is never inherited from the shell that runs the
   // tests: a server has it only if the test sets it (ADR 0006, D4).
   delete env.REFRAIN_PUBLIC_READS_ENABLED;
-  // The music providers are always the local mock: a test never calls the
-  // real MusicBrainz or Cover Art Archive (M3.2).
+  // The providers are always the local mock: a test never calls the real
+  // MusicBrainz, Cover Art Archive (M3.2), Wikimedia Commons, or Wikidata
+  // (M3.3).
   env.REFRAIN_MUSICBRAINZ_BASE_URL = providers.musicBrainzBaseUrl;
   env.REFRAIN_COVER_ART_ARCHIVE_BASE_URL = providers.coverArtArchiveBaseUrl;
+  env.REFRAIN_WIKIMEDIA_COMMONS_BASE_URL = providers.wikimediaCommonsBaseUrl;
+  env.REFRAIN_WIKIDATA_BASE_URL = providers.wikidataBaseUrl;
   for (const [key, value] of Object.entries(options.env ?? {})) {
     if (value === undefined) {
       delete env[key];

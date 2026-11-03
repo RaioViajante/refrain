@@ -332,6 +332,48 @@ describe("the public album journal's projection", () => {
     });
   });
 
+  it("is unchanged by an artist photograph, set, replaced, or removed (M3.3, gate G8)", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const { entryId, first, second } = await publishedJournal(tx);
+      const before = JSON.stringify(
+        await getPublicAlbumJournal(tx, entryId, "en"),
+      );
+      const name = "Test_Ink_Quartet_on_stage.jpg";
+      const photo = {
+        photoUrl: `https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ab/${name}/330px-${name}`,
+        photoCredit: "[Test] Photographer One",
+        photoLicense: "CC BY-SA 4.0",
+        photoSourceUrl: `https://commons.wikimedia.org/wiki/File:${name}`,
+        photoFileSha1: "a".repeat(40),
+        photoFileTimestamp: new Date("2019-05-04T12:00:00Z"),
+        photoChosenAt: new Date("2026-11-02T12:00:00Z"),
+      };
+      const empty = Object.fromEntries(
+        Object.keys(photo).map((key) => [key, null]),
+      );
+      for (const values of [
+        photo,
+        { ...photo, photoCredit: "[Test] Other" },
+        empty,
+      ]) {
+        await tx
+          .update(schema.artists)
+          .set(values)
+          .where(eq(schema.artists.id, first));
+        await tx
+          .update(schema.artists)
+          .set(values)
+          .where(eq(schema.artists.id, second));
+        const page = JSON.stringify(
+          await getPublicAlbumJournal(tx, entryId, "en"),
+        );
+        expect(page).toBe(before);
+        expect(page).not.toContain("wikimedia");
+        expect(page).not.toContain("Photographer");
+      }
+    });
+  });
+
   it("lists credits in order, using the credited name when there is one", async () => {
     await inRollbackTransaction(async (tx) => {
       const { entryId, album } = await publishedJournal(tx);

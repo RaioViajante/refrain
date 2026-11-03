@@ -1,0 +1,1005 @@
+import { eq, inArray, sql } from "drizzle-orm";
+import { afterAll, describe, expect, it } from "vitest";
+
+import { getDb, schema, type Transaction } from "@/db";
+import {
+  createTestAlbum,
+  createTestAlbumJournal,
+  createTestArtist,
+  captureFailure,
+  inRollbackTransaction,
+  rowChecksum,
+  testAuthor,
+  uniqueLabel,
+  withConnections,
+} from "@/testing";
+import { FIXTURE } from "@/testing/provider-fixtures";
+import { providerAnswer, providerResponse } from "@/testing/provider-mock";
+import { fixtureProviders, json } from "@/testing/provider-runtime";
+import {
+  commonsThumbnail,
+  PHOTO,
+  PHOTO_SCENARIO,
+  photoSha1,
+} from "@/testing/wikimedia-fixtures";
+
+import { updateArtist } from "./commands";
+import { CatalogError } from "./errors";
+import {
+  listArtistPhotoChoices,
+  photoStateOf,
+  removeArtistPhoto,
+  reviewArtistPhoto,
+  setArtistPhoto,
+} from "./photos";
+import { getArtist } from "./queries";
+
+// Artist photographs from Wikimedia Commons (M3.3), on real PostgreSQL, with
+// the real Wikimedia adapter answering from deterministic, synthetic
+// fixtures (no network). Everything is rolled back, except the concurrency
+// test, which commits and removes its own rows.
+
+const author = testAuthor();
+
+function failureOf(error: unknown) {
+  return error instanceof CatalogError ? error.failure : error;
+}
+
+async function refusal(
+  tx: Transaction,
+  work: (tx: Transaction) => Promise<unknown>,
+) {
+  return failureOf(await captureFailure(tx, work));
+}
+
+async function photoColumns(tx: Transaction, artistId: string) {
+  const [row] = await tx
+    .select({
+      name: schema.artists.name,
+      photoUrl: schema.artists.photoUrl,
+      photoCredit: schema.artists.photoCredit,
+      photoLicense: schema.artists.photoLicense,
+      photoSourceUrl: schema.artists.photoSourceUrl,
+      photoFileSha1: schema.artists.photoFileSha1,
+      photoFileTimestamp: schema.artists.photoFileTimestamp,
+      photoChosenAt: schema.artists.photoChosenAt,
+      updatedAt: schema.artists.updatedAt,
+    })
+    .from(schema.artists)
+    .where(eq(schema.artists.id, artistId));
+  return row!;
+}
+
+async function linkedArtist(
+  tx: Transaction,
+  mbArtistId: string = FIXTURE.inkQuartet,
+) {
+  const id = await createTestArtist(tx, "[Test] Ink Quartet");
+  await tx
+    .update(schema.artists)
+    .set({ mbArtistId })
+    .where(eq(schema.artists.id, id));
+  return id;
+}
+
+/** Reviews a file, as the studio's review page does. */
+async function reviewed(
+  tx: Transaction,
+  artistId: string,
+  file: string,
+  providers = fixtureProviders().providers,
+) {
+  const review = await reviewArtistPhoto(
+    tx,
+    author,
+    { artistId, file },
+    providers,
+  );
+  return {
+    review: review!.review!,
+    expectedPhoto: review!.current.state,
+  };
+}
+
+async function choose(
+  tx: Transaction,
+  artistId: string,
+  file: string,
+  providers = fixtureProviders().providers,
+) {
+  const { review, expectedPhoto } = await reviewed(
+    tx,
+    artistId,
+    file,
+    providers,
+  );
+  await setArtistPhoto(
+    tx,
+    author,
+    { artistId, file, review, expectedPhoto },
+    providers,
+  );
+}
+
+describe("finding a photograph", () => {
+  it("offers only usable files from a search, and counts the others", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const artistId = await createTestArtist(tx, "[Test] Ink Quartet");
+      const { providers } = fixtureProviders();
+      const found = await listArtistPhotoChoices(
+        tx,
+        author,
+        { artistId, query: "Ink Quartet" },
+        providers,
+      );
+      expect(found!.results!.map((choice) => choice.fileName)).toEqual([
+        PHOTO.onStage,
+        PHOTO.portrait,
+        PHOTO.attributed,
+      ]);
+      expect(found!.refused).toBe(8);
+      expect(found!.results![0]).toMatchObject({
+        title: "Test Ink Quartet on stage.jpg",
+        credit: "[Test] Photographer One",
+        license: { name: "CC BY-SA 4.0" },
+        image: { src: commonsThumbnail(PHOTO.onStage, 330) },
+      });
+      expect(found!.suggestionState).toBe("not_linked");
+      expect(found!.current).toMatchObject({ photo: null, state: null });
+    });
+  });
+
+  it("searches nothing until words are given", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const artistId = await createTestArtist(tx);
+      const { providers, calls } = fixtureProviders();
+      const found = await listArtistPhotoChoices(
+        tx,
+        author,
+        { artistId, query: "   " },
+        providers,
+      );
+      expect(found!.results).toBeNull();
+      expect(calls).toHaveLength(0);
+    });
+  });
+
+  it("suggests through Wikidata for a linked artist, without choosing anything", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const artistId = await linkedArtist(tx);
+      const before = await photoColumns(tx, artistId);
+      const { providers } = fixtureProviders();
+      const found = await listArtistPhotoChoices(
+        tx,
+        author,
+        { artistId, query: "" },
+        providers,
+      );
+      expect(found!.suggestionState).toBe("found");
+      // The item's image first (its deleted second image is gone), then a
+      // file that depicts it; the non-commercial one is not offered.
+      expect(found!.suggestions.map((choice) => choice.fileName)).toEqual([
+        PHOTO.onStage,
+        PHOTO.portrait,
+      ]);
+      expect(found!.suggestionsRefused).toBe(1);
+      expect(await photoColumns(tx, artistId)).toEqual(before);
+    });
+  });
+
+  it("suggests nothing when two Wikidata items share the identifier, or none has it", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const { providers } = fixtureProviders();
+      const ambiguous = await linkedArtist(tx, FIXTURE.paperSinger);
+      const unknown = await createTestArtist(tx, "[Test] Unknown");
+      await tx
+        .update(schema.artists)
+        .set({ mbArtistId: FIXTURE.paperMoon })
+        .where(eq(schema.artists.id, unknown));
+      for (const artistId of [ambiguous, unknown]) {
+        const found = await listArtistPhotoChoices(
+          tx,
+          author,
+          { artistId, query: "" },
+          providers,
+        );
+        expect(found!.suggestionState).toBe("no_item");
+        expect(found!.suggestions).toEqual([]);
+      }
+    });
+  });
+
+  it("says when Commons cannot be reached, and when it answers outside its contract", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const artistId = await createTestArtist(tx);
+      const { providers } = fixtureProviders();
+      for (const query of [
+        PHOTO_SCENARIO.unavailable,
+        PHOTO_SCENARIO.malformed,
+      ]) {
+        const found = await listArtistPhotoChoices(
+          tx,
+          author,
+          { artistId, query },
+          providers,
+        );
+        expect(found!.searchUnavailable).toBe(true);
+        expect(found!.results).toEqual([]);
+      }
+      const nothing = await listArtistPhotoChoices(
+        tx,
+        author,
+        { artistId, query: PHOTO_SCENARIO.nothing },
+        providers,
+      );
+      expect(nothing!.results).toEqual([]);
+      expect(nothing!.searchUnavailable).toBe(false);
+    });
+  });
+
+  it("asks nothing more of Wikimedia for the page once it has failed", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const artistId = await linkedArtist(tx);
+      await choose(tx, artistId, PHOTO.onStage);
+      const { providers, calls } = fixtureProviders(() =>
+        json({}, 503, { "retry-after": "0" }),
+      );
+      const found = await listArtistPhotoChoices(
+        tx,
+        author,
+        { artistId, query: "ink" },
+        providers,
+      );
+      expect(found!.currentCheck).toBe("unavailable");
+      expect(found!.suggestionState).toBe("unavailable");
+      expect(found!.searchUnavailable).toBe(true);
+      // One lookup and its two retries; no suggestion or search request.
+      expect(calls).toHaveLength(3);
+    });
+  });
+
+  it("asks nothing of Commons for an archived artist, and nothing for an unknown one", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const artistId = await linkedArtist(tx);
+      await tx
+        .update(schema.artists)
+        .set({ archivedAt: new Date() })
+        .where(eq(schema.artists.id, artistId));
+      const { providers, calls } = fixtureProviders();
+      const found = await listArtistPhotoChoices(
+        tx,
+        author,
+        { artistId, query: "ink" },
+        providers,
+      );
+      expect(found!.artist.archived).toBe(true);
+      expect(found!.results).toBeNull();
+      expect(
+        await listArtistPhotoChoices(
+          tx,
+          author,
+          { artistId: "00000000-0000-4000-8000-000000000000", query: "ink" },
+          providers,
+        ),
+      ).toBeNull();
+      expect(
+        await listArtistPhotoChoices(
+          tx,
+          author,
+          { artistId: "nope", query: "" },
+          providers,
+        ),
+      ).toBeNull();
+      expect(calls).toHaveLength(0);
+    });
+  });
+});
+
+describe("reviewing a photograph", () => {
+  it("shows the attribution and a fingerprint, and writes nothing", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const artistId = await createTestArtist(tx);
+      const before = await photoColumns(tx, artistId);
+      const writing = await rowChecksum(tx);
+      const review = await reviewArtistPhoto(
+        tx,
+        author,
+        { artistId, file: "Test Ink Quartet on stage.jpg" },
+        fixtureProviders().providers,
+      );
+      expect(review!.review).toMatch(/^[0-9a-f]{64}$/);
+      expect(review!.assessment).toMatchObject({
+        fileName: PHOTO.onStage,
+        credit: "[Test] Photographer One",
+        creator: "[Test] Photographer One",
+        sourceCredit: "Own work",
+        restrictions: ["personality"],
+        license: { name: "CC BY-SA 4.0" },
+        refusals: [],
+      });
+      expect(review!.isCurrent).toBe(false);
+      expect(await photoColumns(tx, artistId)).toEqual(before);
+      expect(await rowChecksum(tx)).toEqual(writing);
+    });
+  });
+
+  it("explains a file that cannot be used, offers no fingerprint, and loads no image", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const artistId = await createTestArtist(tx);
+      for (const [file, reason] of [
+        [PHOTO.unknownAuthor, "no_creator"],
+        [PHOTO.nonCommercial, "unsupported_license"],
+        [PHOTO.hostile, "credit_not_plain"],
+      ] as const) {
+        const review = await reviewArtistPhoto(
+          tx,
+          author,
+          { artistId, file },
+          fixtureProviders().providers,
+        );
+        expect(review!.review).toBeNull();
+        expect(review!.assessment!.image).toBeNull();
+        expect(review!.assessment!.refusals).toEqual([reason]);
+      }
+    });
+  });
+
+  it("says when Commons has no such file, and refuses a name that is not a photo file", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const artistId = await createTestArtist(tx);
+      const missing = await reviewArtistPhoto(
+        tx,
+        author,
+        { artistId, file: PHOTO.removed },
+        fixtureProviders().providers,
+      );
+      expect(missing!.assessment).toBeNull();
+      expect(missing!.review).toBeNull();
+      for (const file of ["../etc/passwd.jpg", "x.svg", "a|b.jpg", ""]) {
+        expect(
+          await refusal(tx, (sp) =>
+            reviewArtistPhoto(
+              sp,
+              author,
+              { artistId, file },
+              fixtureProviders().providers,
+            ),
+          ),
+        ).toBe("invalid_input");
+      }
+    });
+  });
+});
+
+describe("choosing a photograph", () => {
+  it("stores the photograph with its attribution and provenance", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const artistId = await createTestArtist(tx);
+      await tx.execute(
+        sql`update artists set updated_at = now() - interval '1 day' where id = ${artistId}`,
+      );
+      const writing = await rowChecksum(tx);
+      await choose(tx, artistId, PHOTO.onStage);
+      const row = await photoColumns(tx, artistId);
+      expect(row).toMatchObject({
+        name: "[Test] Artist",
+        photoUrl: commonsThumbnail(PHOTO.onStage, 330),
+        photoCredit: "[Test] Photographer One",
+        photoLicense: "CC BY-SA 4.0",
+        photoSourceUrl: `https://commons.wikimedia.org/wiki/File:${PHOTO.onStage}`,
+        photoFileSha1: photoSha1(PHOTO.onStage),
+        photoFileTimestamp: new Date("2019-05-04T12:00:00Z"),
+      });
+      const [{ now }] = (await tx.execute<{ now: Date }>(sql`select now()`))
+        .rows as [{ now: Date }];
+      expect(row.photoChosenAt).toEqual(new Date(now));
+      expect(row.updatedAt).toEqual(new Date(now));
+      // Nothing authored changed.
+      expect(await rowChecksum(tx)).toEqual(writing);
+
+      const detail = await getArtist(tx, author, artistId);
+      expect(detail!.photo.photo).toMatchObject({
+        fileName: PHOTO.onStage,
+        credit: "[Test] Photographer One",
+        license: { name: "CC BY-SA 4.0" },
+        modifications:
+          "Resized, and cropped to fit the frame. No other changes.",
+      });
+      expect(detail!.photo.sha1).toBe(photoSha1(PHOTO.onStage));
+      expect(detail!.photo.unreadable).toBe(false);
+    });
+  });
+
+  it("stores the designated attribution, and a public-domain file's creator", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const one = await createTestArtist(tx, "[Test] One");
+      const two = await createTestArtist(tx, "[Test] Two");
+      await choose(tx, one, PHOTO.attributed);
+      await choose(tx, two, PHOTO.publicDomain);
+      expect((await photoColumns(tx, one)).photoCredit).toBe(
+        "Photo: [Test] Photographer Three / [Test] Studio Archive",
+      );
+      expect(await photoColumns(tx, two)).toMatchObject({
+        photoCredit: "[Test] Photographer Twelve",
+        photoLicense: "Public domain",
+      });
+    });
+  });
+
+  it("refuses a stale review: a forged fingerprint, or a file that changed since", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const artistId = await createTestArtist(tx);
+      const before = await photoColumns(tx, artistId);
+      expect(
+        await refusal(tx, (sp) =>
+          setArtistPhoto(
+            sp,
+            author,
+            {
+              artistId,
+              file: PHOTO.onStage,
+              review: "0".repeat(64),
+              expectedPhoto: null,
+            },
+            fixtureProviders().providers,
+          ),
+        ),
+      ).toBe("review_stale");
+      // A new version of the file on every lookup (the approval asks again).
+      const { providers } = fixtureProviders();
+      const { review } = await reviewed(
+        tx,
+        artistId,
+        PHOTO.changing,
+        providers,
+      );
+      expect(
+        await refusal(tx, (sp) =>
+          setArtistPhoto(
+            sp,
+            author,
+            { artistId, file: PHOTO.changing, review, expectedPhoto: null },
+            providers,
+          ),
+        ),
+      ).toBe("review_stale");
+      expect(await photoColumns(tx, artistId)).toEqual(before);
+    });
+  });
+
+  it("asks Commons again at approval, so a cached answer is never what is written", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const artistId = await createTestArtist(tx);
+      let license = "cc-by-sa-4.0";
+      const { providers, calls } = fixtureProviders((url) =>
+        license === "cc-by-sa-4.0"
+          ? providerResponse(url)
+          : json(relicensed(url, license)),
+      );
+      const { review } = await reviewed(tx, artistId, PHOTO.onStage, providers);
+      license = "cc-by-nc-sa-4.0";
+      expect(
+        await refusal(tx, (sp) =>
+          setArtistPhoto(
+            sp,
+            author,
+            { artistId, file: PHOTO.onStage, review, expectedPhoto: null },
+            providers,
+          ),
+        ),
+      ).toBe("photo_not_usable");
+      expect(calls).toHaveLength(2);
+      expect((await photoColumns(tx, artistId)).photoUrl).toBeNull();
+    });
+  });
+
+  it("refuses an approval when a personality-rights warning was added after the review", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const artistId = await createTestArtist(tx);
+      let warned = false;
+      const { providers } = fixtureProviders((url) => {
+        if (!warned) {
+          return providerResponse(url);
+        }
+        const body = structuredClone(providerAnswer(new URL(url)).body) as {
+          query: {
+            pages: {
+              imageinfo: { extmetadata: Record<string, { value: string }> }[];
+            }[];
+          };
+        };
+        body.query.pages[0]!.imageinfo[0]!.extmetadata.Restrictions = {
+          value: "personality",
+        };
+        return json(body);
+      });
+      const { review } = await reviewed(
+        tx,
+        artistId,
+        PHOTO.portrait,
+        providers,
+      );
+      warned = true;
+      expect(
+        await refusal(tx, (sp) =>
+          setArtistPhoto(
+            sp,
+            author,
+            { artistId, file: PHOTO.portrait, review, expectedPhoto: null },
+            providers,
+          ),
+        ),
+      ).toBe("review_stale");
+      expect((await photoColumns(tx, artistId)).photoUrl).toBeNull();
+    });
+  });
+
+  it("refuses a file Commons no longer has, and writes nothing when Commons is down", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const artistId = await createTestArtist(tx);
+      const { review } = await reviewed(tx, artistId, PHOTO.onStage);
+      const gone = fixtureProviders((url) =>
+        providerResponse(url.replace(PHOTO.onStage, PHOTO.removed)),
+      ).providers;
+      expect(
+        await refusal(tx, (sp) =>
+          setArtistPhoto(
+            sp,
+            author,
+            { artistId, file: PHOTO.onStage, review, expectedPhoto: null },
+            gone,
+          ),
+        ),
+      ).toBe("provider_not_found");
+      const down = fixtureProviders(() =>
+        json({}, 503, { "retry-after": "0" }),
+      ).providers;
+      expect(
+        await refusal(tx, (sp) =>
+          setArtistPhoto(
+            sp,
+            author,
+            { artistId, file: PHOTO.onStage, review, expectedPhoto: null },
+            down,
+          ),
+        ),
+      ).toBe("provider_unavailable");
+      expect((await photoColumns(tx, artistId)).photoUrl).toBeNull();
+    });
+  });
+
+  it("never replaces a photograph the author did not see", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const artistId = await createTestArtist(tx);
+      const stale = await reviewed(tx, artistId, PHOTO.portrait);
+      await choose(tx, artistId, PHOTO.onStage);
+      const after = await photoColumns(tx, artistId);
+      // The review was made when there was no photograph.
+      expect(stale.expectedPhoto).toBeNull();
+      expect(
+        await refusal(tx, (sp) =>
+          setArtistPhoto(
+            sp,
+            author,
+            { artistId, file: PHOTO.portrait, ...stale },
+            fixtureProviders().providers,
+          ),
+        ),
+      ).toBe("review_stale");
+      expect(await photoColumns(tx, artistId)).toEqual(after);
+      // Reviewed again, with the photograph on file, it replaces it.
+      await choose(tx, artistId, PHOTO.portrait);
+      expect((await photoColumns(tx, artistId)).photoLicense).toBe("CC0");
+    });
+  });
+
+  it("refuses an archived artist and an unknown one, and invalid input", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const artistId = await createTestArtist(tx);
+      const { review } = await reviewed(tx, artistId, PHOTO.onStage);
+      await tx
+        .update(schema.artists)
+        .set({ archivedAt: new Date() })
+        .where(eq(schema.artists.id, artistId));
+      const input = {
+        artistId,
+        file: PHOTO.onStage,
+        review,
+        expectedPhoto: null,
+      };
+      expect(
+        await refusal(tx, (sp) =>
+          setArtistPhoto(sp, author, input, fixtureProviders().providers),
+        ),
+      ).toBe("archived_reference");
+      expect(
+        await refusal(tx, (sp) =>
+          setArtistPhoto(
+            sp,
+            author,
+            { ...input, artistId: "00000000-0000-4000-8000-000000000000" },
+            fixtureProviders().providers,
+          ),
+        ),
+      ).toBe("not_found");
+      for (const bad of [
+        { ...input, review: "x" },
+        { ...input, expectedPhoto: "x" },
+        { ...input, file: "Test.gif" },
+        { ...input, artistId: "nope" },
+        {},
+      ]) {
+        expect(
+          await refusal(tx, (sp) =>
+            setArtistPhoto(sp, author, bad, fixtureProviders().providers),
+          ),
+        ).toBe("invalid_input");
+      }
+      expect((await photoColumns(tx, artistId)).photoUrl).toBeNull();
+    });
+  });
+
+  it("keeps the photograph when the artist's details are edited, and the details when the photograph changes", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const artistId = await createTestArtist(tx);
+      await choose(tx, artistId, PHOTO.onStage);
+      const photo = await photoColumns(tx, artistId);
+      await updateArtist(tx, author, artistId, {
+        name: "[Test] Renamed",
+        sortName: "Renamed, [Test]",
+      });
+      const renamed = await photoColumns(tx, artistId);
+      expect({
+        ...renamed,
+        name: photo.name,
+        updatedAt: photo.updatedAt,
+      }).toEqual(photo);
+      // The manual form cannot write photo columns at all.
+      expect(
+        await refusal(tx, (sp) =>
+          updateArtist(sp, author, artistId, {
+            photoUrl: "https://evil.example/x.jpg",
+          }),
+        ),
+      ).toBe("invalid_input");
+      await choose(tx, artistId, PHOTO.portrait);
+      expect((await photoColumns(tx, artistId)).name).toBe("[Test] Renamed");
+    });
+  });
+});
+
+describe("removing a photograph", () => {
+  it("removes the photograph and its provenance, after the author saw it", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const artistId = await createTestArtist(tx);
+      await choose(tx, artistId, PHOTO.onStage);
+      const detail = await getArtist(tx, author, artistId);
+      const expectedPhoto = detail!.photo.state;
+      // Cancelling a removal sends nothing; a stale one is refused.
+      expect(
+        await refusal(tx, (sp) =>
+          removeArtistPhoto(sp, author, {
+            artistId,
+            expectedPhoto: "0".repeat(64),
+          }),
+        ),
+      ).toBe("review_stale");
+      expect(
+        await refusal(tx, (sp) =>
+          removeArtistPhoto(sp, author, { artistId, expectedPhoto: null }),
+        ),
+      ).toBe("review_stale");
+      expect((await photoColumns(tx, artistId)).photoUrl).not.toBeNull();
+      await removeArtistPhoto(tx, author, { artistId, expectedPhoto });
+      expect(await photoColumns(tx, artistId)).toMatchObject({
+        photoUrl: null,
+        photoCredit: null,
+        photoLicense: null,
+        photoSourceUrl: null,
+        photoFileSha1: null,
+        photoFileTimestamp: null,
+        photoChosenAt: null,
+      });
+      // Nothing to remove is not an error.
+      await removeArtistPhoto(tx, author, { artistId, expectedPhoto: null });
+    });
+  });
+
+  it("removes for an archived artist too, and removes values Refrain did not write", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const artistId = await createTestArtist(tx);
+      // Written by hand (psql, a restore): not the stored form.
+      await tx.execute(sql`
+        update artists set photo_url = 'https://evil.example/x.jpg',
+          photo_credit = '<b>x</b>', photo_license = 'CC BY-NC 4.0',
+          photo_source_url = 'https://evil.example/', photo_file_sha1 = ${"b".repeat(40)},
+          photo_file_timestamp = now(), photo_chosen_at = now()
+         where id = ${artistId}`);
+      const detail = await getArtist(tx, author, artistId);
+      expect(detail!.photo).toMatchObject({ photo: null, unreadable: true });
+      const expectedPhoto = detail!.photo.state;
+      await tx
+        .update(schema.artists)
+        .set({ archivedAt: new Date() })
+        .where(eq(schema.artists.id, artistId));
+      // Removing only takes something away: a rights holder's request does
+      // not wait for a restore, and the artist stays archived.
+      await removeArtistPhoto(tx, author, { artistId, expectedPhoto });
+      expect((await photoColumns(tx, artistId)).photoUrl).toBeNull();
+      const [row] = await tx
+        .select({ archivedAt: schema.artists.archivedAt })
+        .from(schema.artists)
+        .where(eq(schema.artists.id, artistId));
+      expect(row!.archivedAt).not.toBeNull();
+    });
+  });
+});
+
+describe("the photograph on file, compared with Commons", () => {
+  async function stored(
+    tx: Transaction,
+    file: string,
+    changes: Record<string, unknown> = {},
+  ) {
+    const artistId = await createTestArtist(tx);
+    await choose(tx, artistId, PHOTO.onStage);
+    await tx
+      .update(schema.artists)
+      .set({
+        photoUrl: commonsThumbnail(file, 330),
+        photoSourceUrl: `https://commons.wikimedia.org/wiki/File:${file}`,
+        ...changes,
+      })
+      .where(eq(schema.artists.id, artistId));
+    const found = await listArtistPhotoChoices(
+      tx,
+      author,
+      { artistId, query: "" },
+      fixtureProviders().providers,
+    );
+    return found!.currentCheck;
+  }
+
+  it("says whether it is unchanged, a new version, changed, gone, or no longer usable", async () => {
+    await inRollbackTransaction(async (tx) => {
+      expect(await stored(tx, PHOTO.onStage)).toBe("unchanged");
+      expect(
+        await stored(tx, PHOTO.onStage, { photoFileSha1: "f".repeat(40) }),
+      ).toBe("new_version");
+      expect(
+        await stored(tx, PHOTO.onStage, {
+          photoCredit: "[Test] Earlier credit",
+        }),
+      ).toBe("details_changed");
+      expect(await stored(tx, PHOTO.removed)).toBe("missing");
+      expect(await stored(tx, PHOTO.unknownAuthor)).toBe("not_usable");
+    });
+  });
+});
+
+describe("concurrent changes", () => {
+  const created: string[] = [];
+
+  afterAll(async () => {
+    if (created.length > 0) {
+      await getDb()
+        .delete(schema.artists)
+        .where(inArray(schema.artists.id, created));
+    }
+  });
+
+  it("reads the photograph on file under the row lock, so a change committed meanwhile is seen", async () => {
+    const db = getDb();
+    const [artist] = await db
+      .insert(schema.artists)
+      .values({ name: uniqueLabel("Photographed locked"), kind: "person" })
+      .returning({ id: schema.artists.id });
+    const artistId = artist!.id;
+    created.push(artistId);
+    const { providers } = fixtureProviders();
+    const review = await reviewArtistPhoto(
+      db,
+      author,
+      { artistId, file: PHOTO.onStage },
+      providers,
+    );
+    expect(review!.current.state).toBeNull();
+
+    await withConnections(2, async ([holder, chooser]) => {
+      let release!: () => void;
+      const held = new Promise<void>((resolve) => (release = resolve));
+      let locked!: () => void;
+      const isLocked = new Promise<void>((resolve) => (locked = resolve));
+      // Another change holds the row and writes a photograph, then commits.
+      const other = holder!.transaction(async (tx) => {
+        await tx.execute(
+          sql`select id from artists where id = ${artistId} for no key update`,
+        );
+        locked();
+        await held;
+        await tx.execute(sql`
+          update artists set photo_url = ${commonsThumbnail(PHOTO.portrait, 330)},
+            photo_credit = '[Test] Photographer Two', photo_license = 'CC0',
+            photo_source_url = ${`https://commons.wikimedia.org/wiki/File:${PHOTO.portrait}`},
+            photo_file_sha1 = ${"2".repeat(40)},
+            photo_file_timestamp = now(), photo_chosen_at = now()
+           where id = ${artistId}`);
+      });
+      await isLocked;
+      // This change was reviewed with no photograph on file. It must wait
+      // for the row, then see the photograph and refuse; without the lock it
+      // would read "no photograph" at once and overwrite it.
+      const choosing = setArtistPhoto(
+        chooser!,
+        author,
+        {
+          artistId,
+          file: PHOTO.onStage,
+          review: review!.review!,
+          expectedPhoto: null,
+        },
+        providers,
+      ).then(
+        () => "written",
+        (error: unknown) => failureOf(error),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      release();
+      await other;
+      expect(await choosing).toBe("review_stale");
+    });
+    const [row] = await db
+      .select({ photoLicense: schema.artists.photoLicense })
+      .from(schema.artists)
+      .where(eq(schema.artists.id, artistId));
+    expect(row!.photoLicense).toBe("CC0");
+  });
+
+  it("lets one of two changes made from the same view win, and refuses the other", async () => {
+    const db = getDb();
+    const [artist] = await db
+      .insert(schema.artists)
+      .values({ name: uniqueLabel("Photographed"), kind: "person" })
+      .returning({ id: schema.artists.id });
+    const artistId = artist!.id;
+    created.push(artistId);
+
+    const { providers } = fixtureProviders();
+    const first = await reviewArtistPhoto(
+      db,
+      author,
+      { artistId, file: PHOTO.onStage },
+      providers,
+    );
+    const second = await reviewArtistPhoto(
+      db,
+      author,
+      { artistId, file: PHOTO.portrait },
+      providers,
+    );
+    expect(first!.current.state).toBeNull();
+
+    const outcomes = await withConnections(2, ([one, two]) =>
+      Promise.allSettled([
+        setArtistPhoto(
+          one!,
+          author,
+          {
+            artistId,
+            file: PHOTO.onStage,
+            review: first!.review!,
+            expectedPhoto: null,
+          },
+          providers,
+        ),
+        setArtistPhoto(
+          two!,
+          author,
+          {
+            artistId,
+            file: PHOTO.portrait,
+            review: second!.review!,
+            expectedPhoto: null,
+          },
+          providers,
+        ),
+      ]),
+    );
+    const fulfilled = outcomes.filter(
+      (outcome) => outcome.status === "fulfilled",
+    );
+    const rejected = outcomes.filter(
+      (outcome): outcome is PromiseRejectedResult =>
+        outcome.status === "rejected",
+    );
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected.map((outcome) => failureOf(outcome.reason))).toEqual([
+      "review_stale",
+    ]);
+    const [row] = await db
+      .select({ photoSourceUrl: schema.artists.photoSourceUrl })
+      .from(schema.artists)
+      .where(eq(schema.artists.id, artistId));
+    expect(
+      [PHOTO.onStage, PHOTO.portrait].map(
+        (file) => `https://commons.wikimedia.org/wiki/File:${file}`,
+      ),
+    ).toContain(row!.photoSourceUrl);
+  });
+});
+
+describe("the stored-photo fingerprint", () => {
+  it("is null with no photograph, and changes with every column", () => {
+    const base = {
+      photoUrl: "u",
+      photoCredit: "c",
+      photoLicense: "l",
+      photoSourceUrl: "s",
+      photoFileSha1: "a".repeat(40),
+      photoFileTimestamp: "2019-05-04T12:00:00.000Z",
+      photoChosenAt: "2026-11-02T12:00:00.000Z",
+    };
+    expect(
+      photoStateOf({
+        photoUrl: null,
+        photoCredit: null,
+        photoLicense: null,
+        photoSourceUrl: null,
+        photoFileSha1: null,
+        photoFileTimestamp: null,
+        photoChosenAt: null,
+      }),
+    ).toBeNull();
+    const state = photoStateOf(base);
+    for (const key of Object.keys(base) as (keyof typeof base)[]) {
+      const changed =
+        key === "photoFileTimestamp" || key === "photoChosenAt"
+          ? "2020-01-01T00:00:00.000Z"
+          : `${base[key]}x`;
+      expect(photoStateOf({ ...base, [key]: changed }), key).not.toBe(state);
+    }
+  });
+});
+
+// A published journal about an album that credits the artist: a photograph
+// change is not a change to it.
+describe("published writing", () => {
+  it("is untouched when a credited artist's photograph is set or removed", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const artistId = await createTestArtist(tx);
+      const album = await createTestAlbum(tx, { artistIds: [artistId] });
+      await createTestAlbumJournal(tx, {
+        albumId: album.albumId,
+        versions: [{ locale: "en", status: "published" }],
+        slug: "photo-guard",
+      });
+      const writing = await rowChecksum(tx);
+      await choose(tx, artistId, PHOTO.onStage);
+      expect(await rowChecksum(tx)).toEqual(writing);
+      const detail = await getArtist(tx, author, artistId);
+      await removeArtistPhoto(tx, author, {
+        artistId,
+        expectedPhoto: detail!.photo.state,
+      });
+      expect(await rowChecksum(tx)).toEqual(writing);
+    });
+  });
+});
+
+/** The same file's answer, under another license (a later change on Commons). */
+function relicensed(url: string, license: string) {
+  const body = structuredClone(providerAnswer(new URL(url)).body) as {
+    query: {
+      pages: {
+        imageinfo: { extmetadata: Record<string, { value: string }> }[];
+      }[];
+    };
+  };
+  const meta = body.query.pages[0]!.imageinfo[0]!.extmetadata;
+  meta.License = { value: license };
+  meta.LicenseShortName = { value: "CC BY-NC-SA 4.0" };
+  meta.LicenseUrl = {
+    value: "https://creativecommons.org/licenses/by-nc-sa/4.0",
+  };
+  return body;
+}

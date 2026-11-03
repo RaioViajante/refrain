@@ -72,11 +72,11 @@ export function failureMessage(failure: Failure): string {
     case "no_address":
       return "This journal has no address, so it can’t be published. Nothing was changed.";
     case "provider_unavailable":
-      return "Couldn’t reach MusicBrainz or the Cover Art Archive, so nothing was changed. Your catalog and your writing still work. Try again in a moment.";
+      return "Couldn’t reach MusicBrainz, the Cover Art Archive, or Wikimedia Commons, so nothing was changed. Your catalog and your writing still work. Try again in a moment.";
     case "provider_not_found":
-      return "MusicBrainz no longer has that record. Search again.";
+      return "MusicBrainz or Wikimedia Commons no longer has that record or file. Search again.";
     case "stale":
-      return "Something changed since you looked: MusicBrainz, the Cover Art Archive, or this record in your catalog. Nothing was changed. Review it again.";
+      return "Something changed since you looked: MusicBrainz, the Cover Art Archive, Wikimedia Commons, or this record in your catalog. Nothing was changed. Review it again.";
     case "unsupported_release":
       return "This release can’t be added as one album. Add it by hand, or link an album you already have.";
     case "already_linked":
@@ -85,6 +85,8 @@ export function failureMessage(failure: Failure): string {
       return "This album isn’t linked to MusicBrainz yet, so there is no artwork to choose from.";
     case "public_page":
       return "A published journal shows this album, so its artwork can’t change without a confirmation, and that confirmation isn’t built yet. Nothing was changed.";
+    case "photo_not_usable":
+      return "This photograph can no longer be used: its license, credit, or file changed on Wikimedia Commons. Nothing was changed. Choose another, or review it again.";
     case "failed":
       return "Something went wrong, and nothing was changed. Try again.";
   }

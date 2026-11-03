@@ -218,6 +218,21 @@ The public pages are monochrome with the design's own paper tints, use only Kala
 
 The edition list, the review (facts, tracks, artists, the cover choice with **No artwork** selected first, the approval), the link-instead confirmation, and the album's artwork page reuse the studio's rows, panels, buttons, artwork frame, and confirmation dialog; no new component style was introduced beyond the search field, the choice grid, and the review's facts list.
 
+## Artist photographs (M3.3)
+
+The photograph follows the approved `ArtistEditor` and `Artist` screens: the **4:5 frame** (`.art.pt`) with the fallback underneath and the image over it with `object-fit: cover`, so nothing moves while it loads or if it fails; the editor's "Photo (optional)" block with its 150px frame, the hint "No photo. The page works without one.", and **Choose from Wikimedia Commons…**; and, from the `Artist` page, the small muted caption "Photo: … · licence". Color comes only from the photograph. The studio's artist page shows the block after the artist's form; the photograph page and the review reuse the Add music search field, the choice grid, the panels, the facts list, the buttons, and the confirmation dialog. Where it differs:
+
+| Approved screen | Studio | Why |
+| --- | --- | --- |
+| A "Photo credit" text field ("Photographer, licence"), typed by the author | The credit is read-only, taken from the file's own metadata, with the license linked | The credit must be the one the license asks for; a typed credit could drift from it ([Security § External providers](security.md#external-providers)) |
+| The caption "Photo: Wikimedia Commons · [photographer, licence]" | "Photo: [credit] · [license, linked] · via Wikimedia Commons", and a **Photo details** disclosure with the work, credit, source, license, and the changes Refrain makes | A license's conditions (title, creator, source, license link, changes) need more than one line; the disclosure keeps the caption discreet. A credit that already begins "Photo:" is not prefixed again |
+| The editor's fallback: an icon, no words; the public page's "Artist photograph / freely licensed, credited" with a hatch | "no photograph yet", in the studio's own fallback style (as "no artwork yet"); "photograph not shown" under a photograph whose thumbnail did not load, and under a candidate | The studio's artwork frame already uses this form, and the words must stay true when a photograph exists but is not displayed; the public `Artist` page, with its hatch, is not built |
+| The block inside the editor's form, titled "Photo (optional)" | Its own section after the artist's form, titled "Photograph (optional)", with "(optional)" in Alegreya Sans as in the reference | The studio's artist page is a catalog record, not the artist-journal editor, and the photograph is saved by its own review, not by the form's Save |
+| **Choose from Wikimedia Commons…** opens a picker | It opens a page: suggestions through Wikidata, a search, the photograph on file and how it compares with Commons, then a review page with **Use this photograph** and **Cancel** | The author must see the license, the creator, and the rights notes before choosing, and a page survives a reload |
+| A candidate shown as the artist | Candidates are named by their file ("Candidate: …"), with "A search finds words, not people." | Neither a search nor Wikidata proves who is in a photograph |
+
+The frame and the attribution are presentational components with no administrative control ([`artist-photograph.tsx`](../src/app/studio/artist-photograph.tsx)), so a public `Artist` page could reuse them once it is approved; no public page shows a photograph today. A photograph whose thumbnail fails to load is removed from the frame, so only the fallback remains (no broken-image icon). Checked in a browser at 1280px and 390px with axe, 44px targets, and no sideways scrolling (`e2e/photos.spec.ts`).
+
 ## Writing Studio controls for ADR 0002
 
 [ADR 0002](decisions/0002-domain-model-decisions.md) requires administrative controls that the V4.4 studio screens do not show. This section specifies their placement and behavior.

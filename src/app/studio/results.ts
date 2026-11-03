@@ -34,6 +34,8 @@ export type StudioFailure =
   | "already_linked"
   | "not_linked"
   | "public_page"
+  // Wikimedia Commons (M3.3). Nothing was written.
+  | "photo_not_usable"
   | "failed";
 
 export type FieldProblem = "required" | "too_long" | "invalid";

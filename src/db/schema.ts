@@ -149,10 +149,23 @@ export const artists = pgTable(
     sortName: text("sort_name"),
     kind: text("kind", { enum: artistKinds }).notNull(),
     mbArtistId: uuid("mb_artist_id"),
+    // An artist photograph from Wikimedia Commons (M3.3), written only by the
+    // Catalog's photo commands in one strict form: the thumbnail address, the
+    // credit line the license requires, an allow-listed license name, and the
+    // file's description page (src/integrations/wikimedia-commons/photo.ts).
     photoUrl: text("photo_url"),
     photoCredit: text("photo_credit"),
     photoLicense: text("photo_license"),
     photoSourceUrl: text("photo_source_url"),
+    // Provenance (M3.3, approved by the owner): the version of the file the
+    // author reviewed (its SHA-1 and upload time on Commons), and when the
+    // author approved it. A later rights review can find exactly that version
+    // in the file's history, and the studio can tell when the file changed.
+    photoFileSha1: text("photo_file_sha1"),
+    photoFileTimestamp: timestamp("photo_file_timestamp", {
+      withTimezone: true,
+    }),
+    photoChosenAt: timestamp("photo_chosen_at", { withTimezone: true }),
     archivedAt: archivedAt(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -164,6 +177,16 @@ export const artists = pgTable(
     check(
       "artists_photo_attribution_check",
       sql`photo_url is null or (photo_credit is not null and photo_license is not null)`,
+    ),
+    check(
+      "artists_photo_file_sha1_check",
+      sql`photo_file_sha1 ~ '^[0-9a-f]{40}$'`,
+    ),
+    // A photograph always carries its provenance, and provenance never
+    // outlives its photograph.
+    check(
+      "artists_photo_provenance_check",
+      sql`(photo_url is null) = (photo_file_sha1 is null) and (photo_url is null) = (photo_file_timestamp is null) and (photo_url is null) = (photo_chosen_at is null)`,
     ),
   ],
 );

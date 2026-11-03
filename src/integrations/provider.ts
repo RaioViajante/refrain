@@ -1,16 +1,18 @@
 import "server-only";
 
-// Shared plumbing for the external providers (MusicBrainz and the Cover Art
-// Archive). Everything a provider sends is untrusted: a response is read with
+// Shared plumbing for the external providers (MusicBrainz, the Cover Art
+// Archive, and, since M3.3, Wikimedia Commons and Wikidata through one
+// Wikimedia client). Everything a provider sends is untrusted: a response is read with
 // a size limit, parsed as JSON, and validated by the adapter with Zod before
 // anything uses it. Nothing here touches the database, and nothing here ever
 // sends the author's writing anywhere: a request carries only a provider
-// identifier or the words typed into the Add music search.
+// identifier or the words typed into a search (Add music, or an artist's
+// photograph search).
 //
 // docs/architecture.md § External providers; docs/security.md § External
 // providers.
 
-export type ProviderName = "musicbrainz" | "cover_art_archive";
+export type ProviderName = "musicbrainz" | "cover_art_archive" | "wikimedia";
 
 /**
  * Why a provider call did not produce data. A fixed code: never the provider's

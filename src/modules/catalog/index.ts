@@ -39,6 +39,15 @@ export {
   type UnsupportedReason,
 } from "./music";
 export type {
+  ArtistPhotoChoices,
+  ArtistPhotoReview,
+  CurrentPhotoCheck,
+  PhotoChoice,
+  PhotoRefusal,
+  StoredPhotoView,
+  SuggestionState,
+} from "./photos";
+export type {
   AlbumCredit,
   AlbumDetail,
   AlbumTrackCount,
@@ -63,6 +72,10 @@ export {
   reviewMusicRelease,
   searchMusic,
   setAlbumArtwork,
+  listArtistPhotoChoices,
+  removeArtistPhoto,
+  reviewArtistPhoto,
+  setArtistPhoto,
   archiveArtist,
   archiveTrack,
   createAlbum,

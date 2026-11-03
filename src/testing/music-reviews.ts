@@ -12,6 +12,11 @@ import {
   reviewOf,
 } from "@/modules/catalog/music";
 
+import {
+  assessCommonsFile,
+  photoPlanOf,
+} from "@/integrations/wikimedia-commons";
+
 import { fixtureProviders } from "./provider-runtime";
 
 export async function releaseReviews(releaseId: string) {
@@ -29,4 +34,18 @@ export async function artistReview(mbArtistId: string) {
   return reviewOf(
     artistPlanOf(await providers.musicBrainz.getArtist(mbArtistId)),
   );
+}
+
+/**
+ * The fingerprint an artist photograph's review page carries for a fixture
+ * file (M3.3), built with the same assessment and plan as the Catalog.
+ */
+export async function photoReview(fileName: string) {
+  const { providers } = fixtureProviders();
+  const { files } = await providers.wikimedia.getFiles([fileName]);
+  const plan = files[0] ? photoPlanOf(assessCommonsFile(files[0])) : null;
+  if (!plan) {
+    throw new Error(`The fixture ${fileName} is not a usable photograph.`);
+  }
+  return reviewOf(plan);
 }

@@ -11,11 +11,21 @@ import {
   releaseLookup,
   SCENARIO,
 } from "./provider-fixtures";
+import {
+  commonsLookup,
+  commonsSearch,
+  PHOTO_SCENARIO,
+  wikidataClaims,
+  wikidataSearch,
+} from "./wikimedia-fixtures";
 
-// A local stand-in for MusicBrainz (under /ws/2/) and the Cover Art Archive
-// (under /caa/), for the unit, HTTP, and browser tests. The production build is
-// pointed at it with REFRAIN_MUSICBRAINZ_BASE_URL and
-// REFRAIN_COVER_ART_ARCHIVE_BASE_URL (loopback only, src/integrations/provider.ts),
+// A local stand-in for MusicBrainz (under /ws/2/), the Cover Art Archive
+// (under /caa/), and, since M3.3, the Wikimedia Commons and Wikidata Action
+// APIs (under /commons/w/ and /wikidata/w/), for the unit, HTTP, and browser
+// tests. The production build is pointed at it with
+// REFRAIN_MUSICBRAINZ_BASE_URL, REFRAIN_COVER_ART_ARCHIVE_BASE_URL,
+// REFRAIN_WIKIMEDIA_COMMONS_BASE_URL, and REFRAIN_WIKIDATA_BASE_URL
+// (loopback only, src/integrations/provider.ts),
 // so no test reaches the real services. It answers from ./provider-fixtures.ts,
 // follows the archive's redirect pattern (one hop before the listing), and the
 // server records each request's path, User-Agent, and time at /__requests, so
@@ -92,8 +102,50 @@ function listingOf(kind: string, id: string) {
   return kind === "release" ? coverListing(id) : coverGroupListing(id);
 }
 
+/** The Wikimedia Action API: Commons files and Wikidata items. */
+function wikimediaAnswer(site: string, url: URL): MockAnswer {
+  const params = url.searchParams;
+  if (params.get("format") !== "json" || params.get("formatversion") !== "2") {
+    return { status: 200, body: { error: { code: "badformat" } } };
+  }
+  if (site === "wikidata") {
+    if (
+      params.get("action") === "wbgetclaims" &&
+      params.get("property") === "P18"
+    ) {
+      return { status: 200, body: wikidataClaims(params.get("entity") ?? "") };
+    }
+    if (params.get("action") === "query" && params.get("list") === "search") {
+      return {
+        status: 200,
+        body: wikidataSearch(params.get("srsearch") ?? ""),
+      };
+    }
+    return { status: 200, body: { error: { code: "badrequest" } } };
+  }
+  if (params.get("action") !== "query" || params.get("prop") !== "imageinfo") {
+    return { status: 200, body: { error: { code: "badrequest" } } };
+  }
+  const search = params.get("gsrsearch");
+  if (search !== null) {
+    const words = search.toLowerCase();
+    if (words.includes(PHOTO_SCENARIO.unavailable)) {
+      return { status: 503, body: "", headers: { "retry-after": "0" } };
+    }
+    if (words.includes(PHOTO_SCENARIO.malformed)) {
+      return { status: 200, body: { query: { pages: "many" } } };
+    }
+    return { status: 200, body: commonsSearch(search) };
+  }
+  return { status: 200, body: commonsLookup(params.get("titles") ?? "") };
+}
+
 /** The mock's answer to a GET of `url`, whatever its origin. */
 export function providerAnswer(url: URL): MockAnswer {
+  const wiki = /^\/(commons|wikidata)\/w\/api\.php$/.exec(url.pathname);
+  if (wiki) {
+    return wikimediaAnswer(wiki[1]!, url);
+  }
   const musicBrainz = /^\/ws\/2\/(.*)$/.exec(url.pathname);
   if (musicBrainz) {
     return musicBrainzAnswer(musicBrainz[1]!, url);
@@ -139,6 +191,8 @@ export interface ProviderMock {
   origin: string;
   musicBrainzBaseUrl: string;
   coverArtArchiveBaseUrl: string;
+  wikimediaCommonsBaseUrl: string;
+  wikidataBaseUrl: string;
   stop: () => Promise<void>;
 }
 
@@ -182,6 +236,8 @@ export async function startProviderMock(): Promise<ProviderMock> {
     origin,
     musicBrainzBaseUrl: `${origin}/ws/2/`,
     coverArtArchiveBaseUrl: `${origin}/caa/`,
+    wikimediaCommonsBaseUrl: `${origin}/commons/w/`,
+    wikidataBaseUrl: `${origin}/wikidata/w/`,
     stop: () =>
       new Promise((resolve) => {
         server.closeAllConnections();

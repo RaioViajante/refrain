@@ -10,6 +10,7 @@ import {
   deleteArtistAction,
   restoreArtistAction,
 } from "@/app/studio/artists/actions";
+import { PhotoAttribution, PhotoFrame } from "@/app/studio/artist-photograph";
 import { ArtistForm } from "@/app/studio/artists/artist-form";
 import { plural } from "@/app/studio/format";
 import { StudioFrame } from "@/app/studio/frame";
@@ -67,6 +68,43 @@ async function Artist({ params }: { params: Promise<{ id: string }> }) {
           mbArtistId: artist.mbArtistId ?? "",
         }}
       />
+
+      <section aria-labelledby="artist-photo" className="space-y-3">
+        <h2 id="artist-photo" className="studio-section-title">
+          Photograph <span className="studio-optional">(optional)</span>
+        </h2>
+        <figure className="studio-photo-figure">
+          <PhotoFrame image={artist.photo.photo} name={artist.name} />
+          {artist.photo.photo ? (
+            <figcaption>
+              <PhotoAttribution photo={artist.photo.photo} />
+            </figcaption>
+          ) : null}
+        </figure>
+        {artist.photo.unreadable ? (
+          <p className="studio-hint" style={{ maxWidth: "62ch" }}>
+            The photograph on file isn’t in the form Refrain writes, so it isn’t
+            shown. Open the photograph page to remove it.
+          </p>
+        ) : artist.photo.photo ? null : (
+          <p className="studio-hint">No photo. The page works without one.</p>
+        )}
+        {artist.archived ? (
+          <p className="studio-hint">
+            Restore the artist to change the photograph.
+          </p>
+        ) : null}
+        <p>
+          <Link
+            href={`/studio/artists/${artist.id}/photo`}
+            className="studio-button"
+          >
+            {artist.photo.state === null
+              ? "Choose from Wikimedia Commons…"
+              : "Change or remove the photograph…"}
+          </Link>
+        </p>
+      </section>
 
       <section aria-labelledby="artist-albums" className="space-y-3">
         <h2 id="artist-albums" className="studio-section-title">

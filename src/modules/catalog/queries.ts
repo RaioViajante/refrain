@@ -9,6 +9,8 @@ import {
 } from "@/integrations/cover-art-archive";
 import type { AuthorizedAuthor } from "@/modules/identity";
 
+import { storedPhotoView, type StoredPhotoView } from "./photos";
+
 import { catalogId } from "./input";
 
 // Writing Studio queries of the catalog. They list private catalog data, such
@@ -265,6 +267,11 @@ export async function listArtists(
 
 export interface ArtistDetail extends ArtistSummary {
   albums: { id: string; title: string; firstReleaseYear: number | null }[];
+  /**
+   * The photograph (M3.3), only in the one stored form, with its
+   * attribution; `unreadable` when the columns hold anything else.
+   */
+  photo: StoredPhotoView;
 }
 
 export async function getArtist(
@@ -292,6 +299,24 @@ export async function getArtist(
       join albums al on al.id = aa.album_id
      where aa.artist_id = ${artistId}
      order by al.first_release_year nulls last, al.title, al.id`);
+  const photo = await db.execute<{
+    photo_url: string | null;
+    photo_credit: string | null;
+    photo_license: string | null;
+    photo_source_url: string | null;
+    photo_file_sha1: string | null;
+    photo_file_timestamp: string | null;
+    photo_chosen_at: string | null;
+  }>(sql`
+    select photo_url, photo_credit, photo_license, photo_source_url,
+           photo_file_sha1,
+           to_char(photo_file_timestamp at time zone 'UTC',
+                   'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as photo_file_timestamp,
+           to_char(photo_chosen_at at time zone 'UTC',
+                   'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as photo_chosen_at
+      from artists
+     where id = ${artistId}`);
+  const stored = photo.rows[0]!;
   return {
     ...toArtistSummary(row),
     albums: albums.rows.map((album) => ({
@@ -299,6 +324,15 @@ export async function getArtist(
       title: album.title,
       firstReleaseYear: album.first_release_year,
     })),
+    photo: storedPhotoView({
+      photoUrl: stored.photo_url,
+      photoCredit: stored.photo_credit,
+      photoLicense: stored.photo_license,
+      photoSourceUrl: stored.photo_source_url,
+      photoFileSha1: stored.photo_file_sha1,
+      photoFileTimestamp: stored.photo_file_timestamp,
+      photoChosenAt: stored.photo_chosen_at,
+    }),
   };
 }
 

@@ -929,6 +929,39 @@ describe("the Publication reading module", () => {
     ]);
   });
 
+  // M3.3: no public page shows an artist photograph, which is why changing
+  // one is not a change to a public page (gate G8 is not widened; see
+  // src/modules/catalog/photos.ts). A public surface that starts to show one
+  // must first get the guard the artwork commands have, so this fails until
+  // that is decided.
+  const PHOTO_WORDS =
+    /photo_url|photo_credit|photo_license|photo_source_url|photo_file_|photo_chosen_at|photoUrl|photoCredit|photoLicense|photoSourceUrl|photoFile|photoChosenAt|wikimedia/i;
+
+  function publicPhotoMentions(files: string[]) {
+    return files.filter((file) => PHOTO_WORDS.test(readFileSync(file, "utf8")));
+  }
+
+  it("never reads an artist photograph, in the reading module or on a public page", () => {
+    const pages = [
+      ...readdirSync("src/app/(public)", { recursive: true, encoding: "utf8" })
+        .filter((name) => /\.(ts|tsx)$/.test(name) && !name.includes(".test."))
+        .map((name) => join("src/app/(public)", name)),
+      "src/app/sitemap.xml/route.ts",
+      "src/app/robots.txt/route.ts",
+    ];
+    expect(pages.length).toBeGreaterThan(3);
+    expect(publicPhotoMentions([...reading, ...pages])).toEqual([]);
+  });
+
+  it("would notice a photo column read by a public file", () => {
+    expect(PHOTO_WORDS.test("select a.photo_url from artists a")).toBe(true);
+    expect(PHOTO_WORDS.test("artist.photoCredit")).toBe(true);
+    expect(PHOTO_WORDS.test('import "@/integrations/wikimedia-commons"')).toBe(
+      true,
+    );
+    expect(PHOTO_WORDS.test("select a.name from artists a")).toBe(false);
+  });
+
   it.each(reading)("%s imports no command, token, or other module", (file) => {
     const source = parse(readFileSync(file, "utf8"), file);
     const specifiers: string[] = [];
