@@ -10,7 +10,13 @@ import { SignOutButton } from "@/app/studio/sign-out-button";
  * from them, so each section names which of the two it sits under.
  */
 export type StudioSection =
-  "desk" | "journals" | "catalog" | "artists" | "albums" | "tracks";
+  | "desk"
+  | "journals"
+  | "memories"
+  | "catalog"
+  | "artists"
+  | "albums"
+  | "tracks";
 
 type Primary = "desk" | "catalog";
 
@@ -19,10 +25,13 @@ const PRIMARY: { id: Primary; label: string; href: string }[] = [
   { id: "catalog", label: "Catalog", href: "/studio/catalog" },
 ];
 
-// Where each section sits. Writing (the desk and its journals) is the Desk;
-// the music library (artists, albums, tracks) is the Catalog.
+// Where each section sits. Writing (the desk, its journals, and its
+// memories) is the Desk; the music library (artists, albums, tracks) is the
+// Catalog.
 function primaryOf(section: StudioSection): Primary {
-  return section === "desk" || section === "journals" ? "desk" : "catalog";
+  return section === "desk" || section === "journals" || section === "memories"
+    ? "desk"
+    : "catalog";
 }
 
 const CATALOG_SECTIONS: { id: StudioSection; label: string; href: string }[] = [

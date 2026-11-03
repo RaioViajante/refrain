@@ -6,6 +6,8 @@ import { Suspense } from "react";
 
 import { accessDenied } from "@/app/studio/access";
 import { StudioFrame } from "@/app/studio/frame";
+import { Icon } from "@/app/studio/icons";
+import { StatusMark } from "@/app/studio/status-mark";
 import { StudioLoading } from "@/app/studio/studio-loading";
 import { RecordControls } from "@/app/studio/record-controls";
 import {
@@ -17,6 +19,7 @@ import { TrackForm } from "@/app/studio/tracks/track-form";
 import { initialTrackValues } from "@/app/studio/tracks/track-values";
 import { getTrack, listArtists } from "@/modules/catalog";
 import { authorizeAuthor } from "@/modules/identity";
+import { listMemoriesOfRecording } from "@/modules/journals";
 
 export const metadata: Metadata = { title: "Track · refrain" };
 
@@ -38,9 +41,10 @@ async function Track({ params }: { params: Promise<{ id: string }> }) {
     return accessDenied(authorization.reason);
   }
   const { id } = await params;
-  const [track, artists] = await Promise.all([
+  const [track, artists, memories] = await Promise.all([
     getTrack(authorization.author, id),
     listArtists(authorization.author),
+    listMemoriesOfRecording(authorization.author, id),
   ]);
   if (!track) {
     notFound();
@@ -96,6 +100,43 @@ async function Track({ params }: { params: Promise<{ id: string }> }) {
               </li>
             ))}
           </ul>
+        )}
+      </section>
+
+      <section aria-labelledby="track-memories" className="space-y-3">
+        <h2 id="track-memories" className="studio-section-title">
+          Memories
+        </h2>
+        {memories.length === 0 ? (
+          <p className="studio-hint">No memory belongs to this song yet.</p>
+        ) : (
+          <ul className="studio-list" aria-label="Memories with this song">
+            {memories.map((memory) => (
+              <li key={memory.entryId} className="studio-row">
+                <span className="studio-row-title">
+                  <Link href={`/studio/memories/${memory.entryId}`} lang="en">
+                    {memory.title}
+                  </Link>
+                </span>
+                <StatusMark status={memory.status} />
+              </li>
+            ))}
+          </ul>
+        )}
+        {track.archived ? (
+          <p className="studio-hint">
+            An archived track can’t be added to a new memory. Restore it first.
+          </p>
+        ) : (
+          <p>
+            <Link
+              href={`/studio/memories/new?track=${track.id}`}
+              className="studio-button"
+            >
+              <Icon name="note" />
+              Write a memory about this song
+            </Link>
+          </p>
         )}
       </section>
 

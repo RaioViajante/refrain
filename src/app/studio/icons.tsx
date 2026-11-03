@@ -42,6 +42,10 @@ const SHAPES = {
   ),
   // Opens and closes a track: it turns a quarter when the track is open.
   chevron: <path d="m9 6 6 6-6 6" />,
+  // A memory's recording list (M3.6): move up, move down, remove.
+  up: <path d="m6 15 6-6 6 6" />,
+  down: <path d="m6 9 6 6 6-6" />,
+  close: <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />,
 } as const;
 
 export type IconName = keyof typeof SHAPES;
