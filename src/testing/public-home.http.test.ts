@@ -256,6 +256,11 @@ describe("with nothing published", () => {
         expect(page.headers[name], name).toBeUndefined();
       }
     }
+    // Recorded for the evidence: the framework's own headers on the document.
+    const framework = Object.entries((await home(on)).headers).filter(
+      ([name]) => name.startsWith("x-nextjs"),
+    );
+    console.log(`framework headers on /: ${JSON.stringify(framework)}`);
   });
 
   it("shows the drawing, the introduction, and one quiet line, and nothing else", async () => {

@@ -178,7 +178,12 @@ describe("what the build prerenders for the public routes", () => {
     expect(route.compute).toBe("blocking");
     expect(route.htmlSize).toBe(0);
     expect(text(join(APP, "index.html"))).toBe("");
-    for (const file of files(join(APP, "index.segments"))) {
+    // The segments, and the postponed state and headers the server resumes
+    // from (`index.meta`).
+    for (const file of [
+      ...files(join(APP, "index.segments")),
+      join(APP, "index.meta"),
+    ]) {
       const body = text(file);
       for (const needle of [
         "/albums/",

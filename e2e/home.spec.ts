@@ -560,11 +560,15 @@ test("works without JavaScript: the lists, their links, and the footer", async (
     const response = await page.goto(`${base}/`);
     expect(response?.status()).toBe(200);
     await expect(page.getByRole("img", { name: CHARACTER_ALT })).toBeVisible();
+    await expect(page.locator(".ph-since")).toBeVisible();
     await expect(page.locator(".ph-since")).toContainText("Most recent:");
     await expect(page.getByRole("heading", { level: 2 })).toHaveText([
       "Recently written",
       "Albums",
     ]);
+    for (const heading of await page.getByRole("heading", { level: 2 }).all()) {
+      await expect(heading).toBeVisible();
+    }
     const rows = page.locator(".public .ph-row");
     expect(await rows.count()).toBeGreaterThanOrEqual(4);
     await expect(rows.first()).toBeVisible();
@@ -602,6 +606,7 @@ test("works without JavaScript with public reads off: the empty Home and its foo
   await withoutJavaScript(browser, async (page) => {
     const response = await page.goto(`${offBase}/`);
     expect(response?.status()).toBe(200);
+    await expect(page.locator(".ph-since")).toBeVisible();
     await expect(page.locator(".ph-since")).toHaveText(
       "Nothing published yet.",
     );

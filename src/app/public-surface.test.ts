@@ -333,6 +333,65 @@ function gateViolations(
   return found;
 }
 
+// The route-segment settings that could cache, prerender, or keep a page's
+// data (the framework reads them from a module's exports by name, however
+// they are written: node_modules/next/dist/build/segment-config/app).
+// `instant` is allowed only as `false`, the Home's (M3.4): it lets a page
+// render on the server before it sends anything.
+const CONFIG_EXPORTS = new Set([
+  "revalidate",
+  "dynamic",
+  "fetchCache",
+  "ensureStatic",
+  "dynamicParams",
+  "prefetch",
+  "unstable_dynamicStaleTime",
+  "unstable_paramMatching",
+  "unstable_generateParamMatching",
+]);
+
+/** A cache directive, or a route-segment setting that could keep data. */
+function configExports(source: ts.SourceFile): string[] {
+  const found: string[] = [];
+  const visit = (node: ts.Node) => {
+    if (
+      ts.isVariableStatement(node) &&
+      node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)
+    ) {
+      for (const declaration of node.declarationList.declarations) {
+        const name = declaration.name.getText();
+        if (CONFIG_EXPORTS.has(name)) {
+          found.push(`exports ${name}`);
+        }
+        if (
+          name === "instant" &&
+          (declaration.initializer?.getText() !== "false" ||
+            (node.declarationList.flags & ts.NodeFlags.Const) === 0)
+        ) {
+          found.push("exports instant other than const false");
+        }
+      }
+    }
+    // `export { revalidate }` and `export { x as revalidate }`.
+    if (
+      ts.isExportSpecifier(node) &&
+      (CONFIG_EXPORTS.has(node.name.text) || node.name.text === "instant")
+    ) {
+      found.push(`exports ${node.name.text} by name`);
+    }
+    if (
+      ts.isExpressionStatement(node) &&
+      ts.isStringLiteral(node.expression) &&
+      /^use cache/.test(node.expression.text)
+    ) {
+      found.push('uses "use cache"');
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return found;
+}
+
 function violations(code: string, file: string): string[] {
   const source = parse(code, file);
   const found: string[] = [];
@@ -390,42 +449,11 @@ function violations(code: string, file: string): string[] {
     if (ts.isIdentifier(node) && node.text === "generateStaticParams") {
       found.push("generates static params");
     }
-    // A cache or a static page of journal data: `export const revalidate`,
-    // `dynamic = "force-static"`, `"use cache"`.
-    if (
-      ts.isVariableStatement(node) &&
-      node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)
-    ) {
-      for (const declaration of node.declarationList.declarations) {
-        const name = declaration.name.getText();
-        if (
-          name === "revalidate" ||
-          name === "dynamic" ||
-          name === "fetchCache" ||
-          name === "ensureStatic"
-        ) {
-          found.push(`exports ${name}`);
-        }
-        // `instant = false` lets a page render on the server before it sends
-        // anything (the Home, M3.4); any other value is not a public page's.
-        if (
-          name === "instant" &&
-          declaration.initializer?.getText() !== "false"
-        ) {
-          found.push("exports instant other than false");
-        }
-      }
-    }
-    if (
-      ts.isExpressionStatement(node) &&
-      ts.isStringLiteral(node.expression) &&
-      /^use cache/.test(node.expression.text)
-    ) {
-      found.push('uses "use cache"');
-    }
+
     ts.forEachChild(node, visit);
   };
   visit(source);
+  found.push(...configExports(source));
 
   // Every function that reads public content applies the switch first, as an
   // early exit that dominates the read.
@@ -450,6 +478,14 @@ describe("the public surface", () => {
 
   it.each(files)("%s is clean", (file) => {
     expect(violations(readFileSync(file, "utf8"), file)).toEqual([]);
+  });
+
+  it("keeps the root layout, which wraps the Home, free of caching and route settings", () => {
+    const file = "src/app/layout.tsx";
+    expect(configExports(parse(readFileSync(file, "utf8"), file))).toEqual([]);
+    expect(
+      configExports(parse("export const revalidate = 60;", file)),
+    ).toHaveLength(1);
   });
 
   it("renders the Home on the server before sending it, so it needs no client JavaScript", () => {
@@ -778,6 +814,25 @@ describe("the public surface", () => {
       expect(check("export const revalidate = 60;")).toHaveLength(1);
       expect(check('export const dynamic = "force-static";')).toHaveLength(1);
       expect(check("export const ensureStatic = true;")).toHaveLength(1);
+      for (const name of [
+        "dynamicParams = false",
+        'prefetch = "partial"',
+        "unstable_dynamicStaleTime = 300",
+        "unstable_paramMatching = true",
+      ]) {
+        expect(check(`export const ${name};`), name).toHaveLength(1);
+      }
+      // However the export is written.
+      expect(
+        check("const revalidate = 60;\nexport { revalidate };"),
+      ).toHaveLength(1);
+      expect(check("const x = 60;\nexport { x as revalidate };")).toHaveLength(
+        1,
+      );
+      expect(check("const instant = false;\nexport { instant };")).toHaveLength(
+        1,
+      );
+      expect(check("export let instant = false;")).toHaveLength(1);
       // The Home's own setting, and nothing else under that name.
       expect(check("export const instant = false;")).toEqual([]);
       expect(check("export const instant = true;")).toHaveLength(1);
