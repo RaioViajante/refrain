@@ -35,52 +35,78 @@ const journalTables = {
 } as const;
 
 /**
- * The journal presented publicly for an album or artist (ADR 0002, D1.2):
+ * The order in which a reader is offered the visible versions of one entry
+ * (ADR 0002, D1.2): the reader's language, then the original, then the
+ * remaining one. It orders rows of `publicLanguageVersions` named `pv`, and
+ * `choosePublicVersion` (public-album-journal.ts) applies the same rule to a
+ * list that is already visible. Defined once here for every SQL query that
+ * picks a version.
+ */
+export function versionPreference(readerLocale: Locale) {
+  return sql`(pv.locale = ${readerLocale}) desc, pv.is_original desc,
+             pv.locale asc`;
+}
+
+/**
+ * The journal presented publicly for each album or artist that has one
+ * (ADR 0002, D1.2), with the version a reader of `readerLocale` is shown:
  *
  * 1. the featured journal, if it is publicly visible in any language;
  * 2. otherwise the publicly visible journal with the most recent
  *    `published_at` among its visible versions, ties broken by lowest id;
- * 3. otherwise none.
+ * 3. otherwise none (the subject has no row).
  *
  * `readerLocale` never changes which journal is chosen. It selects only the
- * version: the reader's language if visible, otherwise the original if
- * visible, otherwise the remaining visible version.
+ * version (`versionPreference`).
+ *
+ * Columns: subject_id, entry_id, locale, published_at (of that version).
  */
+export function presentedJournals(
+  kind: JournalSubject["kind"],
+  readerLocale: Locale,
+) {
+  const { table, column } = journalTables[kind];
+  const subject = sql.identifier(column);
+  return sql`
+    with public_versions as (${publicLanguageVersions}),
+    candidates as (
+      select j.${subject} as subject_id, j.entry_id, j.is_featured,
+             max(pv.published_at) as latest_published_at
+        from ${table} j
+        join public_versions pv on pv.entry_id = j.entry_id
+       group by j.${subject}, j.entry_id, j.is_featured
+    ),
+    chosen as (
+      select distinct on (subject_id) subject_id, entry_id
+        from candidates
+       order by subject_id, is_featured desc, latest_published_at desc,
+                entry_id asc
+    )
+    select chosen.subject_id, chosen.entry_id, version.locale,
+           version.published_at
+      from chosen
+     cross join lateral (
+       select pv.locale, pv.published_at
+         from public_versions pv
+        where pv.entry_id = chosen.entry_id
+        order by ${versionPreference(readerLocale)}
+        limit 1
+     ) version`;
+}
+
+/** The journal presented publicly for one album or artist; see `presentedJournals`. */
 export async function resolvePresentedJournal(
   db: DatabaseExecutor,
   subject: JournalSubject,
   readerLocale: Locale,
 ): Promise<PresentedJournal | null> {
-  const { table, column } = journalTables[subject.kind];
   const subjectId =
     subject.kind === "album" ? subject.albumId : subject.artistId;
 
   const result = await db.execute<{ entry_id: string; locale: Locale }>(sql`
-    with public_versions as (${publicLanguageVersions}),
-    candidates as (
-      select j.entry_id, j.is_featured,
-             max(pv.published_at) as latest_published_at
-        from ${table} j
-        join public_versions pv on pv.entry_id = j.entry_id
-       where j.${sql.identifier(column)} = ${subjectId}
-       group by j.entry_id, j.is_featured
-    ),
-    chosen as (
-      select entry_id
-        from candidates
-       order by is_featured desc, latest_published_at desc, entry_id asc
-       limit 1
-    )
-    select chosen.entry_id, version.locale
-      from chosen
-     cross join lateral (
-       select pv.locale
-         from public_versions pv
-        where pv.entry_id = chosen.entry_id
-        order by (pv.locale = ${readerLocale}) desc, pv.is_original desc,
-                 pv.locale asc
-        limit 1
-     ) version`);
+    select presented.entry_id, presented.locale
+      from (${presentedJournals(subject.kind, readerLocale)}) presented
+     where presented.subject_id = ${subjectId}`);
 
   const row = result.rows[0];
   return row ? { entryId: row.entry_id, locale: row.locale } : null;
@@ -235,6 +261,24 @@ export type SlugResolution =
   | { outcome: "not_found" };
 
 const notFound: SlugResolution = { outcome: "not_found" };
+
+/**
+ * The album-journal addresses that are served as pages: a current slug that
+ * was published, on an entry with a publicly visible version. Exactly the
+ * addresses that `resolvePublicSlug` finds, so a page, the sitemap, or the
+ * Home can only link to an address that answers.
+ *
+ * Columns: entry_id, slug.
+ */
+export const servedAlbumJournalAddresses = sql`
+  select s.entry_id, s.slug
+    from entry_slugs s
+   where s.kind = 'album_journal'
+     and s.is_current
+     and s.was_published
+     and exists (select 1
+                   from (${publicLanguageVersions}) pv
+                  where pv.entry_id = s.entry_id)`;
 
 /**
  * Resolves a public slug (ADR 0002, D7.5 and INV-5; ADR 0003). A current slug

@@ -10,6 +10,7 @@ import {
   getPublicLanguageVersion,
   listPublicLanguageVersions,
   listPublicTrackReflections,
+  servedAlbumJournalAddresses,
   type PublicLanguageVersionSummary,
   type PublicTrackReflection,
 } from "./queries";
@@ -260,14 +261,8 @@ export async function listPublicAlbumJournalAddresses(
   db: DatabaseExecutor,
 ): Promise<string[]> {
   const result = await db.execute<{ slug: string }>(sql`
-    select s.slug
-      from entry_slugs s
-     where s.kind = 'album_journal'
-       and s.is_current
-       and s.was_published
-       and exists (select 1
-                     from (${publicLanguageVersions}) pv
-                    where pv.entry_id = s.entry_id)
-     order by s.slug asc`);
+    select served.slug
+      from (${servedAlbumJournalAddresses}) served
+     order by served.slug asc`);
   return result.rows.map((row) => row.slug);
 }
