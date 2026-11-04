@@ -51,6 +51,8 @@ export const PUBLIC_MEMORY = {
   quietTitle: "[Test] A memory without songs",
   longTitle:
     "[Test] A memory with a very long title that has to wrap across several lines without pushing anything sideways",
+  longSong:
+    "[Test] A recording whose title runs on for a long while, as some do (Live in a Small Room, Very Late)",
 } as const;
 
 export interface SeededMemories {
@@ -121,6 +123,15 @@ export async function seedMemories(
       .insert(schema.tracks)
       .values({ title: PUBLIC_MEMORY.secondSong })
       .returning({ id: schema.tracks.id });
+    const [longSong] = await tx
+      .insert(schema.tracks)
+      .values({ title: PUBLIC_MEMORY.longSong })
+      .returning({ id: schema.tracks.id });
+    await tx.insert(schema.trackArtists).values({
+      trackId: longSong!.id,
+      artistId: secondArtist,
+      position: 1,
+    });
     const [song] = await tx
       .insert(schema.tracks)
       .values({ title: MEMORY_MARKERS.song })
@@ -208,7 +219,7 @@ export async function seedMemories(
           publishedAt,
         },
       ],
-      music: [{ trackId: second!.id }],
+      music: [{ trackId: longSong!.id }],
     });
     entries.push(long);
 
@@ -282,7 +293,7 @@ export async function seedMemories(
       hiddenPreviousSlug,
       entries,
       albums: [album.albumId],
-      tracks: [...album.trackIds, second!.id, song!.id],
+      tracks: [...album.trackIds, second!.id, longSong!.id, song!.id],
       artists: [albumArtist, secondArtist],
     };
   });

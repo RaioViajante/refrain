@@ -225,6 +225,10 @@ test("follows a song's album to its journal, and its artist to their page", asyn
 test("shows a memory with one song, and one with none", async ({ page }) => {
   await open(page, seeded.long.slug);
   await expect(page.locator(".pm-song")).toHaveCount(1);
+  // A song with a long name wraps inside the margin, beside its frame.
+  await expect(page.locator(".pm-song-title")).toContainText(
+    "runs on for a long while",
+  );
   await shot(page, "2-memory-one-song-long-title");
   await open(page, seeded.quiet.slug);
   await expect(page.getByText("The music")).toHaveCount(0);
