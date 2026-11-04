@@ -1122,7 +1122,7 @@ test.describe("with memories and artists (A6)", () => {
     expect(measures.when[1]).toBe("19px");
     expect(measures.title).toBe(mobile ? "23px" : "25px");
     expect(measures.excerpt).toBe(mobile ? "18.5px" : "20px");
-    expect(measures.all[0]).toBe("16.5px");
+    expect(measures.all[0]).toBe(mobile ? "16.5px" : "17px");
     expect(measures.all[1]).toBeGreaterThanOrEqual(43.5);
     await screenshotA6(page, "home-all-sections");
   });
