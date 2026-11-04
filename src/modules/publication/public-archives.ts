@@ -293,6 +293,12 @@ export async function listPublicArtistArchive(
     );
 }
 
+/**
+ * How many top-level blocks of a memory the archive reads for its excerpt: the
+ * first readable paragraph is looked for among these only.
+ */
+const EXCERPT_BLOCKS = 16;
+
 interface MemoryRow extends Record<string, unknown> {
   entry_id: string;
   slug: string;
@@ -320,7 +326,17 @@ export async function listPublicMemoryArchive(
 ): Promise<PublicMemoryCard[]> {
   const memories = await db.execute<MemoryRow>(sql`
     select served.entry_id, served.slug, version.locale, version.published_at,
-           t.title, t.body, m.remembered_when
+           t.title,
+           -- The excerpt needs only the first blocks, so a list of memories
+           -- never reads each one's whole writing: the document's kind and
+           -- first top-level blocks, EXCERPT_BLOCKS of them (the CHECK on
+           -- entry_texts.body keeps it a "doc" object or null).
+           jsonb_build_object(
+             'type', t.body -> 'type',
+             'content', coalesce(jsonb_path_query_array(
+               t.body, ${`$.content[0 to ${EXCERPT_BLOCKS - 1}]`}::jsonpath),
+               '[]'::jsonb)) as body,
+           m.remembered_when
       from (${servedMemoryAddresses}) served
      cross join lateral (
        select pv.locale, pv.published_at

@@ -3,7 +3,12 @@ import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
-import type { Locale, Transaction, VisibilityStatus } from "@/db";
+import {
+  schema,
+  type Locale,
+  type Transaction,
+  type VisibilityStatus,
+} from "@/db";
 import {
   createTestAlbum,
   createTestAlbumJournal,
@@ -765,6 +770,214 @@ describe("the Memories archive", () => {
         "slug",
         "title",
       ]);
+    });
+  });
+});
+
+describe("the archives' review follow-ups", () => {
+  it("takes a card's rating and written count from the journal it opens, never from a hidden featured one", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const album = await createTestAlbum(tx, {
+        title: uniqueLabel("Hidden featured"),
+      });
+      const hidden = await createTestAlbumJournal(tx, {
+        albumId: album.albumId,
+        slug: slugOf("hidden-featured"),
+        isFeatured: true,
+        ratingHalfSteps: 10,
+        versions: [{ locale: "en", status: "private" }],
+      });
+      await createTestTrackReflection(tx, {
+        albumJournalId: hidden,
+        albumId: album.albumId,
+        trackId: album.trackIds[0]!,
+        isPublished: true,
+        texts: { en: "[Test] hidden reflection" },
+      });
+      await createTestAlbumJournal(tx, {
+        albumId: album.albumId,
+        slug: slugOf("served-plain"),
+        ratingHalfSteps: 3,
+        versions: [{ locale: "en", status: "published" }],
+      });
+      const card = (await listPublicAlbumArchive(tx, "en")).find(
+        (row) => row.slug === slugOf("served-plain"),
+      )!;
+      expect(card).toMatchObject({ ratingHalfSteps: 3, writtenTrackCount: 0 });
+      expect(card.otherJournals).toEqual([]);
+    });
+  });
+
+  it("never lists an artist credited only on a recording, even on an album with a served journal", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const name = uniqueLabel("Recording only");
+      const artist = await createTestArtist(tx, name);
+      const album = await createTestAlbum(tx, {
+        title: uniqueLabel("Credited album"),
+      });
+      await tx.execute(sql`
+        insert into track_artists (track_id, artist_id, position)
+        values (${album.trackIds[0]!}, ${artist}, 1)`);
+      await createTestAlbumJournal(tx, {
+        albumId: album.albumId,
+        slug: slugOf("recording-only"),
+        versions: [{ locale: "en", status: "published" }],
+      });
+      const names = (await listPublicArtistArchive(tx)).map((row) => row.name);
+      expect(names).not.toContain(name);
+    });
+  });
+
+  it("chooses a memory's version by the reader's language, then the original, when the original is Portuguese", async () => {
+    await inRollbackTransaction(async (tx) => {
+      for (const [index, [pt, en]] of (
+        [
+          ["published", "published"],
+          ["published", "private"],
+          ["private", "published"],
+          ["draft", "draft"],
+        ] as const
+      ).entries()) {
+        await createTestMemory(tx, {
+          slug: slugOf(`pt-original-${index}`),
+          versions: [
+            {
+              locale: "pt-BR",
+              isOriginal: true,
+              status: pt,
+              title: "[Test] Original pt",
+              text: "[Test] Texto",
+            },
+            {
+              locale: "en",
+              isOriginal: false,
+              status: en,
+              title: "[Test] Translation en",
+              text: "[Test] Text",
+            },
+          ],
+        });
+      }
+      const listed = new Map(
+        (await listPublicMemoryArchive(tx, "en")).map((card) => [
+          card.slug,
+          card,
+        ]),
+      );
+      expect(listed.get(slugOf("pt-original-0"))?.locale).toBe("en");
+      expect(listed.get(slugOf("pt-original-1"))).toMatchObject({
+        locale: "pt-BR",
+        title: "[Test] Original pt",
+        excerpt: "[Test] Texto",
+      });
+      expect(listed.get(slugOf("pt-original-2"))?.locale).toBe("en");
+      expect(listed.has(slugOf("pt-original-3"))).toBe(false);
+    });
+  });
+
+  it("reads no songs of a memory unpublished between its two statements", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const album = await createTestAlbum(tx, {
+        title: uniqueLabel("Race album"),
+      });
+      const entryId = await createTestMemory(tx, {
+        slug: slugOf("race"),
+        versions: [{ locale: "en", status: "published" }],
+        music: [{ trackId: album.trackIds[0]! }],
+      });
+      let calls = 0;
+      // The memory becomes private right after the first statement, as a
+      // concurrent unpublish committed in between would make it.
+      const racing = new Proxy(tx, {
+        get(target, property, receiver) {
+          if (property !== "execute")
+            return Reflect.get(target, property, receiver);
+          return async (query: Parameters<typeof tx.execute>[0]) => {
+            const result = await target.execute(query);
+            calls += 1;
+            if (calls === 1) {
+              await target.execute(sql`
+                update entry_texts set status = 'private', published_at = null
+                 where entry_id = ${entryId}`);
+            }
+            return result;
+          };
+        },
+      });
+      const card = (await listPublicMemoryArchive(racing, "en")).find(
+        (row) => row.slug === slugOf("race"),
+      );
+      expect(card).toBeDefined();
+      expect(card!.music).toEqual([]);
+    });
+  });
+});
+
+describe("the archives' counts and excerpts at their edges", () => {
+  it("does not count a public reflection on a track outside the reference edition", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const album = await createTestAlbum(tx, {
+        title: uniqueLabel("Bonus track"),
+        trackTitles: ["[Test] 1", "[Test] 2"],
+      });
+      const [bonus] = await tx
+        .insert(schema.tracks)
+        .values({ title: "[Test] Bonus" })
+        .returning({ id: schema.tracks.id });
+      await tx
+        .insert(schema.albumTracks)
+        .values({ albumId: album.albumId, trackId: bonus!.id });
+      const entryId = await createTestAlbumJournal(tx, {
+        albumId: album.albumId,
+        slug: slugOf("bonus"),
+        versions: [{ locale: "en", status: "published" }],
+      });
+      for (const trackId of [album.trackIds[0]!, bonus!.id]) {
+        await createTestTrackReflection(tx, {
+          albumJournalId: entryId,
+          albumId: album.albumId,
+          trackId,
+          isPublished: true,
+          texts: { en: "[Test] text" },
+        });
+      }
+      const card = (await listPublicAlbumArchive(tx, "en")).find(
+        (row) => row.slug === slugOf("bonus"),
+      )!;
+      expect(card).toMatchObject({ trackCount: 2, writtenTrackCount: 1 });
+    });
+  });
+
+  it("finds the first readable paragraph after empty ones, reading only the first blocks", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const entryId = await createTestMemory(tx, {
+        slug: slugOf("late-paragraph"),
+        versions: [{ locale: "en", status: "published" }],
+      });
+      const paragraphs = [
+        { type: "paragraph" },
+        { type: "paragraph", content: [{ type: "text", text: "   " }] },
+        {
+          type: "heading",
+          content: [{ type: "text", text: "[Test] A heading" }],
+        },
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "[Test] The first words." }],
+        },
+        ...Array.from({ length: 30 }, (_, index) => ({
+          type: "paragraph",
+          content: [{ type: "text", text: `[Test] Later ${index}` }],
+        })),
+      ];
+      await tx.execute(sql`
+        update entry_texts
+           set body = ${JSON.stringify({ type: "doc", content: paragraphs })}::jsonb
+         where entry_id = ${entryId}`);
+      const card = (await listPublicMemoryArchive(tx, "en")).find(
+        (row) => row.slug === slugOf("late-paragraph"),
+      )!;
+      expect(card.excerpt).toBe("[Test] The first words.");
     });
   });
 });

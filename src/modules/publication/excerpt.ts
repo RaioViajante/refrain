@@ -9,7 +9,10 @@
 // strings and hard breaks contribute, marks are ignored, no markup or address
 // is ever produced, and nesting deeper than MAX_DEPTH is not read. Anything
 // that is not an object of the expected shape contributes nothing, so a
-// malformed document gives no excerpt rather than an error.
+// malformed document gives no excerpt rather than an error. A body that is not
+// a `doc` gives none, as the renderer renders none. The depth is counted from
+// the document, and never more loosely than the renderer counts it, so an
+// excerpt never holds text that the memory's own page would not show.
 
 /** About how long an excerpt is, in characters (the owner's decision). */
 export const EXCERPT_TARGET = 240;
@@ -47,8 +50,10 @@ function plainText(
     return;
   }
   if (node.type === "text" && typeof node.text === "string") {
-    out.push(node.text);
-    size.n += node.text.length;
+    // One huge text node is read only as far as the limit, too.
+    const taken = node.text.slice(0, COLLECT_LIMIT - size.n + 1);
+    out.push(taken);
+    size.n += taken.length;
     return;
   }
   if (node.type === "hardBreak") {
@@ -62,17 +67,26 @@ function plainText(
 }
 
 // Whitespace of every kind, and the control and format characters that would
-// otherwise reach the page invisibly (C0, C1, and the bidirectional
-// overrides), become one space.
+// otherwise reach the page invisibly (C0, C1, the line and paragraph
+// separators, and the bidirectional embeddings, overrides, and isolates),
+// become one space.
 const SPACE_LIKE = new RegExp(
-  "[\\s\\u0000-\\u001f\\u007f-\\u009f\\u200b\\u2028\\u2029\\u202a-\\u202e\\u2066-\\u2069\\ufeff]+",
+  "[\\s\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029\\u202a-\\u202e\\u2066-\\u2069]+",
+  "g",
+);
+
+// Invisible characters inside a word (the zero-width space and joiners, the
+// soft hyphen, the directional marks, the byte-order mark) are removed, so a
+// word they sit in stays one word.
+const INVISIBLE = new RegExp(
+  "[\\u00ad\\u061c\\u200b-\\u200f\\u2060\\ufeff]",
   "g",
 );
 
 function readable(node: Node, depth: number): string {
   const out: string[] = [];
   plainText(node, depth, out, { n: 0 });
-  return out.join("").replace(SPACE_LIKE, " ").trim();
+  return out.join("").replace(INVISIBLE, "").replace(SPACE_LIKE, " ").trim();
 }
 
 /**
@@ -123,11 +137,11 @@ export function cutAtWord(
       break;
     }
   }
-  const cut = head
-    .slice(0, end)
-    .join("")
-    // A cut that ends on a comma, a dash, or an opening mark reads as broken.
-    .replace(/[\s,;:\-–—(\[{“‘"']+$/u, "");
+  const words = head.slice(0, end).join("");
+  // A cut that ends on a comma, a dash, or an opening bracket or quote reads
+  // as broken; a closing quote stays. Text that is nothing but those marks
+  // keeps them.
+  const cut = words.replace(/[\s,;:\-–—(\[{“‘]+$/u, "") || words;
   return `${cut}${ELLIPSIS}`;
 }
 
@@ -141,18 +155,22 @@ export function memoryExcerpt(
   body: unknown,
   target: number = EXCERPT_TARGET,
 ): string | null {
-  if (!isNode(body)) {
+  if (!isNode(body) || body.type !== "doc") {
     return null;
   }
   const blocks = blocksOf(body);
-  const paragraph = blocks
-    .filter(({ node }) => node.type === "paragraph")
-    .map(({ node, depth }) => readable(node, depth))
-    .find((text) => text.length > 0);
-  const text =
-    paragraph ??
-    blocks
-      .map(({ node, depth }) => readable(node, depth))
-      .find((candidate) => candidate.length > 0);
+  // Read lazily: stop at the first block that has text.
+  const first = (wanted: (node: Node) => boolean) => {
+    for (const { node, depth } of blocks) {
+      if (wanted(node)) {
+        const text = readable(node, depth);
+        if (text.length > 0) {
+          return text;
+        }
+      }
+    }
+    return null;
+  };
+  const text = first((node) => node.type === "paragraph") ?? first(() => true);
   return text ? cutAtWord(text, target) : null;
 }

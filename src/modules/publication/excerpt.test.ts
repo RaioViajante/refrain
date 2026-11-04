@@ -94,16 +94,49 @@ describe("memoryExcerpt", () => {
     expect(cut.endsWith("é")).toBe(true);
   });
 
-  it("keeps Unicode text as written and turns invisible controls into spaces", () => {
+  it("keeps Unicode text as written, turns controls into spaces, and drops invisible marks inside words", () => {
     expect(
-      memoryExcerpt(doc(paragraph(text("Verão‮ de\u0000 2019​, São Paulo")))),
-    ).toBe("Verão de 2019 , São Paulo");
+      memoryExcerpt(
+        doc(paragraph(text("Verão\u202e de\u0000 2019\u200b, São Paulo"))),
+      ),
+    ).toBe("Verão de 2019, São Paulo");
+    expect(
+      memoryExcerpt(
+        doc(
+          paragraph(
+            text("co\u00adoperate \u200eleft\u200f \u2060x\u061cy\ufeff"),
+          ),
+        ),
+      ),
+    ).toBe("cooperate left xy");
+  });
+
+  it("keeps a closing quote before the ellipsis, and text made only of marks", () => {
+    const quoted = `${"a ".repeat(110)}"quoted words" ${"b".repeat(40)}`;
+    expect(cutAtWord(quoted)).toBe(`${"a ".repeat(110)}"quoted words"…`);
+    const marks = "—".repeat(300);
+    expect(cutAtWord(marks)).toBe(`${"—".repeat(EXCERPT_TARGET)}…`);
+  });
+
+  it("reads one huge text node only as far as it needs", () => {
+    const huge = "word ".repeat(2_000_000);
+    const started = performance.now();
+    const excerpt = memoryExcerpt(doc(paragraph(text(huge))))!;
+    expect(performance.now() - started).toBeLessThan(500);
+    expect(excerpt.endsWith("…")).toBe(true);
+    expect(excerpt.length).toBeLessThanOrEqual(EXCERPT_TARGET + 1);
   });
 
   it("gives null for an empty, malformed, or hostile document", () => {
     expect(memoryExcerpt(null)).toBeNull();
     expect(memoryExcerpt("text")).toBeNull();
     expect(memoryExcerpt([paragraph(text("array"))])).toBeNull();
+    // Not a document: the memory page renders nothing for it, so neither does
+    // the archive.
+    expect(
+      memoryExcerpt({ type: "paragraph", content: [text("x")] }),
+    ).toBeNull();
+    expect(memoryExcerpt({ content: [paragraph(text("no type"))] })).toBeNull();
     expect(memoryExcerpt(doc())).toBeNull();
     expect(memoryExcerpt({ type: "doc", content: "nope" })).toBeNull();
     expect(
