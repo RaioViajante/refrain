@@ -528,6 +528,15 @@
   opacity: 0.72;
 }
 
+/* A control that waits for something the author must do first (save their
+   changes): focusable, so its reason under it is reached, and drawn as
+   unavailable. */
+.studio-button[aria-disabled="true"]:not(.studio-button-primary) {
+  cursor: not-allowed;
+  background-image: var(--stroke-button-disabled);
+  color: var(--color-ink-3);
+}
+
 .studio-button-quiet {
   display: inline-flex;
   align-items: center;

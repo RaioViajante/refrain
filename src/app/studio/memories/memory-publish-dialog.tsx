@@ -204,6 +204,7 @@ function OpenMemoryPublishDialog({
           <button
             type="button"
             className="studio-button studio-button-primary"
+            disabled={submitting}
             onClick={() => void reviewAgain()}
           >
             Review it again
@@ -249,7 +250,7 @@ function OpenMemoryPublishDialog({
             </p>
 
             <ReviewSection title="Title">
-              <p lang={ready.locale} className="studio-opening">
+              <p lang={ready.locale} className="studio-row-title">
                 {ready.title}
               </p>
             </ReviewSection>

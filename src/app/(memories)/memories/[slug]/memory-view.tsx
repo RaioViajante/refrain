@@ -67,9 +67,6 @@ function Song({ song }: Readonly<{ song: PublicMemoryMusic }>) {
       </span>
       <span className="pm-song-text">
         <span className="pm-song-title">
-          {song.kind === "album" ? (
-            <span className="pj-visually-hidden">Album: </span>
-          ) : null}
           {albumOwnJournal?.journalSlug ? (
             <Link
               className="pm-song-link"
@@ -81,6 +78,11 @@ function Song({ song }: Readonly<{ song: PublicMemoryMusic }>) {
             song.title
           )}
         </span>
+        {song.kind === "album" ? (
+          // A whole album, not one recording: said in words, as the
+          // reference's quiet line names the release ("Single").
+          <span className="pm-song-line">Album</span>
+        ) : null}
         {song.artists.length > 0 ? (
           <span
             className={`pm-song-line${song.artists.some((artist) => artist.address) ? " pm-song-line-links" : ""}`}

@@ -1331,7 +1331,7 @@ article.pa-grid {
 
 .pm-kind {
   margin-bottom: 10px;
-  font-size: 17px;
+  font-size: 16.5px;
   color: var(--color-ink-3);
 }
 
@@ -1449,7 +1449,7 @@ article.pa-grid {
    over each other (as on the artist page's credit, M3.5). */
 .pm-song-line {
   display: block;
-  font-size: 17px;
+  font-size: 16.5px;
   line-height: 1.55;
   color: var(--color-ink-3);
   overflow-wrap: break-word;
@@ -1507,6 +1507,11 @@ article.pa-grid {
 
   .pm-body {
     font-size: 19.5px;
+  }
+
+  .pm-body h2,
+  .pm-body blockquote {
+    font-size: 24px;
   }
 
   .pm-kind {
@@ -1748,7 +1753,8 @@ article.pa-grid {
   }
 
   .ph-art-fallback,
-  .ph-thumb .ph-art-fallback {
+  .ph-thumb .ph-art-fallback,
+  .pm-song-art .ph-art-fallback {
     background-image: none;
     border: 1px solid CanvasText;
   }
