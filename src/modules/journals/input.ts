@@ -227,6 +227,12 @@ export const saveMemoryInput = z
     // The whole ordered list: what is left out is unlinked, never deleted
     // from the catalog.
     trackIds: recordingIds,
+    // The status the author's editor showed (M3.7). When it is given and the
+    // memory's status is no longer it (another tab published or unpublished
+    // it), the save is refused as `status_changed`: a removal from a public
+    // memory needs no token, and the interface must ask first (ADR 0006
+    // § 5), which an editor that believes the memory private cannot do.
+    expectedStatus: z.enum(["draft", "private", "published"]),
     // Needed only when the save changes what a reader sees of a public
     // memory (M3.7). It comes from the confirmation dialog and nowhere else.
     confirmation: z
@@ -239,6 +245,7 @@ export const saveMemoryInput = z
     rememberedWhen: true,
     body: true,
     trackIds: true,
+    expectedStatus: true,
     confirmation: true,
   })
   .refine(

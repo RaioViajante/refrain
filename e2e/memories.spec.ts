@@ -591,6 +591,45 @@ test("publishes a memory through its review, asks before a change to it, and unp
     false,
     "visual-review/m3-7",
   );
+
+  // A stale editor: another tab publishes the memory while this one still
+  // shows it as private. Its removal is refused, the page shows the memory
+  // as published, and the next save asks before taking the song away.
+  await withDatabase((client) =>
+    client.query(
+      `update entry_texts set status = 'published', published_at = now(),
+              updated_at = clock_timestamp()
+        where entry_id = $1`,
+      [memoryUrl.split("/").pop()],
+    ),
+  );
+  await page
+    .getByRole("button", { name: /^Remove .* from this memory/ })
+    .first()
+    .click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "changed somewhere else" }),
+  ).toBeVisible();
+  expect((await memoryRow(memoryUrl)).tracks).toHaveLength(2);
+  await expect(
+    page.getByText("This memory is published. Saving changes what readers see"),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  const staleRemoval = page.getByRole("dialog", {
+    name: "Take this away from the published memory?",
+  });
+  await expect(staleRemoval).toBeVisible();
+  await staleRemoval.getByRole("button", { name: "Cancel" }).click();
+  expect((await memoryRow(memoryUrl)).tracks).toHaveLength(2);
+  // Back to private for the next test, as the author's Unpublish left it.
+  await withDatabase((client) =>
+    client.query(
+      `update entry_texts set status = 'private', published_at = null
+        where entry_id = $1`,
+      [memoryUrl.split("/").pop()],
+    ),
+  );
   await expectNoHorizontalOverflow(page);
   await reader.close();
 });

@@ -223,7 +223,9 @@ type ParsedMemorySave = z.output<typeof saveMemoryInput>;
  * Validates a save against the stored rows, and returns what it would change
  * in the form the Publication module weighs (ADR 0006 § 5). Nothing is
  * written. Works inside the locked save and inside the preview's read-only
- * snapshot, so the two refuse exactly the same requests: `entry_not_found`,
+ * snapshot, so the two refuse exactly the same requests: `status_changed`
+ * (the editor showed another status than the memory has now),
+ * `entry_not_found`,
  * `unsupported_content` (writing the plain editor cannot reproduce, or a list
  * for a memory that links an album, which the studio cannot show and would
  * otherwise drop), `track_not_found`, and `track_archived`.
@@ -233,6 +235,24 @@ async function prepareMemoryChange(
   data: ParsedMemorySave,
 ): Promise<ProposedChange> {
   const change: ProposedChange = {};
+
+  if (data.expectedStatus !== undefined) {
+    const [original] = await tx
+      .select({ status: schema.entryTexts.status })
+      .from(schema.entryTexts)
+      .where(
+        and(
+          eq(schema.entryTexts.entryId, data.entryId),
+          eq(schema.entryTexts.isOriginal, true),
+        ),
+      );
+    if (!original) {
+      throw new JournalError("entry_not_found");
+    }
+    if (original.status !== data.expectedStatus) {
+      throw new JournalError("status_changed");
+    }
+  }
 
   if (data.title !== undefined || data.body !== undefined) {
     const [stored] = await tx

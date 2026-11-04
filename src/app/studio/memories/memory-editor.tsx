@@ -163,11 +163,16 @@ export function MemoryEditor({
       clearFailure();
       setReview({ payload, sent });
     }
+    if (result.code === "status_changed") {
+      // Another tab published or unpublished it: show how it stands now. The
+      // text stays in the editor.
+      router.refresh();
+    }
   }
 
   async function save(event?: FormEvent) {
     event?.preventDefault();
-    if (pending || created || review || saving.current) {
+    if (pending || created || review || removal || saving.current) {
       return;
     }
     saving.current = true;
@@ -201,6 +206,10 @@ export function MemoryEditor({
     const payload: Record<string, unknown> = {
       entryId: edit.entryId,
       expectedVersion: version,
+      // The status this editor showed: if another tab published or
+      // unpublished the memory, the save is refused and the page refreshed,
+      // so a removal is never saved to a public page without asking.
+      expectedStatus: edit.status,
     };
     if (sent.title !== base.title) {
       payload.title = sent.title;
@@ -214,7 +223,7 @@ export function MemoryEditor({
     if (!sameOrder(sent.recordings, base.recordings)) {
       payload.trackIds = sent.recordings.map((recording) => recording.trackId);
     }
-    if (Object.keys(payload).length === 2) {
+    if (Object.keys(payload).length === 3) {
       setSaved(true);
       return;
     }
@@ -408,6 +417,9 @@ export function MemoryEditor({
         onRefused={(refused) => {
           setReview(undefined);
           report(refused);
+          if (refused.code === "status_changed") {
+            router.refresh();
+          }
         }}
         onCancel={() => setReview(undefined)}
       />

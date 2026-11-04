@@ -812,6 +812,59 @@ describe("saving a published memory (the confirmed save, ADR 0006 § 5)", () => 
     });
   });
 
+  it("refuses a save from an editor that showed another status, so a removal is never saved to a public page unasked", async () => {
+    await inScratchTransaction(async (tx) => {
+      const f = await publishedMemory(tx);
+      // The editor still showed the memory as a draft: another tab published
+      // it. A removal needs no token, so only this refusal stops it.
+      for (const work of [
+        (db: Transaction) =>
+          saveMemory(db, author, {
+            entryId: f.entryId,
+            expectedVersion: 1,
+            expectedStatus: "draft",
+            trackIds: [f.a],
+          }),
+        (db: Transaction) =>
+          previewMemoryPublicChange(db, author, {
+            entryId: f.entryId,
+            expectedVersion: 1,
+            expectedStatus: "draft",
+            trackIds: [f.a],
+          }),
+      ]) {
+        expect(await refusedWithoutWriting(tx, work)).toBe("status_changed");
+      }
+      // The status it has: the removal saves, as before.
+      await expect(
+        saveMemory(tx, author, {
+          entryId: f.entryId,
+          expectedVersion: 1,
+          expectedStatus: "published",
+          trackIds: [f.a],
+        }),
+      ).resolves.toEqual({ version: 2 });
+      // And the reverse: an editor that showed it as published, after
+      // another tab unpublished it.
+      await setMemoryPrivacy(tx, author, {
+        entryId: f.entryId,
+        locale: "en",
+        status: "private",
+        expectedStatus: "published",
+      });
+      expect(
+        await refusedWithoutWriting(tx, (db) =>
+          saveMemory(db, author, {
+            entryId: f.entryId,
+            expectedVersion: 2,
+            expectedStatus: "published",
+            title: "[Test] Stale",
+          }),
+        ),
+      ).toBe("status_changed");
+    });
+  });
+
   it("never lets a memory's change token save an album journal, or the reverse", async () => {
     await inScratchTransaction(async (tx) => {
       const f = await publishedMemory(tx);
