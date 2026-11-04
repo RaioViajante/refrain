@@ -1362,6 +1362,120 @@ test.describe("with memories and artists (A6)", () => {
     await expect(page.getByText(MEMORY.title)).toHaveCount(0);
   });
 
+  // The owner's decision (M3.8b): on a phone the Home draws at most three
+  // lines of a memory's excerpt, in CSS only. The server's excerpt (the
+  // archive's rule) is unchanged and whole in the page; desktop and the
+  // Memories archive are unchanged.
+  test("draws at most three lines of a memory's excerpt on a phone, keeping the whole excerpt in the page", async ({
+    page,
+    browser,
+  }) => {
+    const quiet = (JSON.parse(memoriesJson) as { quiet: { entryId: string } })
+      .quiet.entryId;
+    const quietTitle = "[Test] A memory without songs";
+    const quietText = "[Test] A memory with no songs linked to it.";
+    const long =
+      `[Test] ${"A synthetic sentence that keeps going so that the excerpt reaches its full length. ".repeat(5)}`.trim();
+    await seed("memory-writing", quiet, long);
+    try {
+      await openHome(page);
+      const card = page
+        .locator(".ph-memories > li")
+        .filter({ hasText: quietTitle });
+      const excerpt = card.locator(".px-excerpt");
+      const served = (await excerpt.textContent())!;
+      // The server's cut, about 240 characters, unchanged.
+      expect(served.length).toBeGreaterThan(200);
+      expect(served.length).toBeLessThanOrEqual(241);
+      expect(served.endsWith("…")).toBe(true);
+
+      const samples: Record<string, string> = {
+        "the served excerpt": served,
+        "one long word": `[Test] ${"Supercalifragilistic".repeat(12)}`,
+        unicode:
+          `[Test] ${"Ça me rappelle «l\u2019été» — 夏の終わりに聴いた歌、Привет, мир, نص عربي، 🎧🎶 e\u0301te\u0301. ".repeat(3)}`.trim(),
+      };
+      const measure = () =>
+        excerpt.evaluate((element) => {
+          const css = getComputedStyle(element);
+          return {
+            lines:
+              element.getBoundingClientRect().height /
+              parseFloat(css.lineHeight),
+            clamp: css.webkitLineClamp,
+            clipped: element.scrollHeight > element.clientHeight + 1,
+            text: element.textContent,
+          };
+        });
+      for (const width of [320, 360, 390, 721, 1440]) {
+        await page.setViewportSize({ width, height: 900 });
+        for (const [name, text] of Object.entries(samples)) {
+          await excerpt.evaluate((element, value) => {
+            element.textContent = value;
+          }, text);
+          const drawn = await measure();
+          const label = `${width}px, ${name}`;
+          // The authored words are never changed, only what is drawn.
+          expect(drawn.text, label).toBe(text);
+          expect(await overflow(page), label).toBeLessThanOrEqual(0);
+          if (width <= 720) {
+            expect(drawn.clamp, label).toBe("3");
+            expect(drawn.lines, label).toBeLessThanOrEqual(3.05);
+          } else {
+            expect(drawn.clamp, label).toBe("none");
+            expect(drawn.clipped, label).toBe(false);
+          }
+        }
+        await excerpt.evaluate((element, value) => {
+          element.textContent = value;
+        }, served);
+        // A screen reader is given the whole excerpt, once; the title leads to
+        // the whole memory.
+        expect(await card.ariaSnapshot(), `${width}px`).toContain(served);
+        await expect(
+          card.getByRole("link", { name: quietTitle }),
+        ).toHaveAttribute("href", /^\/memories\//);
+      }
+      if (process.env.E2E_SCREENSHOTS === "1") {
+        await page.setViewportSize({ width: 390, height: 900 });
+        mkdirSync(SHOTS_A6, { recursive: true });
+        await page
+          .locator(".ph-memories-section")
+          .screenshot({ path: `${SHOTS_A6}/home-excerpt-clamped-390.png` });
+      }
+
+      // The Memories archive is unchanged: the whole excerpt, at every width.
+      await page.goto(`${base}/memories`);
+      for (const width of [320, 390, 1440]) {
+        await page.setViewportSize({ width, height: 900 });
+        expect(
+          await page
+            .locator(".px-excerpt")
+            .first()
+            .evaluate((element) => getComputedStyle(element).webkitLineClamp),
+          `archive ${width}px`,
+        ).toBe("none");
+      }
+
+      // Without JavaScript the clamp is the same: it is CSS alone.
+      await withoutJavaScript(browser, async (noScript) => {
+        await noScript.setViewportSize({ width: 390, height: 900 });
+        await noScript.goto(`${base}/`);
+        const plain = noScript
+          .locator(".ph-memories > li")
+          .filter({ hasText: quietTitle })
+          .locator(".px-excerpt");
+        expect(await plain.textContent()).toBe(served);
+        const box = (await plain.boundingBox())!;
+        // 18.5px at a line height of 1.65: three lines.
+        expect(box.height).toBeLessThanOrEqual(3 * 18.5 * 1.65 + 1);
+        expect(box.height).toBeGreaterThan(2 * 18.5 * 1.65);
+      });
+    } finally {
+      await seed("memory-writing", quiet, quietText);
+    }
+  });
+
   test("screenshots of a Home with only memories, when asked for", async ({
     page,
   }) => {
