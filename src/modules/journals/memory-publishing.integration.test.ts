@@ -45,7 +45,9 @@ import {
   publishMemoryVersion,
 } from "./memory-publishing";
 import { getMemory } from "./memory-queries";
+import { saveAlbumJournal } from "./commands";
 import {
+  previewAlbumJournalPublicChange,
   previewAlbumJournalPublication,
   publishAlbumJournalVersion,
 } from "./publishing";
@@ -807,6 +809,47 @@ describe("saving a published memory (the confirmed save, ADR 0006 § 5)", () => 
           name,
         ).toBe(expected);
       }
+    });
+  });
+
+  it("never lets a memory's change token save an album journal, or the reverse", async () => {
+    await inScratchTransaction(async (tx) => {
+      const f = await publishedMemory(tx);
+      const journalId = await createTestAlbumJournal(tx, {
+        albumId: f.albumId,
+        slug: "test-cross-kind-journal",
+        versions: [{ locale: "en", status: "published", text: "[Test] J" }],
+      });
+      const { confirmation } = await previewMemoryPublicChange(tx, author, {
+        entryId: f.entryId,
+        expectedVersion: 1,
+        title: "[Test] New",
+      });
+      expect(
+        await refusedWithoutWriting(tx, (db) =>
+          saveAlbumJournal(db, author, {
+            entryId: journalId,
+            expectedVersion: 1,
+            body: "[Test] Hijacked",
+            confirmation: confirmation!,
+          }),
+        ),
+      ).toBe("confirmation_invalid");
+      const journalPreview = await previewAlbumJournalPublicChange(tx, author, {
+        entryId: journalId,
+        expectedVersion: 1,
+        body: "[Test] New body",
+      });
+      expect(
+        await refusedWithoutWriting(tx, (db) =>
+          saveMemory(db, author, {
+            entryId: f.entryId,
+            expectedVersion: 1,
+            title: "[Test] New",
+            confirmation: journalPreview.confirmation!,
+          }),
+        ),
+      ).toBe("confirmation_invalid");
     });
   });
 

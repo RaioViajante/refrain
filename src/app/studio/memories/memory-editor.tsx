@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import {
+  ConfirmDialog,
   FormStatus,
   TextAreaField,
   TextField,
@@ -91,6 +92,17 @@ export function MemoryEditor({
   // The change dialog owns the confirmation token; this holds only the save.
   const [review, setReview] = useState<
     { payload: Record<string, unknown>; sent: Draft } | undefined
+  >();
+  // A removal from a published memory (a song, the "when") needs no token,
+  // but the interface asks first (ADR 0006 § 5): what would be taken away.
+  const [removal, setRemoval] = useState<
+    | {
+        payload: Record<string, unknown>;
+        sent: Draft;
+        songs: string[];
+        when: boolean;
+      }
+    | undefined
   >();
 
   const dirty = created
@@ -269,7 +281,6 @@ export function MemoryEditor({
         <p className="studio-panel" role="note">
           This memory is published. Saving changes what readers see: before a
           change is saved, you will see exactly what changes and be asked first.
-          Removing a song or the “when” is saved without asking.
         </p>
       ) : null}
 
@@ -368,7 +379,21 @@ export function MemoryEditor({
         onNothingToConfirm={() => {
           const waiting = review;
           setReview(undefined);
-          if (waiting) {
+          if (!waiting) {
+            return;
+          }
+          const kept = new Set(
+            waiting.sent.recordings.map((recording) => recording.trackId),
+          );
+          const songs = base.recordings
+            .filter((recording) => !kept.has(recording.trackId))
+            .map((recording) => recording.title);
+          const when =
+            base.rememberedWhen.trim() !== "" &&
+            waiting.sent.rememberedWhen.trim() === "";
+          if (songs.length > 0 || when) {
+            setRemoval({ ...waiting, songs, when });
+          } else {
             void commit(waiting.payload, waiting.sent, true);
           }
         }}
@@ -378,6 +403,35 @@ export function MemoryEditor({
         }}
         onCancel={() => setReview(undefined)}
       />
+
+      <ConfirmDialog
+        open={removal !== undefined}
+        title="Take this away from the published memory?"
+        confirmLabel="Save and take it away"
+        pending={pending}
+        onConfirm={() => {
+          const waiting = removal;
+          setRemoval(undefined);
+          if (waiting) {
+            void commit(waiting.payload, waiting.sent, true);
+          }
+        }}
+        onCancel={() => setRemoval(undefined)}
+      >
+        <div className="space-y-3">
+          <p>
+            This memory is published. Saving takes this away from what readers
+            see; nothing else changes, and nothing is deleted from your catalog.
+            Cancelling leaves your text in the editor.
+          </p>
+          <ul className="studio-review-list">
+            {removal?.when ? <li>The “when”</li> : null}
+            {removal?.songs.map((song, index) => (
+              <li key={index}>{song}</li>
+            ))}
+          </ul>
+        </div>
+      </ConfirmDialog>
     </form>
   );
 }

@@ -23,7 +23,7 @@ const VISIBILITY_WORDS: Record<VisibilityStatus, string> = {
   draft: "Draft. Unfinished and private.",
   private: "Private. Only you can see it.",
   published:
-    "Published. Saving a change readers would see shows you what changes, and asks first; removing a song or the “when” is saved without asking.",
+    "Published. Saving a change readers would see shows you what changes, and asks first.",
 };
 
 /**

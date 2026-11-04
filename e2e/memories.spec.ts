@@ -508,14 +508,21 @@ test("publishes a memory through its review, asks before a change to it, and unp
   expect(await publicStatus()).toBe(200);
   await expect(readerPage.getByText("[Test] a later summer")).toBeVisible();
 
-  // Removing a song is a removal: saved without asking.
+  // Removing a song needs no confirmation token, but the editor asks first,
+  // naming what readers will no longer see.
   await page
     .getByRole("button", { name: /^Remove .* from this memory/ })
     .first()
     .click();
   await page.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(page.getByText("Saved just now")).toBeVisible();
+  const removal = page.getByRole("dialog", {
+    name: "Take this away from the published memory?",
+  });
+  await expect(removal).toContainText(catalog.twin);
   await expect(change).toHaveCount(0);
+  await shot(page, info, "13-removal", false, "visual-review/m3-7");
+  await removal.getByRole("button", { name: "Save and take it away" }).click();
+  await expect(page.getByText("Saved just now")).toBeVisible();
   expect((await memoryRow(memoryUrl)).tracks).toHaveLength(2);
 
   // Unpublish asks first, keeps everything, and the page answers 404.

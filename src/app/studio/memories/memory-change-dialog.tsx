@@ -268,8 +268,8 @@ function OpenMemoryChangeDialog({
               })}
             </ul>
             <p className="studio-hint">
-              Things you take away from the published memory (a song, the
-              “when”) do not need this review.
+              Anything this save takes away from the published memory (a song,
+              the “when”) goes with it.
             </p>
           </>
         ) : null}
