@@ -4,6 +4,7 @@ import {
   routeAlbumJournalRequest,
   routeArtistRequest,
   routeMemoryRequest,
+  routePublicArchiveRequest,
   routePublicDocumentRequest,
 } from "@/modules/publication/public";
 
@@ -40,6 +41,16 @@ export const config = {
     "/artists/:slug",
     // And for a memory: `/memories/<slug>` (M3.7).
     "/memories/:slug",
+    // The archives (M3.8a): exactly `/albums`, `/artists`, and `/memories`.
+    // The framework extends each to its transport forms, measured on the
+    // production build: `.rsc`, `.json`, `/_next/data/…json`, the router's
+    // `_rsc` requests, and the segment files of a one-segment route, which sit
+    // beside it (`/albums.segments/…`), not under it. The HTTP tests hold
+    // every one of those forms to the unknown address's answer while the
+    // switch is off (src/testing/public-archives.http.test.ts).
+    "/albums",
+    "/artists",
+    "/memories",
     "/sitemap.xml",
     "/robots.txt",
     // Every address that ends in a slash, anywhere on the site, except `/`:
@@ -77,12 +88,17 @@ const ARTIST_SECURITY_HEADERS = {
 } as const;
 
 // What the public matchers above can let through, in any of the framework's
-// transport forms: an album, artist, or memory address, the sitemap,
-// `robots.txt`.
+// transport forms: an album, artist, or memory address, an archive, the
+// sitemap, `robots.txt`.
 const PUBLIC_ADDRESS =
-  /^(?:\/_next\/data\/[^/]+)?\/(?:albums\/|artists\/|memories\/|sitemap\.xml|robots\.txt)/;
-const ARTIST_ADDRESS = /^(?:\/_next\/data\/[^/]+)?\/artists\//;
-const MEMORY_ADDRESS = /^(?:\/_next\/data\/[^/]+)?\/memories\//;
+  /^(?:\/_next\/data\/[^/]+)?\/(?:(?:albums|artists|memories)(?:[/.]|$)|sitemap\.xml|robots\.txt)/;
+const ARTIST_ADDRESS = /^(?:\/_next\/data\/[^/]+)?\/artists(?:[/.]|$)/;
+const MEMORY_ADDRESS = /^(?:\/_next\/data\/[^/]+)?\/memories(?:[/.]|$)/;
+// An archive (M3.8a), in any transport form: `/albums`, `/albums.rsc`,
+// `/albums.segments/…`, `/_next/data/<build>/albums.json`. Not an address
+// inside the section: `/albums/<slug>` has a slash after the section's name.
+const ARCHIVE_ADDRESS =
+  /^(?:\/_next\/data\/[^/]+)?\/(?:albums|artists|memories)(?:\.[^/]*(?:\/.*)?)?$/;
 
 /** The path percent-decoded, or "" when it cannot be decoded. */
 function decodedOrEmpty(pathname: string): string {
@@ -138,31 +154,43 @@ export async function proxy(request: NextRequest) {
   const isMemory =
     MEMORY_ADDRESS.test(pathname) ||
     MEMORY_ADDRESS.test(decodedOrEmpty(pathname));
+  const isArchive =
+    ARCHIVE_ADDRESS.test(pathname) ||
+    ARCHIVE_ADDRESS.test(decodedOrEmpty(pathname));
   const decision =
     pathname === "/sitemap.xml" || pathname === "/robots.txt"
       ? routePublicDocumentRequest({ method: request.method })
-      : isArtist
-        ? await routeArtistRequest({
-            method: request.method,
-            slug: slugOf(pathname),
-          })
-        : isMemory
-          ? await routeMemoryRequest({
+      : isArchive
+        ? // An archive is served only at its own spelling. A percent-encoded
+          // one (`/%61lbums`) matches no route, so the framework would answer
+          // it with its static, cacheable `404`; it gets the unknown
+          // address's `no-store` answer instead, the same with the switch on
+          // or off (M3.8a).
+          ARCHIVE_ADDRESS.test(pathname)
+          ? routePublicArchiveRequest({ method: request.method })
+          : ({ action: "not_found" } as const)
+        : isArtist
+          ? await routeArtistRequest({
               method: request.method,
               slug: slugOf(pathname),
             })
-          : await routeAlbumJournalRequest({
-              method: request.method,
-              slug: slugOf(pathname),
-            });
+          : isMemory
+            ? await routeMemoryRequest({
+                method: request.method,
+                slug: slugOf(pathname),
+              })
+            : await routeAlbumJournalRequest({
+                method: request.method,
+                slug: slugOf(pathname),
+              });
 
   switch (decision.action) {
     case "serve":
       return NextResponse.next();
     case "redirect":
       // Only the previous address of an album journal or a memory redirects,
-      // to the current address in the same section; an artist's decision is
-      // never a redirect.
+      // to the current address in the same section; an artist's or an
+      // archive's decision is never a redirect.
       // The framework's adapter needs an absolute URL to build this response,
       // and sends it back as a path when it is the same origin. The `Location`
       // that a client receives is `/albums/<slug>` or `/memories/<slug>`; a

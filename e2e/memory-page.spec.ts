@@ -124,13 +124,15 @@ test("shows the approved composition: the label, the title, the writing, and the
 }) => {
   await open(page, seeded.shown.slug);
 
-  // The header: Home, and Memories as the current page (not a link).
+  // The header: the four sections (M3.8a), and Memories as the current
+  // section, its link leading back to the Memories archive.
   const nav = page.getByRole("navigation", { name: "Main" });
-  await expect(nav.getByRole("link")).toHaveCount(1);
-  await expect(nav.getByText("Memories")).toHaveAttribute(
+  await expect(nav.getByRole("link")).toHaveCount(4);
+  await expect(nav.getByRole("link", { name: "Memories" })).toHaveAttribute(
     "aria-current",
-    "page",
+    "true",
   );
+  await expect(nav.locator("[aria-current]")).toHaveCount(1);
 
   const article = page.locator("article");
   await expect(article.getByText("Memory", { exact: true })).toBeVisible();

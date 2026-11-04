@@ -204,6 +204,31 @@ export default defineConfig({
       },
     },
     {
+      // The public archives and the shared navigation (M3.8a), anonymous,
+      // from the server with public reads on: at 1440 px, and at 390 px on a
+      // touch screen; the layout test also checks 320, 360, 768, 1280, and
+      // 2560 px.
+      name: "archives-desktop",
+      testMatch: /archives\.spec\.ts/,
+      use: {
+        browserName: "chromium",
+        viewport: { width: 1440, height: 900 },
+        storageState: undefined,
+      },
+    },
+    {
+      name: "archives-390",
+      testMatch: /archives\.spec\.ts/,
+      use: {
+        browserName: "chromium",
+        viewport: { width: 390, height: 844 },
+        isMobile: true,
+        hasTouch: true,
+        deviceScaleFactor: 2,
+        storageState: undefined,
+      },
+    },
+    {
       // Add music and artwork (M3.2) again at a phone width.
       name: "music-390",
       testMatch: /music\.spec\.ts/,

@@ -250,12 +250,11 @@ describe("a public memory's page, with public reads on", () => {
     expect(text).toContain(PUBLIC_MEMORY.albumArtist);
     expect(text).toContain(PUBLIC_MEMORY.albumTitle);
     expect(text).toContain(PUBLIC_MEMORY.secondArtist);
-    // The header marks Memories as the current section, and links to no
-    // list that does not exist.
+    // The header marks Memories as the current section: since M3.8a its link
+    // leads to the Memories archive, as a page inside that section.
     expect(page.body).toMatch(
-      /<span class="public-link" aria-current="page">Memories<\/span>/,
+      /<a class="public-link" (?:aria-current="true" href="\/memories"|href="\/memories" aria-current="true")>Memories<\/a>/,
     );
-    expect(page.body).not.toMatch(/href="\/(memories|albums|artists)"/);
     // No rating, favourite, artwork, or administrative control.
     expect(text).not.toMatch(
       /My rating|Favourite|Publish…|Unpublish|Writing studio|\bEdit\b/,
@@ -272,7 +271,11 @@ describe("a public memory's page, with public reads on", () => {
       .filter((href) => !href.startsWith("/_next/"));
     expect(new Set(links)).toEqual(
       new Set([
+        // The navigation's four sections (M3.8a).
         "/",
+        "/albums",
+        "/artists",
+        "/memories",
         `/albums/${seeded!.albumJournal.slug}`,
         "/artists/test-memory-artist",
       ]),
@@ -498,10 +501,14 @@ describe("a memory address that is not served", () => {
     ).toEqual(unknownMemory);
   });
 
-  it("has no list page: /memories answers the framework's own 404", async () => {
+  it("is listed by the Memories archive (M3.8a), which names no hidden memory", async () => {
     const list = await request(on.baseURL, "/memories");
-    expect(list.status).toBe(404);
-    expect(visibleText(list.body)).not.toContain(PUBLIC_MEMORY.title);
+    expect(list.status).toBe(200);
+    expect(visibleText(list.body)).toContain(PUBLIC_MEMORY.title);
+    expect(list.body).toContain(`href="/memories/${seeded!.shown.slug}"`);
+    for (const hidden of seeded!.hidden) {
+      expect(list.body).not.toContain(`/memories/${hidden.slug}"`);
+    }
   });
 
   it("gives percent-encoded memory addresses the public decision, with the switch off and on, by every method, for every hidden state", async () => {

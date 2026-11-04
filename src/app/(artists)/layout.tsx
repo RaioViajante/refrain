@@ -8,5 +8,9 @@ import { PublicFrame } from "@/app/(public)/_components/public-frame";
 export default function ArtistsLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  return <PublicFrame current="artists">{children}</PublicFrame>;
+  return (
+    <PublicFrame current="artists" inside>
+      {children}
+    </PublicFrame>
+  );
 }
