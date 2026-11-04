@@ -1203,11 +1203,9 @@ test.describe("with memories and artists (A6)", () => {
     await page.locator(".ph-memories-section").scrollIntoViewIfNeeded();
     if (process.env.E2E_SCREENSHOTS === "1") {
       mkdirSync(SHOTS_A6, { recursive: true });
-      await page
-        .locator(".ph-memories-section")
-        .screenshot({
-          path: `${SHOTS_A6}/home-excerpt-density-${startWidth}.png`,
-        });
+      await page.locator(".ph-memories-section").screenshot({
+        path: `${SHOTS_A6}/home-excerpt-density-${startWidth}.png`,
+      });
     }
   });
 
