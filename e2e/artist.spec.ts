@@ -177,13 +177,15 @@ test("shows the approved composition: the photograph, the name, and what is in t
   const requested = await serveImages(page);
   await openArtist(page, "grace");
 
-  // The header: Home, and Artists as the current page (not a link).
+  // The header: the four sections (M3.8a), and Artists as the current
+  // section, its link leading back to the Artists archive.
   const nav = page.getByRole("navigation", { name: "Main" });
-  await expect(nav.getByRole("link")).toHaveCount(1);
-  await expect(nav.getByText("Artists")).toHaveAttribute(
+  await expect(nav.getByRole("link")).toHaveCount(4);
+  await expect(nav.getByRole("link", { name: "Artists" })).toHaveAttribute(
     "aria-current",
-    "page",
+    "true",
   );
+  await expect(nav.locator("[aria-current]")).toHaveCount(1);
 
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
     "Jeff Buckley",

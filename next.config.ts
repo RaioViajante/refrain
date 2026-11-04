@@ -63,6 +63,8 @@ const nextConfig: NextConfig = {
       // The Home (M3.4): exactly `/`. It lists public journals per request, so
       // it is `no-store` like every other public response.
       { source: "/", headers: publicHeaders },
+      // `/albums/:path*` also matches `/albums` itself, the Albums archive
+      // (M3.8a); the same for the other two.
       { source: "/albums/:path*", headers: publicHeaders },
       { source: "/artists/:path*", headers: artistHeaders },
       // M3.7: the memories, with the public policy (no image is shown).

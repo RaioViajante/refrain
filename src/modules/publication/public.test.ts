@@ -3,7 +3,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   getPublicAlbumJournal,
   getPublicHome,
+  listPublicAlbumArchive,
   listPublicAlbumJournalAddresses,
+  listPublicArtistArchive,
+  listPublicMemoryArchive,
   resolvePublicAlbumJournalSlug,
 } from "./public";
 
@@ -68,6 +71,10 @@ describe("the reading entry point with reads not enabled", () => {
       expect(await resolvePublicAlbumJournalSlug("any-slug")).toEqual({
         outcome: "not_found",
       });
+      // M3.8a: the archives list nothing.
+      expect(await listPublicAlbumArchive("en")).toEqual([]);
+      expect(await listPublicArtistArchive()).toEqual([]);
+      expect(await listPublicMemoryArchive("en")).toEqual([]);
     },
   );
 
@@ -79,5 +86,8 @@ describe("the reading entry point with reads not enabled", () => {
     await expect(listPublicAlbumJournalAddresses()).rejects.toThrow();
     await expect(getPublicAlbumJournal("any-entry", "en")).rejects.toThrow();
     await expect(getPublicHome("en")).rejects.toThrow();
+    await expect(listPublicAlbumArchive("en")).rejects.toThrow();
+    await expect(listPublicArtistArchive()).rejects.toThrow();
+    await expect(listPublicMemoryArchive("en")).rejects.toThrow();
   });
 });

@@ -8,5 +8,9 @@ import { PublicFrame } from "@/app/(public)/_components/public-frame";
 export default function MemoriesLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  return <PublicFrame current="memories">{children}</PublicFrame>;
+  return (
+    <PublicFrame current="memories" inside>
+      {children}
+    </PublicFrame>
+  );
 }

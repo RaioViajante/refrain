@@ -106,7 +106,8 @@
 }
 
 a.public-link:hover,
-.public-link[aria-current="page"] {
+.public-link[aria-current="page"],
+.public-link[aria-current="true"] {
   background-size: 100% 7px;
 }
 
@@ -487,6 +488,249 @@ a.public-link:hover,
   line-height: 1.4;
   color: var(--color-ink-2);
   font-variant-numeric: tabular-nums;
+}
+
+/* The public archives (the approved V4.4 `Albums`, `Artists`, and `Memories`
+   screens, M3.8a): the notebook layout, an empty 220px margin beside one
+   writing column, 64px apart, 72px under the navigation; the title in Kalam
+   700 at 58px (42px on a phone) and its lead at 19px, at most 46 characters
+   wide. The values are the screens' own. */
+.px {
+  padding: 72px 0 32px;
+}
+
+.px-grid {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  column-gap: 64px;
+}
+
+.px-title {
+  margin: 0;
+  font-family: var(--font-kalam), cursive;
+  font-size: 58px;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.005em;
+  overflow-wrap: anywhere;
+}
+
+.px-lead {
+  max-width: 46ch;
+  margin: 12px 0 0;
+  font-size: 19px;
+  line-height: 1.55;
+  color: var(--color-ink-2);
+}
+
+/* The list sits 48px under the lead on Albums and 56px on Artists and
+   Memories, as each screen has it, on a phone too. */
+.px-body {
+  padding-top: 48px;
+}
+
+.px-body-artists,
+.px-body-memories {
+  padding-top: 56px;
+}
+
+.px-column {
+  min-width: 0;
+}
+
+/* An empty archive, or one that could not be read: one quiet line. */
+.px-quiet {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--color-ink-2);
+}
+
+/* Albums: three to a row (the screen's `.albs.a3`), each the Home's album card,
+   with "<n> of <N> tracks written" under the facts. */
+.px-albums {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 40px 28px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.px-album-item {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.px-progress {
+  margin-top: 4px;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--color-ink-2);
+}
+
+/* The other journals about an album: quiet links under its card, one to a
+   line, each a full 44px target so no two lie over each other. */
+.px-more {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.px-more-link {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 16px;
+  line-height: 1.4;
+  color: var(--color-ink-2);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+  text-decoration-color: #767676;
+}
+
+.px-more-link:hover {
+  color: var(--color-ink);
+  text-decoration-color: var(--color-ink);
+}
+
+/* Artists: the screen's ruled list (`.lrow`), at most 760px wide, the name in
+   Kalam at 22px and a quiet count on the right; a light ink rule above the
+   first row and below each. */
+.px-rows {
+  max-width: 760px;
+  margin: 0;
+  padding: 8px 0 0;
+  list-style: none;
+  background: var(--stroke-rule) 0 0 / 100% 8px no-repeat;
+}
+
+.px-row-item {
+  padding-bottom: 8px;
+  background: var(--stroke-rule) 0 100% / 100% 8px no-repeat;
+}
+
+.px-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 18px;
+  align-items: center;
+  min-height: 44px;
+  padding: 14px 2px;
+  color: var(--color-ink);
+  text-decoration: none;
+}
+
+.px-row-name {
+  font-family: var(--font-kalam), cursive;
+  font-size: 22px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.px-row-meta {
+  font-size: 16px;
+  line-height: 1.4;
+  color: var(--color-ink-2);
+  text-align: right;
+}
+
+.px-row:hover .px-row-name,
+.px-memory-link:hover {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 5px;
+}
+
+/* Memories: the screen's editorial list (`.mem`), 62 characters wide. */
+.px-memories {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.px-memory {
+  max-width: 62ch;
+  padding: 6px 0 30px;
+}
+
+.px-memory + .px-memory {
+  padding-top: 26px;
+}
+
+.px-memory article > :first-child {
+  margin-top: 0;
+}
+
+.px-when {
+  margin: 0;
+  font-family: var(--font-kalam), cursive;
+  font-size: 19px;
+  line-height: 1.4;
+  color: var(--color-ink-2);
+  overflow-wrap: anywhere;
+}
+
+.px-memory-title {
+  margin: 2px 0 0;
+  font-family: var(--font-kalam), cursive;
+  font-size: 25px;
+  font-weight: 400;
+  line-height: 1.3;
+}
+
+.px-memory-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  max-width: 100%;
+  color: var(--color-ink);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.px-excerpt {
+  margin: 8px 0 0;
+  font-size: 20px;
+  line-height: 1.65;
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+}
+
+.px-music,
+.px-published {
+  margin: 8px 0 0;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--color-ink-3);
+}
+
+.px-music {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+
+.px-music-icon {
+  flex: none;
+  align-self: center;
+}
+
+.px-published {
+  margin-top: 4px;
+  color: var(--color-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Between the phone layout and a wide screen, as on the Home: two albums to a
+   row from 721px to 1100px, so a cover is never much larger than at 1440px. */
+@media (max-width: 1100px) {
+  .px-albums {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 /* The album journal. */
@@ -1713,7 +1957,53 @@ article.pa-grid {
   }
 }
 
+/* The archives on a phone, as the approved mobile screens compose them: one
+   column, the title at 42px (still 72px under the navigation, and its lead
+   still 19px), the albums two to a row, the memory title at 23px and its
+   excerpt at 18.5px. */
+@media (max-width: 720px) {
+  .px-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .px-margin {
+    display: none;
+  }
+
+  .px-title {
+    font-size: 42px;
+  }
+
+  .px-albums {
+    gap: 30px 16px;
+  }
+
+  .px-row {
+    gap: 2px 14px;
+  }
+
+  .px-memory-title {
+    font-size: 23px;
+  }
+
+  .px-excerpt {
+    font-size: 18.5px;
+  }
+}
+
 @media (max-width: 370px) {
+  /* The four sections stay on one line down to 320px (M3.8a): Kalam 18px, as
+     V4.4's phone header, but 14px apart instead of its 16px, because the
+     lateral contract's 17.6px gutter leaves 3px less than the screen's 16px
+     page padding; each is still a 44px target. */
+  .public-nav {
+    gap: 0 14px;
+  }
+
+  .public-link {
+    font-size: 18px;
+  }
+
   .pj-title {
     font-size: 54px;
   }
@@ -1722,12 +2012,26 @@ article.pa-grid {
     width: 280px;
   }
 
-  .ph-albums {
+  .ph-albums,
+  .px-albums {
     gap: 26px 12px;
   }
 
   .ph-album-title {
     font-size: 18.5px;
+  }
+}
+
+/* At the narrowest phones the four links keep a margin on one line in every
+   browser's rendering of Kalam (Linux renders it a few pixels wider): 10px
+   apart, with 1px either side of each word. */
+@media (max-width: 340px) {
+  .public-nav {
+    gap: 0 10px;
+  }
+
+  .public-link {
+    padding: 0 1px;
   }
 }
 
@@ -1760,16 +2064,24 @@ article.pa-grid {
   }
 
   .ph-rows,
-  .ph-row-item {
+  .ph-row-item,
+  .px-rows,
+  .px-row-item {
     background-image: none;
   }
 
-  .ph-rows {
+  .ph-rows,
+  .px-rows {
     border-top: 1px solid CanvasText;
   }
 
-  .ph-row-item {
+  .ph-row-item,
+  .px-row-item {
     border-bottom: 1px solid CanvasText;
+  }
+
+  .px-more-link {
+    text-decoration-color: LinkText;
   }
 
   .pj-button,
@@ -1785,7 +2097,8 @@ article.pa-grid {
   }
 
   .pj-artist,
-  .public-link[aria-current="page"] {
+  .public-link[aria-current="page"],
+  .public-link[aria-current="true"] {
     background-image: none;
     text-decoration: underline;
   }

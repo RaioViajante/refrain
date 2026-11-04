@@ -93,13 +93,13 @@ describe("what the build prerenders for the public routes", () => {
   it("has a shell that is the frame only: navigation, a loading line, and the footer", () => {
     const html = text(join(APP, "albums/[slug].html"));
     expect(visibleText(html)).toBe(
-      "Skip to content Home Albums Loading… some songs take you back.",
+      "Skip to content Home Albums Artists Memories Loading… some songs take you back.",
     );
-    // Links: the skip link and the homepage only. A link to an album would be
-    // entry data.
+    // Links: the skip link and the four sections of the navigation (M3.8a),
+    // the same on every page. A link to an album would be entry data.
     expect(
       [...html.matchAll(/<a [^>]*href="([^"]*)"/g)].map((m) => m[1]),
-    ).toEqual(["#main", "/"]);
+    ).toEqual(["#main", "/", "/albums", "/artists", "/memories"]);
     // The loading state says nothing about whether anything exists.
     expect(html).toContain('aria-busy="true"');
     // No metadata that a journal could fill: the title and the description of
@@ -142,7 +142,7 @@ describe("what the build prerenders for the public routes", () => {
   it("has one not-found view, the same for every address, and it names none", () => {
     const html = text(join(APP, "_not-found.html"));
     expect(visibleText(html)).toMatch(
-      /^Not found · refrain Skip to content Home Nothing here This page is not available\. Back to the start some songs take you back\.$/,
+      /^Not found · refrain Skip to content Home Albums Artists Memories Nothing here This page is not available\. Back to the start some songs take you back\.$/,
     );
     expect(html).toContain('<meta name="robots" content="noindex"/>');
     expect(html).toContain("<title>Not found · refrain</title>");
@@ -200,6 +200,53 @@ describe("what the build prerenders for the public routes", () => {
       }
     }
   });
+
+  // The archives (M3.8a). Each is rendered on the server per request, in one
+  // pass (`instant = false`), so the build prerenders nothing of it, as for the
+  // Home: an empty, blocking entry, whose segments and postponed state are the
+  // framework's generic frame and not-found fallback.
+  it.each(["albums", "artists", "memories"])(
+    "prerenders nothing of the %s archive: an empty, blocking entry",
+    (archive) => {
+      const route = manifest.routes[`/${archive}`] as unknown as {
+        response?: string;
+        compute?: string;
+        htmlSize?: number;
+      };
+      expect(route).toBeDefined();
+      expect(route.response).toBe("empty");
+      expect(route.compute).toBe("blocking");
+      expect(route.htmlSize).toBe(0);
+      expect(text(join(APP, `${archive}.html`))).toBe("");
+      for (const file of [
+        ...files(join(APP, `${archive}.segments`)),
+        join(APP, `${archive}.meta`),
+      ]) {
+        const body = text(file);
+        // The route is named by its own segments, never by an address in it.
+        const named = [
+          ...body.matchAll(/\/(albums|artists|memories)\/([^/"\\\s,]+)/g),
+        ]
+          .map((match) => match[2]!)
+          .filter((name) => !["__PAGE__", "layout", "page"].includes(name));
+        expect(named, file).toEqual([]);
+        for (const needle of [
+          "Whole records",
+          "The artists behind",
+          "Memories and the music",
+          "Nothing published yet",
+          "could not be loaded",
+          "tracks written",
+          "Another journal",
+          "[Test]",
+          "Grace",
+          "Buckley",
+        ]) {
+          expect(body, `${file} contains ${needle}`).not.toContain(needle);
+        }
+      }
+    },
+  );
 
   it("contains no journal text anywhere in the album or not-found output", () => {
     const everything = [

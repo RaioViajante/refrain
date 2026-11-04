@@ -25,7 +25,7 @@ import { randomBytes } from "node:crypto";
 
 import { Client } from "pg";
 
-import { testAuthor } from "./fixtures";
+import { createTestAlbumJournal, testAuthor } from "./fixtures";
 import {
   fixtureDatabase,
   PUBLIC_TEXT,
@@ -144,6 +144,39 @@ async function main() {
           JSON.parse(first!) as SeededMemories,
           second!,
         );
+        break;
+      }
+      case "another-journal": {
+        // A second, earlier published journal about the album of the journal
+        // `first` (M3.8a: several journals about one album).
+        const [{ album_id: albumId }] = (
+          await client.query<{ album_id: string }>(
+            "select album_id from album_journals where entry_id = $1",
+            [first!],
+          )
+        ).rows as [{ album_id: string }];
+        const entryId = await fixtureDatabase(client).transaction((tx) =>
+          createTestAlbumJournal(tx, {
+            albumId,
+            slug: second!,
+            versions: [
+              {
+                locale: "en",
+                status: "published",
+                text: "[Test] An earlier journal about the same album.",
+                publishedAt: new Date("2020-01-02T00:00:00Z"),
+              },
+            ],
+          }),
+        );
+        console.log(JSON.stringify({ entryId, slug: second }));
+        break;
+      }
+      case "remove-entry": {
+        await client.query("delete from entry_slugs where entry_id = $1", [
+          first!,
+        ]);
+        await client.query("delete from entries where id = $1", [first!]);
         break;
       }
       case "remove": {

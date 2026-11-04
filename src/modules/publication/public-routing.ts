@@ -135,6 +135,30 @@ export async function routeArtistRequest(
 }
 
 /**
+ * What an archive address (`/albums`, `/artists`, `/memories`, M3.8a) answers:
+ * the switch, then the method, before anything is read. With the switch off it
+ * is the unknown-address `404` for every method (ADR 0006, D4, unchanged: an
+ * archive is a public content-serving surface, and A4 covers `/` alone). An
+ * archive has no address of its own to resolve, so nothing else decides it;
+ * the page reads its list through the publication queries.
+ */
+export function routePublicArchiveRequest(
+  request: { method: string },
+  env: Record<string, string | undefined> = process.env,
+): Extract<
+  AlbumJournalRouting,
+  { action: "not_found" | "method_not_allowed" | "serve" }
+> {
+  if (!publicReadsEnabled(env)) {
+    return { action: "not_found" };
+  }
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    return { action: "method_not_allowed" };
+  }
+  return { action: "serve" };
+}
+
+/**
  * The same first two steps for the public documents that are not a journal
  * (the sitemap and `robots.txt`): the switch, then the method. They list or
  * describe only public addresses, and their routes read through the

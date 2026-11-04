@@ -6,5 +6,9 @@ import { PublicFrame } from "./_components/public-frame";
 export default function PublicLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  return <PublicFrame current="albums">{children}</PublicFrame>;
+  return (
+    <PublicFrame current="albums" inside>
+      {children}
+    </PublicFrame>
+  );
 }

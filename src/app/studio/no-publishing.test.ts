@@ -70,7 +70,7 @@ const PUBLICATION_MODULE = /(^|\/)modules\/publication(\/|$)/;
 
 // The only files under src/app that may import its reading entry point.
 const PUBLIC_READING_FILES =
-  /^src\/app\/(\(public\)\/|\(artists\)\/|\(memories\)\/|page\.tsx$|not-found\.tsx$|sitemap\.xml\/route\.ts$|robots\.txt\/route\.ts$)/;
+  /^src\/app\/(\(public\)\/|\(artists\)\/|\(memories\)\/|\(archives\)\/|page\.tsx$|not-found\.tsx$|sitemap\.xml\/route\.ts$|robots\.txt\/route\.ts$)/;
 
 /** The module path a node names, if it names one with a string literal. */
 function moduleNamed(node: ts.Node): string | undefined {
@@ -307,6 +307,8 @@ describe("the studio cannot publish, re-address, or permanently delete", () => {
         "src/app/page.tsx",
         // M3.7: the memory pages.
         "src/app/(memories)/memories/[slug]/page.tsx",
+        // M3.8a: the archives.
+        "src/app/(archives)/albums/page.tsx",
       ]) {
         expect(violations(reading, file), file).toEqual([]);
       }
