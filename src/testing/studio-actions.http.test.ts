@@ -185,6 +185,8 @@ const TABLES = [
   "entry_slugs",
   "track_reflections",
   "track_reflection_texts",
+  "memories",
+  "memory_music",
 ] as const;
 
 // A checksum of every row of every catalog and writing table, so "nothing was
@@ -212,6 +214,14 @@ beforeAll(async () => {
 afterAll(async () => {
   try {
     const own = `${label}%`;
+    // Memories first: their links would keep the recordings (RESTRICT).
+    const memories = `select m.entry_id from memories m
+                        join entry_texts t on t.entry_id = m.entry_id
+                       where t.title like $1`;
+    await db.query(`delete from entry_slugs where entry_id in (${memories})`, [
+      own,
+    ]);
+    await db.query(`delete from entries where id in (${memories})`, [own]);
     const journals = `select aj.entry_id from album_journals aj
                         join albums a on a.id = aj.album_id
                        where a.title like $1`;
@@ -259,8 +269,12 @@ const ids = {
   journal: "",
   // A journal that is in Recently deleted, for the restore tests.
   recoverable: "",
+  // A memory (M3.6), and one in Recently deleted.
+  memory: "",
+  deletedMemory: "",
 };
 let journalVersion = 1;
+let memoryVersion = 1;
 
 // The data of a successful result, for the checks that read nested fields.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1078,6 +1092,333 @@ describe("the author's complete journey, through real HTTP and PostgreSQL", () =
     expect(/<h1[^>]*>([^<]*)<\/h1>/.exec(journalPage)?.[1]).toBe(
       `${own("Album")} (retitled)`,
     );
+  });
+});
+
+describe("the Memories Studio, through real HTTP and PostgreSQL (M3.6)", () => {
+  const cookie = () => author.cookie;
+  const own = (name: string) => `${label} ${name}`;
+
+  const links = async (memoryId: string) =>
+    (
+      await db.query<{ track_id: string }>(
+        "select track_id from memory_music where memory_id = $1 order by position",
+        [memoryId],
+      )
+    ).rows.map((row) => row.track_id);
+
+  it("creates a private draft memory with its ordered songs, and touches no journal", async () => {
+    const journalsBefore = await scalar<string>(
+      "select md5(coalesce(string_agg(t::text, '|' order by t::text), '')) from album_journals t",
+    );
+    const reflectionsBefore = await scalar<string>(
+      "select md5(coalesce(string_agg(t::text, '|' order by t::text), '')) from track_reflections t",
+    );
+    const created = dataOf(
+      await call(
+        "createMemoryAction",
+        [
+          {
+            title: own("Memory"),
+            rememberedWhen: "[Test] a season",
+            body: `${label} memory words.\n\n${label} memory second paragraph.`,
+            trackIds: [ids.extraTrack, ids.track],
+            // Ignored: a client cannot set visibility, kind, or a rating.
+            status: "published",
+            ratingHalfSteps: 10,
+          },
+        ],
+        { cookie: cookie() },
+      ),
+    );
+    ids.memory = String(created.entryId);
+    expect(created.version).toBe(1);
+    const stored = await db.query(
+      `select e.kind, t.status, t.locale, t.title, t.published_at
+         from entries e join entry_texts t on t.entry_id = e.id
+        where e.id = $1`,
+      [ids.memory],
+    );
+    expect(stored.rows).toEqual([
+      {
+        kind: "memory",
+        status: "draft",
+        locale: "en",
+        title: own("Memory"),
+        published_at: null,
+      },
+    ]);
+    expect(await links(ids.memory)).toEqual([ids.extraTrack, ids.track]);
+    expect(
+      await scalar<string>(
+        "select md5(coalesce(string_agg(t::text, '|' order by t::text), '')) from album_journals t",
+      ),
+    ).toBe(journalsBefore);
+    expect(
+      await scalar<string>(
+        "select md5(coalesce(string_agg(t::text, '|' order by t::text), '')) from track_reflections t",
+      ),
+    ).toBe(reflectionsBefore);
+  });
+
+  it("saves as a patch, reorders, and refuses stale, duplicated, archived, and unknown songs, writing nothing", async () => {
+    const saved = dataOf(
+      await call(
+        "saveMemoryAction",
+        [
+          {
+            entryId: ids.memory,
+            expectedVersion: 1,
+            trackIds: [ids.track, ids.extraTrack],
+          },
+        ],
+        { cookie: cookie(), routeId: ids.memory },
+      ),
+    );
+    memoryVersion = Number(saved.version);
+    expect(memoryVersion).toBe(2);
+    expect(await links(ids.memory)).toEqual([ids.track, ids.extraTrack]);
+    expect(
+      await scalar("select body_text from entry_texts where entry_id = $1", [
+        ids.memory,
+      ]),
+    ).toContain("memory words");
+
+    const before = await snapshot();
+    for (const [what, input, code] of [
+      [
+        "stale",
+        { entryId: ids.memory, expectedVersion: 1, title: own("Stale") },
+        "conflict",
+      ],
+      [
+        "duplicated",
+        {
+          entryId: ids.memory,
+          expectedVersion: memoryVersion,
+          trackIds: [ids.track, ids.track],
+        },
+        "invalid_input",
+      ],
+      [
+        "archived",
+        {
+          entryId: ids.memory,
+          expectedVersion: memoryVersion,
+          trackIds: [ids.track, ids.archivedTrack],
+        },
+        "archived",
+      ],
+      [
+        "unknown",
+        {
+          entryId: ids.memory,
+          expectedVersion: memoryVersion,
+          trackIds: [NOWHERE],
+        },
+        "not_found",
+      ],
+      [
+        "blank title",
+        { entryId: ids.memory, expectedVersion: memoryVersion, title: "  " },
+        "invalid_input",
+      ],
+      [
+        "an album journal",
+        { entryId: ids.journal, expectedVersion: 1, title: own("Into it") },
+        "not_found",
+      ],
+      ["malformed", { entryId: "x", title: own("x") }, "invalid_input"],
+    ] as const) {
+      const result = await call("saveMemoryAction", [input], {
+        cookie: cookie(),
+        routeId: ids.memory,
+      });
+      expect(result, what).toMatchObject({ ok: false, code });
+    }
+    expect(await snapshot()).toEqual(before);
+  });
+
+  it("offers draft and private only, and no studio path publishes a memory", async () => {
+    const before = await snapshot();
+    expect(
+      await call(
+        "setMemoryPrivacyAction",
+        [
+          {
+            entryId: ids.memory,
+            locale: "en",
+            status: "published",
+            expectedStatus: "draft",
+          },
+        ],
+        { cookie: cookie(), routeId: ids.memory },
+      ),
+    ).toMatchObject({ ok: false, code: "invalid_input" });
+    // The only publish path in the studio is the album journal's, and it
+    // does not know a memory.
+    expect(
+      await call(
+        "previewPublicationAction",
+        [{ entryId: ids.memory, locale: "en" }],
+        { cookie: cookie(), routeId: ids.memory },
+      ),
+    ).toMatchObject({ ok: false, code: "not_found" });
+    expect(
+      await call(
+        "publishJournalVersionAction",
+        [
+          {
+            entryId: ids.memory,
+            locale: "en",
+            expectedVersion: memoryVersion,
+            confirmation: "ct1.AAAA.BBBB",
+          },
+        ],
+        { cookie: cookie(), routeId: ids.memory },
+      ),
+    ).toMatchObject({ ok: false });
+    expect(await snapshot()).toEqual(before);
+
+    ok(
+      await call(
+        "setMemoryPrivacyAction",
+        [
+          {
+            entryId: ids.memory,
+            locale: "en",
+            status: "private",
+            expectedStatus: "draft",
+          },
+        ],
+        { cookie: cookie(), routeId: ids.memory },
+      ),
+    );
+    expect(
+      await scalar("select status from entry_texts where entry_id = $1", [
+        ids.memory,
+      ]),
+    ).toBe("private");
+
+    // No public address serves a memory, whatever its slug.
+    const slug = await scalar<string>(
+      "select slug from entry_slugs where entry_id = $1 and is_current",
+      [ids.memory],
+    );
+    for (const path of [`/memories/${slug}`, "/memories", `/albums/${slug}`]) {
+      const response = await get(path);
+      expect(response.status, path).toBe(404);
+      expect(await response.text()).not.toContain(label);
+    }
+  });
+
+  it("refuses to save a memory that is published, writing nothing (M3.7 builds its confirmed save)", async () => {
+    // Stands in for a write from outside the application: no studio path can
+    // publish a memory.
+    await db.query(
+      `update entry_texts
+          set status = 'published', published_at = now(),
+              first_published_at = coalesce(first_published_at, now())
+        where entry_id = $1`,
+      [ids.memory],
+    );
+    try {
+      const before = await snapshot();
+      const result = await call(
+        "saveMemoryAction",
+        [
+          {
+            entryId: ids.memory,
+            expectedVersion: memoryVersion,
+            body: own("Changed while public"),
+          },
+        ],
+        { cookie: cookie(), routeId: ids.memory },
+      );
+      expect(result).toEqual({ ok: false, code: "published_memory" });
+      expect(await snapshot()).toEqual(before);
+    } finally {
+      await db.query(
+        `update entry_texts set status = 'private', published_at = null
+          where entry_id = $1`,
+        [ids.memory],
+      );
+    }
+  });
+
+  it("moves a memory to Recently deleted and restores it once, as it was", async () => {
+    const created = dataOf(
+      await call(
+        "createMemoryAction",
+        [{ title: own("Deleted memory"), trackIds: [ids.track] }],
+        { cookie: cookie() },
+      ),
+    );
+    const id = String(created.entryId);
+    ok(
+      await call("deleteMemoryAction", [id], { cookie: cookie(), routeId: id }),
+    );
+    expect(
+      await call("deleteMemoryAction", [id], { cookie: cookie(), routeId: id }),
+    ).toEqual({ ok: false, code: "deleted" });
+    const page = await (
+      await get("/studio/journals/deleted", { cookie: cookie() })
+    ).text();
+    expect(page).toContain(own("Deleted memory"));
+
+    expect(
+      dataOf(
+        await call("restoreMemoryAction", [id], {
+          cookie: cookie(),
+          routeId: id,
+        }),
+      ),
+    ).toEqual({ madePrivate: [] });
+    expect(
+      await call("restoreMemoryAction", [id], {
+        cookie: cookie(),
+        routeId: id,
+      }),
+    ).toEqual({ ok: false, code: "not_deleted" });
+    expect(await links(id)).toEqual([ids.track]);
+    // An album journal is not a memory, and a memory is not an album journal.
+    expect(
+      await call("restoreMemoryAction", [ids.recoverable], {
+        cookie: cookie(),
+        routeId: ids.recoverable,
+      }),
+    ).toEqual({ ok: false, code: "not_found" });
+    expect(
+      await call("deleteJournalAction", [id], {
+        cookie: cookie(),
+        routeId: id,
+      }),
+    ).toEqual({ ok: false, code: "not_found" });
+
+    // Left in Recently deleted for the visitor tests below.
+    ok(
+      await call("deleteMemoryAction", [id], { cookie: cookie(), routeId: id }),
+    );
+    ids.deletedMemory = id;
+  });
+
+  it("shows memories on the studio's pages, for the author only", async () => {
+    for (const path of [
+      "/studio",
+      "/studio/memories",
+      `/studio/memories/${ids.memory}`,
+      `/studio/tracks/${ids.track}`,
+    ]) {
+      const html = await (await get(path, { cookie: cookie() })).text();
+      expect(html, path).toContain(own("Memory"));
+      const anonymous = await (await get(path)).text();
+      expect(anonymous, path).not.toContain(own("Memory"));
+    }
+    const html = await (
+      await get(`/studio/memories/${ids.memory}`, { cookie: cookie() })
+    ).text();
+    expect(/<title>([^<]*)<\/title>/.exec(html)?.[1]).toBe("Memory · refrain");
+    expect(html).toContain('name="robots" content="noindex, nofollow"');
   });
 });
 
@@ -2242,12 +2583,44 @@ describe("what a request without the author's session can do", () => {
         args: [ids.recoverable],
         routeId: ids.recoverable,
       },
+      // Memories (M3.6): private writing, refused like everything else.
+      createMemoryAction: {
+        args: [{ title: `${label} intruder memory`, trackIds: [ids.track] }],
+        routeId: NOWHERE,
+      },
+      saveMemoryAction: {
+        args: [
+          {
+            entryId: ids.memory,
+            expectedVersion: memoryVersion,
+            body: `${label} hijacked memory`,
+            trackIds: [],
+          },
+        ],
+        routeId: ids.memory,
+      },
+      setMemoryPrivacyAction: {
+        args: [
+          {
+            entryId: ids.memory,
+            locale: "en",
+            status: "draft",
+            expectedStatus: "private",
+          },
+        ],
+        routeId: ids.memory,
+      },
+      deleteMemoryAction: { args: [ids.memory], routeId: ids.memory },
+      restoreMemoryAction: {
+        args: [ids.deletedMemory],
+        routeId: ids.deletedMemory,
+      },
     };
   }
 
   it("covers every server action in the build", () => {
     expect(Object.keys(attempts()).sort()).toEqual(Object.keys(actions).sort());
-    expect(Object.keys(actions).length).toBeGreaterThanOrEqual(32);
+    expect(Object.keys(actions).length).toBeGreaterThanOrEqual(37);
   });
 
   async function credentials(): Promise<[string, string | undefined][]> {
@@ -2288,7 +2661,8 @@ describe("what a request without the author's session can do", () => {
           `select (select count(*) from artists where name like '%Intruder%' or name like '%Hijacked%')
               + (select count(*) from albums where title like '%Intruder%' or title like '%Hijacked%')
               + (select count(*) from tracks where title like '%Intruder%' or title like '%Hijacked%')
-              + (select count(*) from entry_texts where body_text like '%intruder%' or body_text like '%hijacked%')`,
+              + (select count(*) from entry_texts where body_text like '%intruder%' or body_text like '%hijacked%')
+              + (select count(*) from entry_texts where title like '%intruder memory%')`,
         ),
       ),
     ).toBe(0);
@@ -2471,6 +2845,11 @@ describe("what a request without the author's session can do", () => {
       `/studio/journals/new?album=${ids.album}`,
       `/studio/journals/${ids.journal}`,
       `/studio/journals/${ids.journal}/edit`,
+      "/studio/memories",
+      "/studio/memories/new",
+      `/studio/memories/new?track=${ids.track}`,
+      `/studio/memories/${ids.memory}`,
+      `/studio/memories/${ids.deletedMemory}`,
     ];
     for (const path of paths) {
       for (const headers of [
@@ -2541,6 +2920,7 @@ describe("what a request without the author's session can do", () => {
       ["albums", ids.album],
       ["tracks", ids.track],
       ["journals", ids.journal],
+      ["memories", ids.memory],
     ];
     const headers = {
       rsc: "1",

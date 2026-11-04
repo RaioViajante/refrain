@@ -32,7 +32,14 @@ const BLOCKED_BY = {
     "A track reflection is written about it, so it stays on the album.",
 } as const;
 
-export function failureMessage(failure: Failure): string {
+/** The kind of writing a message is about. Journals are the default. */
+export type WritingSubject = "journal" | "memory";
+
+export function failureMessage(
+  failure: Failure,
+  subject: WritingSubject = "journal",
+): string {
+  const noun = subject === "memory" ? "memory" : "journal";
   switch (failure.code) {
     case "unauthorized":
       return "Your session has ended. Sign in again in another tab, then try again. What you typed is still here.";
@@ -51,11 +58,11 @@ export function failureMessage(failure: Failure): string {
     case "archived":
       return "An archived record can’t be added. Restore it first.";
     case "conflict":
-      return "This journal changed somewhere else since you opened it, so nothing was saved. Your text is still here: copy it, reload the page, and save again.";
+      return `This ${noun} changed somewhere else since you opened it, so nothing was saved. Your text is still here: copy it, reload the page, and save again.`;
     case "deleted":
-      return "This journal is in Recently deleted, so it can’t be changed.";
+      return `This ${noun} is in Recently deleted, so it can’t be changed.`;
     case "not_deleted":
-      return "This journal is not in Recently deleted, so there is nothing to restore. It may already have been restored. Reload the page.";
+      return `This ${noun} is not in Recently deleted, so there is nothing to restore. It may already have been restored. Reload the page.`;
     case "unsupported":
       return "This text has formatting that the plain editor can’t show without losing it, so it was left untouched.";
     case "confirmation_required":
@@ -87,6 +94,8 @@ export function failureMessage(failure: Failure): string {
       return "A published journal shows this on a public page, and this change would reach readers without a confirmation, which isn’t built yet. Nothing was changed. A photograph can always be removed; to change one, or to restore an artist that has one, remove it first or unpublish the journals that show it.";
     case "photo_not_usable":
       return "This photograph can no longer be used: its license, credit, or file changed on Wikimedia Commons. Nothing was changed. Choose another, or review it again.";
+    case "published_memory":
+      return "A version of this memory is published, and saving changes to a published memory isn’t built yet, so nothing was saved. Your text is still here. Make it private first, then save.";
     case "failed":
       return "Something went wrong, and nothing was changed. Try again.";
   }

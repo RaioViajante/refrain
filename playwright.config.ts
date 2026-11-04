@@ -69,7 +69,7 @@ export default defineConfig({
     {
       name: "desktop",
       testMatch:
-        /(catalog|journal|tracks|recovery|publication|academic|navigation|layout|accessibility|music|photos)\.spec\.ts/,
+        /(catalog|journal|tracks|recovery|publication|academic|navigation|layout|accessibility|music|photos|memories)\.spec\.ts/,
       use: {
         browserName: "chromium",
         viewport: { width: 1280, height: 900 },
@@ -197,6 +197,20 @@ export default defineConfig({
       // Artist photographs (M3.3) again at a phone width.
       name: "photos-390",
       testMatch: /photos\.spec\.ts/,
+      use: {
+        browserName: "chromium",
+        viewport: { width: 390, height: 844 },
+        isMobile: true,
+        hasTouch: true,
+        deviceScaleFactor: 2,
+        storageState: AUTH_FILE,
+      },
+      dependencies: ["desktop"],
+    },
+    {
+      // The Memories Studio (M3.6) again at a phone width.
+      name: "memories-390",
+      testMatch: /memories\.spec\.ts/,
       use: {
         browserName: "chromium",
         viewport: { width: 390, height: 844 },

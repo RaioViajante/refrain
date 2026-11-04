@@ -11,7 +11,11 @@ import {
   testAuthor,
 } from "@/testing";
 
-import { listAlbumsWithArtists, listAlbumUsage } from "./queries";
+import {
+  listAlbumsWithArtists,
+  listAlbumUsage,
+  listRecordingChoices,
+} from "./queries";
 
 describe("listAlbumsWithArtists (AC-04, JOIN)", () => {
   it("returns one row per credit, in title and credit order, without archived albums", async () => {
@@ -96,6 +100,63 @@ describe("listAlbumUsage (AC-05, subquery)", () => {
         { albumId: used.albumId, title: "[Test] A Used", usedIn: 3 },
         { albumId: unused.albumId, title: "[Test] B Unused", usedIn: 0 },
       ]);
+    });
+  });
+});
+
+describe("listRecordingChoices (M3.6, the memory picker)", () => {
+  it("lists each recording that is not archived, with the facts that tell same-named ones apart", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const author = testAuthor();
+      const singer = await createTestArtist(tx, "[Test] Singer");
+      const band = await createTestArtist(tx, "[Test] Band");
+      const album = await createTestAlbum(tx, {
+        title: "[Test] Choice Album",
+        trackTitles: ["[Test] Twin Title", "[Test] Archived Choice"],
+      });
+      const [onAlbum, archived] = album.trackIds as [string, string];
+      const [single] = await tx
+        .insert(schema.tracks)
+        .values({ title: "[Test] Twin Title", lengthMs: 185_000 })
+        .returning({ id: schema.tracks.id });
+      await tx.insert(schema.trackArtists).values([
+        { trackId: onAlbum, artistId: band, position: 1 },
+        { trackId: onAlbum, artistId: singer, position: 2 },
+        { trackId: single!.id, artistId: singer, position: 1 },
+      ]);
+      await tx
+        .update(schema.tracks)
+        .set({ archivedAt: sql`now()` })
+        .where(eq(schema.tracks.id, archived));
+
+      const choices = (await listRecordingChoices(tx, author)).filter(
+        (choice) => choice.title.startsWith("[Test] "),
+      );
+      const twins = choices.filter(
+        (choice) => choice.title === "[Test] Twin Title",
+      );
+      // Two recordings, never merged, each with only what the catalog says.
+      expect(twins).toHaveLength(2);
+      expect(twins).toContainEqual({
+        trackId: onAlbum,
+        title: "[Test] Twin Title",
+        artists: [
+          { id: band, name: "[Test] Band" },
+          { id: singer, name: "[Test] Singer" },
+        ],
+        albums: ["[Test] Choice Album"],
+        lengthMs: null,
+        archived: false,
+      });
+      expect(twins).toContainEqual({
+        trackId: single!.id,
+        title: "[Test] Twin Title",
+        artists: [{ id: singer, name: "[Test] Singer" }],
+        albums: [],
+        lengthMs: 185_000,
+        archived: false,
+      });
+      expect(choices.map((choice) => choice.trackId)).not.toContain(archived);
     });
   });
 });

@@ -539,6 +539,65 @@ export async function listTracks(
   }));
 }
 
+/**
+ * A recording the author can link from a memory (M3.6), with the catalog
+ * facts that tell it apart from another recording of the same name: its
+ * credited artists, the albums it is on, and its length. Nothing is inferred
+ * or merged: two recordings are two choices, and an empty list or `null`
+ * means the catalog does not record that fact.
+ */
+export interface RecordingChoice {
+  trackId: string;
+  title: string;
+  /** Credited artists, in credit order. */
+  artists: { id: string; name: string }[];
+  /** Titles of the albums the recording is on. */
+  albums: string[];
+  lengthMs: number | null;
+  archived: boolean;
+}
+
+/**
+ * Every recording that is not archived, for the memory editor's picker, by
+ * title. Pickers hide archived records (a link to one that already exists is
+ * kept by the memory itself). Reads the catalog only.
+ */
+export async function listRecordingChoices(
+  db: DatabaseExecutor,
+  _author: AuthorizedAuthor,
+): Promise<RecordingChoice[]> {
+  const result = await db.execute<{
+    track_id: string;
+    title: string;
+    artists: { id: string; name: string }[];
+    albums: string[];
+    length_ms: number | null;
+    archived: boolean;
+  }>(sql`
+    select t.id as track_id, t.title, t.length_ms,
+           t.archived_at is not null as archived,
+           coalesce((select json_agg(json_build_object('id', ar.id, 'name', ar.name)
+                                     order by ta.position)
+                       from track_artists ta
+                       join artists ar on ar.id = ta.artist_id
+                      where ta.track_id = t.id), '[]'::json) as artists,
+           coalesce((select json_agg(al.title order by al.title, al.id)
+                       from album_tracks m
+                       join albums al on al.id = m.album_id
+                      where m.track_id = t.id), '[]'::json) as albums
+      from tracks t
+     where t.archived_at is null
+     order by t.title, t.id`);
+  return result.rows.map((row) => ({
+    trackId: row.track_id,
+    title: row.title,
+    artists: row.artists,
+    albums: row.albums,
+    lengthMs: row.length_ms,
+    archived: row.archived,
+  }));
+}
+
 export interface TrackDetail {
   id: string;
   title: string;

@@ -325,6 +325,12 @@ With `pnpm dev`, the Catalog's **Add music** searches the real MusicBrainz from 
 
 With `pnpm dev`, an artist's page has a **Photograph** section. **Choose from Wikimedia Commons…** opens a page that searches Commons from the server (requests in series, one start per 500 ms, identified like MusicBrainz) and, for an artist linked to MusicBrainz, shows suggestions through Wikidata. Only files with an accepted license and a named creator are offered; open one to review its credit, source, license, and version, then **Use this photograph** or **Cancel**. The photograph page also tells you if the file on Commons has changed since you chose it, and removes a photograph after a confirmation. Since M3.5 the public artist page shows it (with public reads on); while that page is public the photograph can be removed but not replaced. The tests never call Wikimedia ([HTTP tests](#http-tests)); keep live use light.
 
+### Memories (M3.6)
+
+No migration: memories use tables that exist since M1.2. With `pnpm dev`, the Desk and the new **Memories** page (`/studio/memories`) have **Write a memory**, and a track's page has **Write a memory about this song**, which starts the memory with that recording. A memory is saved only with Save (or Cmd/Ctrl+S); its songs come from your catalog (the field matches titles, artists, and albums), and it can be draft or private, deleted, and restored. It cannot be published yet.
+
+Tests: [`memories.integration.test.ts`](../src/modules/journals/memories.integration.test.ts) and [`memories.concurrency.integration.test.ts`](../src/modules/journals/memories.concurrency.integration.test.ts) (`pnpm test:integration`); the memory section and the visitor table of [`studio-actions.http.test.ts`](../src/testing/studio-actions.http.test.ts) (`pnpm test:http`); and [`e2e/memories.spec.ts`](../e2e/memories.spec.ts) in the `desktop` project and again in `memories-390`, where `E2E_SCREENSHOTS=1` writes to `visual-review/m3-6/` (`pnpm build && E2E_SCREENSHOTS=1 pnpm test:e2e:run --project=desktop --project=memories-390`).
+
 ### Browser tests
 
 `pnpm test:e2e` runs the Writing Studio in a real browser (Chromium, through [Playwright](https://playwright.dev) 1.64.1) against the **production build**, the **disposable test database**, and a **synthetic author**. Nothing reads or writes the development database or the owner's account, and no password of the owner's is ever needed.

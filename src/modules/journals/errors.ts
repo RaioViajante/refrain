@@ -5,7 +5,8 @@ import type { FieldErrors } from "@/validation";
  * Expected failures of journal commands. The code is fixed; it never carries
  * a database message, SQL, or the submitted text.
  *
- * - `entry_not_found`: no such album journal.
+ * - `entry_not_found`: no such album journal (or memory, for the memory
+ *   commands). An entry of another kind is never found.
  * - `entry_not_deleted`: restoring, and "Delete now", are only for entries in
  *   Recently deleted. A repeated or concurrent second restore receives it.
  * - `entry_deleted`: the journal is in Recently deleted, so it cannot change.
@@ -33,6 +34,13 @@ import type { FieldErrors } from "@/validation";
  *   not authentic, too old, or for another state (ADR 0006 § 5 and § 12).
  *   Nothing is written. The first, third, and fourth carry the fresh change
  *   (`delta`), never a token.
+ * - `track_not_found`: a memory names a recording that is not in the catalog.
+ *   (`track_archived` also applies to a memory: a new link to an archived
+ *   recording is refused, and an existing one is kept.)
+ * - `memory_published`: a version of the memory is published, and saving a
+ *   published memory needs the confirmed save that M3.7 builds (ADR 0006
+ *   § 5). Nothing is written. No studio path can publish a memory, so only a
+ *   write outside the application reaches it.
  */
 export type JournalFailure =
   | "invalid_input"
@@ -46,6 +54,8 @@ export type JournalFailure =
   | "slug_unavailable"
   | "track_not_in_album"
   | "track_archived"
+  | "track_not_found"
+  | "memory_published"
   | "unavailable"
   | "nothing_to_publish"
   | "no_current_slug"

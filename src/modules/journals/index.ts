@@ -9,9 +9,14 @@ export { permanentlyDeleteEntry } from "./commands";
 export { JournalError, type JournalFailure } from "./errors";
 export {
   MAX_BODY_LENGTH,
+  MAX_MEMORY_RECORDINGS,
+  MAX_MEMORY_TITLE_LENGTH,
   MAX_OPENING_LENGTH,
+  MAX_REMEMBERED_WHEN_LENGTH,
   MAX_REFLECTION_LENGTH,
   type CreateAlbumJournalInput,
+  type CreateMemoryInput,
+  type SaveMemoryInput,
   type JournalPrivacyInput,
   type SaveAlbumJournalInput,
 } from "./input";
@@ -27,6 +32,14 @@ export type {
   JournalStatistics,
 } from "./queries";
 export type {
+  DeletedMemorySummary,
+  MemoryDetail,
+  MemoryOfRecording,
+  MemoryRecording,
+  MemoryStatistics,
+  MemorySummary,
+} from "./memory-queries";
+export type {
   PublicChangePreviewReview,
   PublicChangeReview,
   PublicationPreview,
@@ -38,7 +51,17 @@ export type {
 } from "./publishing";
 export {
   createAlbumJournal,
+  createMemory,
   deleteAlbumJournal,
+  deleteMemory,
+  getMemory,
+  getMemoryStatistics,
+  listDeletedMemories,
+  listMemories,
+  listMemoriesOfRecording,
+  restoreMemory,
+  saveMemory,
+  setMemoryPrivacy,
   getAlbumJournal,
   getJournalStatistics,
   getTrackByTrack,

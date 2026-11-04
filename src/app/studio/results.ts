@@ -36,6 +36,9 @@ export type StudioFailure =
   | "public_page"
   // Wikimedia Commons (M3.3). Nothing was written.
   | "photo_not_usable"
+  // A memory with a published version cannot be saved until M3.7 builds its
+  // confirmed save. Nothing was written.
+  | "published_memory"
   | "failed";
 
 export type FieldProblem = "required" | "too_long" | "invalid";

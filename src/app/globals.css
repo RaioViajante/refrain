@@ -932,6 +932,188 @@ html:has(.studio-editorbar[data-mode="edit"]) {
   font-variant-numeric: tabular-nums;
 }
 
+/* ---------- The memory editor (M3.6, V4.4 MemoryEditor) ---------- */
+
+/* The memory's title: Kalam, as large as an editor's heading, with one drawn
+   line under it, like the opening sentence. Its label is read, not drawn. */
+.studio-title-field {
+  min-height: 72px;
+  overflow: hidden;
+  resize: none;
+  font-weight: 700;
+  font-size: 52px;
+  line-height: 1.15;
+}
+
+.studio-crumb-sep {
+  color: var(--color-ink-3);
+}
+
+.studio-crumb-current {
+  font-family: var(--font-kalam), cursive;
+  font-size: 19px;
+}
+
+.studio-memory-music {
+  display: grid;
+  gap: 12px;
+}
+
+.studio-memory-songs,
+.studio-memory-choices {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* A song: its square, its title and facts, and under them its controls, so
+   the words keep the column's whole width. */
+.studio-memory-song {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  grid-template-areas:
+    "thumb body"
+    ". controls";
+  gap: 2px 10px;
+  align-items: center;
+  padding: 8px 0;
+}
+
+.studio-memory-thumb {
+  grid-area: thumb;
+  align-self: start;
+}
+
+.studio-memory-song-body {
+  grid-area: body;
+}
+
+.studio-memory-song-controls {
+  grid-area: controls;
+  margin-left: -12px;
+}
+
+/* A catalog match has one control, which fits beside its words. */
+.studio-memory-choices .studio-memory-song {
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  grid-template-areas: "thumb body controls";
+}
+
+.studio-memory-choices .studio-memory-song-controls {
+  margin-left: 0;
+}
+
+.studio-memory-thumb {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--color-rule);
+  background: #fafaf8;
+  color: #333;
+}
+
+.studio-memory-song-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.35;
+}
+
+.studio-memory-song-title,
+.studio-memory-choice-title {
+  font-family: var(--font-kalam), cursive;
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+
+.studio-memory-choice-title {
+  font-family: var(--font-alegreya-sans), sans-serif;
+  font-size: 17px;
+}
+
+.studio-memory-song-facts {
+  font-size: 14px;
+  color: #4f4f4f;
+  overflow-wrap: anywhere;
+}
+
+.studio-memory-song-controls {
+  display: flex;
+}
+
+/* A square line icon that acts: 44px, ink on hover and focus. */
+.studio-icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  background: none;
+  color: var(--color-ink);
+  cursor: pointer;
+}
+
+.studio-icon-button:hover:not(:disabled) {
+  background: var(--stroke-button-hover) center / 100% 100% no-repeat;
+}
+
+.studio-icon-button:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: -2px;
+}
+
+/* At an end of the list there is no place to move to: the arrow fades. */
+.studio-icon-button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.studio-memory-add {
+  display: grid;
+  gap: 0;
+}
+
+.studio-memory-add-field {
+  position: relative;
+  display: block;
+}
+
+.studio-memory-add-field .studio-icon {
+  position: absolute;
+  top: 50%;
+  left: 16px;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.studio-memory-add-field .studio-field {
+  padding-left: 46px;
+}
+
+/* The browser's own clear button is colored; Escape clears the field. */
+.studio-memory-add-field input::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+/* The catalog's matches, in a drawn box under the field, in the page's flow
+   so nothing is covered. */
+.studio-memory-results {
+  padding: 12px 16px;
+  background: var(--stroke-field) 0 0 / 100% 100% no-repeat;
+}
+
+.studio-memory-results-label {
+  font-size: 14px;
+  color: #4f4f4f;
+}
+
+.studio-rule {
+  height: 8px;
+  border: 0;
+  background: var(--stroke-opening-line) 0 50% / 100% 8px no-repeat;
+}
+
 /* ---------- Artwork, panels and dialogs ---------- */
 
 /* Album artwork: a restrained placeholder, and the chosen Cover Art Archive
@@ -1423,6 +1605,21 @@ html:has(.studio-editorbar[data-mode="edit"]) {
     border-bottom: 1px solid CanvasText;
   }
 
+  .studio-memory-results {
+    background-image: none;
+    border: 1px solid CanvasText;
+  }
+
+  .studio-rule {
+    background-image: none;
+    border-top: 1px solid GrayText;
+    height: 0;
+  }
+
+  .studio-memory-thumb {
+    border-color: CanvasText;
+  }
+
   .studio-list::before,
   .studio-row::after,
   .studio-notebook::before,
@@ -1605,6 +1802,18 @@ html:has(.studio-editorbar[data-mode="edit"]) {
 
   .studio-opening-field {
     font-size: 26px;
+  }
+
+  .studio-title-field {
+    min-height: 52px;
+    font-size: 30px;
+  }
+
+  /* A refusal is said in the bar, and on a phone its words make the bar tall
+     enough to cover the field that takes focus next (WCAG 2.4.11). While it
+     says one, the memory editor's bar scrolls with the page. */
+  .studio-editorbar[data-subject="memory"]:has(.studio-problem) {
+    position: static;
   }
 
   .studio-editor-head .studio-title-editor {

@@ -74,11 +74,11 @@ then open `http://localhost:3000`. the studio is at `/studio` and needs the auth
 
 #### current status
 
-built and merged, local only (through m3.4): the relational core on postgresql 17, single-author sign-in, and the writing studio: artists, albums, tracks, and album journals with track-by-track reflections, ratings, and favourites; recently deleted with restore; and publishing that shows what will become public and waits for the author's confirmation. add music searches musicbrainz and takes covers from the cover art archive. the first public page, an album journal at `/albums/<slug>`, stays behind a switch that is off by default. artist photographs come from wikimedia commons. the public home lists published album journals. backups with a restore check, unit, integration, http, and browser tests, and ci.
+built and merged, local only (through m3.5): the relational core on postgresql 17, single-author sign-in, and the writing studio: artists, albums, tracks, and album journals with track-by-track reflections, ratings, and favourites; recently deleted with restore; and publishing that shows what will become public and waits for the author's confirmation. add music searches musicbrainz and takes covers from the cover art archive. the first public page, an album journal at `/albums/<slug>`, stays behind a switch that is off by default. artist photographs come from wikimedia commons. the public home lists published album journals, and an artist has a public page while a published album journal credits them. backups with a restore check, unit, integration, http, and browser tests, and ci.
 
-in progress: m3.5, public artist pages with the photograph the author chose and its credit, on its own branch and not merged. an artist has a page only while a published album journal credits them.
+in progress: m3.6, the memories studio, on its own branch and not merged: memories written privately, with their songs from the catalog. memories cannot be published yet (m3.7).
 
-planned: memories, artist journals, album and artist lists, the brazilian portuguese interface and its language selector, author translations, "delete now", and the academic release (m4).
+planned: public memory pages (m3.7), artist journals, album and artist lists, the brazilian portuguese interface and its language selector, author translations, "delete now", and the academic release (m4).
 
 nothing is deployed. public pages stay off until the [release gates](docs/security.md#public-page-release-gates) are closed. see [roadmap.md](docs/roadmap.md).
 

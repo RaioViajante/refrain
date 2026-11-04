@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { failureMessage } from "./messages";
+import { failureMessage, type WritingSubject } from "./messages";
 import type { ActionResult } from "./results";
 
 type Failure = Extract<ActionResult<unknown>, { ok: false }>;
@@ -71,6 +71,8 @@ export function useUnsavedGuard(dirty: boolean) {
 interface FieldFrameProps {
   className?: string;
   label: string;
+  /** The label is read by assistive technology but not drawn. */
+  hideLabel?: boolean;
   hint?: string;
   problem?: string;
   htmlFor: string;
@@ -81,6 +83,7 @@ interface FieldFrameProps {
 function FieldFrame({
   className,
   label,
+  hideLabel,
   hint,
   problem,
   htmlFor,
@@ -89,7 +92,10 @@ function FieldFrame({
 }: FieldFrameProps) {
   return (
     <div className={`studio-field-group ${className ?? ""}`}>
-      <label htmlFor={htmlFor} className="studio-label">
+      <label
+        htmlFor={htmlFor}
+        className={hideLabel ? "studio-sr-only" : "studio-label"}
+      >
         {label}
       </label>
       {children}
@@ -120,6 +126,8 @@ interface TextFieldProps {
   autoComplete?: HTMLInputAutoCompleteAttribute;
   lang?: string;
   width?: string;
+  placeholder?: string;
+  hideLabel?: boolean;
   /** "opening" draws the sentence in Kalam light, with one line under it. */
   variant?: "opening";
 }
@@ -139,6 +147,8 @@ export function TextField({
   autoComplete = "off",
   lang,
   width,
+  placeholder,
+  hideLabel,
   variant,
 }: TextFieldProps) {
   const id = useId();
@@ -146,6 +156,7 @@ export function TextField({
   return (
     <FieldFrame
       label={label}
+      hideLabel={hideLabel}
       hint={hint}
       problem={problem}
       htmlFor={id}
@@ -157,6 +168,7 @@ export function TextField({
         className={
           variant === "opening" ? "studio-opening-field" : "studio-field"
         }
+        placeholder={placeholder}
         style={width ? { maxWidth: width } : undefined}
         value={value}
         onChange={(event: ChangeEvent<HTMLInputElement>) =>
@@ -169,6 +181,81 @@ export function TextField({
         inputMode={inputMode}
         autoComplete={autoComplete}
         lang={lang}
+        aria-invalid={problem ? true : undefined}
+        aria-describedby={describedBy}
+      />
+    </FieldFrame>
+  );
+}
+
+/**
+ * A title written as one line in Kalam, as large as an editor's heading, with
+ * one drawn line under it. It wraps instead of scrolling out of sight, and it
+ * grows with what is written: a textarea that holds one line, where Enter
+ * adds nothing and a pasted line break becomes a space. Its label is read by
+ * assistive technology, and the placeholder is what is drawn.
+ */
+export function TitleField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  problem,
+  maxLength,
+  lang,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  problem?: string;
+  maxLength?: number;
+  lang?: string;
+}) {
+  const id = useId();
+  const describedBy = `${id}-note`;
+  const area = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const element = area.current;
+    if (!element) {
+      return;
+    }
+    const fit = () => {
+      element.style.height = "auto";
+      element.style.height = `${element.scrollHeight}px`;
+    };
+    fit();
+    // The width changes the number of lines too.
+    const observer = new ResizeObserver(fit);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [value]);
+  return (
+    <FieldFrame
+      label={label}
+      hideLabel
+      problem={problem}
+      htmlFor={id}
+      describedBy={describedBy}
+    >
+      <textarea
+        id={id}
+        ref={area}
+        rows={1}
+        className="studio-opening-field studio-title-field"
+        value={value}
+        placeholder={placeholder}
+        maxLength={maxLength}
+        lang={lang}
+        spellCheck
+        onChange={(event) =>
+          onChange(event.target.value.replace(/\r?\n/g, " "))
+        }
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+          }
+        }}
         aria-invalid={problem ? true : undefined}
         aria-describedby={describedBy}
       />
@@ -247,6 +334,7 @@ interface TextAreaFieldProps {
   rows?: number;
   maxLength?: number;
   lang?: string;
+  placeholder?: string;
 }
 
 export function TextAreaField({
@@ -258,6 +346,7 @@ export function TextAreaField({
   rows = 16,
   maxLength,
   lang,
+  placeholder,
 }: TextAreaFieldProps) {
   const id = useId();
   const describedBy = `${id}-note`;
@@ -277,6 +366,7 @@ export function TextAreaField({
         rows={rows}
         maxLength={maxLength}
         lang={lang}
+        placeholder={placeholder}
         spellCheck
         aria-invalid={problem ? true : undefined}
         aria-describedby={describedBy}
@@ -480,17 +570,20 @@ export function FormStatus({
   failure,
   saved,
   dirty,
+  subject,
 }: {
   pending: boolean;
   failure?: Failure;
   saved?: boolean;
   dirty?: boolean;
+  /** What the form edits, for the words of a refusal. */
+  subject?: WritingSubject;
 }) {
   let text = "";
   if (pending) {
     text = "Saving…";
   } else if (failure) {
-    text = failureMessage(failure);
+    text = failureMessage(failure, subject);
   } else if (dirty) {
     text = "Unsaved changes";
   } else if (saved) {

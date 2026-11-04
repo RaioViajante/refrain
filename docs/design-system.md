@@ -1,6 +1,6 @@
 # Design System
 
-**Status:** visual identity approved (design V4.4, October 31, 2026). **Implemented for the Writing Studio** ([working specification](design/studio-visual-fidelity.md)), **since M3.1 for the first public page, the album journal** ([below](#public-album-journal-m31)), **since M3.4 for the Home** ([below](#public-home-m34)), **and since M3.5 for the artist page** ([below](#public-artist-page-m35)); the other public pages (lists, artist journals, memories) do not exist yet. This document summarizes the approved design for implementation. It does not redesign anything.
+**Status:** visual identity approved (design V4.4, October 31, 2026). **Implemented for the Writing Studio** ([working specification](design/studio-visual-fidelity.md)), **since M3.1 for the first public page, the album journal** ([below](#public-album-journal-m31)), **since M3.4 for the Home** ([below](#public-home-m34)), **since M3.5 for the artist page** ([below](#public-artist-page-m35)), **and since M3.6 for the studio's memory editor** ([below](#memories-studio-m36)); the other public pages (lists, artist journals, memories) do not exist yet. This document summarizes the approved design for implementation. It does not redesign anything.
 
 ## Authority
 
@@ -287,6 +287,29 @@ The photograph follows the approved `ArtistEditor` and `Artist` screens: the **4
 | A candidate shown as the artist | Candidates are named by their file ("Candidate: …"), with "A search finds words, not people." | Neither a search nor Wikidata proves who is in a photograph |
 
 The frame and the attribution are presentational components with no administrative control ([`artist-photograph.tsx`](../src/app/studio/artist-photograph.tsx)). Since M3.5 the public artist page shows the photograph with its own components in the public style, sharing the caption rule ([below](#public-artist-page-m35)). A photograph whose thumbnail fails to load is removed from the frame, so only the fallback remains (no broken-image icon). Checked in a browser at 1280px and 390px with axe, 44px targets, and no sideways scrolling (`e2e/photos.spec.ts`).
+
+## Memories Studio (M3.6)
+
+The memory editor follows the approved `MemoryEditor` and `MemoryEditorMobile` screens: the action bar (the way back, "New memory" or "Memory" in Kalam, the status mark, the save state, and Save); the title in Kalam at 52px (30px on a phone) over one drawn line, with "A title for this memory" as its placeholder; **When** with "a date, a season, a year" and "However you remember it. It doesn't need to be exact."; **The memory** with "Write what you remember…" and its word count; and, in the 300px margin (under the writing on a phone), **The music** (each song in a 44px frame with the note icon, its title in Kalam and a quiet line of facts), the add field with its plus, the "In your catalog" box of matches, **Written in**, a drawn rule, and **Delete…** with "Its songs stay in your catalog." The Desk lists memories with the note icon; Recently deleted lists them under their own heading; a track's page has **Write a memory about this song**. No new component: the fields, buttons, status marks, dialogs, rows, and line icons are the studio's own.
+
+| Approved screen | Studio | Why |
+| --- | --- | --- |
+| Preview and Publish… in the bar and in the margin | Not shown. The margin says "Publishing memories isn't available yet, so a memory stays yours alone." | Memories have no public reading contract until M3.7, and a control that cannot work would be a false promise. Preview needs the public memory page |
+| "Public pages" in the header | Not shown, as on every studio screen | Unchanged from the studio's existing header |
+| "Add a song or album", and "Search MusicBrainz for …" in the matches | "Add a song", matching recordings in the catalog only | Owner decision for M3.6: catalog recordings only, no album links and no external search yet |
+| Each song: Move up and Remove, beside the words | Move up, Move down, and Remove, each a 44px target, in a row under the song's words; the names say which song and its place ("Move Holocene up (song 2 of 3)") | The owner asked for up and down; three 44px targets beside the words would leave a title about 100px in the 300px margin. Two same-named recordings must not have the same control names |
+| The song's line: "Song · artist" | "Song · artists · on album · length", each only when the catalog has it, and "archived in your catalog" for a link kept to an archived recording | The owner's rule for telling recordings with one title apart, from catalog facts only |
+| "Written in" as a select | The fact, "English", with "Memories are written in English for now. Nothing is translated for you." | Owner decision: English-only memories in M3.6 |
+| Visibility (in the reference's logic, not drawn in the capture) | **Visibility**: the state in words ("Draft. Unfinished and private.", "Private. Only you can see it.") and Draft and Private as a pressed-button pair, as on the album journal | The studio's existing control for the two private states |
+| Delete dialog: "moves to Recently deleted for 30 days, then it's gone" | "… moves to Recently deleted. Its writing is kept there, and nothing removes it automatically: you can restore it whenever you want. Its songs stay in your catalog." | The interim copy of [Recently deleted](#recently-deleted) (INV-4): there is no automatic purge |
+| The title as a one-line field | A field that wraps and grows as the title does; Enter adds nothing | A long title would scroll out of sight at 52px |
+| — | "Artists, from the music": the credited artists of the songs, each once, in the songs' order | The reference's dictionary names it; Product § Memory derives a memory's artists from its music |
+| The Desk: one list of every kind, "New memory" as the primary button | Memories in their own section after the journals; "Write a journal" stays primary and "Write a memory" sits beside it | The journal rows carry the AC-05 figures and the academic queries stay unchanged; see [Visual fidelity](design/studio-visual-fidelity.md) |
+| The title's placeholder, light grey | The studio's placeholder ink (`--color-ink-3`), as on every studio field | The same contrast as the other placeholders. The label "Title" is read by assistive technology and not drawn, as in the reference |
+| "Save" in the bar | "Save as draft" while the memory is new, "Save" after | As in the album journal's editor: the first save creates a private draft |
+| A save refused with a long message, on a phone | The memory editor's bar stops being sticky while it shows a refusal | Its words would otherwise cover the field that takes focus next (WCAG 2.4.11). The album journal's editor has the same pattern, recorded for a later change |
+
+A memory in Recently deleted opens read-only, with its title, "when", writing, and songs, and Restore…. Checked in a browser at 1280px and 390px (`e2e/memories.spec.ts`) with axe-core (WCAG 2.2 A and AA), 44px targets, keyboard reordering with focus kept on the song that moved, and no sideways scroll.
 
 ## Writing Studio controls for ADR 0002
 

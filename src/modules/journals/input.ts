@@ -155,3 +155,88 @@ export const journalPrivacyInput = z.object({
 export type JournalPrivacyInput = z.input<typeof journalPrivacyInput>;
 
 export const journalId = z.uuid();
+
+// ---------------------------------------------------------------------------
+// Memories (M3.6)
+//
+// A memory is titled writing, an optional free-text "when", and an ordered
+// list of recordings from the catalog. It has no rating and no favourite, and
+// it never touches an album journal or its track reflections.
+//
+// Owner decisions for M3.6: a memory is written in English (the studio's only
+// implemented writing language for memories; nothing is translated), and the
+// recording list holds catalog recordings only (`memory_music.track_id`).
+
+export const MAX_MEMORY_TITLE_LENGTH = 200;
+export const MAX_REMEMBERED_WHEN_LENGTH = 200;
+export const MAX_MEMORY_RECORDINGS = 50;
+
+/** The memory's title: one line, never blank (docs/data-model.md). */
+const memoryTitle = z
+  .string()
+  .transform((value) =>
+    cleanText(value)
+      .replace(/\s*\n\s*/g, " ")
+      .trim(),
+  )
+  .pipe(z.string().min(1).max(MAX_MEMORY_TITLE_LENGTH));
+
+/** "A date, a season, a year": one line; `null` or blank clears it. */
+const rememberedWhen = z
+  .string()
+  .transform((value) =>
+    cleanText(value)
+      .replace(/\s*\n\s*/g, " ")
+      .trim(),
+  )
+  .pipe(z.string().max(MAX_REMEMBERED_WHEN_LENGTH))
+  .transform((value) => (value === "" ? null : value))
+  .nullable();
+
+/**
+ * The ordered recordings, by catalog id. The order is the list's order, and a
+ * recording appears at most once (also a database constraint).
+ */
+const recordingIds = z
+  .array(z.uuid())
+  .max(MAX_MEMORY_RECORDINGS)
+  .refine((list) => new Set(list).size === list.length, {
+    message: "duplicate",
+  });
+
+export const createMemoryInput = z.object({
+  // English only in M3.6 (owner decision). Recorded as the original language.
+  locale: z.literal("en").optional().default("en"),
+  title: memoryTitle,
+  rememberedWhen: rememberedWhen.optional().transform((value) => value ?? null),
+  body: body.optional().transform((value) => value ?? ""),
+  trackIds: recordingIds.optional().default([]),
+});
+export type CreateMemoryInput = z.input<typeof createMemoryInput>;
+
+export const saveMemoryInput = z
+  .object({
+    entryId: z.uuid(),
+    // The `entries.version` the editor loaded.
+    expectedVersion: z.number().int().min(1).max(2_147_483_647),
+    title: memoryTitle,
+    rememberedWhen,
+    body,
+    // The whole ordered list: what is left out is unlinked, never deleted
+    // from the catalog.
+    trackIds: recordingIds,
+  })
+  .partial({
+    title: true,
+    rememberedWhen: true,
+    body: true,
+    trackIds: true,
+  })
+  .refine(
+    (save) =>
+      save.title !== undefined ||
+      save.rememberedWhen !== undefined ||
+      save.body !== undefined ||
+      save.trackIds !== undefined,
+  );
+export type SaveMemoryInput = z.input<typeof saveMemoryInput>;
