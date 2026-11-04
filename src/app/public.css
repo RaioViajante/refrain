@@ -490,6 +490,138 @@ a.public-link:hover,
   font-variant-numeric: tabular-nums;
 }
 
+/* The "All …" link under a section's title (V4.4 `.mh .sm a.ink`, M3.8b): the
+   small text, 10px under the title, with the header links' drawn underline on
+   hover and focus, and the arrow 6px after the words; 44px tall. */
+.ph-all {
+  margin: 10px 0 0;
+  font-size: 16.5px;
+  line-height: 1.55;
+}
+
+.ph-all-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 2px;
+  color: var(--color-ink);
+  text-decoration: none;
+  background: var(--stroke-underline) 0 calc(100% - 6px) / 0% 7px no-repeat;
+  transition: background-size 0.35s ease;
+}
+
+.ph-all-link:hover,
+.ph-all-link:focus-visible {
+  background-size: 100% 7px;
+}
+
+.ph-all-icon {
+  flex: none;
+}
+
+/* A memory's row in Recently written: the note mark where an album journal
+   has its 48px frame (V4.4 `.rec3 .th`). */
+.ph-row-mark {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+  display: flex;
+  justify-content: flex-end;
+  width: 48px;
+  color: var(--color-ink-2);
+}
+
+.ph-row-mark-icon {
+  flex: none;
+}
+
+/* Artists (V4.4 `.arjs`, M3.8b): three to a row, each a 96px frame in the
+   photograph's 4:5 with the person mark (never a photograph on the Home),
+   18px from the name in Kalam and the Artists archive's count. */
+.ph-artists {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 28px 36px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ph-artist {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+  min-height: 44px;
+  color: var(--color-ink);
+  text-decoration: none;
+}
+
+/* At 96px the large frame's wobble shrinks to nothing; the small one is drawn
+   at a thumbnail's own scale, as for the Home's rows. */
+.ph-portrait {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 4 / 5;
+  color: var(--color-ink-2);
+  background:
+    var(--stroke-frame-small) 0 0 / 100% 100% no-repeat,
+    var(--color-paper);
+}
+
+.ph-portrait-icon {
+  flex: none;
+}
+
+.ph-artist-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ph-artist-name {
+  font-family: var(--font-kalam), cursive;
+  font-size: 22px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.ph-artist-meta {
+  font-size: 16.5px;
+  line-height: 1.55;
+  color: var(--color-ink-3);
+}
+
+.ph-artist:hover .ph-artist-name {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 5px;
+}
+
+/* Memories (V4.4 `.mem`): the Memories archive's own list and measures. */
+.ph-memories {
+  min-width: 0;
+}
+
+/* Between the phone layout and a wide screen, as for the albums: three
+   artists beside the margin column leave a name about 90px wide at 1024px,
+   so two to a row from 961px to 1100px, and one from 721px to 960px. */
+@media (max-width: 1100px) {
+  .ph-artists {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 960px) {
+  .ph-artists {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 22px;
+  }
+}
+
 /* The public archives (the approved V4.4 `Albums`, `Artists`, and `Memories`
    screens, M3.8a): the notebook layout, an empty 220px margin beside one
    writing column, 64px apart, 72px under the navigation; the title in Kalam
@@ -1938,9 +2070,17 @@ article.pa-grid {
     grid-row: 2;
   }
 
-  .ph-thumb {
+  .ph-thumb,
+  .ph-row-mark {
     grid-column: 2;
     grid-row: 1 / span 2;
+  }
+
+  /* Artists on a phone (V4.4 mobile): one to a row, a 76px frame, 14px from
+     the name. */
+  .ph-artist {
+    grid-template-columns: 76px minmax(0, 1fr);
+    gap: 14px;
   }
 
   .ph-albums {
@@ -2037,6 +2177,7 @@ article.pa-grid {
 
 @media (prefers-reduced-motion: reduce) {
   .public-link,
+  .ph-all-link,
   .pa-credit-details .pj-chevron,
   .pj-chevron {
     transition: none;
@@ -2058,9 +2199,15 @@ article.pa-grid {
 
   .ph-art-fallback,
   .ph-thumb .ph-art-fallback,
-  .pm-song-art .ph-art-fallback {
+  .pm-song-art .ph-art-fallback,
+  .ph-portrait {
     background-image: none;
     border: 1px solid CanvasText;
+  }
+
+  .ph-all-link {
+    background-image: none;
+    text-decoration: underline;
   }
 
   .ph-rows,

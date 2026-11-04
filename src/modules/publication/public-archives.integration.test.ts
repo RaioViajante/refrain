@@ -39,7 +39,10 @@ import {
 } from "./public-archives";
 import { listPublicAlbumJournalAddresses } from "./public-album-journal";
 import { listPublicArtistAddresses } from "./public-artist";
-import { listRecentPublicAlbumJournals } from "./public-home";
+import {
+  listRecentPublicEntries,
+  type PublicHomeAlbumJournal,
+} from "./public-home";
 import { listPublicMemoryAddresses } from "./public-memory";
 import { publicArtistAddresses } from "./queries";
 
@@ -358,7 +361,7 @@ describe("the Albums archive keeps every served journal reachable", () => {
           .map((card) => card.slug)
           .filter((slug) => slug.startsWith(slugOf("")));
 
-      const recent = (await listRecentPublicAlbumJournals(tx, "en")).map(
+      const recent = (await recentAlbumJournals(tx, "en")).map(
         (card) => card.slug,
       );
       expect(recent).toHaveLength(5);
@@ -1028,3 +1031,14 @@ describe("the Albums archive groups by catalog album, never by what a card shows
     });
   });
 });
+
+/** "Recently written", album journals only (the M3.4 assertions). */
+async function recentAlbumJournals(
+  tx: Parameters<typeof listRecentPublicEntries>[0],
+  locale: Parameters<typeof listRecentPublicEntries>[1],
+  limit?: number,
+): Promise<PublicHomeAlbumJournal[]> {
+  return (await listRecentPublicEntries(tx, locale, limit)).filter(
+    (entry): entry is PublicHomeAlbumJournal => entry.kind === "album_journal",
+  );
+}

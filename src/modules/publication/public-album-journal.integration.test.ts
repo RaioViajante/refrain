@@ -22,7 +22,11 @@ import {
   listPublicAlbumJournalAddresses,
 } from "./public-album-journal";
 import { changeEntrySlug } from "./commands";
-import { listPublicAlbums, listRecentPublicAlbumJournals } from "./public-home";
+import {
+  listPublicAlbums,
+  listRecentPublicEntries,
+  type PublicHomeAlbumJournal,
+} from "./public-home";
 import { routeAlbumJournalRequest } from "./public-routing";
 import { resolvePublicSlug } from "./queries";
 
@@ -220,7 +224,7 @@ describe("the public album journal in every state", () => {
       // exactly the visible journals, each dated by the version the oracle
       // chose. Every album here has one journal, so it presents that one.
       const recent = new Map(
-        (await listRecentPublicAlbumJournals(tx, "en", 100_000)).map((card) => [
+        (await recentAlbumJournals(tx, "en", 100_000)).map((card) => [
           card.slug,
           card,
         ]),
@@ -671,3 +675,14 @@ describe("the routing decision", () => {
     ).toEqual({ action: "unavailable" });
   });
 });
+
+/** "Recently written", album journals only (the M3.4 assertions). */
+async function recentAlbumJournals(
+  tx: Parameters<typeof listRecentPublicEntries>[0],
+  locale: Parameters<typeof listRecentPublicEntries>[1],
+  limit?: number,
+): Promise<PublicHomeAlbumJournal[]> {
+  return (await listRecentPublicEntries(tx, locale, limit)).filter(
+    (entry): entry is PublicHomeAlbumJournal => entry.kind === "album_journal",
+  );
+}

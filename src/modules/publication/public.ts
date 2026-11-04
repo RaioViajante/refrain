@@ -79,7 +79,13 @@ export type {
   PublicArtistPhoto,
   PublicArtistTrack,
 } from "./public-artist";
-export type { PublicHome, PublicJournalCard } from "./public-home";
+export type {
+  PublicHome,
+  PublicHomeAlbumJournal,
+  PublicHomeEntry,
+  PublicHomeMemory,
+  PublicJournalCard,
+} from "./public-home";
 export type {
   PublicAlbumCard,
   PublicAlbumJournalLink,
@@ -113,13 +119,13 @@ export async function listPublicAlbumJournalAddresses() {
 }
 
 /**
- * What the public Home lists (M3.4). While reads are off it is the answer for
- * a site with nothing published, so the Home cannot tell the two apart
- * (ADR 0006, amendment A4).
+ * What the public Home lists (M3.4; memories and artists since M3.8b, ADR 0006
+ * A6). While reads are off it is the answer for a site with nothing
+ * published, so the Home cannot tell the two apart (A4), and nothing is read.
  */
 export async function getPublicHome(readerLocale: Locale): Promise<PublicHome> {
   if (!publicReadsEnabled()) {
-    return { recent: [], albums: [] };
+    return { recent: [], albums: [], artists: [], memories: [] };
   }
   return getPublicHomeFrom(getDb(), readerLocale);
 }

@@ -1080,6 +1080,9 @@ describe("the Publication reading module", () => {
     "src/modules/publication/public-archives.ts",
     "src/modules/publication/excerpt.ts",
     "src/modules/publication/text.ts",
+    // M3.8b: the read-only snapshot the Home reads in (ADR 0006 A6, item 8),
+    // apart from the locks, which no reading file may import.
+    "src/modules/publication/snapshot.ts",
     "src/modules/publication/queries.ts",
     "src/modules/publication/predicate.ts",
     "src/modules/publication/slug.ts",
@@ -1095,7 +1098,7 @@ describe("the Publication reading module", () => {
     // nothing else from it (below); and the hash of an artist's address.
     /^@\/integrations\/wikimedia-commons$/,
     /^node:crypto$/,
-    /^\.\/(public|public-reads|public-routing|public-album-journal|public-home|public-artist|public-memory|public-archives|excerpt|memory-music|text|artist-address|queries|predicate|slug)$/,
+    /^\.\/(public|public-reads|public-routing|public-album-journal|public-home|public-artist|public-memory|public-archives|excerpt|memory-music|text|artist-address|queries|predicate|slug|snapshot)$/,
   ];
 
   it("uses only the pure cover parser from the Cover Art Archive integration", () => {
@@ -1316,7 +1319,37 @@ describe("the Publication reading module", () => {
     "returning",
   ]);
 
-  function writerFindings(code: string): string[] {
+  // The one transaction a reading file may open (ADR 0006 A6, item 8): in
+  // `snapshot.ts` alone, and only with options that are, literally, a
+  // read-only REPEATABLE READ transaction. PostgreSQL refuses every write in a
+  // read-only transaction, so it cannot become a writer.
+  function isReadOnlySnapshot(call: ts.CallExpression): boolean {
+    const options = call.arguments[1];
+    if (!options || !ts.isObjectLiteralExpression(options)) {
+      return false;
+    }
+    const values = new Map<string, string>();
+    for (const property of options.properties) {
+      if (
+        !ts.isPropertyAssignment(property) ||
+        !ts.isIdentifier(property.name) ||
+        !ts.isStringLiteral(property.initializer)
+      ) {
+        return false;
+      }
+      values.set(property.name.text, property.initializer.text);
+    }
+    return (
+      values.size === 2 &&
+      values.get("isolationLevel") === "repeatable read" &&
+      values.get("accessMode") === "read only"
+    );
+  }
+
+  function writerFindings(
+    code: string,
+    { snapshotFile = false }: { snapshotFile?: boolean } = {},
+  ): string[] {
     const found: string[] = [];
     const visit = (node: ts.Node) => {
       if (
@@ -1332,7 +1365,12 @@ describe("the Publication reading module", () => {
       if (
         ts.isCallExpression(node) &&
         ts.isPropertyAccessExpression(node.expression) &&
-        WRITE_CALLS.has(node.expression.name.text)
+        WRITE_CALLS.has(node.expression.name.text) &&
+        !(
+          snapshotFile &&
+          node.expression.name.text === "transaction" &&
+          isReadOnlySnapshot(node)
+        )
       ) {
         found.push(`calls .${node.expression.name.text}()`);
       }
@@ -1343,7 +1381,32 @@ describe("the Publication reading module", () => {
   }
 
   it.each(reading)("%s holds no writer", (file) => {
-    expect(writerFindings(readFileSync(file, "utf8"))).toEqual([]);
+    expect(
+      writerFindings(readFileSync(file, "utf8"), {
+        snapshotFile: file === "src/modules/publication/snapshot.ts",
+      }),
+    ).toEqual([]);
+  });
+
+  it("allows the snapshot file exactly one kind of transaction: read only, REPEATABLE READ", () => {
+    const readOnly =
+      'await db.transaction(work, { isolationLevel: "repeatable read", accessMode: "read only" });';
+    expect(writerFindings(readOnly, { snapshotFile: true })).toEqual([]);
+    // Not in any other reading file.
+    expect(writerFindings(readOnly)).not.toEqual([]);
+    for (const code of [
+      "await db.transaction(work);",
+      'await db.transaction(work, { isolationLevel: "repeatable read" });',
+      'await db.transaction(work, { isolationLevel: "repeatable read", accessMode: "read write" });',
+      'await db.transaction(work, { isolationLevel: "read committed", accessMode: "read only" });',
+      'await db.transaction(work, { isolationLevel: "repeatable read", accessMode: "read only", deferrable: true, x: "y" });',
+      "await db.transaction(work, options);",
+      "await db.transaction(work, { ...readOnly });",
+    ]) {
+      expect(writerFindings(code, { snapshotFile: true }), code).not.toEqual(
+        [],
+      );
+    }
   });
 
   it("would notice an unchecked writer added to a reading file", () => {
@@ -1434,6 +1497,10 @@ describe("the Publication reading module", () => {
     "PublicArtwork",
     "PublicCredit",
     "PublicHome",
+    // M3.8b (ADR 0006 A6): the Home's entries, an album journal or a memory.
+    "PublicHomeAlbumJournal",
+    "PublicHomeEntry",
+    "PublicHomeMemory",
     "PublicJournalCard",
     "PublicJournalTrack",
     // M3.7: the memory page, with no identifier, and its reads.
