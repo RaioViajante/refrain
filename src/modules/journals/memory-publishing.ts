@@ -257,32 +257,41 @@ function textValue(value: unknown): { type: "text"; text: ReviewText } {
  * what a reader would see added or changed, in plain text, with the
  * `change_public` token for exactly that change. It takes the save's input,
  * makes the save's refusals, and writes nothing. The songs' names come from
- * a separate read, because they are labels and not part of what is
- * confirmed (the token binds the songs themselves and their order).
+ * a separate read in the same snapshot, because they are labels and not part
+ * of what is confirmed (the token binds the songs themselves and their order).
  */
 export async function previewMemoryPublicChange(
   db: DatabaseExecutor,
   author: AuthorizedAuthor,
   input: unknown,
 ): Promise<PublicChangePreviewReview> {
-  const preview = await previewMemoryChange(db, author, input);
-  const touchesMusic = preview.delta.changes.some(
-    (change) =>
-      change.subject.type === "memoryLink" ||
-      change.subject.type === "memoryOrder",
+  // One read-only snapshot for the delta and the songs' names, so the lists
+  // shown are those of the state the token binds.
+  return db.transaction(
+    async (tx) => {
+      const preview = await previewMemoryChange(tx, author, input);
+      const touchesMusic = preview.delta.changes.some(
+        (change) =>
+          change.subject.type === "memoryLink" ||
+          change.subject.type === "memoryOrder",
+      );
+      let music = { before: [] as string[], after: [] as string[] };
+      if (touchesMusic) {
+        music = await songListsOf(tx, preview.delta.entryId, input);
+      }
+      return {
+        review: toMemoryChangeReview(preview.delta, music),
+        confirmation: preview.confirmation,
+        expiresAtMs: preview.expiresAtMs,
+      };
+    },
+    { isolationLevel: "repeatable read", accessMode: "read only" },
   );
-  let music = { before: [] as string[], after: [] as string[] };
-  if (touchesMusic) {
-    music = await songListsOf(db, preview.delta.entryId, input);
-  }
-  return {
-    review: toMemoryChangeReview(preview.delta, music),
-    confirmation: preview.confirmation,
-    expiresAtMs: preview.expiresAtMs,
-  };
 }
 
-const proposedList = z.object({ trackIds: z.array(z.uuid()).optional() });
+const proposedList = z.object({
+  trackIds: z.array(z.uuid().transform((id) => id.toLowerCase())).optional(),
+});
 
 /**
  * The songs published now and after the save, by their names. `before` is the

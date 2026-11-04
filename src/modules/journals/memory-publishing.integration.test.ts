@@ -907,6 +907,35 @@ describe("saving a published memory (the confirmed save, ADR 0006 § 5)", () => 
     });
   });
 
+  it("treats a recording spelled in upper case as the same link, and a duplicate however spelled as invalid", async () => {
+    await inScratchTransaction(async (tx) => {
+      const f = await publishedMemory(tx);
+      // The same list, spelled in upper case: nothing a reader sees changes.
+      const same = await previewMemoryPublicChange(tx, author, {
+        entryId: f.entryId,
+        expectedVersion: 1,
+        trackIds: [f.a.toUpperCase(), f.b.toUpperCase()],
+      });
+      expect(same.confirmation).toBeNull();
+      await expect(
+        saveMemory(tx, author, {
+          entryId: f.entryId,
+          expectedVersion: 1,
+          trackIds: [f.a.toUpperCase(), f.b],
+        }),
+      ).resolves.toEqual({ version: 2 });
+      expect(
+        await refusedWithoutWriting(tx, (db) =>
+          saveMemory(db, author, {
+            entryId: f.entryId,
+            expectedVersion: 2,
+            trackIds: [f.a, f.a.toUpperCase()],
+          }),
+        ),
+      ).toBe("invalid_input");
+    });
+  });
+
   it("never asks for a draft or private memory", async () => {
     await inScratchTransaction(async (tx) => {
       const music = await setUp(tx);

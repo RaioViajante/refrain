@@ -318,6 +318,30 @@ describe("the confirmed save of a published memory, against concurrent changes",
     );
   });
 
+  it("refuses a confirmed save of a memory deleted while it waited, writing nothing", async () => {
+    const [a] = await newTracks(1);
+    const entryId = await newMemory([a!]);
+    await publishNow(entryId);
+    const input = { entryId, expectedVersion: 1, title: "[Test] Too late" };
+    const { confirmation } = await previewMemoryPublicChange(
+      getDb(),
+      author,
+      input,
+    );
+    const result = await whileLocked(
+      entryId,
+      (tx) =>
+        tx.execute(
+          sql`update entries set deleted_at = now() where id = ${entryId}`,
+        ),
+      (db) => saveMemory(db, author, { ...input, confirmation: confirmation! }),
+    );
+    expect(result).toBe("entry_deleted");
+    expect((await getMemory(getDb(), author, entryId))!.title).not.toBe(
+      "[Test] Too late",
+    );
+  });
+
   it("lets exactly one of two confirmed saves from the same version through", async () => {
     const [a, b] = await newTracks(2);
     const entryId = await newMemory([a!, b!]);

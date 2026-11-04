@@ -198,7 +198,9 @@ const rememberedWhen = z
  * recording appears at most once (also a database constraint).
  */
 const recordingIds = z
-  .array(z.uuid())
+  // Lower case, as the database returns ids, so that the same recording
+  // spelled in upper case is the same link, and a duplicate however spelled.
+  .array(z.uuid().transform((id) => id.toLowerCase()))
   .max(MAX_MEMORY_RECORDINGS)
   .refine((list) => new Set(list).size === list.length, {
     message: "duplicate",

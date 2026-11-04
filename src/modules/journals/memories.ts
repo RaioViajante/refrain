@@ -143,9 +143,12 @@ async function checkRecordings(
  * key is what refuses it; nothing about the catalog changes.)
  */
 function linkRefusal(error: unknown): unknown {
-  return databaseErrorOf(error)?.constraint === "memory_music_track_fk"
+  const constraint = databaseErrorOf(error)?.constraint;
+  return constraint === "memory_music_track_fk"
     ? new JournalError("track_not_found")
-    : error;
+    : constraint === "memory_music_track_unique"
+      ? new JournalError("invalid_input")
+      : error;
 }
 
 /**
