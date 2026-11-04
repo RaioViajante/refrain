@@ -235,7 +235,7 @@ describe("concurrent memory commands", () => {
     expect(unchanged!.title).not.toBe("[Test] Never saved");
   });
 
-  it("refuses a save that waited for the lock while the memory was published, writing nothing", async () => {
+  it("asks for a confirmation of a save that waited for the lock while the memory was published, writing nothing", async () => {
     const memoryId = await newMemory();
     const refused = await withConnections(2, async ([one, two]) => {
       let release!: () => void;
@@ -244,7 +244,7 @@ describe("concurrent memory commands", () => {
       const published = new Promise<void>(
         (resolve) => (publishedYet = resolve),
       );
-      // Stands in for a publication (M3.7, or a write from outside the
+      // Stands in for a publication (or a write from outside the
       // application): it holds the entry lock, as the publish command does,
       // and commits while the save waits for that lock.
       const publishing = one!.transaction(async (tx) => {
@@ -276,7 +276,9 @@ describe("concurrent memory commands", () => {
       await publishing;
       return saving;
     });
-    expect(refused).toBe("memory_published");
+    // The save read the publication after the lock was granted, so the
+    // change it makes is a change to a public page, which needs a token.
+    expect(refused).toBe("confirmation_required");
     const memory = await getMemory(getDb(), author, memoryId);
     expect(memory!.body).toBe("[Test] Words.");
     expect(memory!.version).toBe(1);

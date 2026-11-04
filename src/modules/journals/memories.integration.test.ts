@@ -560,25 +560,26 @@ describe("saving a memory", () => {
     });
   });
 
-  it("refuses to save a memory with a published version (the confirmed save is M3.7), writing nothing", async () => {
+  it("asks for a confirmation before a save adds to or changes a published memory, writing nothing without one (M3.7)", async () => {
     await inScratchTransaction(async (tx) => {
       const music = await setUp(tx);
       const { entryId } = await createMemory(tx, author, {
-        title: "[Test] Published elsewhere",
+        title: "[Test] Published",
         body: "[Test] Words.",
-        trackIds: [music.a],
+        rememberedWhen: "[Test] Then",
+        trackIds: [music.a, music.b],
       });
-      // No studio path can publish a memory. The engine can, so this stands
-      // in for a write from outside the application.
       await publishForTest(tx, entryId, "en");
       const version = (await getMemory(tx, author, entryId))!.version;
 
+      // An addition or an edit of anything a reader sees needs a token.
       for (const change of [
         { title: "[Test] Changed" },
-        { body: "" },
+        { title: "[Test]" },
+        { body: "[Test] Words" },
         { rememberedWhen: "[Test] Now" },
-        { trackIds: [] },
-        { trackIds: [music.a, music.b] },
+        { trackIds: [music.a, music.b, music.single] },
+        { trackIds: [music.b, music.a] },
       ]) {
         expect(
           await refusedWithoutWriting(tx, (db) =>
@@ -588,11 +589,40 @@ describe("saving a memory", () => {
               ...change,
             }),
           ),
-        ).toBe("memory_published");
+          JSON.stringify(change),
+        ).toBe("confirmation_required");
       }
+      // A published memory keeps its writing.
+      expect(
+        await refusedWithoutWriting(tx, (db) =>
+          saveMemory(db, author, {
+            entryId,
+            expectedVersion: version,
+            body: "",
+          }),
+        ),
+      ).toBe("nothing_to_publish");
+
+      // A removal needs none: a song, then the "when".
+      const removed = await saveMemory(tx, author, {
+        entryId,
+        expectedVersion: version,
+        trackIds: [music.b],
+      });
+      expect(removed.version).toBe(version + 1);
+      const cleared = await saveMemory(tx, author, {
+        entryId,
+        expectedVersion: removed.version,
+        rememberedWhen: "",
+      });
+      expect(cleared.version).toBe(version + 2);
+      const memory = (await getMemory(tx, author, entryId))!;
+      expect(memory.rememberedWhen).toBeNull();
+      expect(memory.recordings.map((r) => r.trackId)).toEqual([music.b]);
+      expect(memory.status).toBe("published");
 
       // Unpublishing only reduces what readers see, and is allowed; then the
-      // memory saves again.
+      // memory saves without asking.
       await setMemoryPrivacy(tx, author, {
         entryId,
         locale: "en",
@@ -601,7 +631,7 @@ describe("saving a memory", () => {
       });
       await saveMemory(tx, author, {
         entryId,
-        expectedVersion: version,
+        expectedVersion: cleared.version,
         title: "[Test] Private again",
       });
     });

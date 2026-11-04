@@ -12,10 +12,16 @@ import {
 } from "@/db";
 import type { AuthorizedAuthor } from "@/modules/identity";
 import {
+  assertWrittenAsPredicted,
   normalizeSlug,
+  previewPublicChange,
+  requirePublicChangeConfirmation,
   reserveInitialSlug,
   restoreDeletedEntry,
   unpublishLanguageVersion,
+  verifyChangeConfirmation,
+  type ProposedChange,
+  type PublicChangePreview,
 } from "@/modules/publication";
 import { fieldErrorsOf } from "@/validation";
 
@@ -29,7 +35,7 @@ import {
   saveMemoryInput,
 } from "./input";
 
-// Memory commands (M3.6): the private studio's writing of the `memory` entry
+// Memory commands (M3.6, M3.7): the studio's writing of the `memory` entry
 // kind. Each validates its own input with Zod and runs in one transaction
 // (docs/data-model.md § Transaction boundaries 2, 3, 4, 8, and 10), and each
 // mutation takes the `AuthorizedAuthor` that only Identity can create.
@@ -38,14 +44,15 @@ import {
 //
 // - **Publish.** A memory starts as a `draft`, and the only visibility change
 //   here goes through the Publication module's `unpublishLanguageVersion`,
-//   which can reach only `draft` or `private`. There is no memory wrapper
-//   around the publish engine: the public reading contract of a memory, its
-//   disclosure in the studio, and its confirmed save are M3.7.
-// - **Save a published memory.** Saving writing that readers can see needs
-//   the author's confirmation of exactly that change (ADR 0006 § 5), which
-//   M3.7 builds for memories. Until then a memory with a published version
-//   is refused (`memory_published`) and nothing is written. No studio path
-//   can publish a memory, so only a write outside the application gets here.
+//   which can reach only `draft` or `private`. Publishing is the memory
+//   wrapper of the Publication engine (`memory-publishing.ts`), with a token
+//   from a separate preview (ADR 0006 § 4).
+// - **Change a public memory without a confirmation.** Saving a memory that
+//   readers can see is the confirmed save of ADR 0006 § 5 (M3.7): anything it
+//   would add to the public page, or change on it, needs a `change_public`
+//   token for exactly that change, checked under the entry lock before the
+//   first write. A save that only removes something (a song, the "when")
+//   needs none.
 // - **Touch another kind of entry.** Every command locks the entry joined to
 //   the `memories` subtype table, so an album journal (or anything else) is
 //   `entry_not_found` and its rows are never read for writing.
@@ -70,20 +77,19 @@ function parse<Schema extends z.ZodType>(
 interface LockedMemory {
   deleted: boolean;
   version: number;
-  /** Whether any language version is published right now. */
-  published: boolean;
 }
 
 // Locks the entry of a memory for the rest of the transaction (ADR 0006 § 7,
-// L1), so saves, privacy changes, deletions, and restores of one memory run
-// one after the other. Joining the subtype table means an entry of another
-// kind is never found.
+// L1), so saves, publications, privacy changes, deletions, and restores of one
+// memory run one after the other. Joining the subtype table means an entry of
+// another kind is never found.
 //
-// The language versions are read in a second statement, after the lock is
-// held. Read in the locking statement, they would come from the snapshot it
-// started with: a publication that committed while this transaction waited
-// for the lock would not be seen (READ COMMITTED re-reads only the locked
-// row), and a save could then change writing that had just become public.
+// Whatever a command decides from the language versions or the memory's rows
+// is read in later statements, after the lock is held. Read in the locking
+// statement, they would come from the snapshot it started with: a publication
+// that committed while this transaction waited for the lock would not be seen
+// (READ COMMITTED re-reads only the locked row). The confirmed save's gate
+// (`requirePublicChangeConfirmation`) reads them that way.
 async function lockMemory(
   tx: Transaction,
   entryId: string,
@@ -98,15 +104,7 @@ async function lockMemory(
   if (!row) {
     throw new JournalError("entry_not_found");
   }
-  const versions = await tx.execute<{ published: boolean }>(sql`
-    select exists (select 1 from entry_texts
-                    where entry_id = ${entryId} and status = 'published')
-             as published`);
-  return {
-    deleted: row.deleted,
-    version: row.version,
-    published: versions.rows[0]!.published,
-  };
+  return { deleted: row.deleted, version: row.version };
 }
 
 /**
@@ -216,6 +214,88 @@ export async function createMemory(
   );
 }
 
+type ParsedMemorySave = z.output<typeof saveMemoryInput>;
+
+/**
+ * Validates a save against the stored rows, and returns what it would change
+ * in the form the Publication module weighs (ADR 0006 § 5). Nothing is
+ * written. Works inside the locked save and inside the preview's read-only
+ * snapshot, so the two refuse exactly the same requests: `entry_not_found`,
+ * `unsupported_content` (writing the plain editor cannot reproduce, or a list
+ * for a memory that links an album, which the studio cannot show and would
+ * otherwise drop), `track_not_found`, and `track_archived`.
+ */
+async function prepareMemoryChange(
+  tx: Transaction,
+  data: ParsedMemorySave,
+): Promise<ProposedChange> {
+  const change: ProposedChange = {};
+
+  if (data.title !== undefined || data.body !== undefined) {
+    const [stored] = await tx
+      .select({
+        locale: schema.entryTexts.locale,
+        body: schema.entryTexts.body,
+      })
+      .from(schema.entryTexts)
+      .where(
+        and(
+          eq(schema.entryTexts.entryId, data.entryId),
+          eq(schema.entryTexts.isOriginal, true),
+        ),
+      );
+    if (!stored) {
+      throw new JournalError("entry_not_found");
+    }
+    const version: NonNullable<ProposedChange["version"]> = {
+      locale: stored.locale,
+    };
+    if (data.title !== undefined) {
+      version.title = data.title;
+    }
+    if (data.body !== undefined) {
+      // The stored text is only replaced when the editor reproduces it
+      // exactly. Otherwise it is left untouched.
+      if (editableText(stored.body) === null) {
+        throw new JournalError("unsupported_content");
+      }
+      const document = textToDocument(data.body ?? "");
+      version.body = {
+        document,
+        text: document ? documentToText(document)! : "",
+      };
+    }
+    change.version = version;
+  }
+
+  const memory: NonNullable<ProposedChange["memory"]> = {};
+  if (data.rememberedWhen !== undefined) {
+    memory.rememberedWhen = data.rememberedWhen;
+  }
+  if (data.trackIds !== undefined) {
+    const linked = await tx
+      .select({
+        trackId: schema.memoryMusic.trackId,
+        albumId: schema.memoryMusic.albumId,
+      })
+      .from(schema.memoryMusic)
+      .where(eq(schema.memoryMusic.memoryId, data.entryId));
+    if (linked.some((link) => link.albumId !== null)) {
+      throw new JournalError("unsupported_content");
+    }
+    await checkRecordings(
+      tx,
+      data.trackIds,
+      new Set(linked.map((link) => link.trackId!)),
+    );
+    memory.trackIds = data.trackIds;
+  }
+  if (Object.keys(memory).length > 0) {
+    change.memory = memory;
+  }
+  return change;
+}
+
 /**
  * Saves a memory, one transaction (data model, boundaries 3 and 8): its
  * title, its writing, its "when", and its ordered recordings, together or
@@ -229,24 +309,40 @@ export async function createMemory(
  *   left out is unlinked (the link row is deleted, never the recording), one
  *   kept keeps its link and takes its new place, and one added is checked
  *   like a new link (`track_not_found`, `track_archived`).
+ * - **A confirmed save (ADR 0006 § 5).** When the memory is public and the
+ *   save would add something to its page or change something on it (the
+ *   title or the writing, longer or shorter; the "when"; a song added; the
+ *   order of the songs), it needs a `confirmation` token from
+ *   `previewMemoryChange` for exactly that change. Without one it is refused
+ *   as `confirmation_required` and nothing is written; so is an expired,
+ *   stale, or misbound one. A save that only removes something from the page
+ *   (a song, the "when"), or changes nothing a reader sees, needs none. A
+ *   public memory cannot be left without writing (`nothing_to_publish`).
  * - Refused, writing nothing: a memory in Recently deleted (`entry_deleted`),
- *   a memory with a published version (`memory_published`; see the module
- *   comment), writing the plain editor cannot reproduce exactly
- *   (`unsupported_content`, for the body), and a list for a memory that links
- *   an album (`unsupported_content`: the studio links recordings only, and an
- *   album link is left untouched rather than dropped).
+ *   writing the plain editor cannot reproduce exactly (`unsupported_content`,
+ *   for the body), and a list for a memory that links an album
+ *   (`unsupported_content`: the studio links recordings only, and an album
+ *   link is left untouched rather than dropped).
  * - Visibility is never touched.
  *
  * Returns the new version.
  */
 export async function saveMemory(
   db: DatabaseExecutor,
-  _author: AuthorizedAuthor,
+  author: AuthorizedAuthor,
   input: unknown,
 ): Promise<{ version: number }> {
   const data = parse(saveMemoryInput, input);
-  return translatePublication(() =>
-    db.transaction(async (tx) => {
+  return translatePublication(async () => {
+    // A pure computation: a forged token is refused before it holds a lock.
+    const presented =
+      data.confirmation === undefined
+        ? undefined
+        : verifyChangeConfirmation(author, data.confirmation, {
+            entryId: data.entryId,
+            expectedVersion: data.expectedVersion,
+          });
+    return db.transaction(async (tx) => {
       const memory = await lockMemory(tx, data.entryId);
       if (memory.deleted) {
         throw new JournalError("entry_deleted");
@@ -254,59 +350,26 @@ export async function saveMemory(
       if (memory.version !== data.expectedVersion) {
         throw new JournalError("version_conflict");
       }
-      if (memory.published) {
-        throw new JournalError("memory_published");
-      }
 
       // Every check comes before the first write, so a refusal writes nothing.
-      if (data.body !== undefined) {
-        const [stored] = await tx
-          .select({ body: schema.entryTexts.body })
-          .from(schema.entryTexts)
-          .where(
-            and(
-              eq(schema.entryTexts.entryId, data.entryId),
-              eq(schema.entryTexts.isOriginal, true),
-            ),
-          );
-        if (!stored) {
-          throw new JournalError("entry_not_found");
-        }
-        if (editableText(stored.body) === null) {
-          throw new JournalError("unsupported_content");
-        }
-      }
+      const change = await prepareMemoryChange(tx, data);
+      // Nothing is written before this passes (ADR 0006 § 5).
+      const { predicted } = await requirePublicChangeConfirmation(tx, author, {
+        entryId: data.entryId,
+        expectedVersion: data.expectedVersion,
+        change,
+        confirmation: presented,
+      });
 
-      let linked: { trackId: string | null; albumId: string | null }[] = [];
-      if (data.trackIds !== undefined) {
-        linked = await tx
-          .select({
-            trackId: schema.memoryMusic.trackId,
-            albumId: schema.memoryMusic.albumId,
-          })
-          .from(schema.memoryMusic)
-          .where(eq(schema.memoryMusic.memoryId, data.entryId))
-          .orderBy(schema.memoryMusic.position);
-        if (linked.some((link) => link.albumId !== null)) {
-          throw new JournalError("unsupported_content");
+      if (change.version) {
+        const text: { title?: string; body?: unknown; bodyText?: string } = {};
+        if (change.version.title !== undefined) {
+          text.title = change.version.title;
         }
-        await checkRecordings(
-          tx,
-          data.trackIds,
-          new Set(linked.map((link) => link.trackId!)),
-        );
-      }
-
-      const text: { title?: string; body?: unknown; bodyText?: string } = {};
-      if (data.title !== undefined) {
-        text.title = data.title;
-      }
-      if (data.body !== undefined) {
-        const document = textToDocument(data.body ?? "");
-        text.body = document;
-        text.bodyText = document ? documentToText(document)! : "";
-      }
-      if (Object.keys(text).length > 0) {
+        if (change.version.body !== undefined) {
+          text.body = change.version.body?.document ?? null;
+          text.bodyText = change.version.body?.text ?? "";
+        }
         await tx
           .update(schema.entryTexts)
           .set(text)
@@ -317,20 +380,29 @@ export async function saveMemory(
             ),
           );
       }
-      if (data.rememberedWhen !== undefined) {
+      if (change.memory?.rememberedWhen !== undefined) {
         await tx
           .update(schema.memories)
-          .set({ rememberedWhen: data.rememberedWhen })
+          .set({ rememberedWhen: change.memory.rememberedWhen })
           .where(eq(schema.memories.entryId, data.entryId));
       }
-      if (data.trackIds !== undefined) {
-        const next = data.trackIds;
+      if (change.memory?.trackIds !== undefined) {
+        // The whole ordered list replaces the stored one. Only link rows
+        // change: the recordings stay in the catalog. Written here, in the
+        // save itself, because the writers of `memory_music` are a reviewed
+        // list (ADR 0006 § 9).
+        const next = change.memory.trackIds;
+        const linked = await tx
+          .select({ trackId: schema.memoryMusic.trackId })
+          .from(schema.memoryMusic)
+          .where(eq(schema.memoryMusic.memoryId, data.entryId))
+          .orderBy(schema.memoryMusic.position, schema.memoryMusic.id);
         const current = linked.map((link) => link.trackId!);
         const unchanged =
           next.length === current.length &&
           next.every((trackId, index) => current[index] === trackId);
         if (!unchanged) {
-          // Unlink what is left out. Only link rows: the recordings stay.
+          // Unlink what is left out.
           await tx
             .delete(schema.memoryMusic)
             .where(
@@ -377,8 +449,51 @@ export async function saveMemory(
         .update(schema.entries)
         .set({ version })
         .where(eq(schema.entries.id, data.entryId));
+      // What a reader sees must be exactly what was confirmed.
+      await assertWrittenAsPredicted(tx, predicted);
       return { version };
-    }),
+    });
+  });
+}
+
+/**
+ * Previews a save of a memory that may change its public page (ADR 0006 § 5):
+ * the exposure delta, and, when there is one, a `change_public` confirmation
+ * token for exactly that change. Takes the same input as `saveMemory`, makes
+ * the same refusals (another kind, a deleted memory, a stale
+ * `expectedVersion`, unsupported text, an album link, an unknown or archived
+ * recording, a public memory left without writing), writes nothing, and holds
+ * no lock: one read-only snapshot.
+ *
+ * Private writing: the delta is for an authorized request only. The token is
+ * evidence that this server computed this change for this session, not proof
+ * that the author read it. Only the studio's memory preview action calls it,
+ * through `previewMemoryPublicChange`.
+ */
+export async function previewMemoryChange(
+  db: DatabaseExecutor,
+  author: AuthorizedAuthor,
+  input: unknown,
+): Promise<PublicChangePreview> {
+  // The token of a save is never an input to its own preview.
+  const data = parse(saveMemoryInput, input);
+  return translatePublication(() =>
+    db.transaction(
+      async (tx) => {
+        const found = await tx.execute(sql`
+          select 1 from memories where entry_id = ${data.entryId}`);
+        if (found.rows.length === 0) {
+          throw new JournalError("entry_not_found");
+        }
+        const change = await prepareMemoryChange(tx, data);
+        return previewPublicChange(tx, author, {
+          entryId: data.entryId,
+          expectedVersion: data.expectedVersion,
+          change,
+        });
+      },
+      { isolationLevel: "repeatable read", accessMode: "read only" },
+    ),
   );
 }
 

@@ -119,8 +119,6 @@ function failed(error: unknown): ActionResult<never> {
         return { ok: false, code: "archived" };
       case "track_not_found":
         return { ok: false, code: "not_found" };
-      case "memory_published":
-        return { ok: false, code: "published_memory" };
       case "unavailable":
         return { ok: false, code: "unavailable" };
       // A publication, or a change to a public page, whose confirmation is

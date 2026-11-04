@@ -225,12 +225,19 @@ export const saveMemoryInput = z
     // The whole ordered list: what is left out is unlinked, never deleted
     // from the catalog.
     trackIds: recordingIds,
+    // Needed only when the save changes what a reader sees of a public
+    // memory (M3.7). It comes from the confirmation dialog and nowhere else.
+    confirmation: z
+      .string()
+      .max(MAX_CONFIRMATION_TOKEN_LENGTH)
+      .regex(TOKEN_FORM),
   })
   .partial({
     title: true,
     rememberedWhen: true,
     body: true,
     trackIds: true,
+    confirmation: true,
   })
   .refine(
     (save) =>

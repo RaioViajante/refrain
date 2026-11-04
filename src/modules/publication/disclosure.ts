@@ -15,6 +15,8 @@ import { artistPhotoOf } from "@/integrations/wikimedia-commons";
 
 import { artistAddresses } from "./artist-address";
 import { PublicationError } from "./errors";
+import { readMemoryMusic, type PublicMemoryMusic } from "./memory-music";
+import { isFilled } from "./text";
 import {
   publicLanguageVersions,
   trackReflectionTextsWithStatus,
@@ -106,6 +108,13 @@ export interface PublishDisclosure {
   /** The remembered-when text and ordered music links, for a memory. */
   memory: { rememberedWhen: string | null; music: DisclosedMusicLink[] } | null;
   /**
+   * A memory's music as the public page shows it, in the same order as
+   * `memory.music`: titles, credited artists, the album, and where each is
+   * linked now (M3.7). Catalog wording, shown and not part of the
+   * fingerprint (C11). Empty for every other kind.
+   */
+  memoryMusic: PublicMemoryMusic[];
+  /**
    * Every pair (track reflection, this language) that will be public: the
    * reflection's flag is set and it has text in this language. In track
    * reflection id order.
@@ -141,6 +150,7 @@ export interface PublishState {
   slug: { slug: string; wasPublic: boolean } | null;
   albumRating: { halfSteps: number; alreadyPublic: boolean } | null;
   memory: { rememberedWhen: string | null; music: DisclosedMusicLink[] } | null;
+  memoryMusic: PublicMemoryMusic[];
   reflections: DisclosedReflection[];
   flaggedWithoutText: number;
   artistPages: DisclosedArtistPage[];
@@ -222,7 +232,9 @@ export async function readPublishState(
   }
 
   let memory: PublishState["memory"] = null;
+  let memoryMusic: PublicMemoryMusic[] = [];
   if (row.kind === "memory") {
+    memoryMusic = await readMemoryMusic(db, entryId);
     const remembered = await db.execute<{ remembered_when: string | null }>(
       sql`select remembered_when from memories where entry_id = ${entryId}`,
     );
@@ -316,6 +328,7 @@ export async function readPublishState(
     slug: slug ? { slug: slug.slug, wasPublic: slug.was_published } : null,
     albumRating,
     memory,
+    memoryMusic,
     reflections,
     flaggedWithoutText,
     artistPages: artists.pages,
@@ -421,14 +434,25 @@ async function readArtistExposure(
 
 /**
  * A version is publishable when its opening sentence or its body contains
- * non-whitespace content (owner decision R1). Unicode white space only is
- * empty. Evaluated on the opening sentence and on `body_text`, the plain-text
- * projection the save keeps in step with the body.
+ * non-whitespace content (owner decision R1). A memory also needs its title
+ * (ADR 0006 § 4, step 6: "Memories will also need their title"), which the
+ * memory commands already require; this refuses a version written outside
+ * them. Unicode white space only is empty. Evaluated on the opening sentence
+ * and on `body_text`, the plain-text projection the save keeps in step with
+ * the body.
  */
+export function hasPublishableContent(
+  kind: EntryKind,
+  text: { title: string | null; opening: string | null; bodyText: string },
+): boolean {
+  if (kind === "memory" && !isFilled(text.title)) {
+    return false;
+  }
+  return isFilled(text.opening) || isFilled(text.bodyText);
+}
+
 export function hasPublishableText(state: PublishState): boolean {
-  const filled = (text: string | null) =>
-    text !== null && /\P{White_Space}/u.test(text);
-  return filled(state.text.opening) || filled(state.text.bodyText);
+  return hasPublishableContent(state.kind, state.text);
 }
 
 /** The disclosure of a state that has already passed the publishing rules. */
@@ -455,6 +479,7 @@ export function disclosureOf(
     address: state.slug,
     albumRating: state.albumRating,
     memory: state.memory,
+    memoryMusic: state.memoryMusic,
     reflections: state.reflections,
     flaggedWithoutText: state.flaggedWithoutText,
     artistPages: state.artistPages,
@@ -487,8 +512,9 @@ export function canonicalJson(value: unknown): string {
  * unkeyed and proves nothing about who computed it: it only says whether two
  * states are the same. The token is what carries authority.
  *
- * Catalog wording (a track's title) is deliberately not in it: that is the
- * documented gap C11, closed by gate G8, not accepted as harmless. The one
+ * Catalog wording (a track's title, a memory's music as the page names it,
+ * `memoryMusic`) is deliberately not in it: that is the documented gap C11,
+ * closed by gate G8, not accepted as harmless. The one
  * exception (M3.5; proposed ADR 0006 A5) is the artist pages publishing
  * would open, with their names, addresses, and photographs, and the public
  * pages whose address would change: a new page is exposure, not wording, so

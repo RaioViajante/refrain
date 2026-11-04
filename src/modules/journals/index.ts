@@ -40,6 +40,11 @@ export type {
   MemorySummary,
 } from "./memory-queries";
 export type {
+  MemoryPublicationPreview,
+  MemoryPublicationReview,
+  ReviewedMemoryMusic,
+} from "./memory-publishing";
+export type {
   PublicChangePreviewReview,
   PublicChangeReview,
   PublicationPreview,
@@ -59,6 +64,9 @@ export {
   listDeletedMemories,
   listMemories,
   listMemoriesOfRecording,
+  previewMemoryPublicChange,
+  previewMemoryPublication,
+  publishMemoryVersion,
   restoreMemory,
   saveMemory,
   setMemoryPrivacy,

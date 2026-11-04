@@ -71,13 +71,15 @@ export function failureMessage(
     case "confirmation_stale":
       return "What would be published has changed since you looked, or your confirmation ran out, so nothing was published or saved. Your text is still here. Review it again to continue.";
     case "nothing_to_publish":
-      return "A version needs an opening sentence or some text before it can be published, and a published version has to keep one. Nothing was changed. Write something first, or unpublish it before you empty it.";
+      return subject === "memory"
+        ? "A memory needs a title and some writing before it can be published, and a published memory has to keep them. Nothing was changed. Write something first, or unpublish it before you empty it."
+        : "A version needs an opening sentence or some text before it can be published, and a published version has to keep one. Nothing was changed. Write something first, or unpublish it before you empty it.";
     case "status_changed":
       return "This version was changed somewhere else (another tab may have published or unpublished it), so nothing was changed here. The page now shows how it stands. Check it, then choose again.";
     case "unreachable":
       return "The studio didn’t answer, so it isn’t known whether this went through. Reload the page to see what was saved before you try again. What you typed is still here.";
     case "no_address":
-      return "This journal has no address, so it can’t be published. Nothing was changed.";
+      return `This ${noun} has no address, so it can’t be published. Nothing was changed.`;
     case "provider_unavailable":
       return "Couldn’t reach MusicBrainz, the Cover Art Archive, or Wikimedia Commons, so nothing was changed. Your catalog and your writing still work. Try again in a moment.";
     case "provider_not_found":
@@ -94,8 +96,6 @@ export function failureMessage(
       return "A published journal shows this on a public page, and this change would reach readers without a confirmation, which isn’t built yet. Nothing was changed. A photograph can always be removed; to change one, or to restore an artist that has one, remove it first or unpublish the journals that show it.";
     case "photo_not_usable":
       return "This photograph can no longer be used: its license, credit, or file changed on Wikimedia Commons. Nothing was changed. Choose another, or review it again.";
-    case "published_memory":
-      return "A version of this memory is published, and saving changes to a published memory isn’t built yet, so nothing was saved. Your text is still here. Make it private first, then save.";
     case "failed":
       return "Something went wrong, and nothing was changed. Try again.";
   }
