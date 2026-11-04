@@ -2097,6 +2097,19 @@ article.pa-grid {
     font-size: 16.5px;
   }
 
+  /* On a phone the Home draws at most three lines of a memory's excerpt (the
+     owner's decision for M3.8b, V4.4's "two or three lines at most"). The
+     server's excerpt is unchanged and whole in the page, so a screen reader
+     reads all of it; only what is drawn stops, and the title opens the whole
+     memory. The Memories archive is unchanged. */
+  .ph-memories .px-excerpt {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    overflow: hidden;
+  }
+
   .ph-albums {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 30px 16px;
