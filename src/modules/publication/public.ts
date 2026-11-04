@@ -19,6 +19,14 @@ import {
   listPublicAlbumJournalAddresses as listPublicAlbumJournalAddressesFrom,
 } from "./public-album-journal";
 import {
+  listPublicAlbumArchive as listPublicAlbumArchiveFrom,
+  listPublicArtistArchive as listPublicArtistArchiveFrom,
+  listPublicMemoryArchive as listPublicMemoryArchiveFrom,
+  type PublicAlbumCard,
+  type PublicArtistCard,
+  type PublicMemoryCard,
+} from "./public-archives";
+import {
   getPublicArtist as getPublicArtistFrom,
   listPublicArtistAddresses as listPublicArtistAddressesFrom,
   type PublicArtist,
@@ -51,7 +59,10 @@ export {
   publicReadsEnabled,
   publicSiteOrigin,
 } from "./public-reads";
-export { routePublicDocumentRequest } from "./public-routing";
+export {
+  routePublicArchiveRequest,
+  routePublicDocumentRequest,
+} from "./public-routing";
 export type {
   AlbumJournalRequest,
   AlbumJournalRouting,
@@ -69,6 +80,13 @@ export type {
   PublicArtistTrack,
 } from "./public-artist";
 export type { PublicHome, PublicJournalCard } from "./public-home";
+export type {
+  PublicAlbumCard,
+  PublicAlbumJournalLink,
+  PublicArtistCard,
+  PublicMemoryCard,
+  PublicMemorySong,
+} from "./public-archives";
 export type {
   PublicMemory,
   PublicMemoryArtist,
@@ -193,4 +211,36 @@ export async function listPublicMemoryAddresses(): Promise<string[]> {
 /** What a memory address answers; see `public-routing.ts`. */
 export function routeMemoryRequest(request: AlbumJournalRequest) {
   return routeMemoryRequestWith(getDb, request);
+}
+
+/**
+ * The Albums archive (M3.8a): each album with a served journal, once, with
+ * every other served journal about it. Empty while reads are off; the proxy
+ * answers the unknown-address `404` before this is ever read.
+ */
+export async function listPublicAlbumArchive(
+  readerLocale: Locale,
+): Promise<PublicAlbumCard[]> {
+  if (!publicReadsEnabled()) {
+    return [];
+  }
+  return listPublicAlbumArchiveFrom(getDb(), readerLocale);
+}
+
+/** The Artists archive (M3.8a): every publicly visible artist. */
+export async function listPublicArtistArchive(): Promise<PublicArtistCard[]> {
+  if (!publicReadsEnabled()) {
+    return [];
+  }
+  return listPublicArtistArchiveFrom(getDb());
+}
+
+/** The Memories archive (M3.8a): every memory whose address is served. */
+export async function listPublicMemoryArchive(
+  readerLocale: Locale,
+): Promise<PublicMemoryCard[]> {
+  if (!publicReadsEnabled()) {
+    return [];
+  }
+  return listPublicMemoryArchiveFrom(getDb(), readerLocale);
 }
