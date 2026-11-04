@@ -1443,16 +1443,27 @@ article.pa-grid {
   overflow-wrap: break-word;
 }
 
-.pm-song-facts {
+/* A song's quiet lines: its artists, then its album. V4.4 sets them as one
+   line ("artist · album"); here each is a line of its own, because a link
+   in them is a full 44px target and two targets on wrapped lines would lie
+   over each other (as on the artist page's credit, M3.5). */
+.pm-song-line {
+  display: block;
   font-size: 17px;
   line-height: 1.55;
   color: var(--color-ink-3);
   overflow-wrap: break-word;
 }
 
+/* A line that holds a link is laid out in 44px rows, one per wrapped line. */
+.pm-song-line-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
 /* A link in a song's lines: an album journal or an artist's page that is
-   public. A 44px target that takes its own line height, so two wrapped lines
-   of links never lie over each other. */
+   public. A 44px target that takes its own line height. */
 .pm-song-link {
   display: inline-flex;
   align-items: center;
@@ -1469,7 +1480,7 @@ article.pa-grid {
   text-decoration-color: var(--color-ink);
 }
 
-.pm-song-facts .pm-song-link {
+.pm-song-line .pm-song-link {
   color: var(--color-ink-2);
 }
 

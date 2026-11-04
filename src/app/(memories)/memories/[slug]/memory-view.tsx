@@ -58,7 +58,6 @@ function Song({ song }: Readonly<{ song: PublicMemoryMusic }>) {
   // For an album link the title is the album's own, so it is not repeated.
   const album = song.kind === "recording" ? song.album : null;
   const albumOwnJournal = song.kind === "album" ? song.album : null;
-  const hasFacts = song.artists.length > 0 || album !== null;
   return (
     <li className="pm-song">
       <span className="ph-art pm-song-art" aria-hidden="true">
@@ -82,22 +81,27 @@ function Song({ song }: Readonly<{ song: PublicMemoryMusic }>) {
             song.title
           )}
         </span>
-        {hasFacts ? (
-          <span className="pm-song-facts">
+        {song.artists.length > 0 ? (
+          <span
+            className={`pm-song-line${song.artists.some((artist) => artist.address) ? " pm-song-line-links" : ""}`}
+          >
             <Artists song={song} />
-            {song.artists.length > 0 && album ? " · " : null}
-            {album ? (
-              album.journalSlug ? (
-                <Link
-                  className="pm-song-link"
-                  href={`/albums/${album.journalSlug}`}
-                >
-                  {album.title}
-                </Link>
-              ) : (
-                album.title
-              )
-            ) : null}
+          </span>
+        ) : null}
+        {album ? (
+          <span
+            className={`pm-song-line${album.journalSlug ? " pm-song-line-links" : ""}`}
+          >
+            {album.journalSlug ? (
+              <Link
+                className="pm-song-link"
+                href={`/albums/${album.journalSlug}`}
+              >
+                {album.title}
+              </Link>
+            ) : (
+              album.title
+            )}
           </span>
         ) : null}
       </span>
