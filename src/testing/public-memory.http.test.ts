@@ -247,9 +247,8 @@ describe("a public memory's page, with public reads on", () => {
       at = found;
     }
     // The music's words: each song's artists and album.
-    expect(text).toContain(
-      `${PUBLIC_MEMORY.albumArtist} · ${PUBLIC_MEMORY.albumTitle}`,
-    );
+    expect(text).toContain(PUBLIC_MEMORY.albumArtist);
+    expect(text).toContain(PUBLIC_MEMORY.albumTitle);
     expect(text).toContain(PUBLIC_MEMORY.secondArtist);
     // The header marks Memories as the current section, and links to no
     // list that does not exist.

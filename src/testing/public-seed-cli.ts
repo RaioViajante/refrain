@@ -18,6 +18,9 @@
 //   artists <slug-prefix>     the artist pages' states (M3.5), as JSON
 //   remove-artists <json> <prefix>
 //                             removes what `artists` printed
+//   memories <slug-prefix>    the public memory pages' states (M3.7), as JSON
+//   remove-memories <json> <prefix>
+//                             removes what `memories` printed
 import { randomBytes } from "node:crypto";
 
 import { Client } from "pg";
@@ -38,6 +41,11 @@ import {
   seedArtistPages,
   type SeededArtists,
 } from "./public-artists";
+import {
+  removeSeededMemories,
+  seedMemories,
+  type SeededMemories,
+} from "./public-memories";
 import {
   assertDisposableTestDatabase,
   readTestDatabaseUrl,
@@ -122,6 +130,18 @@ async function main() {
         await removeSeededArtists(
           client,
           JSON.parse(first!) as SeededArtists,
+          second!,
+        );
+        break;
+      }
+      case "memories": {
+        console.log(JSON.stringify(await seedMemories(client, first!)));
+        break;
+      }
+      case "remove-memories": {
+        await removeSeededMemories(
+          client,
+          JSON.parse(first!) as SeededMemories,
           second!,
         );
         break;
