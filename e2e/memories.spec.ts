@@ -1,7 +1,13 @@
 import { mkdirSync } from "node:fs";
 
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page, type TestInfo } from "@playwright/test";
+import {
+  expect,
+  test,
+  type Locator,
+  type Page,
+  type TestInfo,
+} from "@playwright/test";
 
 import {
   env,
@@ -96,6 +102,17 @@ async function memoryRow(entryUrl: string) {
     );
     return result.rows[0]!;
   });
+}
+
+/**
+ * Fills a field and waits until it holds exactly `value`. On a slow runner a
+ * fill before the page is interactive can leave the old text beside the new.
+ */
+async function fillExactly(field: Locator, value: string) {
+  await expect(async () => {
+    await field.fill(value);
+    await expect(field).toHaveValue(value, { timeout: 1000 });
+  }).toPass();
 }
 
 const songs = (page: Page) =>
@@ -405,7 +422,10 @@ test("publishes a memory through its review, asks before a change to it, and unp
 
   await page.goto(memoryUrl);
   // Publishing waits until the editor's changes are saved.
-  await page.getByRole("textbox", { name: "When" }).fill("[Test] unsaved");
+  await fillExactly(
+    page.getByRole("textbox", { name: "When" }),
+    "[Test] unsaved",
+  );
   const publish = page.getByRole("button", { name: "Publish…", exact: true });
   await expect(publish).toHaveAttribute("aria-disabled", "true");
   await expect(
@@ -444,9 +464,9 @@ test("publishes a memory through its review, asks before a change to it, and unp
   ).toBeVisible();
   const other = await context.newPage();
   await other.goto(memoryUrl);
-  await other
-    .getByRole("textbox", { name: "Title", exact: true })
-    .fill(`${title.value} (retold)`);
+  const otherTitle = other.getByRole("textbox", { name: "Title", exact: true });
+  await expect(otherTitle).toHaveValue(title.value);
+  await fillExactly(otherTitle, `${title.value} (retold)`);
   await other.getByRole("button", { name: "Save", exact: true }).click();
   await expect(other.getByText("Saved just now")).toBeVisible();
   await other.close();
@@ -477,9 +497,10 @@ test("publishes a memory through its review, asks before a change to it, and unp
   await expect(
     page.getByText("This memory is published. Saving changes what readers see"),
   ).toBeVisible();
-  await page
-    .getByRole("textbox", { name: "When" })
-    .fill("[Test] a later summer");
+  await fillExactly(
+    page.getByRole("textbox", { name: "When" }),
+    "[Test] a later summer",
+  );
   await page.getByRole("button", { name: "Save", exact: true }).click();
   const change = page.getByRole("dialog", {
     name: "Update the published memory?",
