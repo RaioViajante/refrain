@@ -1563,3 +1563,83 @@ describe("the Publication reading module", () => {
     }
   });
 });
+
+// M3.8b (ADR 0006 A6, item 7): the Home renders its read model only in server
+// components, so no read-model object is serialized into the Flight payload
+// for a client component. The only client components it renders are the
+// framework's `Link` and `Image`, which receive strings and numbers.
+describe("the Home's components", () => {
+  const resolveApp = (specifier: string): string | null => {
+    // Stylesheets hold no component.
+    if (!specifier.startsWith("@/app/") || specifier.endsWith(".css")) {
+      return null;
+    }
+    const base = join("src", specifier.slice(2));
+    for (const candidate of [`${base}.tsx`, `${base}.ts`]) {
+      try {
+        readFileSync(candidate);
+        return candidate;
+      } catch {
+        // Try the next extension.
+      }
+    }
+    throw new Error(`cannot resolve ${specifier}`);
+  };
+
+  /** Every file under src/app the given one imports, transitively. */
+  function appImports(file: string, seen = new Set<string>()): Set<string> {
+    if (seen.has(file)) {
+      return seen;
+    }
+    seen.add(file);
+    const source = parse(readFileSync(file, "utf8"), file);
+    for (const statement of source.statements) {
+      if (
+        ts.isImportDeclaration(statement) &&
+        ts.isStringLiteral(statement.moduleSpecifier)
+      ) {
+        const resolved = resolveApp(statement.moduleSpecifier.text);
+        if (resolved) {
+          appImports(resolved, seen);
+        }
+      }
+    }
+    return seen;
+  }
+
+  const isClient = (file: string) =>
+    /^\s*["']use client["']/.test(readFileSync(file, "utf8"));
+
+  it("are all server components, down to every component they import", () => {
+    const files = [...appImports("src/app/page.tsx")];
+    expect(files).toContain("src/app/(public)/_components/home-view.tsx");
+    expect(files).toContain("src/app/(public)/_components/arrow-icon.tsx");
+    expect(files.filter(isClient)).toEqual([]);
+  });
+
+  it("would notice a client component among them", () => {
+    // The artist page's photograph is a client component; were the Home to
+    // import it, the check above would name it.
+    expect(
+      isClient("src/app/(public)/_components/public-photo-image.tsx"),
+    ).toBe(true);
+  });
+
+  it("take the Publication module's values as types only", () => {
+    for (const file of [
+      "src/app/(public)/_components/home-view.tsx",
+      "src/app/(archives)/_components/archive-lines.ts",
+    ]) {
+      const source = parse(readFileSync(file, "utf8"), file);
+      for (const statement of source.statements) {
+        if (
+          ts.isImportDeclaration(statement) &&
+          ts.isStringLiteral(statement.moduleSpecifier) &&
+          statement.moduleSpecifier.text.startsWith("@/modules/")
+        ) {
+          expect(statement.importClause?.isTypeOnly, file).toBe(true);
+        }
+      }
+    }
+  });
+});
