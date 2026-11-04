@@ -168,10 +168,13 @@ test("shows the approved composition, with only what exists", async ({
   ).toBeVisible();
   await expect(page.locator(".ph-albums > li")).toHaveCount(4);
 
-  // Pages that do not exist are not offered: no Artists or Memories, no "All
-  // …" link, no language selector, and no link to the studio.
+  // The Home's own content is unchanged by M3.8a: no Artists or Memories
+  // section and no "All …" link (they are M3.8b's), no language selector, and
+  // no link to the studio. Only the header leads to the archives.
   await expect(
-    page.getByRole("link", { name: /artists|memories|all album/i }),
+    page
+      .locator("main")
+      .getByRole("link", { name: /artists|memories|all album/i }),
   ).toHaveCount(0);
   await expect(
     page.getByRole("link", { name: /studio|sign in|edit/i }),

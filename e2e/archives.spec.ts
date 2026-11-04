@@ -280,6 +280,8 @@ test("the navigation is the same four links on the Home, the detail pages, and t
   expect(await navigation(page)).toEqual(expectedNavigation("Home", "page"));
   await shot(page, "nav-home", false);
   await page.goto(`${base}/albums/${graceSlug}`);
+  // The album journal streams its writing in (issue #44): the capture waits.
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Grace");
   expect(await navigation(page)).toEqual(expectedNavigation("Albums", "true"));
   await shot(page, "nav-album-journal", false);
   await page.goto(`${base}/memories/${memories.shown.slug}`);

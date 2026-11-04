@@ -177,34 +177,39 @@ function archiveForms(
     ["PUT", `/${archive}`, { method: "PUT" }, unknown],
     ["DELETE", `/${archive}`, { method: "DELETE" }, unknown],
     ["OPTIONS", `/${archive}`, { method: "OPTIONS" }, unknown],
-    [
-      "RSC",
-      `/${archive}?_rsc=probe`,
-      { headers: { rsc: "1" } },
-      `${unknown}?_rsc=probe`,
-    ],
-    [
-      "prefetch",
-      `/${archive}?_rsc=probe`,
-      { headers: rsc },
-      `${unknown}?_rsc=probe`,
-    ],
+    // The router's requests, as a browser makes them: `request` adds the
+    // `_rsc` parameter and follows the router's redirect to its own hash.
+    ["RSC", `/${archive}`, { rsc: true }, unknown],
+    ["prefetch", `/${archive}`, { rsc: true, headers: rsc }, unknown],
     [
       "segment prefetch (tree)",
-      `/${archive}?_rsc=probe`,
-      { headers: { ...rsc, "next-router-segment-prefetch": "/_tree" } },
-      `${unknown}?_rsc=probe`,
+      `/${archive}`,
+      {
+        rsc: true,
+        headers: { ...rsc, "next-router-segment-prefetch": "/_tree" },
+      },
+      unknown,
+    ],
+    [
+      "segment prefetch (full)",
+      `/${archive}`,
+      {
+        rsc: true,
+        headers: { ...rsc, "next-router-segment-prefetch": "/_full" },
+      },
+      unknown,
     ],
     [
       "segment prefetch (page)",
-      `/${archive}?_rsc=probe`,
+      `/${archive}`,
       {
+        rsc: true,
         headers: {
           ...rsc,
-          "next-router-segment-prefetch": `/(archives)/${archive}/__PAGE__`,
+          "next-router-segment-prefetch": `/!KGFyY2hpdmVzKQ/${archive}/__PAGE__`,
         },
       },
-      `${unknown}?_rsc=probe`,
+      unknown,
     ],
     // A one-segment route's segment files are beside it, not under it: these
     // reach the proxy through the archive's own matcher (M3.8a spike).
@@ -425,23 +430,33 @@ describe("every archive response", () => {
       archiveForms(archive).map((form) => [archive, ...form] as const),
     ),
   )(
-    "%s, %s: never storable, and never a cache hit",
+    "%s, %s: never storable, and only generic build files carry the framework's marker",
     async (_a, name, path, init) => {
       const got = await request(on.baseURL, path, init);
       expect(got.status, name).toBeLessThan(500);
+      // The router's own requests reach the archive (not the redirect to the
+      // `_rsc` hash), so what is asserted below is what a browser receives. A
+      // whole-route prefetch of a page rendered per request is the
+      // framework's data-free 404: with partial prefetching the router asks
+      // for segments instead.
+      if (init.rsc) {
+        expect(got.status, name).toBe(name === "prefetch" ? 404 : 200);
+      }
       expect(got.headers["cache-control"], name).toMatch(/no-store/);
       expect(got.headers["cache-control"], name).not.toMatch(
         /public|s-maxage|max-age=[1-9]/,
       );
-      // A page that lists anything never comes from the build. The framework's
-      // marker appears only on its generic, data-free not-found view, which
-      // every unknown address on the site answers with (ADR 0006, A2).
-      if (got.status === 200) {
-        expect(got.headers["x-nextjs-cache"], name).toBeUndefined();
-      } else {
+      // Whatever comes from the build (the framework's marker) is generic and
+      // data-free (ADR 0006, A2): the segment files of the frame and the
+      // not-found fallback, which name no archive content. Anything that
+      // lists something is rendered for this request and carries no marker.
+      if (got.headers["x-nextjs-cache"] !== undefined) {
         expect(got.body, name).not.toMatch(
-          /Whole records|The artists behind|Moments that came|\[Test\]/,
+          /Whole records|The artists behind|Moments that came|\[Test\]|px-(album|row|memory)/,
         );
+      }
+      if (/\[Test\]/.test(got.body)) {
+        expect(got.headers["x-nextjs-cache"], name).toBeUndefined();
       }
     },
   );
