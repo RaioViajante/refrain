@@ -44,6 +44,22 @@ interface Draft {
   recordings: Recording[];
 }
 
+/**
+ * What a save takes away from what readers see of a published memory: the
+ * songs the saved list no longer has, and a "when" that is cleared. Derived
+ * from the editor's saved state, never from the server's change, which lists
+ * additions and edits only (ADR 0006 § 5).
+ */
+function removalsOf(base: Draft, sent: Draft): string[] {
+  const kept = new Set(sent.recordings.map((recording) => recording.trackId));
+  const songs = base.recordings
+    .filter((recording) => !kept.has(recording.trackId))
+    .map((recording) => recording.title);
+  const when =
+    base.rememberedWhen.trim() !== "" && sent.rememberedWhen.trim() === "";
+  return [...(when ? ["The “when”"] : []), ...songs];
+}
+
 function sameOrder(a: readonly Recording[], b: readonly Recording[]) {
   return (
     a.length === b.length &&
@@ -99,8 +115,7 @@ export function MemoryEditor({
     | {
         payload: Record<string, unknown>;
         sent: Draft;
-        songs: string[];
-        when: boolean;
+        items: string[];
       }
     | undefined
   >();
@@ -370,6 +385,7 @@ export function MemoryEditor({
 
       <MemoryChangeDialog
         payload={review?.payload}
+        removals={review ? removalsOf(base, review.sent) : []}
         onSaved={(next) => {
           if (review) {
             adopt(next, review.sent);
@@ -382,17 +398,9 @@ export function MemoryEditor({
           if (!waiting) {
             return;
           }
-          const kept = new Set(
-            waiting.sent.recordings.map((recording) => recording.trackId),
-          );
-          const songs = base.recordings
-            .filter((recording) => !kept.has(recording.trackId))
-            .map((recording) => recording.title);
-          const when =
-            base.rememberedWhen.trim() !== "" &&
-            waiting.sent.rememberedWhen.trim() === "";
-          if (songs.length > 0 || when) {
-            setRemoval({ ...waiting, songs, when });
+          const items = removalsOf(base, waiting.sent);
+          if (items.length > 0) {
+            setRemoval({ ...waiting, items });
           } else {
             void commit(waiting.payload, waiting.sent, true);
           }
@@ -425,9 +433,8 @@ export function MemoryEditor({
             Cancelling leaves your text in the editor.
           </p>
           <ul className="studio-review-list">
-            {removal?.when ? <li>The “when”</li> : null}
-            {removal?.songs.map((song, index) => (
-              <li key={index}>{song}</li>
+            {removal?.items.map((item, index) => (
+              <li key={index}>{item}</li>
             ))}
           </ul>
         </div>

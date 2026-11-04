@@ -43,6 +43,7 @@ type Stage =
  */
 export function MemoryChangeDialog({
   payload,
+  removals,
   onSaved,
   onNothingToConfirm,
   onRefused,
@@ -50,6 +51,11 @@ export function MemoryChangeDialog({
 }: {
   /** The save, exactly as the editor would send it, without a token. */
   payload: Record<string, unknown> | undefined;
+  /**
+   * What the same save takes away from readers (a song, the "when"), named
+   * by the editor: a removal needs no token, and the dialog still shows it.
+   */
+  removals: string[];
   onSaved: (version: number) => void;
   onNothingToConfirm: () => void;
   onRefused: (failure: Failure) => void;
@@ -59,6 +65,7 @@ export function MemoryChangeDialog({
   return payload ? (
     <OpenMemoryChangeDialog
       payload={payload}
+      removals={removals}
       onSaved={onSaved}
       onNothingToConfirm={onNothingToConfirm}
       onRefused={onRefused}
@@ -69,12 +76,14 @@ export function MemoryChangeDialog({
 
 function OpenMemoryChangeDialog({
   payload,
+  removals,
   onSaved,
   onNothingToConfirm,
   onRefused,
   onCancel,
 }: {
   payload: Record<string, unknown>;
+  removals: string[];
   onSaved: (version: number) => void;
   onNothingToConfirm: () => void;
   onRefused: (failure: Failure) => void;
@@ -267,10 +276,18 @@ function OpenMemoryChangeDialog({
                 );
               })}
             </ul>
-            <p className="studio-hint">
-              Anything this save takes away from the published memory (a song,
-              the “when”) goes with it.
-            </p>
+            {removals.length > 0 ? (
+              <div>
+                <h3 className="studio-label">
+                  Taken away from the published memory
+                </h3>
+                <ul className="studio-review-list">
+                  {removals.map((item, index) => (
+                    <li key={index}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
           </>
         ) : null}
       </div>

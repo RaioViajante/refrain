@@ -544,6 +544,27 @@ test("publishes a memory through its review, asks before a change to it, and unp
   await shot(page, info, "13-removal", false, "visual-review/m3-7");
   await removal.getByRole("button", { name: "Save and take it away" }).click();
   await expect(page.getByText("Saved just now")).toBeVisible();
+
+  // A save that edits and takes away shows both before anything is written.
+  await fillExactly(
+    page.getByRole("textbox", { name: "Title", exact: true }),
+    `${title.value} again`,
+  );
+  await fillExactly(page.getByRole("textbox", { name: "When" }), "");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(change).toContainText("Changed: Title");
+  const takenAway = change.getByRole("list").last();
+  await expect(change).toContainText("Taken away from the published memory");
+  await expect(takenAway).toContainText("The “when”");
+  await shot(page, info, "14-edit-and-removal", false, "visual-review/m3-7");
+  await change
+    .getByRole("button", { name: "Save and update the published memory" })
+    .click();
+  await expect(page.getByText("Saved just now")).toBeVisible();
+  title.value = `${title.value} again`;
+  const mixed = await memoryRow(memoryUrl);
+  expect(mixed.title).toBe(title.value);
+  expect(mixed.remembered_when).toBeNull();
   expect((await memoryRow(memoryUrl)).tracks).toHaveLength(2);
 
   // Unpublish asks first, keeps everything, and the page answers 404.
