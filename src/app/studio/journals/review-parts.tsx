@@ -81,6 +81,16 @@ export function ReviewedValueView({
       return <p lang="en">{starsInWords(value.halfSteps)}</p>;
     case "flag":
       return <p lang="en">{value.value ? "Yes" : "No"}</p>;
+    case "list":
+      return value.items.length === 0 ? (
+        <p lang="en">{side === "before" ? "No songs yet." : "No songs."}</p>
+      ) : (
+        <ol className="studio-review-songs">
+          {value.items.map((item, index) => (
+            <li key={index}>{item}</li>
+          ))}
+        </ol>
+      );
   }
 }
 

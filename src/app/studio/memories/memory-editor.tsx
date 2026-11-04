@@ -16,6 +16,7 @@ import {
   createMemoryAction,
   saveMemoryAction,
 } from "@/app/studio/memories/actions";
+import { MemoryChangeDialog } from "@/app/studio/memories/memory-change-dialog";
 import { MemoryControls } from "@/app/studio/memories/memory-controls";
 import { MemoryMusic } from "@/app/studio/memories/memory-music";
 import {
@@ -54,7 +55,9 @@ function sameOrder(a: readonly Recording[], b: readonly Recording[]) {
  * count, and in the margin its music, the artists derived from it, who can see
  * it, and Delete. Saving is explicit (the Save button or Cmd/Ctrl+S), the text
  * stays in the fields whatever happens to a save, and leaving with unsaved
- * changes asks first. Nothing here publishes.
+ * changes asks first. A save never publishes; saving a published memory first
+ * shows what would change for readers, and saves only on the author's
+ * confirmation (M3.7; ADR 0006 § 5).
  */
 export function MemoryEditor({
   create,
@@ -82,8 +85,13 @@ export function MemoryEditor({
   const [version, setVersion] = useState(edit?.version ?? 1);
   const [saved, setSaved] = useState(false);
   const [created, setCreated] = useState(false);
-  const { pending, failure, run } = useSubmission();
+  const { pending, failure, run, clearFailure, report } = useSubmission();
   const saving = useRef(false);
+  // A save waiting for the author's confirmation of what readers would see.
+  // The change dialog owns the confirmation token; this holds only the save.
+  const [review, setReview] = useState<
+    { payload: Record<string, unknown>; sent: Draft } | undefined
+  >();
 
   const dirty = created
     ? false
@@ -98,9 +106,41 @@ export function MemoryEditor({
     setSaved(false);
   }
 
+  function adopt(next: number, sent: Draft) {
+    setVersion(next);
+    setBase(sent);
+    setSaved(true);
+    router.refresh();
+  }
+
+  // Sends the save with no confirmation. When the memory turns out to be
+  // public (it was published in another tab), the server refuses and the
+  // change dialog takes over; `reviewed` stops that from looping.
+  async function commit(
+    payload: Record<string, unknown>,
+    sent: Draft,
+    reviewed = false,
+  ) {
+    const result = await run(() => saveMemoryAction(payload));
+    if (result.ok) {
+      adopt(result.data.version, sent);
+      return;
+    }
+    if (
+      !reviewed &&
+      (result.code === "confirmation_required" ||
+        result.code === "confirmation_stale" ||
+        result.code === "confirmation_expired" ||
+        result.code === "confirmation_invalid")
+    ) {
+      clearFailure();
+      setReview({ payload, sent });
+    }
+  }
+
   async function save(event?: FormEvent) {
     event?.preventDefault();
-    if (pending || created || saving.current) {
+    if (pending || created || review || saving.current) {
       return;
     }
     saving.current = true;
@@ -151,13 +191,14 @@ export function MemoryEditor({
       setSaved(true);
       return;
     }
-    const result = await run(() => saveMemoryAction(payload));
-    if (result.ok) {
-      setVersion(result.data.version);
-      setBase(sent);
-      setSaved(true);
-      router.refresh();
+    if (edit.status === "published") {
+      // Readers can see it: ask what would change for them before anything
+      // is written. The dialog saves only if the author confirms.
+      clearFailure();
+      setReview({ payload, sent });
+      return;
     }
+    await commit(payload, sent);
   }
 
   // Cmd or Ctrl + S saves. The latest `save` is kept in a ref so the listener
@@ -226,9 +267,9 @@ export function MemoryEditor({
 
       {status === "published" ? (
         <p className="studio-panel" role="note">
-          This memory is marked as published. Saving changes to a published
-          memory isn’t built yet, so saving is refused until you make it
-          private. Your text stays here.
+          This memory is published. Saving changes what readers see: before a
+          change is saved, you will see exactly what changes and be asked first.
+          Removing a song or the “when” is saved without asking.
         </p>
       ) : null}
 
@@ -315,6 +356,28 @@ export function MemoryEditor({
           )}
         </div>
       </div>
+
+      <MemoryChangeDialog
+        payload={review?.payload}
+        onSaved={(next) => {
+          if (review) {
+            adopt(next, review.sent);
+          }
+          setReview(undefined);
+        }}
+        onNothingToConfirm={() => {
+          const waiting = review;
+          setReview(undefined);
+          if (waiting) {
+            void commit(waiting.payload, waiting.sent, true);
+          }
+        }}
+        onRefused={(refused) => {
+          setReview(undefined);
+          report(refused);
+        }}
+        onCancel={() => setReview(undefined)}
+      />
     </form>
   );
 }
