@@ -12,6 +12,7 @@ import {
 } from "@/testing";
 
 import { unpublishLanguageVersion } from "./commands";
+import { readMemoryMusic } from "./memory-music";
 import { getPublicMemory, listPublicMemoryAddresses } from "./public-memory";
 import { resolvePublicSlug } from "./queries";
 import { publicAtoms, readEntrySurface } from "./surface";
@@ -211,6 +212,28 @@ describe("a memory's public atoms", () => {
       await change(tx, fixture);
       const after = await publicAtomsFromQueries(tx, fixture.entryId);
       expect(isSubsetWithSameValues(after, before)).toBe(false);
+    });
+  });
+});
+
+describe("the public reader's music", () => {
+  it("reads a memory's songs only while it is public, so a memory unpublished between two statements shows none", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const album = await createTestAlbum(tx);
+      const entryId = await createTestMemory(tx, {
+        slug: "test-music-guard",
+        versions: [{ locale: "en", status: "published" }],
+        music: [{ trackId: album.trackIds[0]! }],
+      });
+      expect(
+        await readMemoryMusic(tx, entryId, { onlyIfPublic: true }),
+      ).toHaveLength(1);
+      await unpublishLanguageVersion(tx, author, entryId, "en", "private");
+      expect(
+        await readMemoryMusic(tx, entryId, { onlyIfPublic: true }),
+      ).toEqual([]);
+      // The review reads them whatever the state.
+      expect(await readMemoryMusic(tx, entryId)).toHaveLength(1);
     });
   });
 });
