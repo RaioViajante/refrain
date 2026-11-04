@@ -367,9 +367,9 @@ describe("the studio cannot publish, re-address, or permanently delete", () => {
     expect(
       violations("previewMemoryPublication(a, i)", `${M}/actions.ts`),
     ).toHaveLength(1);
-    expect(
-      violations("publishMemoryVersion(a, i)", `${M}/actions.ts`),
-    ).toEqual([]);
+    expect(violations("publishMemoryVersion(a, i)", `${M}/actions.ts`)).toEqual(
+      [],
+    );
     expect(
       violations("publishMemoryVersion(a, i)", `${J}/actions.ts`),
     ).toHaveLength(1);
