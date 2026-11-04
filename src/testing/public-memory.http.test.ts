@@ -376,6 +376,29 @@ describe("a public memory's page, with public reads on", () => {
     );
     expect(head.status).toBe(308);
     expect(head.headers.location).toBe(`/memories/${seeded!.shown.slug}`);
+    // The router's forms get the same redirect, no-store, naming no host.
+    for (const headers of [
+      { rsc: "1" },
+      { rsc: "1", "next-router-prefetch": "1" },
+    ] as Record<string, string>[]) {
+      const routed = await request(
+        on.baseURL,
+        `/memories/${seeded!.shown.previousSlug}?_rsc=probe`,
+        {
+          headers: {
+            ...headers,
+            host: "evil.example",
+            "x-forwarded-host": "evil.example",
+          },
+        },
+      );
+      expect(routed.status).toBe(308);
+      expect(routed.headers["cache-control"]).toBe("no-store");
+      expect(routed.headers.location).toMatch(
+        new RegExp(`^/memories/${seeded!.shown.slug}(\\?|$)`),
+      );
+      expect(JSON.stringify(routed)).not.toContain("evil.example");
+    }
   });
 
   it("answers every transport form without caching it", async () => {
@@ -416,6 +439,14 @@ describe("a memory address that is not served", () => {
       const hidden = await request(on.baseURL, `/memories/${slug}`);
       expect(masked(hidden, slug), state).toEqual(unknown);
     }
+    // A previous address that was never public does not redirect, even to a
+    // memory that is public now (INV-5).
+    expect(
+      masked(
+        await request(on.baseURL, `/memories/${seeded!.shown.neverPublicSlug}`),
+        seeded!.shown.neverPublicSlug,
+      ),
+    ).toEqual(unknown);
     // A previous address of a memory that is not public does not redirect.
     expect(
       masked(
@@ -471,6 +502,64 @@ describe("a memory address that is not served", () => {
     const list = await request(on.baseURL, "/memories");
     expect(list.status).toBe(404);
     expect(visibleText(list.body)).not.toContain(PUBLIC_MEMORY.title);
+  });
+
+  it("gives percent-encoded memory addresses the public decision, with the switch off and on, by every method, for every hidden state", async () => {
+    const encoded = (s: string) => [
+      `/%6Demories/${s}`,
+      `/memories%2F${s}`,
+      `/memories/%${s.charCodeAt(0).toString(16)}${s.slice(1)}`,
+    ];
+    for (const method of ["GET", "HEAD", "POST"]) {
+      for (const [value, server] of [
+        ["on", on],
+        ...OFF_VALUES.map((v) => [v, off[v]!] as const),
+      ] as const) {
+        const unknownForms = encoded(UNKNOWN);
+        // With the switch off a served memory is unknown too.
+        const slugs = [
+          ...seeded!.hidden.map((hidden) => hidden.slug),
+          ...(value === "on" ? [] : [seeded!.shown.slug]),
+        ];
+        for (const slug of slugs) {
+          for (const [index, path] of encoded(slug).entries()) {
+            expect(
+              masked(await request(server.baseURL, path, { method }), slug),
+              `${value} ${method} ${path}`,
+            ).toEqual(
+              masked(
+                await request(server.baseURL, unknownForms[index]!, { method }),
+                UNKNOWN,
+              ),
+            );
+          }
+        }
+      }
+    }
+  });
+
+  it("answers case, slash, dot, and trailing-slash variants of a hidden address as those of an unknown one", async () => {
+    const variants = (s: string) => [
+      `/MEMORIES/${s}`,
+      `/Memories/${s}`,
+      `/memories/./${s}`,
+      `/memories/${s}/`,
+      `/memories/${s};x`,
+      `/memories/${s}%2E`,
+      `/memories/${s.toUpperCase()}`,
+    ];
+    for (const { state, slug } of seeded!.hidden) {
+      const absent = variants(UNKNOWN);
+      for (const [index, path] of variants(slug).entries()) {
+        const a = masked(await request(on.baseURL, path), slug);
+        const b = masked(await request(on.baseURL, absent[index]!), UNKNOWN);
+        // An upper-case slug is masked by its own spelling.
+        const upper = (x: typeof a, s: string) =>
+          JSON.parse(JSON.stringify(x).split(s.toUpperCase()).join("SLUG"));
+        expect(upper(a, slug), `${state} ${path}`).toEqual(upper(b, UNKNOWN));
+        expect(a.headers["cache-control"] ?? "", path).toContain("no-store");
+      }
+    }
   });
 
   it("answers percent-encoded and slashed forms as an unknown one", async () => {
@@ -620,6 +709,29 @@ describe("a change shows on the next request", () => {
 });
 
 describe("the build and what the requests left on disk (ADR 0006 A2)", () => {
+  it("prerenders the memory route as one parameterised, empty fallback", () => {
+    const manifest = JSON.parse(
+      readFileSync(".next/prerender-manifest.json", "utf8"),
+    ) as {
+      dynamicRoutes: Record<
+        string,
+        { fallbackRouteParams?: { paramName: string }[] }
+      >;
+    };
+    const route = manifest.dynamicRoutes["/memories/[slug]"];
+    expect(route).toBeDefined();
+    expect(route!.fallbackRouteParams?.map((p) => p.paramName)).toEqual([
+      "slug",
+    ]);
+    expect(readFileSync(".next/server/app/memories/[slug].html", "utf8")).toBe(
+      "",
+    );
+    const meta = JSON.parse(
+      readFileSync(".next/server/app/memories/[slug].meta", "utf8"),
+    ) as { routeCache?: { isFallback?: boolean } };
+    expect(meta.routeCache?.isFallback).toBe(true);
+  });
+
   it("prerenders no memory address, and nothing about any memory", () => {
     const manifest = JSON.parse(
       readFileSync(".next/prerender-manifest.json", "utf8"),

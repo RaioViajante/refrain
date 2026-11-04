@@ -55,7 +55,13 @@ export const PUBLIC_MEMORY = {
 
 export interface SeededMemories {
   /** The public memory with two songs. */
-  shown: { entryId: string; slug: string; previousSlug: string };
+  shown: {
+    entryId: string;
+    slug: string;
+    previousSlug: string;
+    /** A previous address chosen while the memory was never public. */
+    neverPublicSlug: string;
+  };
   /** A public memory with no songs. */
   quiet: { entryId: string; slug: string };
   /** A public memory with a long title and one song. */
@@ -166,6 +172,15 @@ export async function seedMemories(
       wasPublished: true,
     });
 
+    const neverPublicSlug = `${prefix}-memory-never-public`;
+    await tx.insert(schema.entrySlugs).values({
+      kind: "memory",
+      slug: neverPublicSlug,
+      entryId: shown,
+      isCurrent: false,
+      wasPublished: false,
+    });
+
     const quietSlug = `${prefix}-memory-quiet`;
     const quiet = await createTestMemory(tx, {
       slug: quietSlug,
@@ -259,7 +274,7 @@ export async function seedMemories(
     hidden.push({ state: "retired", slug: retiredSlug });
 
     return {
-      shown: { entryId: shown, slug: shownSlug, previousSlug },
+      shown: { entryId: shown, slug: shownSlug, previousSlug, neverPublicSlug },
       quiet: { entryId: quiet, slug: quietSlug },
       long: { entryId: long, slug: longSlug },
       albumJournal: { entryId: albumJournal, slug: albumJournalSlug },
