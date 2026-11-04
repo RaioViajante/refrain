@@ -684,6 +684,11 @@ export const PUBLICATION_INDEX_EXPORTS: ReadonlySet<string> = new Set([
   // The owner's review of PR #46: credits that would expose an artist.
   "lockAlbumCreditExposure",
   "artistsNewlyExposedByCredit",
+  // M3.7: types only. A memory's music as the page and the review name it,
+  // and the key of one music link in an exposure delta.
+  "PublicMemoryArtist",
+  "PublicMemoryMusic",
+  "MusicLinkKey",
 ]);
 
 function localCalls(body: ts.Node): Set<string> {
@@ -874,12 +879,19 @@ const MINTING_PREVIEWS = [
   "previewAlbumJournalChange",
   "previewAlbumJournalPublicChange",
   "previewAlbumJournalPublication",
+  // M3.7: the memory wrappers. Only the two memory preview actions reach them.
+  "previewMemoryChange",
+  "previewMemoryPublicChange",
+  "previewMemoryPublication",
 ];
 const CONSUMERS = [
   "publishLanguageVersion",
   "publishAlbumJournalVersion",
   "saveAlbumJournal",
   "requirePublicChangeConfirmation",
+  // M3.7
+  "publishMemoryVersion",
+  "saveMemory",
 ];
 const SIGNING = "signConfirmation";
 
@@ -908,6 +920,14 @@ export const PREVIEW_IMPORTERS: ReadonlySet<string> = new Set<string>([
   "src/modules/journals/index.ts",
   "src/app/studio/journals/preview-publication-action.ts",
   "src/app/studio/journals/preview-change-action.ts",
+  // M3.7: memories. `memories.ts` wraps `previewPublicChange` in
+  // `previewMemoryChange` beside `saveMemory`, as `commands.ts` does for
+  // album journals; `memory-publishing.ts` wraps the previews for the studio.
+  // Each memory preview action is alone in its own file.
+  "src/modules/journals/memories.ts",
+  "src/modules/journals/memory-publishing.ts",
+  "src/app/studio/memories/preview-publication-action.ts",
+  "src/app/studio/memories/preview-change-action.ts",
 ]);
 
 function importsOf(
@@ -1137,6 +1157,9 @@ const GATE_NAMES = [
 ];
 const GATE_CALLERS: ReadonlySet<string> = new Set([
   "src/modules/journals/commands.ts#saveAlbumJournal",
+  // M3.7: the confirmed save of a memory. Already on the writer allowlist
+  // (approved by the owner for M3.6); this lets it call the gate it needs.
+  "src/modules/journals/memories.ts#saveMemory",
 ]);
 const REFLECTION_WRITERS = ["writeReflection"];
 
@@ -1228,13 +1251,39 @@ const DIALOG_FILE = /^src\/app\/studio\/.*-dialog\.tsx$/;
 const PREVIEW_ACTIONS = [
   "previewPublicationAction",
   "previewPublicChangeAction",
+  // M3.7: memories.
+  "previewMemoryPublicationAction",
+  "previewMemoryChangeAction",
 ];
-const CONSUMER_ACTIONS = ["publishJournalVersionAction", "saveJournalAction"];
+const CONSUMER_ACTIONS = [
+  "publishJournalVersionAction",
+  "saveJournalAction",
+  // M3.7: memories.
+  "publishMemoryVersionAction",
+  "saveMemoryAction",
+];
 const ACTION_SITES: Record<string, string[]> = {
   previewPublicationAction: ["fetchPreview"],
   previewPublicChangeAction: ["fetchPreview"],
   publishJournalVersionAction: ["confirm"],
   saveJournalAction: ["confirm"],
+  previewMemoryPublicationAction: ["fetchPreview"],
+  previewMemoryChangeAction: ["fetchPreview"],
+  publishMemoryVersionAction: ["confirm"],
+  saveMemoryAction: ["confirm"],
+};
+// The one file that defines each action.
+const ACTION_DEFINITIONS: Record<string, string> = {
+  previewPublicationAction:
+    "src/app/studio/journals/preview-publication-action.ts",
+  previewPublicChangeAction: "src/app/studio/journals/preview-change-action.ts",
+  publishJournalVersionAction: "src/app/studio/journals/actions.ts",
+  saveJournalAction: "src/app/studio/journals/actions.ts",
+  previewMemoryPublicationAction:
+    "src/app/studio/memories/preview-publication-action.ts",
+  previewMemoryChangeAction: "src/app/studio/memories/preview-change-action.ts",
+  publishMemoryVersionAction: "src/app/studio/memories/actions.ts",
+  saveMemoryAction: "src/app/studio/memories/actions.ts",
 };
 // Files that may name each action at all (outside its own definition).
 const ACTION_FILES: Record<string, string[]> = {
@@ -1244,6 +1293,21 @@ const ACTION_FILES: Record<string, string[]> = {
   saveJournalAction: [
     "src/app/studio/journals/change-dialog.tsx",
     "src/app/studio/journals/journal-editor.tsx",
+  ],
+  previewMemoryPublicationAction: [
+    "src/app/studio/memories/memory-publish-dialog.tsx",
+  ],
+  previewMemoryChangeAction: [
+    "src/app/studio/memories/memory-change-dialog.tsx",
+  ],
+  publishMemoryVersionAction: [
+    "src/app/studio/memories/memory-publish-dialog.tsx",
+  ],
+  // The ordinary save is the editor's; with a token, only the change dialog's
+  // confirm control sends it.
+  saveMemoryAction: [
+    "src/app/studio/memories/memory-change-dialog.tsx",
+    "src/app/studio/memories/memory-editor.tsx",
   ],
 };
 const DEFERRED = new Set([
@@ -1266,6 +1330,14 @@ const DIALOG_ACTION_IMPORTS: Record<string, string[]> = {
   "src/app/studio/journals/change-dialog.tsx": [
     "saveJournalAction",
     "previewPublicChangeAction",
+  ],
+  "src/app/studio/memories/memory-publish-dialog.tsx": [
+    "publishMemoryVersionAction",
+    "previewMemoryPublicationAction",
+  ],
+  "src/app/studio/memories/memory-change-dialog.tsx": [
+    "saveMemoryAction",
+    "previewMemoryChangeAction",
   ],
 };
 const ACTION_MODULE = /^@\/app\/studio\/.*(actions?|-action)$/;
@@ -1318,9 +1390,7 @@ export function dialogViolations(files: SourceText[]): string[] {
       }
       // Where each action may be named at all.
       if (ts.isIdentifier(node) && guarded.includes(node.text)) {
-        const defining =
-          file.path === "src/app/studio/journals/actions.ts" ||
-          file.path === `src/app/studio/journals/${nameToFile(node.text)}.ts`;
+        const defining = file.path === ACTION_DEFINITIONS[node.text];
         if (!defining && !ACTION_FILES[node.text]!.includes(file.path)) {
           problems.push(`${file.path} names ${node.text}`);
         }
@@ -1410,13 +1480,4 @@ function handlerOf(node: ts.Node): string {
     }
   }
   return "<module>";
-}
-
-// The file that defines a preview action, by its action name.
-function nameToFile(action: string): string {
-  return action === "previewPublicationAction"
-    ? "preview-publication-action"
-    : action === "previewPublicChangeAction"
-      ? "preview-change-action"
-      : "actions";
 }

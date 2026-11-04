@@ -4,6 +4,7 @@ import { withDatabase } from "@/db";
 
 import * as commands from "./commands";
 import * as memories from "./memories";
+import * as memoryPublishing from "./memory-publishing";
 import * as memoryQueries from "./memory-queries";
 import * as publishing from "./publishing";
 import * as queries from "./queries";
@@ -44,13 +45,23 @@ export const listAlbumJournalProgress = withDatabase(
 );
 export const getTrackByTrack = withDatabase(queries.getTrackByTrack);
 
-// Memories (M3.6): private writing only. There is deliberately no memory
-// preview or publish wrapper: publishing a memory is M3.7.
+// Memories (M3.6, M3.7). Their publication uses the same engine and token as
+// an album journal's, through wrappers that check the memory kind; a studio
+// action calls one of them, never a preview and its consumer together.
 export const createMemory = withDatabase(memories.createMemory);
 export const saveMemory = withDatabase(memories.saveMemory);
 export const setMemoryPrivacy = withDatabase(memories.setMemoryPrivacy);
 export const deleteMemory = withDatabase(memories.deleteMemory);
 export const restoreMemory = withDatabase(memories.restoreMemory);
+export const previewMemoryPublication = withDatabase(
+  memoryPublishing.previewMemoryPublication,
+);
+export const publishMemoryVersion = withDatabase(
+  memoryPublishing.publishMemoryVersion,
+);
+export const previewMemoryPublicChange = withDatabase(
+  memoryPublishing.previewMemoryPublicChange,
+);
 
 export const listMemories = withDatabase(memoryQueries.listMemories);
 export const listDeletedMemories = withDatabase(

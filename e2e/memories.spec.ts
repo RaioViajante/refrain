@@ -1,21 +1,31 @@
 import { mkdirSync } from "node:fs";
 
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page, type TestInfo } from "@playwright/test";
+import {
+  expect,
+  test,
+  type Locator,
+  type Page,
+  type TestInfo,
+} from "@playwright/test";
 
 import {
+  env,
   expectNoHorizontalOverflow,
   expectTouchTarget,
   named,
   withDatabase,
 } from "./support";
 
-// The private Memories Studio (M3.6) in a browser, signed in as the
-// synthetic author, at 1280 px (project "desktop") and at 390 px on a touch
-// screen (project "memories-390"). The catalog is built through the Studio's
-// own forms; every record is "[Test] E2E …" and the global teardown removes
-// it. Screenshots are written only with E2E_SCREENSHOTS=1, to
-// visual-review/m3-6/ (ignored by Git); they hold synthetic text only.
+// The Memories Studio (M3.6, M3.7) in a browser, signed in as the synthetic
+// author, at 1280 px (project "desktop") and at 390 px on a touch screen
+// (project "memories-390"). The catalog is built through the Studio's own
+// forms; every record is "[Test] E2E …" and the global teardown removes it.
+// Publishing is checked on the public server of the same build, whose switch
+// is on (E2E_PUBLIC_URL); the studio's own server keeps it off. Screenshots
+// are written only with E2E_SCREENSHOTS=1, to visual-review/m3-6/ and, for
+// publication, visual-review/m3-7/ (ignored by Git); they hold synthetic text
+// only.
 
 test.describe.configure({ mode: "serial" });
 
@@ -37,7 +47,13 @@ const catalog = {
 let memoryUrl = "";
 const title = { value: "" };
 
-async function shot(page: Page, info: TestInfo, name: string, fullPage = true) {
+async function shot(
+  page: Page,
+  info: TestInfo,
+  name: string,
+  fullPage = true,
+  folder = SHOTS,
+) {
   if (process.env.E2E_SCREENSHOTS !== "1") {
     return;
   }
@@ -49,9 +65,9 @@ async function shot(page: Page, info: TestInfo, name: string, fullPage = true) {
       window.scrollTo(0, 0);
     });
   }
-  mkdirSync(SHOTS, { recursive: true });
+  mkdirSync(folder, { recursive: true });
   await page.screenshot({
-    path: `${SHOTS}/${project(info)}-${name}.png`,
+    path: `${folder}/${project(info)}-${name}.png`,
     fullPage,
   });
 }
@@ -86,6 +102,17 @@ async function memoryRow(entryUrl: string) {
     );
     return result.rows[0]!;
   });
+}
+
+/**
+ * Fills a field and waits until it holds exactly `value`. On a slow runner a
+ * fill before the page is interactive can leave the old text beside the new.
+ */
+async function fillExactly(field: Locator, value: string) {
+  await expect(async () => {
+    await field.fill(value);
+    await expect(field).toHaveValue(value, { timeout: 1000 });
+  }).toPass();
 }
 
 const songs = (page: Page) =>
@@ -349,14 +376,14 @@ test("refuses a save from a stale tab and keeps the text", async ({
   await shot(page, info, "09b-conflict");
 });
 
-test("offers draft and private only, and lists the memory on the Desk", async ({
+test("offers Draft, Private, and Publish…, and lists the memory on the Desk", async ({
   page,
 }, info) => {
   await page.goto(memoryUrl);
-  await expect(page.getByRole("button", { name: /publish/i })).toHaveCount(0);
   await expect(
-    page.getByText("Publishing memories isn’t available yet"),
+    page.getByRole("button", { name: "Publish…", exact: true }),
   ).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Unpublish/ })).toHaveCount(0);
   await page.getByRole("button", { name: "Private", exact: true }).click();
   await expect(page.getByText("Now private.")).toBeVisible();
   expect((await memoryRow(memoryUrl)).status).toBe("private");
@@ -372,6 +399,239 @@ test("offers draft and private only, and lists the memory on the Desk", async ({
     page.getByRole("list", { name: "Memories" }).getByText(title.value),
   ).toBeVisible();
   await shot(page, info, "03b-desk");
+});
+
+test("publishes a memory through its review, asks before a change to it, and unpublishes it", async ({
+  page,
+  context,
+  browser,
+}, info) => {
+  const publicBase = env("E2E_PUBLIC_URL");
+  const slug = await withDatabase(async (client) => {
+    const result = await client.query<{ slug: string }>(
+      "select slug from entry_slugs where entry_id = $1 and is_current",
+      [memoryUrl.split("/").pop()],
+    );
+    return result.rows[0]!.slug;
+  });
+  const reader = await browser.newContext({ storageState: undefined });
+  const readerPage = await reader.newPage();
+  const publicStatus = async () =>
+    (await readerPage.goto(`${publicBase}/memories/${slug}`))?.status();
+  expect(await publicStatus()).toBe(404);
+
+  await page.goto(memoryUrl);
+  // Publishing waits until the editor's changes are saved.
+  await fillExactly(
+    page.getByRole("textbox", { name: "When" }),
+    "[Test] unsaved",
+  );
+  const publish = page.getByRole("button", { name: "Publish…", exact: true });
+  await expect(publish).toHaveAttribute("aria-disabled", "true");
+  await expect(
+    page.getByText(
+      "Save your changes first: Publish… shows you what is saved.",
+    ),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText("Saved just now")).toBeVisible();
+
+  // The review shows everything that will be published, and changes nothing.
+  await publish.click();
+  const review = page.getByRole("dialog", { name: "Publish this memory?" });
+  await expect(review).toContainText(title.value);
+  await expect(review).toContainText("[Test] unsaved");
+  await expect(review).toContainText(
+    "[Test] Synthetic words for the review, and nothing else.",
+  );
+  await expect(review).toContainText("The music (3)");
+  await expect(review).toContainText(catalog.twin);
+  await expect(review).toContainText(`/memories/${slug}`);
+  await expect(review).toContainText(
+    "Publishing a memory opens no artist page",
+  );
+  await axe(page);
+  await shot(page, info, "10-publication-review", false, "visual-review/m3-7");
+  await review.getByRole("button", { name: "Cancel" }).click();
+  await expect(review).toHaveCount(0);
+  expect((await memoryRow(memoryUrl)).status).toBe("private");
+
+  // A review that went stale in another tab publishes nothing, and asks for
+  // a new review.
+  await publish.click();
+  await expect(
+    review.getByRole("button", { name: "Publish this memory" }),
+  ).toBeVisible();
+  const other = await context.newPage();
+  await other.goto(memoryUrl);
+  const otherTitle = other.getByRole("textbox", { name: "Title", exact: true });
+  await expect(otherTitle).toHaveValue(title.value);
+  await fillExactly(otherTitle, `${title.value} (retold)`);
+  await other.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(other.getByText("Saved just now")).toBeVisible();
+  await other.close();
+  await review.getByRole("button", { name: "Publish this memory" }).click();
+  await expect(
+    review.getByText("What would be published has changed since you looked"),
+  ).toBeVisible();
+  expect((await memoryRow(memoryUrl)).status).toBe("private");
+  await review.getByRole("button", { name: "Review it again" }).click();
+  await expect(review).toContainText(`${title.value} (retold)`);
+  await review.getByRole("button", { name: "Publish this memory" }).click();
+  await expect(review).toHaveCount(0);
+  await expect(
+    page.getByText("This memory is now published.", { exact: false }),
+  ).toBeVisible();
+  expect((await memoryRow(memoryUrl)).status).toBe("published");
+  title.value = `${title.value} (retold)`;
+
+  // The public page, on the server whose public reads are on.
+  expect(await publicStatus()).toBe(200);
+  await expect(readerPage.getByRole("heading", { level: 1 })).toHaveText(
+    title.value,
+  );
+  await expect(readerPage.getByText("[Test] unsaved")).toBeVisible();
+
+  // A change to the published memory asks first, with what changes.
+  await page.reload();
+  await expect(
+    page.getByText("This memory is published. Saving changes what readers see"),
+  ).toBeVisible();
+  await fillExactly(
+    page.getByRole("textbox", { name: "When" }),
+    "[Test] a later summer",
+  );
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  const change = page.getByRole("dialog", {
+    name: "Update the published memory?",
+  });
+  await expect(change).toContainText("Changed: When");
+  await expect(change).toContainText("Published now");
+  await expect(change).toContainText("[Test] unsaved");
+  await expect(change).toContainText("Published after saving");
+  await expect(change).toContainText("[Test] a later summer");
+  await axe(page);
+  await shot(page, info, "11-confirmed-update", false, "visual-review/m3-7");
+  // Cancelling writes nothing and keeps the text.
+  await change.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByRole("textbox", { name: "When" })).toHaveValue(
+    "[Test] a later summer",
+  );
+  expect((await memoryRow(memoryUrl)).remembered_when).toBe("[Test] unsaved");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await change
+    .getByRole("button", { name: "Save and update the published memory" })
+    .click();
+  await expect(page.getByText("Saved just now")).toBeVisible();
+  expect((await memoryRow(memoryUrl)).remembered_when).toBe(
+    "[Test] a later summer",
+  );
+  expect(await publicStatus()).toBe(200);
+  await expect(readerPage.getByText("[Test] a later summer")).toBeVisible();
+
+  // Removing a song needs no confirmation token, but the editor asks first,
+  // naming what readers will no longer see.
+  await page
+    .getByRole("button", { name: /^Remove .* from this memory/ })
+    .first()
+    .click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  const removal = page.getByRole("dialog", {
+    name: "Take this away from the published memory?",
+  });
+  await expect(removal).toContainText(catalog.twin);
+  await expect(change).toHaveCount(0);
+  await shot(page, info, "13-removal", false, "visual-review/m3-7");
+  await removal.getByRole("button", { name: "Save and take it away" }).click();
+  await expect(page.getByText("Saved just now")).toBeVisible();
+
+  // A save that edits and takes away shows both before anything is written.
+  await fillExactly(
+    page.getByRole("textbox", { name: "Title", exact: true }),
+    `${title.value} again`,
+  );
+  await fillExactly(page.getByRole("textbox", { name: "When" }), "");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(change).toContainText("Changed: Title");
+  const takenAway = change.getByRole("list").last();
+  await expect(change).toContainText("Taken away from the published memory");
+  await expect(takenAway).toContainText("The “when”");
+  await shot(page, info, "14-edit-and-removal", false, "visual-review/m3-7");
+  await change
+    .getByRole("button", { name: "Save and update the published memory" })
+    .click();
+  await expect(page.getByText("Saved just now")).toBeVisible();
+  title.value = `${title.value} again`;
+  const mixed = await memoryRow(memoryUrl);
+  expect(mixed.title).toBe(title.value);
+  expect(mixed.remembered_when).toBeNull();
+  expect((await memoryRow(memoryUrl)).tracks).toHaveLength(2);
+
+  // Unpublish asks first, keeps everything, and the page answers 404.
+  await page.getByRole("button", { name: "Unpublish…" }).click();
+  const unpublish = page.getByRole("dialog", {
+    name: "Unpublish this memory?",
+  });
+  await expect(unpublish).toContainText("Nothing is deleted");
+  await unpublish.getByRole("button", { name: "Unpublish" }).click();
+  await expect(
+    page.getByText("This memory is no longer published.", { exact: false }),
+  ).toBeVisible();
+  const stored = await memoryRow(memoryUrl);
+  expect(stored.status).toBe("private");
+  expect(stored.tracks).toHaveLength(2);
+  expect(await publicStatus()).toBe(404);
+  await expect(
+    readerPage.getByRole("heading", { name: "Nothing here" }),
+  ).toBeVisible();
+  await shot(
+    readerPage,
+    info,
+    "12-unpublished-404",
+    false,
+    "visual-review/m3-7",
+  );
+
+  // A stale editor: another tab publishes the memory while this one still
+  // shows it as private. Its removal is refused, the page shows the memory
+  // as published, and the next save asks before taking the song away.
+  await withDatabase((client) =>
+    client.query(
+      `update entry_texts set status = 'published', published_at = now(),
+              updated_at = clock_timestamp()
+        where entry_id = $1`,
+      [memoryUrl.split("/").pop()],
+    ),
+  );
+  await page
+    .getByRole("button", { name: /^Remove .* from this memory/ })
+    .first()
+    .click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "changed somewhere else" }),
+  ).toBeVisible();
+  expect((await memoryRow(memoryUrl)).tracks).toHaveLength(2);
+  await expect(
+    page.getByText("This memory is published. Saving changes what readers see"),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  const staleRemoval = page.getByRole("dialog", {
+    name: "Take this away from the published memory?",
+  });
+  await expect(staleRemoval).toBeVisible();
+  await staleRemoval.getByRole("button", { name: "Cancel" }).click();
+  expect((await memoryRow(memoryUrl)).tracks).toHaveLength(2);
+  // Back to private for the next test, as the author's Unpublish left it.
+  await withDatabase((client) =>
+    client.query(
+      `update entry_texts set status = 'private', published_at = null
+        where entry_id = $1`,
+      [memoryUrl.split("/").pop()],
+    ),
+  );
+  await expectNoHorizontalOverflow(page);
+  await reader.close();
 });
 
 test("moves a memory to Recently deleted and restores it whole", async ({
@@ -419,5 +679,6 @@ test("moves a memory to Recently deleted and restores it whole", async ({
   ).toBeVisible();
   const stored = await memoryRow(memoryUrl);
   expect(stored).toMatchObject({ deleted: false, status: "private" });
-  expect(stored.tracks).toHaveLength(3);
+  // Three songs, less the one the publication test removed.
+  expect(stored.tracks).toHaveLength(2);
 });

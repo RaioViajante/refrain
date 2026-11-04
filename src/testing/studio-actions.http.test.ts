@@ -1255,8 +1255,8 @@ describe("the Memories Studio, through real HTTP and PostgreSQL (M3.6)", () => {
         { cookie: cookie(), routeId: ids.memory },
       ),
     ).toMatchObject({ ok: false, code: "invalid_input" });
-    // The only publish path in the studio is the album journal's, and it
-    // does not know a memory.
+    // The album journal's publish path does not know a memory (the memory's
+    // own is tested below).
     expect(
       await call(
         "previewPublicationAction",
@@ -1312,38 +1312,213 @@ describe("the Memories Studio, through real HTTP and PostgreSQL (M3.6)", () => {
     }
   });
 
-  it("refuses to save a memory that is published, writing nothing (M3.7 builds its confirmed save)", async () => {
-    // Stands in for a write from outside the application: no studio path can
-    // publish a memory.
-    await db.query(
-      `update entry_texts
-          set status = 'published', published_at = now(),
-              first_published_at = coalesce(first_published_at, now())
-        where entry_id = $1`,
-      [ids.memory],
+  it("publishes a memory only with the token of its own review, and asks before a change to it (M3.7)", async () => {
+    const memoryId = String(
+      dataOf(
+        await call(
+          "createMemoryAction",
+          [
+            {
+              title: own("Memory to publish"),
+              body: own("Its writing."),
+              rememberedWhen: own("A season"),
+              trackIds: [ids.track],
+            },
+          ],
+          { cookie: cookie() },
+        ),
+      ).entryId,
     );
-    try {
-      const before = await snapshot();
-      const result = await call(
+    const versionOf = () =>
+      scalar<number>("select version from entries where id = $1", [memoryId]);
+    const statusOf = () =>
+      scalar<string>("select status from entry_texts where entry_id = $1", [
+        memoryId,
+      ]);
+
+    // The review: private writing, for the author's request only, no-store.
+    let before = await snapshot();
+    const shown = await callRaw(
+      "previewMemoryPublicationAction",
+      [{ entryId: memoryId, locale: "en" }],
+      { cookie: cookie(), routeId: memoryId },
+    );
+    expect(shown.headers.get("cache-control")).toContain("no-store");
+    const review = dataOf(shown.result);
+    expect(review.confirmation).toMatch(/^ct1\./);
+    expect(review.review).toMatchObject({
+      entryId: memoryId,
+      status: "draft",
+      title: own("Memory to publish"),
+      rememberedWhen: own("A season"),
+      text: [[own("Its writing.")]],
+    });
+    expect(review.review.music).toHaveLength(1);
+    expect(await snapshot()).toEqual(before);
+
+    // The album journal's actions do not know a memory, and the memory's do
+    // not know an album journal.
+    expect(
+      await call(
+        "publishJournalVersionAction",
+        [
+          {
+            entryId: memoryId,
+            locale: "en",
+            expectedVersion: 1,
+            confirmation: review.confirmation,
+          },
+        ],
+        { cookie: cookie(), routeId: memoryId },
+      ),
+    ).toEqual({ ok: false, code: "not_found" });
+    expect(
+      await call(
+        "previewMemoryPublicationAction",
+        [{ entryId: ids.journal, locale: "en" }],
+        { cookie: cookie(), routeId: memoryId },
+      ),
+    ).toEqual({ ok: false, code: "not_found" });
+
+    const publish = (confirmation: unknown, sessionCookie = cookie()) =>
+      call(
+        "publishMemoryVersionAction",
+        [
+          {
+            entryId: memoryId,
+            locale: "en",
+            expectedVersion: 1,
+            ...(confirmation === undefined ? {} : { confirmation }),
+          },
+        ],
+        { cookie: sessionCookie, routeId: memoryId },
+      );
+    before = await snapshot();
+    expect(await publish(undefined)).toEqual({
+      ok: false,
+      code: "confirmation_required",
+    });
+    expect(await publish("ct1.AAAA.BBBB")).toEqual({
+      ok: false,
+      code: "confirmation_invalid",
+    });
+    expect(await publish("not-a-token")).toMatchObject({
+      ok: false,
+      code: "invalid_input",
+    });
+    const other = await mintAuthorSession(db, secret);
+    expect(await publish(review.confirmation, other.cookie)).toEqual({
+      ok: false,
+      code: "confirmation_invalid",
+    });
+    expect(await snapshot()).toEqual(before);
+    expect(await statusOf()).toBe("draft");
+
+    const done = await callRaw(
+      "publishMemoryVersionAction",
+      [
+        {
+          entryId: memoryId,
+          locale: "en",
+          expectedVersion: 1,
+          confirmation: review.confirmation,
+        },
+      ],
+      { cookie: cookie(), routeId: memoryId },
+    );
+    expect(done.result).toEqual({ ok: true, data: { changed: true } });
+    expect(done.text).not.toContain("ct1.");
+    expect(await statusOf()).toBe("published");
+
+    // On this server public reads are off (the default), so nothing opens on
+    // the web, even for a published memory.
+    const slug = await scalar<string>(
+      "select slug from entry_slugs where entry_id = $1 and is_current",
+      [memoryId],
+    );
+    const page = await get(`/memories/${slug}`);
+    expect(page.status).toBe(404);
+    expect(await page.text()).not.toContain(label);
+
+    // A change to the published memory needs its own confirmation.
+    const change = {
+      entryId: memoryId,
+      expectedVersion: await versionOf(),
+      body: own("Changed while public"),
+    };
+    before = await snapshot();
+    expect(
+      await call("saveMemoryAction", [change], {
+        cookie: cookie(),
+        routeId: memoryId,
+      }),
+    ).toEqual({ ok: false, code: "confirmation_required" });
+    expect(await snapshot()).toEqual(before);
+    const delta = await callRaw("previewMemoryChangeAction", [change], {
+      cookie: cookie(),
+      routeId: memoryId,
+    });
+    expect(delta.headers.get("cache-control")).toContain("no-store");
+    const changeReview = dataOf(delta.result);
+    expect(changeReview.review.changes).toMatchObject([
+      { kind: "edited", label: "The memory" },
+    ]);
+    expect(await snapshot()).toEqual(before);
+    // Another session cannot use it.
+    expect(
+      await call(
+        "saveMemoryAction",
+        [{ ...change, confirmation: changeReview.confirmation }],
+        { cookie: other.cookie, routeId: memoryId },
+      ),
+    ).toEqual({ ok: false, code: "confirmation_invalid" });
+    ok(
+      await call(
+        "saveMemoryAction",
+        [{ ...change, confirmation: changeReview.confirmation }],
+        { cookie: cookie(), routeId: memoryId },
+      ),
+    );
+    expect(await versionOf()).toBe(change.expectedVersion + 1);
+
+    // A removal asks nothing.
+    ok(
+      await call(
         "saveMemoryAction",
         [
           {
-            entryId: ids.memory,
-            expectedVersion: memoryVersion,
-            body: own("Changed while public"),
+            entryId: memoryId,
+            expectedVersion: await versionOf(),
+            trackIds: [],
           },
         ],
-        { cookie: cookie(), routeId: ids.memory },
-      );
-      expect(result).toEqual({ ok: false, code: "published_memory" });
-      expect(await snapshot()).toEqual(before);
-    } finally {
-      await db.query(
-        `update entry_texts set status = 'private', published_at = null
-          where entry_id = $1`,
-        [ids.memory],
-      );
-    }
+        { cookie: cookie(), routeId: memoryId },
+      ),
+    );
+
+    // Unpublishing takes it away again, and deletes nothing.
+    ok(
+      await call(
+        "setMemoryPrivacyAction",
+        [
+          {
+            entryId: memoryId,
+            locale: "en",
+            status: "private",
+            expectedStatus: "published",
+          },
+        ],
+        { cookie: cookie(), routeId: memoryId },
+      ),
+    );
+    expect(await statusOf()).toBe("private");
+    // Left in Recently deleted, as private, for the clean-up.
+    ok(
+      await call("deleteMemoryAction", [memoryId], {
+        cookie: cookie(),
+        routeId: memoryId,
+      }),
+    );
   });
 
   it("moves a memory to Recently deleted and restores it once, as it was", async () => {
@@ -2615,12 +2790,39 @@ describe("what a request without the author's session can do", () => {
         args: [ids.deletedMemory],
         routeId: ids.deletedMemory,
       },
+      // M3.7: both memory previews return private writing, and the publish
+      // action changes visibility: refused to a visitor like everything else.
+      previewMemoryPublicationAction: {
+        args: [{ entryId: ids.memory, locale: "en" }],
+        routeId: ids.memory,
+      },
+      previewMemoryChangeAction: {
+        args: [
+          {
+            entryId: ids.memory,
+            expectedVersion: memoryVersion,
+            body: `${label} hijacked memory`,
+          },
+        ],
+        routeId: ids.memory,
+      },
+      publishMemoryVersionAction: {
+        args: [
+          {
+            entryId: ids.memory,
+            locale: "en",
+            expectedVersion: memoryVersion,
+            confirmation: "ct1.AAAA.BBBB",
+          },
+        ],
+        routeId: ids.memory,
+      },
     };
   }
 
   it("covers every server action in the build", () => {
     expect(Object.keys(attempts()).sort()).toEqual(Object.keys(actions).sort());
-    expect(Object.keys(actions).length).toBeGreaterThanOrEqual(37);
+    expect(Object.keys(actions).length).toBeGreaterThanOrEqual(40);
   });
 
   async function credentials(): Promise<[string, string | undefined][]> {

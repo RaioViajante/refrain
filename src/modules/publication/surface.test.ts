@@ -48,6 +48,7 @@ function surface(overrides: Partial<EntrySurface> = {}): EntrySurface {
         texts: { en: doc("[Test] Reflection") },
       },
     ],
+    memory: null,
     ...overrides,
   };
 }
@@ -172,5 +173,191 @@ describe("public atoms", () => {
         },
       }),
     ).toBe(false);
+  });
+});
+
+// M3.7: a memory's own atoms. "A music link is the atom (link id, relative
+// rank)" (ADR 0006 § 5): one atom per link, and one per ordered pair.
+describe("a memory's public atoms", () => {
+  function memory(
+    music: string[],
+    rememberedWhen: string | null = "[Test] a summer",
+    status: "published" | "private" = "published",
+  ): EntrySurface {
+    return surface({
+      kind: "memory",
+      albumRating: null,
+      reflections: [],
+      memory: {
+        rememberedWhen,
+        music: music.map((id) => `track:${id}` as const),
+      },
+      versions: [
+        {
+          locale: "en",
+          isOriginal: true,
+          status,
+          updatedAt: "2026-01-01T00:00:00.000000",
+          title: "[Test] A memory",
+          opening: null,
+          marginNote: null,
+          body: doc("[Test] Writing"),
+          bodyText: "[Test] Writing",
+        },
+      ],
+    });
+  }
+  const change = (
+    before: EntrySurface,
+    proposed: Parameters<typeof applyChange>[1],
+  ) =>
+    exposureDelta(
+      publicAtoms(before),
+      publicAtoms(applyChange(before, proposed)),
+    );
+
+  it("hold the title, the writing, the when, each link, and each ordered pair", () => {
+    const atoms = publicAtoms(memory(["a", "b", "c"]));
+    expect([...atoms.keys()].sort()).toEqual([
+      "memory|link|track:a",
+      "memory|link|track:b",
+      "memory|link|track:c",
+      "memory|order|track:a|track:b",
+      "memory|order|track:a|track:c",
+      "memory|order|track:b|track:c",
+      "memory|when",
+      "version|en|body",
+      "version|en|marginNote",
+      "version|en|opening",
+      "version|en|title",
+    ]);
+    expect(atoms.get("memory|when")).toBe("[Test] a summer");
+  });
+
+  it("are empty while the memory is not published, or deleted", () => {
+    expect(publicAtoms(memory(["a"], "x", "private")).size).toBe(0);
+    expect(publicAtoms({ ...memory(["a"]), deleted: true }).size).toBe(0);
+  });
+
+  it("leave out a blank when, as the page shows none", () => {
+    expect(publicAtoms(memory(["a"], "  ")).has("memory|when")).toBe(false);
+    expect(publicAtoms(memory(["a"], null)).has("memory|when")).toBe(false);
+  });
+
+  it("treat removing a link, from anywhere, as a strict reduction", () => {
+    const before = memory(["a", "b", "c"]);
+    for (const kept of [["b", "c"], ["a", "c"], ["a", "b"], []]) {
+      const after = publicAtoms(
+        applyChange(before, { memory: { trackIds: kept } }),
+      );
+      const was = publicAtoms(before);
+      expect(
+        [...after].every(
+          ([key, value]) => was.has(key) && was.get(key) === value,
+        ),
+        kept.join(","),
+      ).toBe(true);
+      expect(change(before, { memory: { trackIds: kept } })).toEqual([]);
+    }
+  });
+
+  it("treat clearing the when as a removal, and changing it as an edit", () => {
+    const before = memory(["a"]);
+    expect(change(before, { memory: { rememberedWhen: null } })).toEqual([]);
+    expect(
+      change(before, { memory: { rememberedWhen: "[Test] winter" } }),
+    ).toMatchObject([
+      {
+        atom: "memory|when",
+        kind: "edited",
+        subject: { type: "memoryWhen" },
+        before: "[Test] a summer",
+        after: "[Test] winter",
+      },
+    ]);
+    expect(
+      change(memory(["a"], null), { memory: { rememberedWhen: "[Test] x" } }),
+    ).toMatchObject([{ atom: "memory|when", kind: "added" }]);
+  });
+
+  it("counts a link added as an addition, with its order", () => {
+    expect(
+      change(memory(["a"]), { memory: { trackIds: ["a", "b"] } }).map((c) => [
+        c.atom,
+        c.kind,
+        c.subject.type,
+      ]),
+    ).toEqual([
+      ["memory|link|track:b", "added", "memoryLink"],
+      ["memory|order|track:a|track:b", "added", "memoryOrder"],
+    ]);
+  });
+
+  it("counts a reorder as an addition, even when nothing is added", () => {
+    expect(
+      change(memory(["a", "b", "c"]), {
+        memory: { trackIds: ["b", "a", "c"] },
+      }),
+    ).toMatchObject([
+      {
+        atom: "memory|order|track:b|track:a",
+        kind: "added",
+        subject: {
+          type: "memoryOrder",
+          first: "track:b",
+          second: "track:a",
+        },
+      },
+    ]);
+  });
+
+  it("does not count an unchanged list", () => {
+    expect(
+      change(memory(["a", "b"]), { memory: { trackIds: ["a", "b"] } }),
+    ).toEqual([]);
+  });
+
+  it("counts a new title, even a shorter one, as an edit", () => {
+    expect(
+      change(memory(["a"]), { version: { locale: "en", title: "[Test]" } }),
+    ).toMatchObject([
+      { atom: "version|en|title", kind: "edited", after: "[Test]" },
+    ]);
+  });
+
+  it("keep a public memory publishable only with a title and writing", () => {
+    const blankBody = {
+      version: {
+        locale: "en" as const,
+        body: { document: null, text: "" },
+      },
+    };
+    expect(
+      publicVersionsStayPublishable(
+        applyChange(memory(["a"]), blankBody),
+        blankBody,
+      ),
+    ).toBe(false);
+    const blankTitle = { version: { locale: "en" as const, title: " " } };
+    expect(
+      publicVersionsStayPublishable(
+        applyChange(memory(["a"]), blankTitle),
+        blankTitle,
+      ),
+    ).toBe(false);
+    const fine = { version: { locale: "en" as const, title: "[Test] B" } };
+    expect(
+      publicVersionsStayPublishable(applyChange(memory(["a"]), fine), fine),
+    ).toBe(true);
+  });
+
+  it("does not mutate the memory it is given", () => {
+    const before = memory(["a", "b"]);
+    const snapshot = JSON.stringify(before);
+    applyChange(before, {
+      memory: { trackIds: ["b"], rememberedWhen: null },
+      version: { locale: "en", title: "[Test] New" },
+    });
+    expect(JSON.stringify(before)).toBe(snapshot);
   });
 });

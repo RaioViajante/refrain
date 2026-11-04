@@ -95,7 +95,7 @@ export interface PublicationPreview {
   expiresAtMs: number;
 }
 
-function readable(document: unknown): ReviewText {
+export function readable(document: unknown): ReviewText {
   const text = documentToText(document);
   return text === null ? null : textToParagraphs(text);
 }
@@ -259,7 +259,9 @@ export interface ReviewedChange {
 export type ReviewedValue =
   | { type: "text"; text: ReviewText }
   | { type: "rating"; halfSteps: number | null }
-  | { type: "flag"; value: boolean };
+  | { type: "flag"; value: boolean }
+  /** A memory's songs, in order, as their titles (M3.7). */
+  | { type: "list"; items: string[] };
 
 export interface PublicChangeReview {
   entryVersion: number;
@@ -312,6 +314,11 @@ export function toChangeReview(
         before: change.before === undefined ? undefined : text(change.before),
         after: text(change.after),
       };
+    }
+    if (subject.type !== "reflection") {
+      // A memory's own atoms are reviewed by `toMemoryChangeReview`; an album
+      // journal has none.
+      throw new Error("A memory's change was reviewed as an album journal's.");
     }
     const trackTitle = trackTitles.get(subject.trackId) ?? "a track";
     switch (subject.field) {

@@ -9,11 +9,22 @@ import type {
   VisibilityStatus,
 } from "@/db";
 
-import { canonicalJson } from "./disclosure";
+import { canonicalJson, hasPublishableContent } from "./disclosure";
 import { PublicationError } from "./errors";
+import { isFilled } from "./text";
 
-// The public surface of one album journal and the exposure delta of a change
-// (ADR 0006 §§ 1 and 5). Internal to the Publication module.
+// The public surface of one entry, an album journal or a memory, and the
+// exposure delta of a change (ADR 0006 §§ 1 and 5). Internal to the
+// Publication module.
+//
+// A memory's own atoms (ADR 0006 § 1, "Memory details", M3.7) are its
+// remembered-when text, each music link, and the links' order. "A music link
+// is the atom (link id, relative rank)" (§ 5): each link is one atom, and the
+// order is one atom per ordered pair of links ("a comes before b"). So
+// removing a link, from anywhere in the list, takes atoms away and changes no
+// other (a strict reduction), while adding one or moving one adds an atom (a
+// change to the public page). Renumbering the positions without reordering
+// changes nothing.
 //
 // `readEntrySurface` reads the raw rows. `publicAtoms` says which atoms a
 // reader can see in that state, by the rules of the publication predicate
@@ -53,6 +64,20 @@ export interface SurfaceReflection {
   texts: Partial<Record<Locale, unknown>>;
 }
 
+/**
+ * One music link of a memory, by what it links: `track:<id>` or
+ * `album:<id>`. A recording appears once in a memory (a database constraint),
+ * so the key identifies the link.
+ */
+export type MusicLinkKey = `track:${string}` | `album:${string}`;
+
+/** A memory's own rows, as stored. */
+export interface SurfaceMemory {
+  rememberedWhen: string | null;
+  /** In the memory's order (position, then id). */
+  music: MusicLinkKey[];
+}
+
 export interface EntrySurface {
   entryId: string;
   kind: EntryKind;
@@ -66,6 +91,8 @@ export interface EntrySurface {
   albumRating: number | null;
   /** In track id order. */
   reflections: SurfaceReflection[];
+  /** The memory's rows, for a memory; `null` for every other kind. */
+  memory: SurfaceMemory | null;
 }
 
 /** A text as the save will store it: the document and its plain-text projection. */
@@ -91,11 +118,19 @@ export interface ProposedReflection {
 export interface ProposedChange {
   version?: {
     locale: Locale;
+    /** A memory's title (album journals have none). */
+    title?: string;
     opening?: string | null;
     body?: ProposedText | null;
   };
   albumRating?: number | null;
   reflections?: ProposedReflection[];
+  /** A memory's own fields. A field left out is unchanged. */
+  memory?: {
+    rememberedWhen?: string | null;
+    /** The whole ordered list of recording links, replacing the stored one. */
+    trackIds?: readonly string[];
+  };
 }
 
 /** What the delta says about one atom. */
@@ -111,7 +146,13 @@ export type ExposureSubject =
       trackId: string;
       locale: Locale;
       field: "text" | "favourite" | "rating" | "stillWriting";
-    };
+    }
+  /** A memory's remembered-when text. */
+  | { type: "memoryWhen" }
+  /** One music link of a memory. */
+  | { type: "memoryLink"; link: MusicLinkKey }
+  /** That one link comes before another in a memory's list. */
+  | { type: "memoryOrder"; first: MusicLinkKey; second: MusicLinkKey };
 
 /**
  * An atom a reader can see after the change and could not see, or saw
@@ -138,10 +179,10 @@ const utcText = (column: SQL) =>
   sql`to_char(${column} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US')`;
 
 /**
- * Reads the rows of one album journal. Takes no lock: the caller takes the
- * entry lock first when it must decide on what it reads (the save), and reads
- * inside one snapshot when it must not (the preview). `entry_not_found` for an
- * unknown entry.
+ * Reads the rows of one album journal or memory. Takes no lock: the caller
+ * takes the entry lock first when it must decide on what it reads (the save),
+ * and reads inside one snapshot when it must not (the preview).
+ * `entry_not_found` for an unknown entry.
  */
 export async function readEntrySurface(
   db: DatabaseExecutor,
@@ -232,6 +273,28 @@ export async function readEntrySurface(
     }
   }
 
+  let memory: SurfaceMemory | null = null;
+  if (entry.kind === "memory") {
+    const remembered = await db.execute<{ remembered_when: string | null }>(
+      sql`select remembered_when from memories where entry_id = ${entryId}`,
+    );
+    const links = await db.execute<{
+      track_id: string | null;
+      album_id: string | null;
+    }>(sql`
+      select track_id, album_id from memory_music
+       where memory_id = ${entryId}
+       order by position asc, id asc`);
+    memory = {
+      rememberedWhen: remembered.rows[0]?.remembered_when ?? null,
+      music: links.rows.map((link): MusicLinkKey =>
+        link.track_id !== null
+          ? `track:${link.track_id}`
+          : `album:${link.album_id!}`,
+      ),
+    };
+  }
+
   return {
     entryId,
     kind: entry.kind,
@@ -239,6 +302,7 @@ export async function readEntrySurface(
     version: entry.version,
     updatedAt: entry.updated_at,
     nowMs: Number(entry.now_ms),
+    memory,
     versions: versions.rows.map((row) => ({
       locale: row.locale,
       isOriginal: row.is_original,
@@ -298,7 +362,27 @@ export function publicAtoms(surface: EntrySurface): Map<string, unknown> {
       atoms.set(`${key}|stillWriting`, reflection.isStillWriting);
     }
   }
+  if (surface.kind === "memory" && surface.memory !== null) {
+    // The "when" belongs to the memory, not to a language, as the rating
+    // belongs to the album journal. A reader sees it only when it has words
+    // (the page shows nothing for a blank one), so clearing it is a removal.
+    if (isFilled(surface.memory.rememberedWhen)) {
+      atoms.set("memory|when", surface.memory.rememberedWhen);
+    }
+    const music = surface.memory.music;
+    for (const [index, link] of music.entries()) {
+      atoms.set(`memory|link|${link}`, link);
+      for (const later of music.slice(index + 1)) {
+        atoms.set(`memory|order|${link}|${later}`, true);
+      }
+    }
+  }
   return atoms;
+}
+
+/** The ordered list of a memory's links after `trackIds` replaces it. */
+function linksOf(trackIds: readonly string[]): MusicLinkKey[] {
+  return trackIds.map((trackId): MusicLinkKey => `track:${trackId}`);
 }
 
 /** The rows after `change`, without writing anything. */
@@ -315,6 +399,7 @@ export function applyChange(
       const edit = change.version;
       return {
         ...version,
+        ...(edit.title !== undefined ? { title: edit.title } : {}),
         ...(edit.opening !== undefined ? { opening: edit.opening } : {}),
         ...(edit.body !== undefined
           ? {
@@ -332,6 +417,19 @@ export function applyChange(
       ...reflection,
       texts: { ...reflection.texts },
     })),
+    memory:
+      surface.memory === null
+        ? null
+        : {
+            rememberedWhen:
+              change.memory?.rememberedWhen !== undefined
+                ? change.memory.rememberedWhen
+                : surface.memory.rememberedWhen,
+            music:
+              change.memory?.trackIds !== undefined
+                ? linksOf(change.memory.trackIds)
+                : [...surface.memory.music],
+          },
   };
   for (const proposed of change.reflections ?? []) {
     let reflection = next.reflections.find(
@@ -376,6 +474,19 @@ function subjectOf(key: string): ExposureSubject {
   const parts = key.split("|");
   if (parts[0] === "albumRating") {
     return { type: "albumRating" };
+  }
+  if (parts[0] === "memory") {
+    if (parts[1] === "when") {
+      return { type: "memoryWhen" };
+    }
+    if (parts[1] === "link") {
+      return { type: "memoryLink", link: parts[2] as MusicLinkKey };
+    }
+    return {
+      type: "memoryOrder",
+      first: parts[2] as MusicLinkKey,
+      second: parts[3] as MusicLinkKey,
+    };
   }
   if (parts[0] === "version") {
     return {
@@ -446,19 +557,18 @@ export function samePublicAtoms(a: EntrySurface, b: EntrySurface): boolean {
 /**
  * A language version that is public must stay publishable: its opening
  * sentence or its body keeps non-whitespace content (ADR 0006 § 5, owner
- * decision R1). Checked on the versions the change touches.
+ * decision R1), and a memory keeps its title (§ 4, step 6). Checked on the
+ * versions the change touches.
  */
 export function publicVersionsStayPublishable(
   predicted: EntrySurface,
   change: ProposedChange,
 ): boolean {
-  const filled = (text: string | null) =>
-    text !== null && /\P{White_Space}/u.test(text);
   return predicted.versions
     .filter(
       (version) =>
         version.status === "published" &&
         change.version?.locale === version.locale,
     )
-    .every((version) => filled(version.opening) || filled(version.bodyText));
+    .every((version) => hasPublishableContent(predicted.kind, version));
 }

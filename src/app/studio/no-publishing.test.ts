@@ -36,10 +36,15 @@ const FORBIDDEN_NAMES = new Set([
 // each alone in its own file, and the publish wrapper is called only by the
 // publish action. Adding a file here needs review.
 const J = "src/app/studio/journals";
+const M = "src/app/studio/memories";
 const WRAPPER_FILES: Record<string, string[]> = {
   previewAlbumJournalPublication: [`${J}/preview-publication-action.ts`],
   previewAlbumJournalPublicChange: [`${J}/preview-change-action.ts`],
   publishAlbumJournalVersion: [`${J}/actions.ts`],
+  // M3.7: the memory wrappers, the same way.
+  previewMemoryPublication: [`${M}/preview-publication-action.ts`],
+  previewMemoryPublicChange: [`${M}/preview-change-action.ts`],
+  publishMemoryVersion: [`${M}/actions.ts`],
 };
 
 // The confirmation token reaches the browser only inside a dialog and leaves
@@ -49,10 +54,14 @@ const WRAPPER_FILES: Record<string, string[]> = {
 const TOKEN_FILES = new Set([
   `${J}/publish-dialog.tsx`,
   `${J}/change-dialog.tsx`,
+  `${M}/memory-publish-dialog.tsx`,
+  `${M}/memory-change-dialog.tsx`,
 ]);
 const PREVIEW_ACTION_IMPORTERS: Record<string, string> = {
   "@/app/studio/journals/preview-publication-action": `${J}/publish-dialog.tsx`,
   "@/app/studio/journals/preview-change-action": `${J}/change-dialog.tsx`,
+  "@/app/studio/memories/preview-publication-action": `${M}/memory-publish-dialog.tsx`,
+  "@/app/studio/memories/preview-change-action": `${M}/memory-change-dialog.tsx`,
 };
 
 // Any module path that names the Publication module, whatever it begins with:
@@ -61,7 +70,7 @@ const PUBLICATION_MODULE = /(^|\/)modules\/publication(\/|$)/;
 
 // The only files under src/app that may import its reading entry point.
 const PUBLIC_READING_FILES =
-  /^src\/app\/(\(public\)\/|\(artists\)\/|page\.tsx$|not-found\.tsx$|sitemap\.xml\/route\.ts$|robots\.txt\/route\.ts$)/;
+  /^src\/app\/(\(public\)\/|\(artists\)\/|\(memories\)\/|page\.tsx$|not-found\.tsx$|sitemap\.xml\/route\.ts$|robots\.txt\/route\.ts$)/;
 
 /** The module path a node names, if it names one with a string literal. */
 function moduleNamed(node: ts.Node): string | undefined {
@@ -296,6 +305,8 @@ describe("the studio cannot publish, re-address, or permanently delete", () => {
         "src/app/not-found.tsx",
         // The Home (M3.4), and only the root one.
         "src/app/page.tsx",
+        // M3.7: the memory pages.
+        "src/app/(memories)/memories/[slug]/page.tsx",
       ]) {
         expect(violations(reading, file), file).toEqual([]);
       }
@@ -347,6 +358,45 @@ describe("the studio cannot publish, re-address, or permanently delete", () => {
         `${J}/change-dialog.tsx`,
       ),
     ).toEqual([]);
+    // M3.7: the memory wrappers, token, and preview actions, the same way.
+    const memoryPreview = `${M}/preview-publication-action.ts`;
+    expect(violations("previewMemoryPublication(a, i)", memoryPreview)).toEqual(
+      [],
+    );
+    expect(violations("previewMemoryPublication(a, i)")).toHaveLength(1);
+    expect(
+      violations("previewMemoryPublication(a, i)", `${M}/actions.ts`),
+    ).toHaveLength(1);
+    expect(violations("publishMemoryVersion(a, i)", `${M}/actions.ts`)).toEqual(
+      [],
+    );
+    expect(
+      violations("publishMemoryVersion(a, i)", `${J}/actions.ts`),
+    ).toHaveLength(1);
+    expect(
+      violations("previewMemoryPublicChange(a, i)", `${M}/actions.ts`),
+    ).toHaveLength(1);
+    expect(
+      violations("const t = result.confirmation;", `${M}/memory-editor.tsx`),
+    ).toHaveLength(1);
+    expect(
+      violations(
+        "const t = result.confirmation;",
+        `${M}/memory-change-dialog.tsx`,
+      ),
+    ).toEqual([]);
+    expect(
+      violations(
+        'import { p } from "@/app/studio/memories/preview-change-action";',
+        `${M}/memory-publish-dialog.tsx`,
+      ),
+    ).toHaveLength(1);
+    expect(
+      violations(
+        'import { p } from "@/app/studio/memories/preview-publication-action";',
+        `${J}/publish-dialog.tsx`,
+      ),
+    ).toHaveLength(1);
   });
 });
 
@@ -357,6 +407,8 @@ describe("a preview refreshes nothing", () => {
   it.each([
     "src/app/studio/journals/preview-publication-action.ts",
     "src/app/studio/journals/preview-change-action.ts",
+    "src/app/studio/memories/preview-publication-action.ts",
+    "src/app/studio/memories/preview-change-action.ts",
   ])("%s runs its command with the effect none", (file) => {
     const source = ts.createSourceFile(
       file,

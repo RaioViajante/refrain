@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import {
+  ConfirmDialog,
   FormStatus,
   TextAreaField,
   TextField,
@@ -16,6 +17,7 @@ import {
   createMemoryAction,
   saveMemoryAction,
 } from "@/app/studio/memories/actions";
+import { MemoryChangeDialog } from "@/app/studio/memories/memory-change-dialog";
 import { MemoryControls } from "@/app/studio/memories/memory-controls";
 import { MemoryMusic } from "@/app/studio/memories/memory-music";
 import {
@@ -42,6 +44,22 @@ interface Draft {
   recordings: Recording[];
 }
 
+/**
+ * What a save takes away from what readers see of a published memory: the
+ * songs the saved list no longer has, and a "when" that is cleared. Derived
+ * from the editor's saved state, never from the server's change, which lists
+ * additions and edits only (ADR 0006 § 5).
+ */
+function removalsOf(base: Draft, sent: Draft): string[] {
+  const kept = new Set(sent.recordings.map((recording) => recording.trackId));
+  const songs = base.recordings
+    .filter((recording) => !kept.has(recording.trackId))
+    .map((recording) => recording.title);
+  const when =
+    base.rememberedWhen.trim() !== "" && sent.rememberedWhen.trim() === "";
+  return [...(when ? ["The “when”"] : []), ...songs];
+}
+
 function sameOrder(a: readonly Recording[], b: readonly Recording[]) {
   return (
     a.length === b.length &&
@@ -54,7 +72,9 @@ function sameOrder(a: readonly Recording[], b: readonly Recording[]) {
  * count, and in the margin its music, the artists derived from it, who can see
  * it, and Delete. Saving is explicit (the Save button or Cmd/Ctrl+S), the text
  * stays in the fields whatever happens to a save, and leaving with unsaved
- * changes asks first. Nothing here publishes.
+ * changes asks first. A save never publishes; saving a published memory first
+ * shows what would change for readers, and saves only on the author's
+ * confirmation (M3.7; ADR 0006 § 5).
  */
 export function MemoryEditor({
   create,
@@ -82,8 +102,23 @@ export function MemoryEditor({
   const [version, setVersion] = useState(edit?.version ?? 1);
   const [saved, setSaved] = useState(false);
   const [created, setCreated] = useState(false);
-  const { pending, failure, run } = useSubmission();
+  const { pending, failure, run, clearFailure, report } = useSubmission();
   const saving = useRef(false);
+  // A save waiting for the author's confirmation of what readers would see.
+  // The change dialog owns the confirmation token; this holds only the save.
+  const [review, setReview] = useState<
+    { payload: Record<string, unknown>; sent: Draft } | undefined
+  >();
+  // A removal from a published memory (a song, the "when") needs no token,
+  // but the interface asks first (ADR 0006 § 5): what would be taken away.
+  const [removal, setRemoval] = useState<
+    | {
+        payload: Record<string, unknown>;
+        sent: Draft;
+        items: string[];
+      }
+    | undefined
+  >();
 
   const dirty = created
     ? false
@@ -98,9 +133,46 @@ export function MemoryEditor({
     setSaved(false);
   }
 
+  function adopt(next: number, sent: Draft) {
+    setVersion(next);
+    setBase(sent);
+    setSaved(true);
+    router.refresh();
+  }
+
+  // Sends the save with no confirmation. When the memory turns out to be
+  // public (it was published in another tab), the server refuses and the
+  // change dialog takes over; `reviewed` stops that from looping.
+  async function commit(
+    payload: Record<string, unknown>,
+    sent: Draft,
+    reviewed = false,
+  ) {
+    const result = await run(() => saveMemoryAction(payload));
+    if (result.ok) {
+      adopt(result.data.version, sent);
+      return;
+    }
+    if (
+      !reviewed &&
+      (result.code === "confirmation_required" ||
+        result.code === "confirmation_stale" ||
+        result.code === "confirmation_expired" ||
+        result.code === "confirmation_invalid")
+    ) {
+      clearFailure();
+      setReview({ payload, sent });
+    }
+    if (result.code === "status_changed") {
+      // Another tab published or unpublished it: show how it stands now. The
+      // text stays in the editor.
+      router.refresh();
+    }
+  }
+
   async function save(event?: FormEvent) {
     event?.preventDefault();
-    if (pending || created || saving.current) {
+    if (pending || created || review || removal || saving.current) {
       return;
     }
     saving.current = true;
@@ -134,6 +206,10 @@ export function MemoryEditor({
     const payload: Record<string, unknown> = {
       entryId: edit.entryId,
       expectedVersion: version,
+      // The status this editor showed: if another tab published or
+      // unpublished the memory, the save is refused and the page refreshed,
+      // so a removal is never saved to a public page without asking.
+      expectedStatus: edit.status,
     };
     if (sent.title !== base.title) {
       payload.title = sent.title;
@@ -147,17 +223,18 @@ export function MemoryEditor({
     if (!sameOrder(sent.recordings, base.recordings)) {
       payload.trackIds = sent.recordings.map((recording) => recording.trackId);
     }
-    if (Object.keys(payload).length === 2) {
+    if (Object.keys(payload).length === 3) {
       setSaved(true);
       return;
     }
-    const result = await run(() => saveMemoryAction(payload));
-    if (result.ok) {
-      setVersion(result.data.version);
-      setBase(sent);
-      setSaved(true);
-      router.refresh();
+    if (edit.status === "published") {
+      // Readers can see it: ask what would change for them before anything
+      // is written. The dialog saves only if the author confirms.
+      clearFailure();
+      setReview({ payload, sent });
+      return;
     }
+    await commit(payload, sent);
   }
 
   // Cmd or Ctrl + S saves. The latest `save` is kept in a ref so the listener
@@ -226,9 +303,8 @@ export function MemoryEditor({
 
       {status === "published" ? (
         <p className="studio-panel" role="note">
-          This memory is marked as published. Saving changes to a published
-          memory isn’t built yet, so saving is refused until you make it
-          private. Your text stays here.
+          This memory is published. Saving changes what readers see: before a
+          change is saved, you will see exactly what changes and be asked first.
         </p>
       ) : null}
 
@@ -315,6 +391,66 @@ export function MemoryEditor({
           )}
         </div>
       </div>
+
+      <MemoryChangeDialog
+        payload={review?.payload}
+        removals={review ? removalsOf(base, review.sent) : []}
+        onSaved={(next) => {
+          if (review) {
+            adopt(next, review.sent);
+          }
+          setReview(undefined);
+        }}
+        onNothingToConfirm={() => {
+          const waiting = review;
+          setReview(undefined);
+          if (!waiting) {
+            return;
+          }
+          const items = removalsOf(base, waiting.sent);
+          if (items.length > 0) {
+            setRemoval({ ...waiting, items });
+          } else {
+            void commit(waiting.payload, waiting.sent, true);
+          }
+        }}
+        onRefused={(refused) => {
+          setReview(undefined);
+          report(refused);
+          if (refused.code === "status_changed") {
+            router.refresh();
+          }
+        }}
+        onCancel={() => setReview(undefined)}
+      />
+
+      <ConfirmDialog
+        open={removal !== undefined}
+        title="Take this away from the published memory?"
+        confirmLabel="Save and take it away"
+        pending={pending}
+        onConfirm={() => {
+          const waiting = removal;
+          setRemoval(undefined);
+          if (waiting) {
+            void commit(waiting.payload, waiting.sent, true);
+          }
+        }}
+        onCancel={() => setRemoval(undefined)}
+      >
+        <div className="space-y-3">
+          <p>
+            This memory is published. Saving takes this away from what readers
+            see; nothing else changes, and nothing is deleted from your catalog.
+            Cancelling leaves your text in the editor.
+          </p>
+          <ul className="studio-review-list">
+            {removal?.items.map((item, index) => (
+              <li key={index}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      </ConfirmDialog>
     </form>
   );
 }

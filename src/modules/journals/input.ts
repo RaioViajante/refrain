@@ -198,7 +198,9 @@ const rememberedWhen = z
  * recording appears at most once (also a database constraint).
  */
 const recordingIds = z
-  .array(z.uuid())
+  // Lower case, as the database returns ids, so that the same recording
+  // spelled in upper case is the same link, and a duplicate however spelled.
+  .array(z.uuid().transform((id) => id.toLowerCase()))
   .max(MAX_MEMORY_RECORDINGS)
   .refine((list) => new Set(list).size === list.length, {
     message: "duplicate",
@@ -225,12 +227,26 @@ export const saveMemoryInput = z
     // The whole ordered list: what is left out is unlinked, never deleted
     // from the catalog.
     trackIds: recordingIds,
+    // The status the author's editor showed (M3.7). When it is given and the
+    // memory's status is no longer it (another tab published or unpublished
+    // it), the save is refused as `status_changed`: a removal from a public
+    // memory needs no token, and the interface must ask first (ADR 0006
+    // § 5), which an editor that believes the memory private cannot do.
+    expectedStatus: z.enum(["draft", "private", "published"]),
+    // Needed only when the save changes what a reader sees of a public
+    // memory (M3.7). It comes from the confirmation dialog and nowhere else.
+    confirmation: z
+      .string()
+      .max(MAX_CONFIRMATION_TOKEN_LENGTH)
+      .regex(TOKEN_FORM),
   })
   .partial({
     title: true,
     rememberedWhen: true,
     body: true,
     trackIds: true,
+    expectedStatus: true,
+    confirmation: true,
   })
   .refine(
     (save) =>

@@ -30,17 +30,13 @@ import type { FieldErrors } from "@/validation";
  *   current address; an invariant failure, reported and not retried.
  * - `confirmation_required`, `confirmation_invalid`, `confirmation_expired`,
  *   `confirmation_stale`: the save would change what a reader sees of a public
- *   journal and the author's confirmation of exactly that change is missing,
+ *   journal or memory and the author's confirmation of exactly that change is missing,
  *   not authentic, too old, or for another state (ADR 0006 § 5 and § 12).
  *   Nothing is written. The first, third, and fourth carry the fresh change
  *   (`delta`), never a token.
  * - `track_not_found`: a memory names a recording that is not in the catalog.
  *   (`track_archived` also applies to a memory: a new link to an archived
  *   recording is refused, and an existing one is kept.)
- * - `memory_published`: a version of the memory is published, and saving a
- *   published memory needs the confirmed save that M3.7 builds (ADR 0006
- *   § 5). Nothing is written. No studio path can publish a memory, so only a
- *   write outside the application reaches it.
  */
 export type JournalFailure =
   | "invalid_input"
@@ -55,7 +51,6 @@ export type JournalFailure =
   | "track_not_in_album"
   | "track_archived"
   | "track_not_found"
-  | "memory_published"
   | "unavailable"
   | "nothing_to_publish"
   | "no_current_slug"

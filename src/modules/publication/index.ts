@@ -15,6 +15,8 @@ export type {
   DisclosedReflection,
   PublishDisclosure,
 } from "./disclosure";
+// A memory's music as the page and the review name it (M3.7).
+export type { PublicMemoryArtist, PublicMemoryMusic } from "./memory-music";
 export {
   previewPublication,
   publishLanguageVersion,
@@ -32,6 +34,7 @@ export {
 export type {
   ExposureChange,
   ExposureSubject,
+  MusicLinkKey,
   ProposedChange,
   ProposedReflection,
   ProposedText,

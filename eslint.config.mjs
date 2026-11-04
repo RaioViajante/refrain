@@ -95,6 +95,8 @@ const eslintConfig = defineConfig([
       "src/app/\\(public\\)/**",
       // The artist pages (M3.5): their own route group, for their header.
       "src/app/\\(artists\\)/**",
+      // The memory pages (M3.7): their own route group, for their header.
+      "src/app/\\(memories\\)/**",
       // The Home (M3.4): the root page, outside the route group.
       "src/app/page.tsx",
       "src/app/sitemap.xml/**",

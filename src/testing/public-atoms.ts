@@ -7,12 +7,14 @@ import {
   listPublicTrackReflections,
 } from "@/modules/publication";
 
-// An INDEPENDENT account of what a reader sees of one album journal (ADR 0006
-// § 11 and § 13, tests 9 and 13), built only from the live public queries and
-// sharing no code with the Publication module's own atoms. A test that
-// compares the two checks the module against the queries, not against
+// An INDEPENDENT account of what a reader sees of one album journal or memory
+// (ADR 0006 § 11 and § 13, tests 9 and 13), built only from the live public
+// queries and sharing no code with the Publication module's own atoms. A test
+// that compares the two checks the module against the queries, not against
 // itself. Keys: `version|<locale>|<field>`, `reflection|<track>|<locale>|
-// <field>`, and `albumRating`. Imported only by tests.
+// <field>`, `albumRating`, and for a memory (M3.7) `memory|when`,
+// `memory|link|<track:id or album:id>`, and `memory|order|<a>|<b>` for each
+// link `a` listed before `b`. Imported only by tests.
 
 export async function publicAtomsFromQueries(
   db: DatabaseExecutor,
@@ -42,6 +44,30 @@ export async function publicAtomsFromQueries(
     }
   }
   if (versions.length > 0) {
+    // A memory's details are public with the memory when some version is
+    // (ADR 0006 § 1). Read here with plain SQL, written from the ADR, not
+    // from the module.
+    const memory = await db.execute<{ remembered_when: string | null }>(
+      sql`select remembered_when from memories where entry_id = ${entryId}`,
+    );
+    if (memory.rows.length > 0) {
+      const when = memory.rows[0]!.remembered_when;
+      if (when !== null && when.trim() !== "") {
+        atoms.set("memory|when", when);
+      }
+      const links = await db.execute<{ link: string }>(sql`
+        select case when track_id is not null then 'track:' || track_id
+                    else 'album:' || album_id end as link
+          from memory_music where memory_id = ${entryId}
+         order by position, id`);
+      const order = links.rows.map((row) => row.link);
+      order.forEach((link, index) => {
+        atoms.set(`memory|link|${link}`, link);
+        for (const later of order.slice(index + 1)) {
+          atoms.set(`memory|order|${link}|${later}`, true);
+        }
+      });
+    }
     // The album rating has no public query yet. It is public with the
     // journal when some version is (ADR 0006 § 1).
     const rating = await db.execute<{ rating_half_steps: number | null }>(

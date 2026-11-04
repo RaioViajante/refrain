@@ -272,15 +272,26 @@ const notFound: SlugResolution = { outcome: "not_found" };
  *
  * Columns: entry_id, slug.
  */
-export const servedAlbumJournalAddresses = sql`
+export const servedAlbumJournalAddresses = servedAddressesOf("album_journal");
+
+/**
+ * The memory addresses that are served as pages (M3.7), by the same rule as
+ * an album journal's: exactly the addresses `resolvePublicSlug` finds for a
+ * memory. Columns: entry_id, slug.
+ */
+export const servedMemoryAddresses = servedAddressesOf("memory");
+
+function servedAddressesOf(kind: "album_journal" | "memory") {
+  return sql`
   select s.entry_id, s.slug
     from entry_slugs s
-   where s.kind = 'album_journal'
+   where s.kind = ${kind}
      and s.is_current
      and s.was_published
      and exists (select 1
                    from (${publicLanguageVersions}) pv
                   where pv.entry_id = s.entry_id)`;
+}
 
 /**
  * The publicly visible artists (M3.5): an artist is public only because a

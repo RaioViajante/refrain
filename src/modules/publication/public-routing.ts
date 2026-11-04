@@ -47,6 +47,30 @@ export async function routeAlbumJournalRequest(
   request: AlbumJournalRequest,
   env: Record<string, string | undefined> = process.env,
 ): Promise<AlbumJournalRouting> {
+  return routeEntryRequest(db, "album_journal", request, env);
+}
+
+/**
+ * What a public memory address answers (M3.7), in exactly the album journal's
+ * order and with its answers: a memory that is draft, private, deleted,
+ * restored, unpublished, retired, or never public, and an unknown or
+ * malformed address, all get the same unknown-address `404`; a previous
+ * address of a publicly visible memory gets a `308` to its current one.
+ */
+export async function routeMemoryRequest(
+  db: () => DatabaseExecutor,
+  request: AlbumJournalRequest,
+  env: Record<string, string | undefined> = process.env,
+): Promise<AlbumJournalRouting> {
+  return routeEntryRequest(db, "memory", request, env);
+}
+
+async function routeEntryRequest(
+  db: () => DatabaseExecutor,
+  kind: "album_journal" | "memory",
+  request: AlbumJournalRequest,
+  env: Record<string, string | undefined>,
+): Promise<AlbumJournalRouting> {
   if (!publicReadsEnabled(env)) {
     return { action: "not_found" };
   }
@@ -57,11 +81,7 @@ export async function routeAlbumJournalRequest(
     return { action: "not_found" };
   }
   try {
-    const resolution = await resolvePublicSlug(
-      db(),
-      "album_journal",
-      request.slug,
-    );
+    const resolution = await resolvePublicSlug(db(), kind, request.slug);
     switch (resolution.outcome) {
       case "found":
         return { action: "serve" };

@@ -28,8 +28,14 @@ import {
   type PublicHome,
 } from "./public-home";
 import {
+  getPublicMemory as getPublicMemoryFrom,
+  listPublicMemoryAddresses as listPublicMemoryAddressesFrom,
+  type PublicMemory,
+} from "./public-memory";
+import {
   routeAlbumJournalRequest as routeAlbumJournalRequestWith,
   routeArtistRequest as routeArtistRequestWith,
+  routeMemoryRequest as routeMemoryRequestWith,
   type AlbumJournalRequest,
 } from "./public-routing";
 import { publicReadsEnabled } from "./public-reads";
@@ -63,6 +69,11 @@ export type {
   PublicArtistTrack,
 } from "./public-artist";
 export type { PublicHome, PublicJournalCard } from "./public-home";
+export type {
+  PublicMemory,
+  PublicMemoryArtist,
+  PublicMemoryMusic,
+} from "./public-memory";
 export type { ArtistAddressResolution, SlugResolution } from "./queries";
 export { isNormalizedSlug } from "./slug";
 
@@ -145,4 +156,41 @@ export async function listPublicArtistAddresses(): Promise<string[]> {
 /** What an artist address answers; see `public-routing.ts`. */
 export function routeArtistRequest(request: AlbumJournalRequest) {
   return routeArtistRequestWith(getDb, request);
+}
+
+/**
+ * A public memory's page (M3.7), or null when no language version of it is
+ * publicly visible. While reads are off it is null for every memory.
+ */
+export async function getPublicMemory(
+  entryId: string,
+  readerLocale: Locale,
+): Promise<PublicMemory | null> {
+  if (!publicReadsEnabled()) {
+    return null;
+  }
+  return getPublicMemoryFrom(getDb(), entryId, readerLocale);
+}
+
+/** Resolves a memory address: found, a redirect, or not found. */
+export async function resolvePublicMemorySlug(
+  slug: string,
+): Promise<SlugResolution> {
+  if (!publicReadsEnabled()) {
+    return { outcome: "not_found" };
+  }
+  return resolvePublicSlugFrom(getDb(), "memory", slug);
+}
+
+/** Every public memory address, for the sitemap. */
+export async function listPublicMemoryAddresses(): Promise<string[]> {
+  if (!publicReadsEnabled()) {
+    return [];
+  }
+  return listPublicMemoryAddressesFrom(getDb());
+}
+
+/** What a memory address answers; see `public-routing.ts`. */
+export function routeMemoryRequest(request: AlbumJournalRequest) {
+  return routeMemoryRequestWith(getDb, request);
 }

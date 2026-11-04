@@ -8,19 +8,22 @@ import { authorizeAuthor } from "@/modules/identity";
 import {
   createMemory,
   deleteMemory,
+  publishMemoryVersion,
   restoreMemory,
   saveMemory,
   setMemoryPrivacy,
 } from "@/modules/journals";
 
-// The memory editor's server actions (M3.6). Server actions are public POST
-// endpoints: each one authorizes the request itself, first, then runs its
+// The memory editor's server actions (M3.6, M3.7). Server actions are public
+// POST endpoints: each one authorizes the request itself, first, then runs its
 // command through `perform` (which also requires the application's own
 // Origin), and the domain command validates the input.
 //
-// There is no memory preview or publish action, and nothing here takes a
-// confirmation token: publishing a memory is M3.7. A save of a memory with a
-// published version is refused by the command, and a restore never publishes.
+// Publication (ADR 0006): the confirmation token is minted only by the two
+// memory preview actions (their own files, so nothing here can call one) and
+// arrives here only in the request body, sent by a confirmation dialog's
+// confirm control. Nothing in this file previews, mints, retries, or supplies
+// a token. A restore never publishes.
 
 export async function createMemoryAction(
   input: unknown,
@@ -32,7 +35,13 @@ export async function createMemoryAction(
   return perform(() => createMemory(authorization.author, input));
 }
 
-/** Saves the title, the "when", the writing, and the ordered recordings. */
+/**
+ * Saves the title, the "when", the writing, and the ordered recordings. When
+ * the save would change what readers see of a published memory it needs the
+ * `confirmation` that the change dialog sends, from a separate preview
+ * request; without a valid one the command refuses and writes nothing (ADR
+ * 0006 § 5). The token comes from the request body only.
+ */
 export async function saveMemoryAction(
   input: unknown,
 ): Promise<ActionResult<{ version: number }>> {
@@ -40,7 +49,7 @@ export async function saveMemoryAction(
   if (!authorization.ok) {
     return denied(authorization.reason);
   }
-  return perform(() => saveMemory(authorization.author, input));
+  return perform(() => saveMemory(authorization.author, input), "visibility");
 }
 
 /** Draft or private only: nothing here can publish. */
@@ -79,6 +88,25 @@ export async function restoreMemoryAction(
   }
   return perform(
     () => restoreMemory(authorization.author, entryId),
+    "visibility",
+  );
+}
+
+/**
+ * Publishes the memory's version with the confirmation token that a separate
+ * preview request returned. The command, not this action, decides: it checks
+ * the token, the version, and the disclosure under the entry lock (ADR 0006
+ * § 4). Reports success only after the database commit.
+ */
+export async function publishMemoryVersionAction(
+  input: unknown,
+): Promise<ActionResult<{ changed: boolean }>> {
+  const authorization = await authorizeAuthor(await headers());
+  if (!authorization.ok) {
+    return denied(authorization.reason);
+  }
+  return perform(
+    () => publishMemoryVersion(authorization.author, input),
     "visibility",
   );
 }

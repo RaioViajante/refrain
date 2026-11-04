@@ -1294,6 +1294,237 @@ article.pa-grid {
   }
 }
 
+/* The memory (M3.7; the approved V4.4 `Memory` screen). The notebook
+   layout: a 220px margin (when, the publication date, the language, and "The
+   music") beside one writing column (the kind, the title in Kalam at 58px,
+   and the writing), 64px apart, 72px under the navigation. The article comes
+   first in the page, so a screen reader and a phone read the title and the
+   writing first; on a wide screen the grid puts the margin on the left. The
+   values are the screen's own. */
+.pm {
+  padding-top: 72px;
+  /* With the footer's own 56px, the screen's spacious end of the page. */
+  padding-bottom: 72px;
+}
+
+.pm-grid {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-areas: "margin article";
+  column-gap: 64px;
+  align-items: start;
+}
+
+.pm-article {
+  grid-area: article;
+  min-width: 0;
+}
+
+.pm-margin {
+  grid-area: margin;
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+  min-width: 0;
+  padding-top: 8px;
+}
+
+.pm-kind {
+  margin-bottom: 10px;
+  font-size: 16.5px;
+  color: var(--color-ink-3);
+}
+
+.pm-title {
+  max-width: 18ch;
+  margin: 0;
+  font-family: var(--font-kalam), cursive;
+  font-size: 58px;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.005em;
+  overflow-wrap: break-word;
+}
+
+.pm-body {
+  max-width: 62ch;
+  margin-top: 36px;
+  font-size: 21px;
+  line-height: 1.66;
+}
+
+.pm-body p {
+  margin: 0 0 1.25em;
+}
+
+.pm-body h2 {
+  margin: 1.7em 0 0.5em;
+  font-family: var(--font-kalam), cursive;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.pm-body blockquote {
+  margin: 1.4em 0;
+  padding-left: 18px;
+  border-left: 1px solid var(--color-ink);
+  font-family: var(--font-kalam), cursive;
+  font-size: 26px;
+  font-weight: 300;
+  line-height: 1.4;
+}
+
+.pm-body blockquote p {
+  margin: 0;
+}
+
+.pm-facts {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--color-ink-2);
+}
+
+.pm-when {
+  font-family: var(--font-kalam), cursive;
+  font-size: 21px;
+  line-height: 1.4;
+  color: var(--color-ink);
+  overflow-wrap: break-word;
+}
+
+.pm-music-title {
+  margin: 0 0 8px;
+  font-family: var(--font-kalam), cursive;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.pm-songs {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pm-song {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.pm-song-art {
+  width: 64px;
+}
+
+/* At 64px the large frame's wobble shrinks to nothing; the small one is drawn
+   at a thumbnail's own scale, as on the Home. */
+.pm-song-art .ph-art-fallback {
+  padding: 0;
+  background-image: var(--stroke-frame-small);
+}
+
+.pm-song-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.pm-song-title {
+  font-family: var(--font-kalam), cursive;
+  font-size: 19px;
+  line-height: 1.3;
+  overflow-wrap: break-word;
+}
+
+/* A song's quiet lines: its artists, then its album. V4.4 sets them as one
+   line ("artist · album"); here each is a line of its own, because a link
+   in them is a full 44px target and two targets on wrapped lines would lie
+   over each other (as on the artist page's credit, M3.5). */
+.pm-song-line {
+  display: block;
+  font-size: 16.5px;
+  line-height: 1.55;
+  color: var(--color-ink-3);
+  overflow-wrap: break-word;
+}
+
+/* A line that holds a link is laid out in 44px rows, one per wrapped line. */
+.pm-song-line-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* A link in a song's lines: an album journal or an artist's page that is
+   public. A 44px target that takes its own line height. */
+.pm-song-link {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-height: 44px;
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+  text-decoration-color: #767676;
+}
+
+.pm-song-link:hover {
+  text-decoration-color: var(--color-ink);
+}
+
+.pm-song-line .pm-song-link {
+  color: var(--color-ink-2);
+}
+
+@media (max-width: 720px) {
+  .pm {
+    padding-top: 72px;
+  }
+
+  /* One column: the kind, the title, the writing, then the margin. */
+  .pm-grid {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 30px;
+  }
+
+  .pm-margin {
+    padding-top: 0;
+  }
+
+  .pm-title {
+    font-size: 42px;
+  }
+
+  .pm-body {
+    font-size: 19.5px;
+  }
+
+  .pm-body h2,
+  .pm-body blockquote {
+    font-size: 24px;
+  }
+
+  .pm-kind {
+    font-size: 16.5px;
+  }
+}
+
+@media (forced-colors: active) {
+  .pm-song-link {
+    text-decoration-color: LinkText;
+  }
+}
+
 /* One column at 720px and below: artwork, the heading, the facts, the writing.
    The two wrappers dissolve so their children can be ordered as the design
    shows them. */
@@ -1522,7 +1753,8 @@ article.pa-grid {
   }
 
   .ph-art-fallback,
-  .ph-thumb .ph-art-fallback {
+  .ph-thumb .ph-art-fallback,
+  .pm-song-art .ph-art-fallback {
     background-image: none;
     border: 1px solid CanvasText;
   }
