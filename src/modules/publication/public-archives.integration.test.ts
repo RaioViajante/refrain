@@ -981,3 +981,50 @@ describe("the archives' counts and excerpts at their edges", () => {
     });
   });
 });
+
+describe("the Albums archive groups by catalog album, never by what a card shows", () => {
+  // The owner's visual review of #56 saw two "Grace · Jeff Buckley · 1994"
+  // cards: two distinct catalog albums (two fixture records with the same
+  // title, artist name, and year, and no MusicBrainz release group), one of
+  // them with a second journal. This pins both halves of that behaviour.
+  it("shows two catalog albums that look the same as two cards, and one album's journals under one card", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const title = uniqueLabel("Twin title");
+      const makeAlbum = async () =>
+        createTestAlbum(tx, {
+          title,
+          artistIds: [await createTestArtist(tx, "[Test] Same Name")],
+          firstReleaseYear: 1994,
+        });
+      const first = await makeAlbum();
+      const second = await makeAlbum();
+      await publishedJournal(tx, first.albumId, "twin-first", {
+        publishedAt: new Date("2026-05-02T00:00:00Z"),
+      });
+      await publishedJournal(tx, first.albumId, "twin-first-earlier", {
+        publishedAt: new Date("2020-01-02T00:00:00Z"),
+      });
+      await publishedJournal(tx, second.albumId, "twin-second", {
+        publishedAt: new Date("2026-05-01T00:00:00Z"),
+      });
+      const cards = (await listPublicAlbumArchive(tx, "en")).filter(
+        (card) => card.albumTitle === title,
+      );
+      expect(
+        cards.map((card) => [
+          card.slug,
+          card.otherJournals.map((journal) => journal.slug),
+        ]),
+      ).toEqual([
+        [slugOf("twin-first"), [slugOf("twin-first-earlier")]],
+        [slugOf("twin-second"), []],
+      ]);
+      // Identical to a reader, and no identifier tells them apart in the
+      // projection: the address is the only difference.
+      expect(cards[0]!.credits).toEqual(cards[1]!.credits);
+      expect(cards[0]!.firstReleaseYear).toBe(cards[1]!.firstReleaseYear);
+      expect(JSON.stringify(cards)).not.toContain(first.albumId);
+      expect(JSON.stringify(cards)).not.toContain(second.albumId);
+    });
+  });
+});
