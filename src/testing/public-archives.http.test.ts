@@ -41,6 +41,7 @@ import {
 import {
   comparable,
   corpus,
+  filesContaining,
   request,
   visibleText,
   type Snapshot,
@@ -319,6 +320,48 @@ async function everyLinkAnswers(addresses: string[]) {
   }
 }
 
+describe("with public reads off, no alternative request form names anything that was seeded", () => {
+  // Public or private: while the switch is off nothing of the journal may be
+  // sent, in any form. Every seeded slug starts with this run's prefix, and
+  // every seeded title, name, and text with "[Test]" or a catalog fact.
+  const seededWords = () => [
+    prefix,
+    "[Test]",
+    "Buckley",
+    "Grace",
+    "Sketches for My Sweetheart",
+    PUBLIC_MEMORY.title,
+    PUBLIC_MEMORY.firstSong,
+    PUBLIC_MEMORY.paragraphs[0],
+    "tracks written",
+    "Another journal",
+    "Nothing published yet",
+  ];
+
+  it.each(
+    ARCHIVES.flatMap((archive) =>
+      archiveForms(archive).map((form) => [archive, ...form] as const),
+    ),
+  )(
+    "%s, %s: no title, slug, name, text, or metadata of any entry, in the body or a header",
+    async (_a, name, path, init) => {
+      for (const off of offs) {
+        const got = await request(off.baseURL, path, init);
+        expect(got.status, name).toBe(404);
+        const everything = `${JSON.stringify(got.headers)}\n${got.body}`;
+        for (const word of seededWords()) {
+          expect(everything.includes(word), `${name}: ${word}`).toBe(false);
+        }
+        // No archive metadata either: the not-found view's title only.
+        expect(got.body).not.toMatch(
+          /<title>(Albums|Artists|Memories) · refrain/,
+        );
+        expect(got.body).not.toMatch(/rel="canonical"/);
+      }
+    },
+  );
+});
+
 describe("with public reads on, the Albums archive", () => {
   it("lists each album once and links every served journal, Grace's earlier one too", async () => {
     const albums = await page("/albums");
@@ -396,6 +439,9 @@ describe("with public reads on, the Memories archive", () => {
     const list = await page("/memories");
     expect(list.status).toBe(200);
     const text = visibleText(list.body);
+    // The owner's lead (M3.8a review), in place of the screen's.
+    expect(text).toContain("Memories and the music woven through them.");
+    expect(text).not.toContain("Dated the way I remember");
     expect(text).toContain(PUBLIC_MEMORY.title);
     expect(text).toContain(PUBLIC_MEMORY.when);
     expect(text).toContain(PUBLIC_MEMORY.paragraphs[0]);
@@ -421,6 +467,25 @@ describe("with public reads on, the Memories archive", () => {
     );
     // The writing carries its own language.
     expect(markup(list)).toMatch(/<p class="px-excerpt" lang="en">/);
+  });
+});
+
+describe("artist namesakes and every artist row", () => {
+  it("lead each row to a page that answers and bears the row's name, a different page for each namesake", async () => {
+    const list = markup(await page("/artists"));
+    const rows = [
+      ...list.matchAll(
+        /<a class="px-row" href="(\/artists\/[^"]+)"><span class="px-row-name">([^<]+)<\/span>/g,
+      ),
+    ].map((match) => ({ href: match[1]!, name: match[2]! }));
+    expect(rows.length).toBeGreaterThanOrEqual(3);
+    expect(new Set(rows.map((row) => row.href)).size).toBe(rows.length);
+    for (const row of rows) {
+      const artist = await page(row.href);
+      expect(artist.status, row.href).toBe(200);
+      const heading = markup(artist).match(/<h1[^>]*>([\s\S]*?)<\/h1>/)?.[1];
+      expect(visibleText(heading ?? "").trim(), row.href).toBe(row.name);
+    }
   });
 });
 
@@ -452,7 +517,7 @@ describe("every archive response", () => {
       // lists something is rendered for this request and carries no marker.
       if (got.headers["x-nextjs-cache"] !== undefined) {
         expect(got.body, name).not.toMatch(
-          /Whole records|The artists behind|Moments that came|\[Test\]|px-(album|row|memory)/,
+          /Whole records|The artists behind|Memories and the music|\[Test\]|px-(album|row|memory)/,
         );
       }
       if (/\[Test\]/.test(got.body)) {
@@ -475,17 +540,20 @@ describe("every archive response", () => {
     }
   });
 
-  it("a name the framework would serve as a build file answers the same, data-free, with the switch on or off", async () => {
+  it("a build file's name, and a case variant, answer the framework's generic 404, data-free, with the switch on or off", async () => {
     for (const archive of ARCHIVES) {
-      for (const suffix of [".html", ".meta"]) {
-        const reference = comparable(
-          await request(on.baseURL, `/${archive}${suffix}`),
-        );
+      for (const variant of [
+        `${archive}.html`,
+        `${archive}.meta`,
+        archive.toUpperCase(),
+        archive[0]!.toUpperCase() + archive.slice(1),
+      ]) {
+        const reference = comparable(await request(on.baseURL, `/${variant}`));
         expect(reference.status).toBe(404);
         for (const off of offs) {
-          expect(
-            comparable(await request(off.baseURL, `/${archive}${suffix}`)),
-          ).toEqual(reference);
+          expect(comparable(await request(off.baseURL, `/${variant}`))).toEqual(
+            reference,
+          );
         }
       }
     }
@@ -587,6 +655,22 @@ describe("the sitemap", () => {
     for (const off of offs) {
       expect((await request(off.baseURL, "/sitemap.xml")).status).toBe(404);
     }
+  });
+});
+
+describe("nothing of the journal was written to the build", () => {
+  it("after every request of this file, no file under .next names a seeded entry", () => {
+    expect(
+      filesContaining(".next", [
+        prefix,
+        PUBLIC_MEMORY.title,
+        PUBLIC_MEMORY.paragraphs[0],
+        "ARCHIVE-HIDDEN",
+        ...PRIVATE_MARKER_LIST,
+        ...PRIVATE_ARTIST_MARKER_LIST,
+        ...MEMORY_MARKER_LIST,
+      ]),
+    ).toEqual([]);
   });
 });
 
