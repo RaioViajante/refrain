@@ -1655,8 +1655,23 @@ describe("the Home's components", () => {
     return { files: seen, packages };
   }
 
+  /** Whether a file's directive prologue says "use client", comments aside. */
+  const isClientSource = (code: string, file = "x.tsx") => {
+    for (const statement of parse(code, file).statements) {
+      if (
+        !ts.isExpressionStatement(statement) ||
+        !ts.isStringLiteral(statement.expression)
+      ) {
+        return false;
+      }
+      if (statement.expression.text === "use client") {
+        return true;
+      }
+    }
+    return false;
+  };
   const isClient = (file: string) =>
-    /^\s*["']use client["']/.test(readFileSync(file, "utf8"));
+    isClientSource(readFileSync(file, "utf8"), file);
 
   it("are all server components, down to every component they import", () => {
     const { files, packages } = appImports("src/app/page.tsx");
@@ -1674,6 +1689,12 @@ describe("the Home's components", () => {
     expect(
       isClient("src/app/(public)/_components/public-photo-image.tsx"),
     ).toBe(true);
+    // A comment, or another directive, before it does not hide it.
+    expect(
+      isClientSource('// A note.\n/* More. */\n"use client";\nexport {};'),
+    ).toBe(true);
+    expect(isClientSource('"use strict";\n"use client";')).toBe(true);
+    expect(isClientSource('export const x = "use client";')).toBe(false);
   });
 
   it("take the Publication module's values as types only", () => {

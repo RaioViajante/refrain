@@ -189,6 +189,25 @@ function readerView(snapshot: Snapshot) {
   };
 }
 
+/**
+ * The Flight rows a response carries, sorted: the payload of every
+ * `self.__next_f.push([1, "…"])` in a document, or the body of an RSC
+ * response, split into rows.
+ */
+function flightRows(body: string): string[] {
+  const pushes = [
+    ...body.matchAll(/self\.__next_f\.push\(\[1,("(?:[^"\\]|\\.)*")\]\)/g),
+  ];
+  const payload =
+    pushes.length > 0
+      ? pushes.map((m) => JSON.parse(m[1]!) as string).join("")
+      : body;
+  return payload
+    .split("\n")
+    .filter((row) => row !== "")
+    .sort();
+}
+
 /** The album-journal addresses a page links to, in the markup. */
 function addressesIn(body: string): string[] {
   const markup = body.replace(/<script[\s\S]*?<\/script>/g, "");
@@ -239,6 +258,28 @@ const FORMS: [string, Parameters<typeof request>[2]][] = [
   ["Range", { headers: { range: "bytes=0-10" } }],
   ["Accept: application/json", { headers: { accept: "application/json" } }],
   ["a cookie", { headers: { cookie: "refrain=1; theme=dark" } }],
+  // M3.8b review: the framework renders for a known bot by another path.
+  [
+    "a bot",
+    {
+      headers: {
+        "user-agent":
+          "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+      },
+    },
+  ],
+];
+
+// The build's own addresses for the Home, and its data route (M3.8b review):
+// with the switch off each must answer, in every phase, what it answered
+// before anything was published.
+const INDEX_PATHS = [
+  "/index",
+  "/index.html",
+  "/index.rsc",
+  "/index.segments/_tree.segment.rsc",
+  "/index.segments/__PAGE__.segment.rsc",
+  `/_next/data/${readFileSync(".next/BUILD_ID", "utf8").trim()}/index.json`,
 ];
 
 const CACHE_INDICATORS = [
@@ -301,6 +342,7 @@ afterAll(async () => {
   }
   for (const hidden of hiddenSlugs) {
     expect(all, hidden).not.toContain(`/albums/${hidden}"`);
+    expect(all, hidden).not.toContain(`/memories/${hidden}"`);
   }
 }, 60_000);
 
@@ -314,6 +356,7 @@ const offBaseline = new Map<string, ReturnType<typeof masked>>();
 // The same, from the server whose switch is on, before anything is published:
 // the empty site itself.
 const onBaseline = new Map<string, ReturnType<typeof masked>>();
+const offPathBaseline = new Map<string, ReturnType<typeof masked>>();
 const offServers = () => [off, ...nearMiss];
 
 describe("with nothing published", () => {
@@ -403,8 +446,61 @@ describe("with nothing published", () => {
     for (const [name, init] of FORMS) {
       onBaseline.set(name, masked(await home(on, init), []));
     }
+    for (const path of INDEX_PATHS) {
+      for (const [index, server] of offServers().entries()) {
+        offPathBaseline.set(
+          `${index}:${path}`,
+          masked(await request(server.baseURL, path), []),
+        );
+      }
+    }
+  });
+
+  // The switch-on server awaits its (empty) read, so the framework chunks and
+  // orders the same stream differently from the switch-off server, which
+  // reads nothing: the comparison is of the content, not the chunking. Every
+  // header, the reader's view, and the Flight rows as a sorted multiset.
+  it("is, with the switch off, the empty site itself, Flight included, in every request form", async () => {
+    for (const [name] of FORMS) {
+      const disabled = offBaseline.get(`0:${name}`)!;
+      const enabled = onBaseline.get(name)!;
+      expect(disabled.status, name).toBe(enabled.status);
+      expect(disabled.headers, name).toEqual(enabled.headers);
+      expect(flightRows(disabled.body), name).toEqual(flightRows(enabled.body));
+      // A document is also compared as a reader receives it; an RSC answer
+      // is Flight rows only, compared above.
+      if (/<html/.test(enabled.body)) {
+        const reader = (body: string) =>
+          visibleText(body.replace(/<script[\s\S]*?<\/script>/g, ""));
+        expect(reader(disabled.body), name).toEqual(reader(enabled.body));
+      }
+    }
   });
 });
+
+/**
+ * Every server whose switch is off still answers, in every request form and
+ * at the build's own addresses, exactly what it answered before anything was
+ * published: the whole response, Flight data included.
+ */
+async function expectEmptySiteWhileOff() {
+  for (const [name, init] of FORMS) {
+    for (const [index, server] of offServers().entries()) {
+      expect(
+        masked(await home(server, init), []),
+        `${name}, server ${index}`,
+      ).toEqual(offBaseline.get(`${index}:${name}`));
+    }
+  }
+  for (const path of INDEX_PATHS) {
+    for (const [index, server] of offServers().entries()) {
+      expect(
+        masked(await request(server.baseURL, path), []),
+        `${path}, server ${index}`,
+      ).toEqual(offPathBaseline.get(`${index}:${path}`));
+    }
+  }
+}
 
 // M3.8b (A6, item 6): a database that holds only writing a reader may not see
 // renders the empty site, with the switch on as well as off, in every request
@@ -532,14 +628,7 @@ describe("with only hidden writing (A6)", () => {
   });
 
   it("answers, with the switch off or a near miss, exactly the empty-site baseline, in every request form", async () => {
-    for (const [name, init] of FORMS) {
-      for (const [index, server] of offServers().entries()) {
-        expect(
-          masked(await home(server, init), []),
-          `${name}, server ${index}`,
-        ).toEqual(offBaseline.get(`${index}:${name}`));
-      }
-    }
+    await expectEmptySiteWhileOff();
   });
 });
 
@@ -878,8 +967,9 @@ describe("with journals in every state", () => {
     expect(after).toContain(albumAddress("grace-moved"));
     expect(after).not.toContain(albumAddress("grace"));
 
-    // And with the switch off, none of it ever showed.
+    // And with the switch off, none of it ever showed, in any form.
     expect(readerView(await home(off))).toEqual(emptyOff);
+    await expectEmptySiteWhileOff();
   });
 
   it("is in the sitemap, first, only while reads are on", async () => {
@@ -900,7 +990,13 @@ describe("with memories and artists (A6)", () => {
   beforeAll(async () => {
     artists = await seedArtistPages(client, artistPrefix);
     memories = await seedMemories(client, memoryPrefix);
-    hiddenSlugs.push(...memories.hidden.map((hidden) => hidden.slug));
+    hiddenSlugs.push(
+      ...memories.hidden.map((hidden) => hidden.slug),
+      // Previous addresses: the Home links only the current one.
+      memories.shown.previousSlug,
+      memories.shown.neverPublicSlug,
+      memories.hiddenPreviousSlug,
+    );
   }, 60_000);
 
   /** Every address a page links to, outside scripts. */
@@ -916,6 +1012,7 @@ describe("with memories and artists (A6)", () => {
     ].sort();
 
   it("still answers, with the switch off or a near miss, exactly the empty-site baseline, in every request form", async () => {
+    await expectEmptySiteWhileOff();
     for (const [name, init] of FORMS) {
       for (const [index, server] of offServers().entries()) {
         const answer = await home(server, init);
@@ -982,18 +1079,40 @@ describe("with memories and artists (A6)", () => {
   });
 
   it("never sends a memory's whole writing, an identifier, a photograph, or a hidden artist, in any request form", async () => {
-    const ids = (
-      await client.query<{ id: string }>(`
-        select id::text from entries union select id::text from artists
-        union select id::text from albums union select id::text from tracks`)
-    ).rows.map((row) => row.id);
+    // Every identifier in the database: every value of every uuid column,
+    // and every MusicBrainz identifier, matched in either case, with and
+    // without hyphens. A cover's address names its release, so the Cover
+    // Art Archive's own URLs are left out of the scanned text.
+    const columns = (
+      await client.query<{ table_name: string; column_name: string }>(`
+        select table_name, column_name from information_schema.columns
+         where table_schema = 'public'
+           and (data_type = 'uuid' or column_name like 'mb\\_%')`)
+    ).rows;
+    const ids = new Set<string>();
+    for (const { table_name, column_name } of columns) {
+      const values = await client.query<{ value: string }>(
+        `select distinct "${column_name}"::text as value from "${table_name}"
+          where "${column_name}" is not null`,
+      );
+      for (const { value } of values.rows) {
+        if (value.length >= 32) {
+          ids.add(value.toLowerCase());
+          ids.add(value.toLowerCase().replaceAll("-", ""));
+        }
+      }
+    }
+    expect(ids.size).toBeGreaterThan(0);
     for (const [name, init] of FORMS) {
       const answer = await home(on, init);
+      const scanned = answer.body
+        .replace(/https:\/\/coverartarchive\.org\/[^"\s,]*/g, "")
+        .toLowerCase();
       expect(answer.headers["cache-control"], name).toBe("no-store");
       // The second paragraph is past the excerpt: never in HTML or Flight.
       expect(answer.body, name).not.toContain(PUBLIC_MEMORY.paragraphs[1]);
       for (const id of ids) {
-        expect(answer.body, `${name}: ${id}`).not.toContain(id);
+        expect(scanned.includes(id), `${name}: ${id}`).toBe(false);
       }
       for (const absent of [
         "thumb.wikimedia.org",
@@ -1014,6 +1133,28 @@ describe("with memories and artists (A6)", () => {
     );
     expect(artistsSection.length).toBeGreaterThan(0);
     expect(artistsSection).not.toContain(ARTIST_MARKERS.archived);
+    // The build's own addresses for the Home, with reads on: no second
+    // paragraph and no hidden memory either.
+    for (const path of INDEX_PATHS) {
+      const answer = await request(on.baseURL, path);
+      expect(answer.headers["cache-control"], path).toContain("no-store");
+      expect(answer.body, path).not.toContain(PUBLIC_MEMORY.paragraphs[1]);
+      for (const marker of MEMORY_MARKER_LIST) {
+        expect(answer.body, `${path}: ${marker}`).not.toContain(marker);
+      }
+    }
+    // Nothing about a memory or an artist was written to the server's disk.
+    expect(
+      filesContaining(".next", [
+        memoryPrefix,
+        artistPrefix,
+        PUBLIC_MEMORY.title,
+        PUBLIC_MEMORY.paragraphs[1],
+        LONG_BAND_NAME,
+        ...MEMORY_MARKER_LIST,
+        ...HIDDEN_ONLY_LIST,
+      ]),
+    ).toEqual([]);
     // The Home's policy is unchanged: no image host for photographs.
     expect((await home(on)).headers["content-security-policy"]).toBe(
       CONTENT_SECURITY_POLICY,
@@ -1085,8 +1226,9 @@ describe("with memories and artists (A6)", () => {
       200,
     );
 
-    // And with the switch off, none of it ever showed.
+    // And with the switch off, none of it ever showed, in any form.
     expect(readerView(await home(off))).toEqual(emptyOff);
+    await expectEmptySiteWhileOff();
   });
 });
 

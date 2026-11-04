@@ -30,8 +30,8 @@ import { ratingText, Stars } from "@/app/(public)/_components/stars";
 //
 // Everything here is a server component: the read model's objects never
 // reach the client. The only values that do are the `href` strings of the
-// links (A6, item 7), so a memory's excerpt is in the HTML once and its whole
-// writing is never anywhere.
+// links (A6, item 7): what is rendered is in the HTML and in the page's Flight
+// data, and a memory's whole writing is in neither.
 //
 // What the approved screen shows and the Home does not, by the owner's
 // decisions, is in docs/design-system.md § Public Home: the language
