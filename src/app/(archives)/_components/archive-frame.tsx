@@ -48,7 +48,7 @@ export function ArchiveFrame({
             <p className="px-lead">{lead}</p>
           </div>
         </header>
-        <div className="px-grid px-body">
+        <div className={`px-grid px-body px-body-${section}`}>
           <div className="px-margin" />
           <div className="px-column">{children}</div>
         </div>

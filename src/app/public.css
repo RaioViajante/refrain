@@ -523,8 +523,15 @@ a.public-link:hover,
   color: var(--color-ink-2);
 }
 
+/* The list sits 48px under the lead on Albums and 56px on Artists and
+   Memories, as each screen has it, on a phone too. */
 .px-body {
   padding-top: 48px;
+}
+
+.px-body-artists,
+.px-body-memories {
+  padding-top: 56px;
 }
 
 .px-column {
@@ -1951,13 +1958,10 @@ article.pa-grid {
 }
 
 /* The archives on a phone, as the approved mobile screens compose them: one
-   column, the title at 42px, the albums two to a row, the memory title at
-   23px and its excerpt at 18.5px. */
+   column, the title at 42px (still 72px under the navigation, and its lead
+   still 19px), the albums two to a row, the memory title at 23px and its
+   excerpt at 18.5px. */
 @media (max-width: 720px) {
-  .px {
-    padding-top: 40px;
-  }
-
   .px-grid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1968,14 +1972,6 @@ article.pa-grid {
 
   .px-title {
     font-size: 42px;
-  }
-
-  .px-lead {
-    font-size: 17px;
-  }
-
-  .px-body {
-    padding-top: 40px;
   }
 
   .px-albums {
@@ -1996,8 +1992,10 @@ article.pa-grid {
 }
 
 @media (max-width: 370px) {
-  /* The four sections stay on one line down to 320px (M3.8a): Kalam 18px,
-     14px apart, each still a 44px target. */
+  /* The four sections stay on one line down to 320px (M3.8a): Kalam 18px, as
+     V4.4's phone header, but 14px apart instead of its 16px, because the
+     lateral contract's 17.6px gutter leaves 3px less than the screen's 16px
+     page padding; each is still a 44px target. */
   .public-nav {
     gap: 0 14px;
   }
