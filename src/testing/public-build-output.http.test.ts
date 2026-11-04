@@ -233,7 +233,7 @@ describe("what the build prerenders for the public routes", () => {
         for (const needle of [
           "Whole records",
           "The artists behind",
-          "Moments that came",
+          "Memories and the music",
           "Nothing published yet",
           "could not be loaded",
           "tracks written",

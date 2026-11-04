@@ -233,9 +233,7 @@ test("the Memories archive lists each memory's when, title, excerpt, music, and 
 }) => {
   await open(page, "memories");
   await expect(
-    page.getByText(
-      "Moments that came with a song. Dated the way I remember them, not by when I wrote them down.",
-    ),
+    page.getByText("Memories and the music woven through them."),
   ).toBeVisible();
   expect(await navigation(page)).toEqual(
     expectedNavigation("Memories", "page"),

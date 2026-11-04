@@ -22,9 +22,12 @@ import { NoteIcon } from "@/app/(public)/_components/note-icon";
 // ("a date, a season, a year") and is never read as a date, so there is no
 // grouping: the memories are in one list, the newest publication first.
 
-/** The screen's lead, the approved interface copy. Also the description. */
-export const MEMORIES_LEAD =
-  "Moments that came with a song. Dated the way I remember them, not by when I wrote them down.";
+/**
+ * The page's lead, the owner's words (M3.8a review). The screen's own lead
+ * said the memories were dated the way they are remembered, while the list is
+ * ordered by publication date. Also the description.
+ */
+export const MEMORIES_LEAD = "Memories and the music woven through them.";
 
 function MemoryItem({ memory }: Readonly<{ memory: PublicMemoryCard }>) {
   return (
