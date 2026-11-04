@@ -78,9 +78,11 @@ built and merged, local only (through m3.5): the relational core on postgresql 1
 
 also merged, local only: m3.6, the memories studio: memories written privately, with their songs from the catalog.
 
-in progress: m3.7, public memories, on its own branch and not merged: a memory is published through the same review and confirmation as an album journal, a change to a published memory asks first, and a published memory has a page at `/memories/<slug>`, behind the same switch.
+also merged, local only: m3.7, public memories: a memory is published through the same review and confirmation as an album journal, a change to a published memory asks first, and a published memory has a page at `/memories/<slug>`, behind the same switch.
 
-planned: artist journals, album and artist lists, the brazilian portuguese interface and its language selector, author translations, "delete now", and the academic release (m4).
+in progress: m3.8a, public archives, on its own branch and not merged: `/albums`, `/artists`, and `/memories` list exactly what has a public page, and the header links all four sections.
+
+planned: the home's artists and memories sections, artist journals, the brazilian portuguese interface and its language selector, author translations, "delete now", and the academic release (m4).
 
 nothing is deployed. public pages stay off until the [release gates](docs/security.md#public-page-release-gates) are closed. see [roadmap.md](docs/roadmap.md).
 
