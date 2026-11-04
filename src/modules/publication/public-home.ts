@@ -175,6 +175,10 @@ export async function listRecentPublicEntries(
       select 'album_journal' as kind, 0 as kind_rank, served.entry_id,
              served.slug, version.locale, version.published_at
         from (${servedAlbumJournalAddresses}) served
+        -- Only an entry whose subtype row exists, as the archives require
+        -- with their inner joins: the limit below comes before the joins.
+        join album_journals listed_journal
+          on listed_journal.entry_id = served.entry_id
        cross join lateral (
          select pv.locale, pv.published_at
            from (${publicLanguageVersions}) pv
@@ -186,6 +190,7 @@ export async function listRecentPublicEntries(
       select 'memory' as kind, 1 as kind_rank, served.entry_id,
              served.slug, version.locale, version.published_at
         from (${servedMemoryAddresses}) served
+        join memories listed_memory on listed_memory.entry_id = served.entry_id
        cross join lateral (
          select pv.locale, pv.published_at
            from (${publicLanguageVersions}) pv
