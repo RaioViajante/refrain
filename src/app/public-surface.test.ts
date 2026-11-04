@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
@@ -1308,7 +1308,7 @@ describe("the Publication reading module", () => {
   // An unchecked writer: a statement or a call that changes the database. The
   // reading files hold none, and a reading file that gains one fails here.
   const WRITE_SQL =
-    /\b(insert\s+into|update\s+["\w.]+\s+set|delete\s+from|truncate|alter\s+table|drop\s+(table|index|column|schema)|create\s+(table|index|schema)|grant\s|revoke\s|copy\s+\S+\s+(from|to))\b/i;
+    /\b(insert\s+into|update\s+["\w.]+\s+set|delete\s+from|truncate|alter\s+table|drop\s+(table|index|column|schema)|create\s+(table|index|schema)|grant\s|revoke\s|copy\s+\S+\s+(from|to)|set\s+(transaction|session\s+characteristics)|default_transaction_read_only|set_config|pg_advisory_\w+)\b/i;
   const WRITE_CALLS = new Set([
     "insert",
     "update",
@@ -1420,6 +1420,13 @@ describe("the Publication reading module", () => {
       "await db.delete(entries);",
       "await db.transaction(async (tx) => {});",
       "await db.insert(a).values(b).onConflictDoUpdate({});",
+      // M3.8b review: what could turn a read-only snapshot writable, or
+      // change state without writing a row.
+      "await db.execute(sql`set transaction read write`);",
+      "await db.execute(sql`SET SESSION CHARACTERISTICS AS TRANSACTION READ WRITE`);",
+      "await db.execute(sql`set default_transaction_read_only = off`);",
+      "await db.execute(sql`select set_config('x', 'y', false)`);",
+      "await db.execute(sql`select pg_advisory_lock(1)`);",
     ]) {
       expect(writerFindings(code), code).not.toEqual([]);
     }
@@ -1569,52 +1576,96 @@ describe("the Publication reading module", () => {
 // for a client component. The only client components it renders are the
 // framework's `Link` and `Image`, which receive strings and numbers.
 describe("the Home's components", () => {
-  const resolveApp = (specifier: string): string | null => {
-    // Stylesheets hold no component.
-    if (!specifier.startsWith("@/app/") || specifier.endsWith(".css")) {
+  // The packages the Home's own files may import: the framework's link,
+  // image, metadata, and request helpers, and nothing that renders a client
+  // component of its own.
+  const HOME_PACKAGES = new Set([
+    // The two approved typefaces (public-fonts.ts).
+    "next/font/google",
+    "next",
+    "next/image",
+    "next/link",
+    "next/server",
+  ]);
+
+  /** A local specifier as a file, or null for a package or a stylesheet. */
+  const resolveLocal = (specifier: string, from: string): string | null => {
+    if (specifier.endsWith(".css")) {
       return null;
     }
-    const base = join("src", specifier.slice(2));
-    for (const candidate of [`${base}.tsx`, `${base}.ts`]) {
+    let base: string;
+    if (specifier.startsWith("@/")) {
+      base = join("src", specifier.slice(2));
+    } else if (specifier.startsWith("./") || specifier.startsWith("../")) {
+      base = join(dirname(from), specifier);
+    } else {
+      return null;
+    }
+    for (const candidate of [
+      `${base}.tsx`,
+      `${base}.ts`,
+      join(base, "index.tsx"),
+      join(base, "index.ts"),
+    ]) {
       try {
         readFileSync(candidate);
         return candidate;
       } catch {
-        // Try the next extension.
+        // Try the next form.
       }
     }
-    throw new Error(`cannot resolve ${specifier}`);
+    throw new Error(`cannot resolve ${specifier} from ${from}`);
   };
 
-  /** Every file under src/app the given one imports, transitively. */
-  function appImports(file: string, seen = new Set<string>()): Set<string> {
+  /**
+   * Every file under src/app the given one imports for its values,
+   * transitively (type-only imports carry no component), and every package
+   * those files import.
+   */
+  function appImports(
+    file: string,
+    seen = new Set<string>(),
+    packages = new Set<string>(),
+  ): { files: Set<string>; packages: Set<string> } {
     if (seen.has(file)) {
-      return seen;
+      return { files: seen, packages };
     }
     seen.add(file);
     const source = parse(readFileSync(file, "utf8"), file);
     for (const statement of source.statements) {
       if (
         ts.isImportDeclaration(statement) &&
-        ts.isStringLiteral(statement.moduleSpecifier)
+        ts.isStringLiteral(statement.moduleSpecifier) &&
+        !statement.importClause?.isTypeOnly
       ) {
-        const resolved = resolveApp(statement.moduleSpecifier.text);
-        if (resolved) {
-          appImports(resolved, seen);
+        const specifier = statement.moduleSpecifier.text;
+        const resolved = resolveLocal(specifier, file);
+        if (resolved?.startsWith("src/app/")) {
+          appImports(resolved, seen, packages);
+        } else if (resolved === null && !specifier.endsWith(".css")) {
+          packages.add(specifier);
+        } else if (resolved) {
+          // A value from outside src/app: only the reading entry point.
+          expect(resolved, `${file} imports ${specifier}`).toBe(
+            "src/modules/publication/public.ts",
+          );
         }
       }
     }
-    return seen;
+    return { files: seen, packages };
   }
 
   const isClient = (file: string) =>
     /^\s*["']use client["']/.test(readFileSync(file, "utf8"));
 
   it("are all server components, down to every component they import", () => {
-    const files = [...appImports("src/app/page.tsx")];
-    expect(files).toContain("src/app/(public)/_components/home-view.tsx");
-    expect(files).toContain("src/app/(public)/_components/arrow-icon.tsx");
-    expect(files.filter(isClient)).toEqual([]);
+    const { files, packages } = appImports("src/app/page.tsx");
+    expect([...files]).toContain("src/app/(public)/_components/home-view.tsx");
+    expect([...files]).toContain("src/app/(public)/_components/arrow-icon.tsx");
+    expect([...files].filter(isClient)).toEqual([]);
+    expect([...packages].filter((name) => !HOME_PACKAGES.has(name))).toEqual(
+      [],
+    );
   });
 
   it("would notice a client component among them", () => {

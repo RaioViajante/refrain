@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, describe, expect, it } from "vitest";
 
-import { getDb, schema, type Transaction } from "@/db";
+import { getDb, schema, type Database, type Transaction } from "@/db";
 import {
   createTestAlbum,
   createTestAlbumJournal,
@@ -22,6 +22,7 @@ import {
   GRACE_ARTIST_PHOTO,
   setTestArtistPhoto,
 } from "@/testing/public-artists";
+import { publishForTest } from "@/testing/publishing";
 
 import { artistAddressBase } from "./artist-address";
 
@@ -1115,82 +1116,23 @@ describe("the Home's snapshot (A6, item 8)", () => {
 
   it("shows every section as of one moment: an unpublication committed during a read is seen from the next request", async () => {
     const slug = `a6-snapshot-${a6run}`;
-    await getDb().transaction(async (tx) => {
-      const album = await createTestAlbum(tx, {
-        title: uniqueLabel("Snapshot album"),
-      });
-      committed.albums.push(album);
-      committed.entries.push(
-        await memory(tx, slug, {
-          versions: [
-            {
-              locale: "en",
-              status: "published",
-              publishedAt: new Date(Date.UTC(2100, 0, 1)),
-              title: "[Test] Snapshot memory",
-              text: "[Test] Snapshot writing",
-            },
-          ],
-          music: [{ albumId: album.albumId }],
-        }),
-      );
-    });
-    const entryId = committed.entries.at(-1)!;
-
+    const entryId = await committedMemory(slug, "published");
     await withConnections(2, async ([reader, writer]) => {
-      let statements = 0;
-      let options: unknown;
-      // The writer unpublishes the memory right after the Home's first
-      // statement, as a concurrent unpublish committing mid-request would.
-      const watched = new Proxy(reader!, {
-        get(target, property, receiver) {
-          if (property !== "transaction") {
-            return Reflect.get(target, property, receiver);
-          }
-          return (
-            work: (tx: Transaction) => Promise<unknown>,
-            config: unknown,
-          ) => {
-            options = config;
-            return target.transaction(
-              (tx) =>
-                work(
-                  new Proxy(tx, {
-                    get(inner, name, innerReceiver) {
-                      if (name !== "execute") {
-                        return Reflect.get(inner, name, innerReceiver);
-                      }
-                      return async (
-                        query: Parameters<typeof tx.execute>[0],
-                      ) => {
-                        const result = await inner.execute(query);
-                        statements += 1;
-                        if (statements === 1) {
-                          await unpublishLanguageVersion(
-                            writer!,
-                            testAuthor(),
-                            entryId,
-                            "en",
-                            "private",
-                          );
-                        }
-                        return result;
-                      };
-                    },
-                  }),
-                ),
-              config as Parameters<typeof target.transaction>[1],
-            );
-          };
-        },
-      }) as typeof reader;
-
-      const during = await getPublicHome(watched!, "en");
-      expect(options).toEqual({
+      const watched = watchedReader(reader!, () =>
+        unpublishLanguageVersion(
+          writer!,
+          testAuthor(),
+          entryId,
+          "en",
+          "private",
+        ),
+      );
+      const during = await getPublicHome(watched.db, "en");
+      expect(watched.options()).toEqual({
         isolationLevel: "repeatable read",
         accessMode: "read only",
       });
-      expect(statements).toBeGreaterThan(1);
+      expect(watched.statements()).toBeGreaterThan(1);
       // Every section agrees: the memory as it was when the snapshot began,
       // with its music read in the same snapshot.
       expect(during.recent[0]?.slug).toBe(slug);
@@ -1203,4 +1145,101 @@ describe("the Home's snapshot (A6, item 8)", () => {
       ).toBe(false);
     });
   });
+
+  it("shows every section as of one moment: a publication committed during a read is seen from the next request", async () => {
+    const slug = `a6-snapshot-publish-${a6run}`;
+    const entryId = await committedMemory(slug, "private");
+    await withConnections(2, async ([reader, writer]) => {
+      const watched = watchedReader(reader!, async () => {
+        await publishForTest(writer!, entryId, "en");
+        // Dated after anything another suite uses, so it would lead both
+        // lists if any statement saw it.
+        await writer!.execute(sql`
+          update entry_texts set published_at = ${SNAPSHOT_DATE}
+           where entry_id = ${entryId} and locale = 'en'`);
+      });
+      const during = await getPublicHome(watched.db, "en");
+      expect(watched.statements()).toBeGreaterThan(1);
+      // No section saw it: the snapshot began before it was published.
+      expect(
+        [...during.recent, ...during.memories].some((row) => row.slug === slug),
+      ).toBe(false);
+
+      const after = await getPublicHome(reader!, "en");
+      expect(after.recent[0]?.slug).toBe(slug);
+      expect(after.memories[0]?.slug).toBe(slug);
+      expect(after.memories[0]?.music).toHaveLength(1);
+    });
+  });
 });
+
+const SNAPSHOT_DATE = new Date(Date.UTC(2100, 0, 1));
+
+/** A memory with one album link, committed, and removed after the file. */
+async function committedMemory(
+  slug: string,
+  status: "published" | "private",
+): Promise<string> {
+  return getDb().transaction(async (tx) => {
+    const album = await createTestAlbum(tx, {
+      title: uniqueLabel("Snapshot album"),
+    });
+    committed.albums.push(album);
+    const entryId = await memory(tx, slug, {
+      versions: [
+        {
+          locale: "en",
+          status,
+          publishedAt: SNAPSHOT_DATE,
+          title: "[Test] Snapshot memory",
+          text: "[Test] Snapshot writing",
+        },
+      ],
+      music: [{ albumId: album.albumId }],
+    });
+    committed.entries.push(entryId);
+    return entryId;
+  });
+}
+
+/**
+ * The reader's connection, with `afterFirst` committed on another connection
+ * right after the first statement of the next transaction it opens: as a
+ * concurrent change committing in the middle of a request would.
+ */
+function watchedReader(reader: Database, afterFirst: () => Promise<unknown>) {
+  let statements = 0;
+  let options: unknown;
+  const db = new Proxy(reader, {
+    get(target, property, receiver) {
+      if (property !== "transaction") {
+        return Reflect.get(target, property, receiver);
+      }
+      return (work: (tx: Transaction) => Promise<unknown>, config: unknown) => {
+        options = config;
+        return target.transaction(
+          (tx) =>
+            work(
+              new Proxy(tx, {
+                get(inner, name, innerReceiver) {
+                  if (name !== "execute") {
+                    return Reflect.get(inner, name, innerReceiver);
+                  }
+                  return async (query: Parameters<typeof tx.execute>[0]) => {
+                    const result = await inner.execute(query);
+                    statements += 1;
+                    if (statements === 1) {
+                      await afterFirst();
+                    }
+                    return result;
+                  };
+                },
+              }),
+            ),
+          config as Parameters<typeof target.transaction>[1],
+        );
+      };
+    },
+  });
+  return { db, statements: () => statements, options: () => options };
+}
