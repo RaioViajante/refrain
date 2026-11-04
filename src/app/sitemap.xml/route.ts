@@ -3,13 +3,16 @@ import { connection } from "next/server";
 import {
   listPublicAlbumJournalAddresses,
   listPublicArtistAddresses,
+  listPublicMemoryAddresses,
   publicReadsEnabled,
   publicSiteOrigin,
 } from "@/modules/publication/public";
 
 // The sitemap lists the Home, the address of every publicly visible album
-// journal, and of every public artist page (M3.5), and nothing else, read through the publication queries (the same
-// rule that `resolvePublicSlug` applies, so every listed address is served). It is a
+// journal, of every public artist page (M3.5), and of every publicly visible
+// memory (M3.7), and nothing else, read through the publication queries (the
+// same rule that `resolvePublicSlug` applies, so every listed address is
+// served). It is a
 // route handler, and not the `sitemap.ts` convention, because that convention
 // sends `Cache-Control: public, max-age=0, must-revalidate`, and ADR 0006
 // § 11 requires `no-store` on every public response (M3.1 spike).
@@ -38,10 +41,14 @@ export async function GET() {
   // The artist pages (M3.5): exactly the addresses `resolvePublicArtistAddress`
   // finds, from the same visible-artist rule.
   const artists = await listPublicArtistAddresses();
+  // The memories (M3.7): exactly the addresses `resolvePublicSlug` finds for a
+  // memory.
+  const memories = await listPublicMemoryAddresses();
   const entries = [
     `${origin}/`,
     ...addresses.map((slug) => `${origin}/albums/${slug}`),
     ...artists.map((address) => `${origin}/artists/${address}`),
+    ...memories.map((slug) => `${origin}/memories/${slug}`),
   ]
     .map((address) => `  <url><loc>${escapeXml(address)}</loc></url>`)
     .join("\n");

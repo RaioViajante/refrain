@@ -12,7 +12,7 @@ import "@/app/public.css";
 // arrive with their own pages, and a link to a page that is not there would
 // be a broken promise. On the Home, "Home" is the current page.
 
-export type PublicSection = "home" | "albums" | "artists";
+export type PublicSection = "home" | "albums" | "artists" | "memories";
 
 /** The id that the skip link and every public page's <main> share. */
 export const PUBLIC_CONTENT_ID = "main";
@@ -49,6 +49,13 @@ export function PublicFrame({
               <li>
                 <span className="public-link" aria-current="page">
                   Artists
+                </span>
+              </li>
+            ) : null}
+            {current === "memories" ? (
+              <li>
+                <span className="public-link" aria-current="page">
+                  Memories
                 </span>
               </li>
             ) : null}

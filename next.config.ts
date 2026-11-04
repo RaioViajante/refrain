@@ -65,6 +65,8 @@ const nextConfig: NextConfig = {
       { source: "/", headers: publicHeaders },
       { source: "/albums/:path*", headers: publicHeaders },
       { source: "/artists/:path*", headers: artistHeaders },
+      // M3.7: the memories, with the public policy (no image is shown).
+      { source: "/memories/:path*", headers: publicHeaders },
       // The same headers, so that these answer as every other public address
       // does when public reads are off.
       { source: "/sitemap.xml", headers: publicHeaders },

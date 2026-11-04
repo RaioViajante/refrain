@@ -28,6 +28,11 @@ const READS = new Set([
   "listPublicArtistAddresses",
   "resolvePublicArtistAddress",
   "routeArtistRequest",
+  // M3.7: the memory pages.
+  "getPublicMemory",
+  "listPublicMemoryAddresses",
+  "resolvePublicMemorySlug",
+  "routeMemoryRequest",
 ]);
 
 // The reads that a caller must guard itself. The routing functions apply the
@@ -50,6 +55,8 @@ function publicFiles(): string[] {
       file.startsWith("src/app/(public)/") ||
       // M3.5: the artist pages, in a route group of their own.
       file.startsWith("src/app/(artists)/") ||
+      // M3.7: the memory pages, in a route group of their own.
+      file.startsWith("src/app/(memories)/") ||
       file === "src/app/page.tsx" ||
       file === "src/app/not-found.tsx" ||
       file === "src/app/public-fonts.ts" ||
@@ -482,6 +489,10 @@ describe("the public surface", () => {
     expect(files).toContain("src/app/(public)/_components/home-view.tsx");
     expect(files).toContain("src/app/(artists)/artists/[slug]/page.tsx");
     expect(files).toContain("src/app/(artists)/artists/[slug]/artist-view.tsx");
+    expect(files).toContain("src/app/(memories)/memories/[slug]/page.tsx");
+    expect(files).toContain(
+      "src/app/(memories)/memories/[slug]/memory-view.tsx",
+    );
     expect(files.length).toBeGreaterThan(8);
   });
 
@@ -497,10 +508,11 @@ describe("the public surface", () => {
     ).toHaveLength(1);
   });
 
-  it("renders the Home and the artist pages on the server before sending them, so they need no client JavaScript", () => {
+  it("renders the Home, the artist pages, and the memory pages on the server before sending them, so they need no client JavaScript", () => {
     for (const file of [
       "src/app/page.tsx",
       "src/app/(artists)/artists/[slug]/page.tsx",
+      "src/app/(memories)/memories/[slug]/page.tsx",
     ]) {
       expect(readFileSync(file, "utf8"), file).toMatch(
         /^export const instant = false;$/m,
@@ -514,6 +526,7 @@ describe("the public surface", () => {
       "src/app/robots.txt/route.ts",
       "src/app/(public)/albums/[slug]/page.tsx",
       "src/app/(artists)/artists/[slug]/page.tsx",
+      "src/app/(memories)/memories/[slug]/page.tsx",
       "src/app/page.tsx",
     ]) {
       expect(readFileSync(file, "utf8"), file).toMatch(
@@ -526,11 +539,14 @@ describe("the public surface", () => {
     const code = readFileSync("src/proxy.ts", "utf8");
     expect(code).toContain("routeAlbumJournalRequest");
     expect(code).toContain("routeArtistRequest");
+    expect(code).toContain("routeMemoryRequest");
     expect(code).toContain("routePublicDocumentRequest");
     expect(matcherOf(code)).toEqual([
       "/albums/:slug",
       // M3.5: one segment, `/artists/<address>`.
       "/artists/:slug",
+      // M3.7: one segment, `/memories/<slug>`.
+      "/memories/:slug",
       "/sitemap.xml",
       "/robots.txt",
       // Trailing-slash addresses, for the no-store 308 (ADR 0006, A2).
@@ -549,6 +565,8 @@ describe("the public surface", () => {
       /^src\/app\/\(public\)\//,
       // M3.5: the artist pages and their layout, scanned above.
       /^src\/app\/\(artists\)\//,
+      // M3.7: the memory pages and their layout, scanned above.
+      /^src\/app\/\(memories\)\//,
       /^src\/app\/sitemap\.xml\/route\.ts$/,
       /^src\/app\/robots\.txt\/route\.ts$/,
       /^src\/app\/not-found\.tsx$/,
@@ -896,8 +914,17 @@ describe("where the switch is applied", () => {
     const code = readFileSync(file, "utf8");
     expect(code).toMatch(/function routeAlbumJournalRequest/);
     expect(code).toMatch(/function routeArtistRequest/);
+    expect(code).toMatch(/function routeMemoryRequest/);
     expect(code).toMatch(/function routePublicDocumentRequest/);
+    // The album journal's and the memory's share `routeEntryRequest`, the one
+    // function that resolves an entry's slug, so three guards cover four.
     expect(code.match(/!publicReadsEnabled\(env\)/g)).toHaveLength(3);
+    for (const name of ["routeAlbumJournalRequest", "routeMemoryRequest"]) {
+      const body = code.slice(code.indexOf(`export async function ${name}`));
+      expect(body.slice(0, body.indexOf("\n}\n")), name).toMatch(
+        /return routeEntryRequest\(db, "(album_journal|memory)", request, env\);/,
+      );
+    }
   });
 
   it("every read of the reading entry point applies it first, so a caller that forgot still discloses nothing", () => {
@@ -910,6 +937,9 @@ describe("where the switch is applied", () => {
       "getPublicArtistFrom",
       "listPublicArtistAddressesFrom",
       "resolvePublicArtistAddressFrom",
+      // M3.7
+      "getPublicMemoryFrom",
+      "listPublicMemoryAddressesFrom",
     ]);
     expect(gateViolations(sourceOf(file), reads)).toEqual([]);
     const code = readFileSync(file, "utf8");
@@ -931,6 +961,7 @@ describe("where the switch is applied", () => {
         if (
           text === "routeAlbumJournalRequest" ||
           text === "routeArtistRequest" ||
+          text === "routeMemoryRequest" ||
           text === "routePublicDocumentRequest"
         ) {
           routings.push(text);
@@ -942,6 +973,7 @@ describe("where the switch is applied", () => {
     expect(routings.sort()).toEqual([
       "routeAlbumJournalRequest",
       "routeArtistRequest",
+      "routeMemoryRequest",
       "routePublicDocumentRequest",
     ]);
     // `NextResponse.next()` appears twice: in the `serve` case of the switch
@@ -1004,6 +1036,10 @@ describe("the Publication reading module", () => {
     // M3.5: the artist pages' read model and their addresses.
     "src/modules/publication/public-artist.ts",
     "src/modules/publication/artist-address.ts",
+    // M3.7: the memory pages' read model and its music.
+    "src/modules/publication/public-memory.ts",
+    "src/modules/publication/memory-music.ts",
+    "src/modules/publication/text.ts",
     "src/modules/publication/queries.ts",
     "src/modules/publication/predicate.ts",
     "src/modules/publication/slug.ts",
@@ -1019,7 +1055,7 @@ describe("the Publication reading module", () => {
     // nothing else from it (below); and the hash of an artist's address.
     /^@\/integrations\/wikimedia-commons$/,
     /^node:crypto$/,
-    /^\.\/(public|public-reads|public-routing|public-album-journal|public-home|public-artist|artist-address|queries|predicate|slug)$/,
+    /^\.\/(public|public-reads|public-routing|public-album-journal|public-home|public-artist|public-memory|memory-music|text|artist-address|queries|predicate|slug)$/,
   ];
 
   it("uses only the pure cover parser from the Cover Art Archive integration", () => {
@@ -1360,6 +1396,14 @@ describe("the Publication reading module", () => {
     "PublicHome",
     "PublicJournalCard",
     "PublicJournalTrack",
+    // M3.7: the memory page, with no identifier, and its reads.
+    "getPublicMemory",
+    "listPublicMemoryAddresses",
+    "resolvePublicMemorySlug",
+    "routeMemoryRequest",
+    "PublicMemory",
+    "PublicMemoryArtist",
+    "PublicMemoryMusic",
     "SlugResolution",
   ].sort();
 

@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import {
   routeAlbumJournalRequest,
   routeArtistRequest,
+  routeMemoryRequest,
   routePublicDocumentRequest,
 } from "@/modules/publication/public";
 
@@ -37,6 +38,8 @@ export const config = {
     "/albums/:slug",
     // The same for an artist: `/artists/<address>` (M3.5).
     "/artists/:slug",
+    // And for a memory: `/memories/<slug>` (M3.7).
+    "/memories/:slug",
     "/sitemap.xml",
     "/robots.txt",
     // Every address that ends in a slash, anywhere on the site, except `/`:
@@ -74,10 +77,12 @@ const ARTIST_SECURITY_HEADERS = {
 } as const;
 
 // What the public matchers above can let through, in any of the framework's
-// transport forms: an album or artist address, the sitemap, `robots.txt`.
+// transport forms: an album, artist, or memory address, the sitemap,
+// `robots.txt`.
 const PUBLIC_ADDRESS =
-  /^(?:\/_next\/data\/[^/]+)?\/(?:albums\/|artists\/|sitemap\.xml|robots\.txt)/;
+  /^(?:\/_next\/data\/[^/]+)?\/(?:albums\/|artists\/|memories\/|sitemap\.xml|robots\.txt)/;
 const ARTIST_ADDRESS = /^(?:\/_next\/data\/[^/]+)?\/artists\//;
+const MEMORY_ADDRESS = /^(?:\/_next\/data\/[^/]+)?\/memories\//;
 
 /** The path percent-decoded, or "" when it cannot be decoded. */
 function decodedOrEmpty(pathname: string): string {
@@ -130,6 +135,9 @@ export async function proxy(request: NextRequest) {
   const isArtist =
     ARTIST_ADDRESS.test(pathname) ||
     ARTIST_ADDRESS.test(decodedOrEmpty(pathname));
+  const isMemory =
+    MEMORY_ADDRESS.test(pathname) ||
+    MEMORY_ADDRESS.test(decodedOrEmpty(pathname));
   const decision =
     pathname === "/sitemap.xml" || pathname === "/robots.txt"
       ? routePublicDocumentRequest({ method: request.method })
@@ -138,23 +146,33 @@ export async function proxy(request: NextRequest) {
             method: request.method,
             slug: slugOf(pathname),
           })
-        : await routeAlbumJournalRequest({
-            method: request.method,
-            slug: slugOf(pathname),
-          });
+        : isMemory
+          ? await routeMemoryRequest({
+              method: request.method,
+              slug: slugOf(pathname),
+            })
+          : await routeAlbumJournalRequest({
+              method: request.method,
+              slug: slugOf(pathname),
+            });
 
   switch (decision.action) {
     case "serve":
       return NextResponse.next();
     case "redirect":
-      // Only an album journal's previous address redirects; an artist's
-      // decision is never a redirect.
+      // Only the previous address of an album journal or a memory redirects,
+      // to the current address in the same section; an artist's decision is
+      // never a redirect.
       // The framework's adapter needs an absolute URL to build this response,
       // and sends it back as a path when it is the same origin. The `Location`
-      // that a client receives is `/albums/<slug>`; a test sends a spoofed
-      // `Host` and `X-Forwarded-Host` to prove that no host is reflected.
+      // that a client receives is `/albums/<slug>` or `/memories/<slug>`; a
+      // test sends a spoofed `Host` and `X-Forwarded-Host` to prove that no
+      // host is reflected.
       return NextResponse.redirect(
-        new URL(`/albums/${decision.currentSlug}`, request.url),
+        new URL(
+          `/${isMemory ? "memories" : "albums"}/${decision.currentSlug}`,
+          request.url,
+        ),
         { status: 308, headers: { "Cache-Control": NO_STORE } },
       );
     case "method_not_allowed":
