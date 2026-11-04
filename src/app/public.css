@@ -2022,6 +2022,19 @@ article.pa-grid {
   }
 }
 
+/* At the narrowest phones the four links keep a margin on one line in every
+   browser's rendering of Kalam (Linux renders it a few pixels wider): 10px
+   apart, with 1px either side of each word. */
+@media (max-width: 340px) {
+  .public-nav {
+    gap: 0 10px;
+  }
+
+  .public-link {
+    padding: 0 1px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .public-link,
   .pa-credit-details .pj-chevron,
