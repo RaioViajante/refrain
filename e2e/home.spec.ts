@@ -133,10 +133,13 @@ test("shows the approved composition, with only what exists", async ({
   ).toHaveCount(0);
 
   // The headings: the site's name for screen readers, then the sections.
+  // The shelf's artists have pages, so the Artists section is shown (M3.8b);
+  // no memory is published here, so there is no Memories section.
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("refrain");
   await expect(page.getByRole("heading", { level: 2 })).toHaveText([
     "Recently written",
     "Albums",
+    "Artists",
   ]);
 
   // The newest journal, then the lists, linked to the journals' addresses.
@@ -168,14 +171,18 @@ test("shows the approved composition, with only what exists", async ({
   ).toBeVisible();
   await expect(page.locator(".ph-albums > li")).toHaveCount(4);
 
-  // The Home's own content is unchanged by M3.8a: no Artists or Memories
-  // section and no "All …" link (they are M3.8b's), no language selector, and
-  // no link to the studio. Only the header leads to the archives.
+  // M3.8b: each shown section links to its archive; with no public memory
+  // there is no Memories section and no "All memories". No language selector,
+  // and no link to the studio.
+  const main = page.locator("main");
   await expect(
-    page
-      .locator("main")
-      .getByRole("link", { name: /artists|memories|all album/i }),
-  ).toHaveCount(0);
+    main.getByRole("link", { name: "All album journals" }),
+  ).toHaveAttribute("href", "/albums");
+  await expect(main.getByRole("link", { name: "All artists" })).toHaveAttribute(
+    "href",
+    "/artists",
+  );
+  await expect(main.getByRole("link", { name: "All memories" })).toHaveCount(0);
   await expect(
     page.getByRole("link", { name: /studio|sign in|edit/i }),
   ).toHaveCount(0);
@@ -254,7 +261,9 @@ test("composes the notebook at every width without scrolling sideways", async ({
       // Nothing in a card or a row reaches past its own box (a rating that
       // ran into the next album at 768px once did).
       const spilled: string[] = [];
-      for (const card of document.querySelectorAll(".ph-album, .ph-row")) {
+      for (const card of document.querySelectorAll(
+        ".ph-album, .ph-row, .ph-artist",
+      )) {
         const edge = card.getBoundingClientRect();
         for (const part of card.querySelectorAll("*")) {
           const r = part.getBoundingClientRect();
@@ -575,6 +584,7 @@ test("works without JavaScript: the lists, their links, and the footer", async (
     await expect(page.getByRole("heading", { level: 2 })).toHaveText([
       "Recently written",
       "Albums",
+      "Artists",
     ]);
     for (const heading of await page.getByRole("heading", { level: 2 }).all()) {
       await expect(heading).toBeVisible();
@@ -720,8 +730,9 @@ test("the skip link is the first tab stop, and the keyboard reaches every journa
     await page.locator(".ph-row").first().getAttribute("href"),
   );
   expect(visited.length).toBeGreaterThanOrEqual(1 + 5 + 4 - 1);
+  // Journals, the archives' "All …" links (M3.8b), and artists' pages.
   for (const address of visited) {
-    expect(address).toMatch(/^\/albums\//);
+    expect(address).toMatch(/^\/(albums|artists)(\/|$)/);
   }
 });
 
@@ -928,4 +939,473 @@ test("screenshots, when asked for", async ({ page }) => {
   } finally {
     await seed("cover", twinFantasy.entryId, "none");
   }
+});
+
+// ---------------------------------------------------------------------------
+// M3.8b (ADR 0006 A6): the Home with public memories and artists, from the
+// M3.7 and M3.5 fixtures (every hidden memory state and artist reason beside
+// the public ones). Screenshots go to visual-review/m3-8b/ (ignored).
+
+const SHOTS_A6 = "visual-review/m3-8b";
+const a6Prefix = `${env("E2E_PUBLIC_SEED_PREFIX")}-home6`;
+
+/** "[Test] …" words of the memory fixtures (src/testing/public-memories.ts). */
+const MEMORY = {
+  title: "[Test] The summer a song arrived",
+  when: "[Test] A summer, some years ago",
+  first: "[Test] The first paragraph of a synthetic memory.",
+  second: "[Test] A second paragraph, so the column holds more than one.",
+  song: "[Test] First Memory Song",
+  artist: "[Test] Memory Artist",
+  longTitle:
+    "[Test] A memory with a very long title that has to wrap across several lines without pushing anything sideways",
+};
+
+async function seedOutput(...args: string[]): Promise<string> {
+  const { stdout } = await execFileAsync(
+    "pnpm",
+    [
+      "--silent",
+      "tsx",
+      "--conditions=react-server",
+      "src/testing/public-seed-cli.ts",
+      ...args,
+    ],
+    { env: process.env },
+  );
+  return stdout.trim();
+}
+
+async function screenshotA6(page: Page, name: string) {
+  if (process.env.E2E_SCREENSHOTS !== "1") return;
+  mkdirSync(SHOTS_A6, { recursive: true });
+  await page.evaluate(() => document.fonts.ready);
+  await page.screenshot({
+    path: `${SHOTS_A6}/${name}-${page.viewportSize()!.width}.png`,
+    fullPage: true,
+  });
+}
+
+test("screenshots of the album-journal-only and empty Homes (M3.8b), when asked for", async ({
+  page,
+}) => {
+  test.skip(process.env.E2E_SCREENSHOTS !== "1", "set E2E_SCREENSHOTS=1");
+  await serveTestCovers(page);
+  await openHome(page);
+  await screenshotA6(page, "home-album-journals-only");
+  // With reads off the Home is the empty site, whatever is published.
+  await openHome(page, offBase);
+  await screenshotA6(page, "home-empty");
+});
+
+test.describe("with memories and artists (A6)", () => {
+  let artistsJson = "";
+  let memoriesJson = "";
+  let shownMemory = "";
+
+  test.beforeAll(async () => {
+    artistsJson = await seedOutput("artists", a6Prefix);
+    memoriesJson = await seedOutput("memories", a6Prefix);
+    shownMemory = (JSON.parse(memoriesJson) as { shown: { slug: string } })
+      .shown.slug;
+  });
+
+  test.afterAll(async () => {
+    if (memoriesJson) await seed("remove-memories", memoriesJson, a6Prefix);
+    if (artistsJson) await seed("remove-artists", artistsJson, a6Prefix);
+  });
+
+  test("shows the four sections in the approved order, each with its archive link", async ({
+    page,
+  }) => {
+    await openHome(page);
+    const main = page.locator("main");
+    await expect(page.getByRole("heading", { level: 2 })).toHaveText([
+      "Recently written",
+      "Albums",
+      "Artists",
+      "Memories",
+    ]);
+    for (const [name, href] of [
+      ["All album journals", "/albums"],
+      ["All artists", "/artists"],
+      ["All memories", "/memories"],
+    ] as const) {
+      const link = main.getByRole("link", { name, exact: true });
+      await expect(link).toHaveAttribute("href", href);
+      // The drawn arrow, decorative.
+      await expect(link.locator("svg")).toHaveAttribute("aria-hidden", "true");
+    }
+
+    // The memory in Recently written: the note mark, "Memory" and its first
+    // song only, linked to its served address.
+    const row = page.locator(`.ph-row[href="/memories/${shownMemory}"]`);
+    await expect(row).toHaveCount(1);
+    await expect(row.locator(".ph-row-title")).toHaveText(MEMORY.title);
+    await expect(row.locator(".ph-row-title")).toHaveAttribute("lang", "en");
+    await expect(row.locator(".ph-row-kind")).toHaveText(
+      `Memory · ${MEMORY.song} — ${MEMORY.artist}`,
+    );
+    await expect(row.locator(".ph-row-mark svg")).toHaveCount(1);
+    await expect(row.locator(".ph-art")).toHaveCount(0);
+
+    // Artists: three cards, the person mark in the frame, never a photograph,
+    // the archive's count wording, each at an artist's page.
+    const artists = page.locator(".ph-artist");
+    await expect(artists).toHaveCount(3);
+    await expect(page.locator(".ph-artists img")).toHaveCount(0);
+    for (const card of await artists.all()) {
+      await expect(card).toHaveAttribute("href", /^\/artists\/[a-z0-9-]+$/);
+      await expect(card.locator(".ph-portrait svg")).toHaveCount(1);
+      await expect(card.locator(".ph-artist-meta")).toHaveText(
+        /^\d+ albums?( · \d+ journals?)?$/,
+      );
+    }
+
+    // Memories: three cards, the title the only link, "when", the first
+    // paragraph only, the music as plain text, no date.
+    const cards = page.locator(".ph-memories > li");
+    await expect(cards).toHaveCount(3);
+    const shown = cards.filter({ hasText: MEMORY.title });
+    await expect(shown.locator(".px-when")).toHaveText(MEMORY.when);
+    await expect(shown.locator(".px-excerpt")).toHaveText(MEMORY.first);
+    await expect(shown.locator(".px-excerpt")).toHaveAttribute("lang", "en");
+    await expect(shown.locator("a")).toHaveCount(1);
+    await expect(shown.getByRole("heading", { level: 3 })).toHaveText(
+      MEMORY.title,
+    );
+    await expect(shown.locator(".px-music")).toContainText(MEMORY.song);
+    await expect(page.locator(".ph-memories-section time")).toHaveCount(0);
+    await expect(page.locator(".ph-memories-section")).not.toContainText(
+      "Published",
+    );
+    await expect(page.getByText(MEMORY.second)).toHaveCount(0);
+    await expect(page.getByText("PRIVATE-")).toHaveCount(0);
+  });
+
+  test("uses the approved measures for Artists and Memories", async ({
+    page,
+  }) => {
+    await openHome(page);
+    const mobile = isMobile(page);
+    const measures = await page.evaluate(() => {
+      const css = (selector: string) =>
+        getComputedStyle(document.querySelector(selector)!);
+      const box = (selector: string) =>
+        document.querySelector(selector)!.getBoundingClientRect();
+      return {
+        artistsTop: css(".ph-artists-section").paddingTop,
+        memoriesTop: css(".ph-memories-section").paddingTop,
+        portrait: [box(".ph-portrait").width, box(".ph-portrait").height],
+        name: [
+          css(".ph-artist-name").fontFamily,
+          css(".ph-artist-name").fontSize,
+        ],
+        columns: css(".ph-artists").gridTemplateColumns.split(" ").length,
+        when: [
+          css(".ph-memories .px-when").fontFamily,
+          css(".ph-memories .px-when").fontSize,
+        ],
+        title: css(".ph-memories .px-memory-title").fontSize,
+        excerpt: css(".ph-memories .px-excerpt").fontSize,
+        all: [css(".ph-all").fontSize, box(".ph-all-link").height],
+      };
+    });
+    expect(measures.artistsTop).toBe("96px");
+    expect(measures.memoriesTop).toBe("96px");
+    expect(measures.portrait[0]).toBeCloseTo(mobile ? 76 : 96, 0);
+    expect(measures.portrait[1]).toBeCloseTo(mobile ? 95 : 120, 0);
+    expect(measures.name[0]).toContain("Kalam");
+    expect(measures.name[1]).toBe("22px");
+    expect(measures.columns).toBe(mobile ? 1 : 3);
+    expect(measures.when[0]).toContain("Kalam");
+    expect(measures.when[1]).toBe("19px");
+    expect(measures.title).toBe(mobile ? "23px" : "25px");
+    expect(measures.excerpt).toBe(mobile ? "18.5px" : "20px");
+    expect(measures.all[0]).toBe("16.5px");
+    expect(measures.all[1]).toBeGreaterThanOrEqual(43.5);
+    await screenshotA6(page, "home-all-sections");
+  });
+
+  test("lays out every section at every width without scrolling sideways, also with long names", async ({
+    page,
+  }) => {
+    await openHome(page);
+    const startWidth = page.viewportSize()!.width;
+    // The longest name the catalog fixtures have, and one very long word,
+    // in an artist card; the long memory title is one of the three memories.
+    await page
+      .locator(".ph-artist-name")
+      .first()
+      .evaluate((el) => {
+        el.textContent =
+          "[Test] The Extraordinarily Long-Named Synthetic Chamber Orchestra and Choir of Nowhere in Particular";
+      });
+    await page
+      .locator(".ph-artist-name")
+      .nth(1)
+      .evaluate((el) => {
+        el.textContent =
+          "Supercalifragilisticexpialidociousorchestralcollective";
+      });
+    await expect(page.locator(".ph-memories")).toContainText(MEMORY.longTitle);
+    for (const width of [
+      320, 360, 390, 640, 768, 960, 961, 1024, 1100, 1101, 1280, 1440, 2560,
+    ]) {
+      await page.setViewportSize({ width, height: 900 });
+      expect(await overflow(page), `${width}px`).toBeLessThanOrEqual(0);
+      const layout = await page.evaluate(() => {
+        const spilled: string[] = [];
+        for (const card of document.querySelectorAll(
+          ".ph-artist, .ph-row, .ph-memories > li",
+        )) {
+          const edge = card.getBoundingClientRect();
+          for (const part of card.querySelectorAll("*")) {
+            const r = part.getBoundingClientRect();
+            if (
+              r.width > 0 &&
+              (r.right > edge.right + 0.5 || r.left < edge.left - 0.5)
+            ) {
+              spilled.push(`${part.tagName}.${part.getAttribute("class")}`);
+            }
+          }
+        }
+        return {
+          spilled,
+          columns: getComputedStyle(
+            document.querySelector(".ph-artists")!,
+          ).gridTemplateColumns.split(" ").length,
+        };
+      });
+      expect(layout.spilled, `${width}px`).toEqual([]);
+      expect(layout.columns, `${width}px`).toBe(
+        width > 1100 ? 3 : width > 960 ? 2 : 1,
+      );
+    }
+    await page.setViewportSize({ width: startWidth, height: 900 });
+    await screenshotA6(page, "home-long-names");
+
+    // The density of a full excerpt (the archive's rule: about 240
+    // characters), for the owner's comparison with the screen's "two or three
+    // lines at most". Measured, not asserted: no second truncation rule.
+    const lines = await page
+      .locator(".ph-memories .px-excerpt")
+      .first()
+      .evaluate((el) => {
+        el.textContent =
+          "[Test] A synthetic paragraph of about the length the excerpt keeps, written only to see how a full excerpt sits in the Home's Memories section beside the others, at this width, before it stops at a word boundary and the…";
+        const css = getComputedStyle(el);
+        return Math.round(
+          el.getBoundingClientRect().height / parseFloat(css.lineHeight),
+        );
+      });
+    console.log(`a full excerpt at ${startWidth}px: ${lines} lines`);
+    await page.locator(".ph-memories-section").scrollIntoViewIfNeeded();
+    if (process.env.E2E_SCREENSHOTS === "1") {
+      mkdirSync(SHOTS_A6, { recursive: true });
+      await page
+        .locator(".ph-memories-section")
+        .screenshot({
+          path: `${SHOTS_A6}/home-excerpt-density-${startWidth}.png`,
+        });
+    }
+  });
+
+  test("keeps every link a 44px target that nothing covers, with a visible ring from the keyboard", async ({
+    page,
+  }) => {
+    await openHome(page);
+    const problems = await page.evaluate(() => {
+      const found: string[] = [];
+      for (const link of document.querySelectorAll("main a")) {
+        const rect = link.getBoundingClientRect();
+        if (rect.height < 43.5 || rect.width < 43.5) {
+          found.push(`small ${link.getAttribute("href")}`);
+        }
+        link.scrollIntoView({ block: "center" });
+        const r = link.getBoundingClientRect();
+        const hit = document.elementFromPoint(
+          r.left + r.width / 2,
+          r.top + Math.min(r.height / 2, 20),
+        );
+        if (!hit || !(hit === link || link.contains(hit))) {
+          found.push(`covered ${link.getAttribute("href")}`);
+        }
+      }
+      return found;
+    });
+    expect(problems).toEqual([]);
+
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.locator("main").focus();
+    const visited: string[] = [];
+    for (let step = 0; step < 40; step += 1) {
+      await page.keyboard.press("Tab");
+      const focused = await page.evaluate(() => {
+        const element = document.activeElement as HTMLElement | null;
+        if (!element || !element.closest("main")) return null;
+        const css = getComputedStyle(element);
+        return {
+          href: element.getAttribute("href"),
+          ring: `${css.outlineStyle} ${css.outlineWidth} ${css.outlineColor}`,
+        };
+      });
+      if (!focused) break;
+      expect(focused.ring, focused.href ?? "").toBe(
+        "solid 2px rgb(17, 17, 17)",
+      );
+      visited.push(focused.href!);
+    }
+    for (const archive of ["/albums", "/artists", "/memories"]) {
+      expect(visited).toContain(archive);
+    }
+    expect(visited.filter((href) => href.startsWith("/artists/"))).toHaveLength(
+      3,
+    );
+    expect(visited).toContain(`/memories/${shownMemory}`);
+    // The sections in reading order: all of an earlier section first.
+    const lastOf = (prefix: string) =>
+      visited.map((href) => href.startsWith(prefix)).lastIndexOf(true);
+    expect(visited.indexOf("/albums")).toBeLessThan(
+      visited.findIndex((href) => href.startsWith("/artists/")),
+    );
+    expect(lastOf("/artists/")).toBeLessThan(visited.indexOf("/memories"));
+  });
+
+  test("has no accessibility violations, and no layout shift (WCAG 2.2 A and AA)", async ({
+    page,
+  }) => {
+    await serveTestCovers(page);
+    await page.addInitScript(() => {
+      const record = { total: 0 };
+      (window as unknown as { __shifts: typeof record }).__shifts = record;
+      new PerformanceObserver((list) => {
+        for (const entry of list.getEntries() as (PerformanceEntry & {
+          value: number;
+          hadRecentInput: boolean;
+        })[]) {
+          if (!entry.hadRecentInput) record.total += entry.value;
+        }
+      }).observe({ type: "layout-shift", buffered: true });
+    });
+    await openHome(page);
+    await page.waitForLoadState("networkidle");
+    const results = await new AxeBuilder({ page }).withTags(TAGS).analyze();
+    expect(results.violations).toEqual([]);
+    const shifts = await page.evaluate(
+      () => (window as unknown as { __shifts: { total: number } }).__shifts,
+    );
+    expect(shifts.total).toBeLessThan(0.001);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+  });
+
+  test("works without JavaScript: every section, its links, and the footer", async ({
+    browser,
+  }) => {
+    await withoutJavaScript(browser, async (page) => {
+      const response = await page.goto(`${base}/`);
+      expect(response?.status()).toBe(200);
+      await expect(page.getByRole("heading", { level: 2 })).toHaveText([
+        "Recently written",
+        "Albums",
+        "Artists",
+        "Memories",
+      ]);
+      for (const selector of [
+        ".ph-row",
+        ".ph-album",
+        ".ph-artist",
+        ".ph-memories > li",
+        ".ph-all-link",
+      ]) {
+        await expect(page.locator(selector).first()).toBeVisible();
+      }
+      await expect(page.locator(".public-footer")).toBeVisible();
+      expect(await overflow(page)).toBeLessThanOrEqual(0);
+      await page.getByRole("link", { name: MEMORY.title }).first().click();
+      await expect(page).toHaveURL(`${base}/memories/${shownMemory}`);
+      await page.goto(`${base}/`);
+      await screenshotA6(page, "home-no-js");
+    });
+  });
+
+  test("respects reduced motion, and keeps its frames and links in forced colors", async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await openHome(page);
+    expect(
+      await page
+        .locator(".ph-all-link")
+        .first()
+        .evaluate((el) => getComputedStyle(el).transitionDuration),
+    ).toBe("0s");
+    await page.emulateMedia({ forcedColors: "active" });
+    const look = await page.evaluate(() => {
+      const css = (selector: string) =>
+        getComputedStyle(document.querySelector(selector)!);
+      return {
+        portrait: css(".ph-portrait").borderTopStyle,
+        all: css(".ph-all-link").textDecorationLine,
+      };
+    });
+    expect(look).toEqual({ portrait: "solid", all: "underline" });
+  });
+
+  test("with public reads off, it is still the empty Home", async ({
+    page,
+  }) => {
+    await openHome(page, offBase);
+    await expect(page.locator(".ph-since")).toHaveText(
+      "Nothing published yet.",
+    );
+    await expect(page.getByRole("heading", { level: 2 })).toHaveCount(0);
+    await expect(page.locator("main a")).toHaveCount(0);
+    await expect(page.getByText(MEMORY.title)).toHaveCount(0);
+  });
+
+  test("screenshots of a Home with only memories, when asked for", async ({
+    page,
+  }) => {
+    test.skip(process.env.E2E_SCREENSHOTS !== "1", "set E2E_SCREENSHOTS=1");
+    const artists = JSON.parse(artistsJson) as Record<
+      string,
+      { entryId: string }
+    >;
+    const memories = JSON.parse(memoriesJson) as {
+      albumJournal: { entryId: string };
+    };
+    // Every album journal published here, with the date to restore.
+    const journals: [string, string][] = [
+      [graceId, seededDate(graceSlug)],
+      ...shelf.map(
+        (journal) =>
+          [journal.entryId, seededDate(journal.slug)] as [string, string],
+      ),
+      [artists.grace!.entryId, "2026-10-20T12:00:00Z"],
+      [artists.sketches!.entryId, "2026-10-15T12:00:00Z"],
+      [artists.long!.entryId, "2026-10-10T12:00:00Z"],
+      [artists.broken!.entryId, "2026-10-08T12:00:00Z"],
+      [memories.albumJournal.entryId, "2026-01-01T00:00:00Z"],
+    ];
+    for (const [entryId] of journals) {
+      await seed("unpublish", entryId);
+    }
+    try {
+      await openHome(page);
+      test.skip(
+        (await addresses(page)).length > 0,
+        "another public journal is in the database",
+      );
+      await expect(page.getByRole("heading", { level: 2 })).toHaveText([
+        "Recently written",
+        "Memories",
+      ]);
+      await screenshotA6(page, "home-memories-only");
+    } finally {
+      for (const [entryId, date] of journals) {
+        await seed("publish", entryId, date);
+      }
+    }
+  });
 });
