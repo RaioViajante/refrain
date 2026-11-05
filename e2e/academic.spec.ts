@@ -168,10 +168,11 @@ test("the Desk shows a non-zero count of written tracks, as PostgreSQL computes 
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText("Saved just now")).toBeVisible();
 
-  // AC-05: the count as SQL gives it. This is an equivalent of the counting
-  // part of `listAlbumJournalProgress`, narrowed to this album: a track is
-  // written when its reflection has non-empty text in the journal's original
-  // language and is not marked "still writing".
+  // AC-05: the count as SQL gives it. A simplified form of the counting part
+  // of `listAlbumJournalProgress`, narrowed to this album: a track is written
+  // when its reflection has non-empty text in the journal's original language
+  // and is not marked "still writing". It leaves out the production query's
+  // reference-edition and not-deleted filters, which this data satisfies.
   const written = await withDatabase(async (client) => {
     const result = await client.query<{ tracks_written: number }>(
       `select count(trt.track_reflection_id)::int as tracks_written

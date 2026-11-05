@@ -181,7 +181,7 @@ Do this to see the journey without touching your own writing. It uses the dispos
 ```sh
 pnpm db:test:up                                   # the disposable test database
 TESTURL=$(grep -E '^TEST_DATABASE_URL=' .env | cut -d= -f2-)   # read, never printed
-DATABASE_URL="$TESTURL" pnpm db:migrate           # the tables, in a freshly recreated test database
+DATABASE_URL="$TESTURL" pnpm db:migrate           # creates the tables if the test database is new; otherwise a no-op
 pnpm build                                        # needs no database
 
 # A synthetic author in the TEST database only (the password is a test value).
@@ -450,7 +450,7 @@ iCloud Drive is synchronization, not versioned or offline backup. A file that is
 | Symptom | Cause and fix |
 | --- | --- |
 | `Set POSTGRES_PASSWORD in .env` from Docker Compose | `.env` is missing. Run `cp .env.example .env`. |
-| Studio pages fail, or say "The studio isn't available right now." | PostgreSQL is not running, or authentication is not configured (next row). Run `pnpm db:up` and check `docker compose ps`. The server log records only an error code, never connection details. |
+| Studio pages fail, or say "The studio isn’t available right now." | PostgreSQL is not running, or authentication is not configured (next row). Run `pnpm db:up` and check `docker compose ps`. The server log records only an error code, never connection details. |
 | `DATABASE_URL is not set` | `.env` is missing, or it lacks `DATABASE_URL`. |
 | `Refusing to run integration tests: …` | A [test database](#test-database) safety check failed; the message names it. Usually `TEST_DATABASE_URL` is missing from an older `.env` (copy it from `.env.example`), or the test database is not running (`pnpm db:test:up`). Never point it at a database whose contents matter. |
 | Integration tests fail with `ECONNREFUSED` on port 5433 | The test database is not running. Run `pnpm db:test:up`. |

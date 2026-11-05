@@ -70,7 +70,7 @@ Before a technology is adopted, its compatibility with the chosen Next.js and Re
 
 ### Source layout
 
-The layout below is the target. Today `src/app/` (the development page, the authentication route `api/auth/[...all]`, and `studio/` with its sign-in page, its desk, and its artists, albums, tracks, journals, and memories screens and server actions, all without locale routing yet), `src/db/`, `src/modules/catalog/`, `src/modules/journals/`, `src/modules/publication/`, `src/modules/identity/`, `src/integrations/musicbrainz/` and `src/integrations/cover-art-archive/` (M3.2, with their shared `src/integrations/provider.ts`), and `src/testing/` exist. The other directories are created by the first feature that needs them, never as empty placeholders.
+The layout below is the target. Today `src/app/` (the public pages behind the public-reads switch, the authentication route `api/auth/[...all]`, and `studio/` with its sign-in page, its desk, and its artists, albums, tracks, journals, and memories screens and server actions, all without locale routing yet), `src/db/`, `src/modules/catalog/`, `src/modules/journals/`, `src/modules/publication/`, `src/modules/identity/`, `src/integrations/musicbrainz/` and `src/integrations/cover-art-archive/` (M3.2, with their shared `src/integrations/provider.ts`), and `src/testing/` exist. The other directories are created by the first feature that needs them, never as empty placeholders.
 
 ```text
 src/
