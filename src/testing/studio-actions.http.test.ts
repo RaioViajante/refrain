@@ -3096,7 +3096,14 @@ describe("what a request without the author's session can do", () => {
         expect(cache, `${path} ${JSON.stringify(headers)}`).toContain(
           "no-store",
         );
-        if (response.status !== 200) {
+        const barePrefetch =
+          headers["next-router-prefetch"] !== undefined &&
+          headers["next-router-segment-prefetch"] === undefined;
+        if (barePrefetch && response.status === 404) {
+          // A bare prefetch is an empty `404` until the server process has
+          // some history for the route (studio-private-cache.http.test.ts);
+          // its body held none of the private strings (above).
+        } else if (response.status !== 200) {
           // The router's own request without a session is answered with a
           // redirect to sign-in. It reveals only the sign-in address.
           expect(response.status, `${path} ${JSON.stringify(headers)}`).toBe(

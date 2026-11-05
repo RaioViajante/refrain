@@ -438,19 +438,34 @@ describe("no session can receive another session's response (F-01)", () => {
         expectNoMarker(answer.body, where);
         expect(answer.body, where).toBe(answers[0]!.body);
       }
-      // A bare prefetch: an empty `404` in a fresh server, a `200` after some
-      // request history (measured). Whichever it is, it is the same answer,
-      // byte for byte, for every visitor, and holds no private data.
-      const bare = [];
+      // A bare prefetch: an empty `404` from a server process with no history
+      // for the route, a `200` once that process has some (measured; it is
+      // the server's state, not the visitor's). On one server it is the same
+      // answer, byte for byte, with and without the author's session; across
+      // the two servers the body is the same whenever the status is.
+      // One request without a session to each server first, so that the
+      // comparison is not about which request came first.
+      await ask("anonymous", path, FORMS.prefetch);
+      await fetch(`${otherServer.baseURL}${path}`, {
+        headers: FORMS.prefetch,
+        redirect: "manual",
+      }).then((response) => response.body?.cancel());
+      const bare = new Map<Visitor, Answer>();
       for (const visitor of VISITORS) {
-        bare.push(await ask(visitor, path, FORMS.prefetch));
+        bare.set(visitor, await ask(visitor, path, FORMS.prefetch));
       }
-      for (const [index, answer] of bare.entries()) {
-        const where = `${VISITORS[index]} prefetch ${path}`;
+      for (const [visitor, answer] of bare) {
+        const where = `${visitor} prefetch ${path}`;
         expect([200, 404], where).toContain(answer.status);
         expectNoMarker(answer.body, where);
-        expect(answer.status, where).toBe(bare[0]!.status);
-        expect(answer.body, where).toBe(bare[0]!.body);
+      }
+      const own = bare.get("author")!;
+      const none = bare.get("anonymous")!;
+      const wrong = bare.get("wrong-author")!;
+      expect(none.status, `same server prefetch ${path}`).toBe(own.status);
+      expect(none.body, `same server prefetch ${path}`).toBe(own.body);
+      if (wrong.status === own.status) {
+        expect(wrong.body, `other server prefetch ${path}`).toBe(own.body);
       }
     }
   });
