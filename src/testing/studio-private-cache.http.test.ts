@@ -126,8 +126,8 @@ async function ask(
   path: string,
   headers: Record<string, string> = {},
   method = "GET",
+  origin = originOf(visitor),
 ): Promise<Answer> {
-  const origin = originOf(visitor);
   const send = (url: string) =>
     fetch(url, {
       method,
@@ -440,32 +440,42 @@ describe("no session can receive another session's response (F-01)", () => {
       }
       // A bare prefetch: an empty `404` from a server process with no history
       // for the route, a `200` once that process has some (measured; it is
-      // the server's state, not the visitor's). On one server it is the same
-      // answer, byte for byte, with and without the author's session; across
-      // the two servers the body is the same whenever the status is.
-      // One request without a session to each server first, so that the
-      // comparison is not about which request came first.
-      await ask("anonymous", path, FORMS.prefetch);
-      await fetch(`${otherServer.baseURL}${path}`, {
-        headers: FORMS.prefetch,
-        redirect: "manual",
-      }).then((response) => response.body?.cancel());
-      const bare = new Map<Visitor, Answer>();
-      for (const visitor of VISITORS) {
-        bare.set(visitor, await ask(visitor, path, FORMS.prefetch));
-      }
-      for (const [visitor, answer] of bare) {
-        const where = `${visitor} prefetch ${path}`;
-        expect([200, 404], where).toContain(answer.status);
-        expectNoMarker(answer.body, where);
-      }
-      const own = bare.get("author")!;
-      const none = bare.get("anonymous")!;
-      const wrong = bare.get("wrong-author")!;
-      expect(none.status, `same server prefetch ${path}`).toBe(own.status);
-      expect(none.body, `same server prefetch ${path}`).toBe(own.body);
-      if (wrong.status === own.status) {
-        expect(wrong.body, `other server prefetch ${path}`).toBe(own.body);
+      // the server's state, not the visitor's). So each server is compared
+      // with itself: after the same warm-up, the answer with a session (the
+      // author on the main server, the wrong author on the second) is the
+      // answer without one, byte for byte.
+      const servers: [string, Visitor][] = [
+        [base, "author"],
+        [otherServer.baseURL, "wrong-author"],
+      ];
+      for (const [origin, visitor] of servers) {
+        const where = `${visitor} server prefetch ${path}`;
+        for (let warm = 0; warm < 2; warm++) {
+          await ask("anonymous", path, FORMS.prefetch, "GET", origin);
+        }
+        const none = await ask(
+          "anonymous",
+          path,
+          FORMS.prefetch,
+          "GET",
+          origin,
+        );
+        const withSession = await ask(visitor, path, FORMS.prefetch);
+        const noneAgain = await ask(
+          "anonymous",
+          path,
+          FORMS.prefetch,
+          "GET",
+          origin,
+        );
+        for (const answer of [none, withSession, noneAgain]) {
+          expect([200, 404], where).toContain(answer.status);
+          expectNoMarker(answer.body, where);
+        }
+        expect(withSession.status, where).toBe(none.status);
+        expect(withSession.body, where).toBe(none.body);
+        expect(noneAgain.status, where).toBe(none.status);
+        expect(noneAgain.body, where).toBe(none.body);
       }
     }
   });
