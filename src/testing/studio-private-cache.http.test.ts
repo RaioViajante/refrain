@@ -103,6 +103,10 @@ function pages(): string[] {
 }
 
 // The desk's transport files, which sit beside `/studio`, not under it.
+// `next start` answers these addresses with its not-found view (the router
+// asks with headers instead); Vercel serves the build's files at them, so
+// studio-build-output.http.test.ts checks every generated one against the
+// compiled header routes.
 const TRANSPORT_FILES = [
   "/studio.rsc",
   "/studio.prefetch.rsc",
@@ -398,7 +402,9 @@ describe("no session can receive another session's response (F-01)", () => {
           const answer = await ask(visitor, path, headers);
           const where = `${visitor} after the author, ${form} ${path}`;
           expectPrivate(answer.cacheControl, where);
-          if (visitor === "author" && form === "document") {
+          // The author's own document and Flight payload carry the private
+          // data, so its absence from the others' answers means something.
+          if (visitor === "author" && (form === "document" || form === "rsc")) {
             expect(answer.body, where).toContain(
               path === "/studio" ? MARKERS.album : MARKERS.artist,
             );
@@ -419,15 +425,46 @@ describe("no session can receive another session's response (F-01)", () => {
       "/studio/artists",
       `/studio/albums/${ids.albumId}`,
     ]) {
-      for (const form of ["prefetch", "segment prefetch"]) {
-        const answers = await Promise.all(
-          (["author", "anonymous"] as const).map((visitor) =>
-            ask(visitor, path, FORMS[form]),
-          ),
-        );
-        expectNoMarker(answers[0]!.body, `author ${form} ${path}`);
-        expect(answers[0]!.body, `${form} ${path}`).toBe(answers[1]!.body);
+      const answers = await Promise.all(
+        VISITORS.map((visitor) =>
+          ask(visitor, path, FORMS["segment prefetch"]),
+        ),
+      );
+      for (const [index, answer] of answers.entries()) {
+        const where = `${VISITORS[index]} segment prefetch ${path}`;
+        // A real shell, not an error page: the comparison proves something.
+        expect(answer.status, where).toBe(200);
+        expect(answer.body.length, where).toBeGreaterThan(100);
+        expectNoMarker(answer.body, where);
+        expect(answer.body, where).toBe(answers[0]!.body);
       }
+      // A bare prefetch: an empty `404` in a fresh server, a `200` after some
+      // request history (measured). Whichever it is, it is the same answer,
+      // byte for byte, for every visitor, and holds no private data.
+      const bare = [];
+      for (const visitor of VISITORS) {
+        bare.push(await ask(visitor, path, FORMS.prefetch));
+      }
+      for (const [index, answer] of bare.entries()) {
+        const where = `${VISITORS[index]} prefetch ${path}`;
+        expect([200, 404], where).toContain(answer.status);
+        expectNoMarker(answer.body, where);
+        expect(answer.status, where).toBe(bare[0]!.status);
+        expect(answer.body, where).toBe(bare[0]!.body);
+      }
+    }
+  });
+
+  it("serves the desk's segment prefetch byte for byte from its build file", async () => {
+    // The response every visitor gets is the generic file `next build`
+    // wrote, which studio-build-output.http.test.ts scans for private data.
+    const file = readFileSync(
+      ".next/server/app/studio.segments/_tree.segment.rsc",
+      "utf8",
+    );
+    for (const visitor of VISITORS) {
+      const answer = await ask(visitor, "/studio", FORMS["segment prefetch"]);
+      expect(answer.body, visitor).toBe(file);
     }
   });
 });
