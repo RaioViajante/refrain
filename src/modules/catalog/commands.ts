@@ -5,6 +5,7 @@ import type { z } from "zod";
 
 import {
   databaseErrorOf,
+  isReferencedRowRefusal,
   schema,
   SqlState,
   type DatabaseExecutor,
@@ -91,12 +92,18 @@ function translate(error: unknown): unknown {
   ) {
     return new CatalogError("duplicate_identifier");
   }
-  if (failure.code === SqlState.foreignKeyViolation) {
+  // A foreign key: PostgreSQL 17 reports every case as 23503; PostgreSQL 18
+  // reports a RESTRICT key's refusal as 23001 (see isReferencedRowRefusal).
+  // Either way, only a constraint listed in BLOCKERS becomes `in_use`, so both
+  // versions give the same answer for the same constraint.
+  if (
+    failure.code === SqlState.foreignKeyViolation ||
+    failure.code === SqlState.restrictViolation
+  ) {
     const blocker = failure.constraint
       ? BLOCKERS[failure.constraint]
       : undefined;
-    const missingParent = /is not present in table/.test(failure.detail ?? "");
-    return blocker && !missingParent
+    return blocker && isReferencedRowRefusal(failure)
       ? new CatalogError("in_use", { blockedBy: blocker })
       : new CatalogError("not_found");
   }
