@@ -14,6 +14,10 @@
 //   each at its current address, and never names a draft, a private, a
 //   deleted, a restored, an unpublished, or a re-addressed journal.
 // - Every response is `no-store`; a state change shows on the next request.
+// - Since M3.8b (A6): memories and artists are listed too, and the same holds
+//   in a database that holds only hidden writing (the switch on, too, then
+//   answers the empty site) and in one with public memories and artists; a
+//   memory's whole writing, an identifier, or a photograph never appears.
 //
 // Two requests to the same server already differ in one random key that the
 // framework writes into its Flight data, and a streamed answer can arrive in
@@ -24,6 +28,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { sql } from "drizzle-orm";
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
 
@@ -33,11 +38,42 @@ import {
   restoreAlbumJournal,
 } from "@/modules/journals/commands";
 // eslint-disable-next-line no-restricted-imports
+import { archiveArtist } from "@/modules/catalog/commands";
+// eslint-disable-next-line no-restricted-imports
+import { artistAddressSuffix } from "@/modules/publication/artist-address";
+// eslint-disable-next-line no-restricted-imports
+import { deleteMemory, restoreMemory } from "@/modules/journals/memories";
+// eslint-disable-next-line no-restricted-imports
 import {
   changeEntrySlug,
+  restoreDeletedEntry,
   unpublishLanguageVersion,
 } from "@/modules/publication/commands";
-import { testAuthor } from "@/testing/fixtures";
+import {
+  createTestAlbum,
+  createTestAlbumJournal,
+  createTestArtist,
+  createTestArtistJournal,
+  createTestMemory,
+  testAuthor,
+} from "@/testing/fixtures";
+import {
+  ARTIST_MARKERS,
+  GRACE_ARTIST_PHOTO,
+  LONG_BAND_NAME,
+  PRIVATE_ARTIST_MARKER_LIST,
+  removeSeededArtists,
+  seedArtistPages,
+  setTestArtistPhoto,
+  type SeededArtists,
+} from "@/testing/public-artists";
+import {
+  MEMORY_MARKER_LIST,
+  PUBLIC_MEMORY,
+  removeSeededMemories,
+  seedMemories,
+  type SeededMemories,
+} from "@/testing/public-memories";
 import {
   startProductionServer,
   type ProductionServer,
@@ -112,6 +148,35 @@ const HIDDEN_TITLES: string[] = Object.values(HIDDEN);
 // Addresses a reader may never be sent to from the Home.
 const hiddenSlugs: string[] = [];
 
+// M3.8b: the hidden-only phase's records. Each name is a marker that must
+// never be sent, in any response, with the switch on or off.
+const HIDDEN_ONLY = {
+  draftJournal: "[Test] A6-HIDDEN-DRAFT-JOURNAL",
+  draftMemory: "[Test] A6-HIDDEN-DRAFT-MEMORY",
+  privateMemory: "[Test] A6-HIDDEN-PRIVATE-MEMORY",
+  deletedMemory: "[Test] A6-HIDDEN-DELETED-MEMORY",
+  restoredMemory: "[Test] A6-HIDDEN-RESTORED-MEMORY",
+  unpublishedMemory: "[Test] A6-HIDDEN-UNPUBLISHED-MEMORY",
+  translationMemory: "[Test] A6-HIDDEN-TRANSLATION-MEMORY",
+  memorySong: "[Test] A6-HIDDEN-MEMORY-SONG",
+  catalogArtist: "[Test] A6-HIDDEN-CATALOG-ARTIST",
+  draftArtist: "[Test] A6-HIDDEN-DRAFT-ARTIST",
+  journalArtist: "[Test] A6-HIDDEN-ARTIST-JOURNAL-ARTIST",
+  photoArtist: "[Test] A6-HIDDEN-PHOTO-ARTIST",
+  artistJournal: "[Test] A6-HIDDEN-ARTIST-JOURNAL",
+} as const;
+const HIDDEN_ONLY_LIST: string[] = Object.values(HIDDEN_ONLY);
+const hiddenOnly = {
+  entries: [] as string[],
+  albums: [] as string[],
+  tracks: [] as string[],
+  artists: [] as string[],
+};
+let artists: SeededArtists | undefined;
+let memories: SeededMemories | undefined;
+const artistPrefix = `${prefix}-art`;
+const memoryPrefix = `${prefix}-mem`;
+
 /** What a reader receives, with the framework's per-request key masked. */
 function readerView(snapshot: Snapshot) {
   const view = masked(snapshot, []);
@@ -122,6 +187,25 @@ function readerView(snapshot: Snapshot) {
     text: visibleText(view.body).trim(),
     tags: [...markup.matchAll(/<[a-zA-Z][^>]*>/g)].map((m) => m[0]).sort(),
   };
+}
+
+/**
+ * The Flight rows a response carries, sorted: the payload of every
+ * `self.__next_f.push([1, "…"])` in a document, or the body of an RSC
+ * response, split into rows.
+ */
+function flightRows(body: string): string[] {
+  const pushes = [
+    ...body.matchAll(/self\.__next_f\.push\(\[1,("(?:[^"\\]|\\.)*")\]\)/g),
+  ];
+  const payload =
+    pushes.length > 0
+      ? pushes.map((m) => JSON.parse(m[1]!) as string).join("")
+      : body;
+  return payload
+    .split("\n")
+    .filter((row) => row !== "")
+    .sort();
 }
 
 /** The album-journal addresses a page links to, in the markup. */
@@ -174,6 +258,28 @@ const FORMS: [string, Parameters<typeof request>[2]][] = [
   ["Range", { headers: { range: "bytes=0-10" } }],
   ["Accept: application/json", { headers: { accept: "application/json" } }],
   ["a cookie", { headers: { cookie: "refrain=1; theme=dark" } }],
+  // M3.8b review: the framework renders for a known bot by another path.
+  [
+    "a bot",
+    {
+      headers: {
+        "user-agent":
+          "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+      },
+    },
+  ],
+];
+
+// The build's own addresses for the Home, and its data route (M3.8b review):
+// with the switch off each must answer, in every phase, what it answered
+// before anything was published.
+const INDEX_PATHS = [
+  "/index",
+  "/index.html",
+  "/index.rsc",
+  "/index.segments/_tree.segment.rsc",
+  "/index.segments/__PAGE__.segment.rsc",
+  `/_next/data/${readFileSync(".next/BUILD_ID", "utf8").trim()}/index.json`,
 ];
 
 const CACHE_INDICATORS = [
@@ -201,18 +307,42 @@ afterAll(async () => {
     await server.stop().catch(() => undefined);
   }
   try {
+    await removeSeededMemories(client, memories, memoryPrefix);
+    await removeSeededArtists(client, artists, artistPrefix);
+    await client.query("delete from entry_slugs where entry_id = any($1)", [
+      hiddenOnly.entries,
+    ]);
+    await client.query("delete from entries where id = any($1)", [
+      hiddenOnly.entries,
+    ]);
+    await client.query("delete from albums where id = any($1)", [
+      hiddenOnly.albums,
+    ]);
+    await client.query("delete from tracks where id = any($1)", [
+      hiddenOnly.tracks,
+    ]);
+    await client.query("delete from artists where id = any($1)", [
+      hiddenOnly.artists,
+    ]);
     await removeSeeded(client, seeded, prefix);
   } finally {
     await client.end();
   }
-  // Nothing private, and no hidden journal, was ever sent: not in a body, a
-  // header, or an RSC payload, in any test above.
+  // Nothing private, and no hidden journal, memory, or artist, was ever sent:
+  // not in a body, a header, or an RSC payload, in any test above.
   const all = corpus.join("\n");
-  for (const marker of [...PRIVATE_MARKER_LIST, ...HIDDEN_TITLES]) {
+  for (const marker of [
+    ...PRIVATE_MARKER_LIST,
+    ...HIDDEN_TITLES,
+    ...HIDDEN_ONLY_LIST,
+    ...MEMORY_MARKER_LIST,
+    ...PRIVATE_ARTIST_MARKER_LIST,
+  ]) {
     expect(all, marker).not.toContain(marker);
   }
   for (const hidden of hiddenSlugs) {
     expect(all, hidden).not.toContain(`/albums/${hidden}"`);
+    expect(all, hidden).not.toContain(`/memories/${hidden}"`);
   }
 }, 60_000);
 
@@ -223,6 +353,10 @@ let emptyOff: ReturnType<typeof readerView>;
 // anything is published: the whole response, Flight data included, with only
 // the framework's per-request key masked.
 const offBaseline = new Map<string, ReturnType<typeof masked>>();
+// The same, from the server whose switch is on, before anything is published:
+// the empty site itself.
+const onBaseline = new Map<string, ReturnType<typeof masked>>();
+const offPathBaseline = new Map<string, ReturnType<typeof masked>>();
 const offServers = () => [off, ...nearMiss];
 
 describe("with nothing published", () => {
@@ -272,6 +406,19 @@ describe("with nothing published", () => {
     expect(text).toContain("Nothing published yet.");
     expect(text).not.toContain("Recently written");
     expect(text).not.toContain("Most recent");
+    // No section and no archive link (A6, item 6); the header's four links
+    // are the only mention of the archives.
+    for (const absent of [
+      'id="ph-recent"',
+      'id="ph-albums"',
+      'id="ph-artists"',
+      'id="ph-memories"',
+      "All album journals",
+      "All artists",
+      "All memories",
+    ]) {
+      expect(page.body, absent).not.toContain(absent);
+    }
     expect(page.body).toContain('src="/artwork/refrain-home-character.webp"');
     expect(page.body).toContain('width="1536" height="1024"');
     expect(addressesIn(page.body)).toEqual([]);
@@ -296,6 +443,192 @@ describe("with nothing published", () => {
       }
     }
     expect(offBaseline.size).toBe(FORMS.length * (1 + NEAR_MISSES.length));
+    for (const [name, init] of FORMS) {
+      onBaseline.set(name, masked(await home(on, init), []));
+    }
+    for (const path of INDEX_PATHS) {
+      for (const [index, server] of offServers().entries()) {
+        offPathBaseline.set(
+          `${index}:${path}`,
+          masked(await request(server.baseURL, path), []),
+        );
+      }
+    }
+  });
+
+  // The switch-on server awaits its (empty) read, so the framework chunks and
+  // orders the same stream differently from the switch-off server, which
+  // reads nothing: the comparison is of the content, not the chunking. Every
+  // header, the reader's view, and the Flight rows as a sorted multiset.
+  it("is, with the switch off, the empty site itself, Flight included, in every request form", async () => {
+    for (const [name] of FORMS) {
+      const disabled = offBaseline.get(`0:${name}`)!;
+      const enabled = onBaseline.get(name)!;
+      expect(disabled.status, name).toBe(enabled.status);
+      expect(disabled.headers, name).toEqual(enabled.headers);
+      expect(flightRows(disabled.body), name).toEqual(flightRows(enabled.body));
+      // A document is also compared as a reader receives it; an RSC answer
+      // is Flight rows only, compared above.
+      if (/<html/.test(enabled.body)) {
+        const reader = (body: string) =>
+          visibleText(body.replace(/<script[\s\S]*?<\/script>/g, ""));
+        expect(reader(disabled.body), name).toEqual(reader(enabled.body));
+      }
+    }
+  });
+});
+
+/**
+ * Every server whose switch is off still answers, in every request form and
+ * at the build's own addresses, exactly what it answered before anything was
+ * published: the whole response, Flight data included.
+ */
+async function expectEmptySiteWhileOff() {
+  for (const [name, init] of FORMS) {
+    for (const [index, server] of offServers().entries()) {
+      expect(
+        masked(await home(server, init), []),
+        `${name}, server ${index}`,
+      ).toEqual(offBaseline.get(`${index}:${name}`));
+    }
+  }
+  for (const path of INDEX_PATHS) {
+    for (const [index, server] of offServers().entries()) {
+      expect(
+        masked(await request(server.baseURL, path), []),
+        `${path}, server ${index}`,
+      ).toEqual(offPathBaseline.get(`${index}:${path}`));
+    }
+  }
+}
+
+// M3.8b (A6, item 6): a database that holds only writing a reader may not see
+// renders the empty site, with the switch on as well as off, in every request
+// form, Flight data included.
+describe("with only hidden writing (A6)", () => {
+  beforeAll(async () => {
+    await fixtureDatabase(client).transaction(async (tx) => {
+      const artist = async (name: string) => {
+        const id = await createTestArtist(tx, name);
+        hiddenOnly.artists.push(id);
+        return id;
+      };
+      const catalogArtist = await artist(HIDDEN_ONLY.catalogArtist);
+      const draftArtist = await artist(HIDDEN_ONLY.draftArtist);
+      const journalArtist = await artist(HIDDEN_ONLY.journalArtist);
+      const photoArtist = await artist(HIDDEN_ONLY.photoArtist);
+      await setTestArtistPhoto(tx, photoArtist, GRACE_ARTIST_PHOTO);
+      expect(catalogArtist).toBeTruthy();
+
+      const album = await createTestAlbum(tx, {
+        title: HIDDEN_ONLY.draftJournal,
+        trackTitles: [HIDDEN_ONLY.memorySong],
+        artistIds: [draftArtist],
+      });
+      hiddenOnly.albums.push(album.albumId);
+      hiddenOnly.tracks.push(...album.trackIds);
+      hiddenOnly.entries.push(
+        await createTestAlbumJournal(tx, {
+          albumId: album.albumId,
+          slug: slug("a6-draft-journal"),
+          versions: [{ locale: "en", status: "draft" }],
+        }),
+      );
+      // A published artist journal: artist journals have no public reading
+      // contract, so it makes nothing public.
+      hiddenOnly.entries.push(
+        await createTestArtistJournal(tx, {
+          artistId: journalArtist,
+          slug: slug("a6-artist-journal"),
+          versions: [
+            {
+              locale: "en",
+              status: "published",
+              title: HIDDEN_ONLY.artistJournal,
+              text: HIDDEN_ONLY.artistJournal,
+            },
+          ],
+        }),
+      );
+      const music = [{ trackId: album.trackIds[0]! }];
+      const memoryIn = async (
+        name: string,
+        title: string,
+        versions: {
+          locale: "en" | "pt-BR";
+          status: "draft" | "private" | "published";
+        }[],
+        deletedAt?: Date,
+      ) => {
+        const entryId = await createTestMemory(tx, {
+          slug: slug(name),
+          deletedAt,
+          music,
+          versions: versions.map((version) => ({
+            ...version,
+            title,
+            text: title,
+          })),
+        });
+        await tx.execute(sql`
+          update memories set remembered_when = ${title}
+           where entry_id = ${entryId}`);
+        hiddenOnly.entries.push(entryId);
+        return entryId;
+      };
+      await memoryIn("a6-draft", HIDDEN_ONLY.draftMemory, [
+        { locale: "en", status: "draft" },
+      ]);
+      await memoryIn("a6-private", HIDDEN_ONLY.privateMemory, [
+        { locale: "en", status: "private" },
+      ]);
+      await memoryIn(
+        "a6-deleted",
+        HIDDEN_ONLY.deletedMemory,
+        [{ locale: "en", status: "published" }],
+        new Date(),
+      );
+      const restored = await memoryIn(
+        "a6-restored",
+        HIDDEN_ONLY.restoredMemory,
+        [{ locale: "en", status: "published" }],
+        new Date(),
+      );
+      await restoreDeletedEntry(tx, restored);
+      const unpublished = await memoryIn(
+        "a6-unpublished",
+        HIDDEN_ONLY.unpublishedMemory,
+        [{ locale: "en", status: "published" }],
+      );
+      await unpublishLanguageVersion(tx, author, unpublished, "en", "private");
+      await memoryIn("a6-translation", HIDDEN_ONLY.translationMemory, [
+        { locale: "en", status: "draft" },
+        { locale: "pt-BR", status: "private" },
+      ]);
+    });
+    hiddenSlugs.push(
+      ...[
+        "a6-draft",
+        "a6-private",
+        "a6-deleted",
+        "a6-restored",
+        "a6-unpublished",
+        "a6-translation",
+      ].map(slug),
+    );
+  }, 60_000);
+
+  it("answers, with the switch on, exactly what the empty site answered, in every request form", async () => {
+    expect(readerView(await home(on))).toEqual(emptyOn);
+    for (const [name, init] of FORMS) {
+      expect(masked(await home(on, init), []), name).toEqual(
+        onBaseline.get(name),
+      );
+    }
+  });
+
+  it("answers, with the switch off or a near miss, exactly the empty-site baseline, in every request form", async () => {
+    await expectEmptySiteWhileOff();
   });
 });
 
@@ -634,8 +967,9 @@ describe("with journals in every state", () => {
     expect(after).toContain(albumAddress("grace-moved"));
     expect(after).not.toContain(albumAddress("grace"));
 
-    // And with the switch off, none of it ever showed.
+    // And with the switch off, none of it ever showed, in any form.
     expect(readerView(await home(off))).toEqual(emptyOff);
+    await expectEmptySiteWhileOff();
   });
 
   it("is in the sitemap, first, only while reads are on", async () => {
@@ -647,6 +981,254 @@ describe("with journals in every state", () => {
     expect(locations[0]).toBe(`${ORIGIN}/`);
     expect(locations.filter((loc) => loc === `${ORIGIN}/`)).toHaveLength(1);
     expect((await request(off.baseURL, "/sitemap.xml")).status).toBe(404);
+  });
+});
+
+// M3.8b (A6): public memories and artists, with every hidden memory state and
+// every hidden artist reason beside them (the M3.7 and M3.5 fixtures).
+describe("with memories and artists (A6)", () => {
+  beforeAll(async () => {
+    artists = await seedArtistPages(client, artistPrefix);
+    memories = await seedMemories(client, memoryPrefix);
+    hiddenSlugs.push(
+      ...memories.hidden.map((hidden) => hidden.slug),
+      // Previous addresses: the Home links only the current one.
+      memories.shown.previousSlug,
+      memories.shown.neverPublicSlug,
+      memories.hiddenPreviousSlug,
+    );
+  }, 60_000);
+
+  /** Every address a page links to, outside scripts. */
+  const linksIn = (body: string) =>
+    [
+      ...new Set(
+        [
+          ...body
+            .replace(/<script[\s\S]*?<\/script>/g, "")
+            .matchAll(/href="(\/(?:albums|artists|memories)(?:\/[^"]*)?)"/g),
+        ].map((m) => m[1]!),
+      ),
+    ].sort();
+
+  it("still answers, with the switch off or a near miss, exactly the empty-site baseline, in every request form", async () => {
+    await expectEmptySiteWhileOff();
+    for (const [name, init] of FORMS) {
+      for (const [index, server] of offServers().entries()) {
+        const answer = await home(server, init);
+        expect(masked(answer, []), `${name}, server ${index}`).toEqual(
+          offBaseline.get(`${index}:${name}`),
+        );
+        for (const listed of [
+          PUBLIC_MEMORY.title,
+          PUBLIC_MEMORY.firstSong,
+          LONG_BAND_NAME,
+          "Jeff Buckley",
+          "All artists",
+          "All memories",
+        ]) {
+          expect(answer.body, `${name}: ${listed}`).not.toContain(listed);
+        }
+      }
+    }
+  });
+
+  it("lists memories and artists in the approved order, with their archive links, each link answering 200", async () => {
+    const page = await home(on);
+    expect(page.status).toBe(200);
+    const text = visibleText(page.body);
+    expect(text).toMatch(/Most recent: .+ · (Album journal|Memory) · /);
+    expect(text).toContain(PUBLIC_MEMORY.title);
+    expect(text).toContain(
+      `Memory · ${PUBLIC_MEMORY.firstSong} — ${PUBLIC_MEMORY.albumArtist}`,
+    );
+    // The sections in the approved order, each "All …" link in its own.
+    const order = [
+      'id="ph-recent"',
+      'id="ph-albums"',
+      ">All album journals<",
+      'id="ph-artists"',
+      ">All artists<",
+      'id="ph-memories"',
+      ">All memories<",
+    ].map((mark) => page.body.indexOf(mark));
+    expect(order.every((at) => at >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    // The memory card: its "when", its title, the first paragraph only.
+    expect(text).toContain(PUBLIC_MEMORY.when);
+    expect(text).toContain(PUBLIC_MEMORY.paragraphs[0]);
+    // Every link answers 200: entries, artists, and the archives.
+    const links = linksIn(page.body);
+    for (const archive of ["/albums", "/artists", "/memories"]) {
+      expect(links).toContain(archive);
+    }
+    expect(links.some((link) => link.startsWith("/memories/"))).toBe(true);
+    expect(links.some((link) => link.startsWith("/artists/"))).toBe(true);
+    for (const link of links) {
+      const opened = await request(on.baseURL, link);
+      expect(opened.status, link).toBe(200);
+    }
+    // At most five rows, four albums, three artists, three memories.
+    const count = (pattern: RegExp) =>
+      [...page.body.replace(/<script[\s\S]*?<\/script>/g, "").matchAll(pattern)]
+        .length;
+    expect(count(/class="ph-row"/g)).toBeLessThanOrEqual(5);
+    expect(count(/class="ph-album"/g)).toBeLessThanOrEqual(4);
+    expect(count(/class="ph-artist"/g)).toBe(3);
+    expect(count(/class="px-memory"/g)).toBe(3);
+  });
+
+  it("never sends a memory's whole writing, an identifier, a photograph, or a hidden artist, in any request form", async () => {
+    // Every identifier in the database: every value of every uuid column,
+    // and every MusicBrainz identifier, matched in either case, with and
+    // without hyphens. A cover's address names its release, so the Cover
+    // Art Archive's own URLs are left out of the scanned text.
+    const columns = (
+      await client.query<{ table_name: string; column_name: string }>(`
+        select table_name, column_name from information_schema.columns
+         where table_schema = 'public'
+           and (data_type = 'uuid' or column_name like 'mb\\_%')`)
+    ).rows;
+    const ids = new Set<string>();
+    for (const { table_name, column_name } of columns) {
+      const values = await client.query<{ value: string }>(
+        `select distinct "${column_name}"::text as value from "${table_name}"
+          where "${column_name}" is not null`,
+      );
+      for (const { value } of values.rows) {
+        if (value.length >= 32) {
+          ids.add(value.toLowerCase());
+          ids.add(value.toLowerCase().replaceAll("-", ""));
+        }
+      }
+    }
+    expect(ids.size).toBeGreaterThan(0);
+    for (const [name, init] of FORMS) {
+      const answer = await home(on, init);
+      const scanned = answer.body
+        .replace(/https:\/\/coverartarchive\.org\/[^"\s,]*/g, "")
+        .toLowerCase();
+      expect(answer.headers["cache-control"], name).toBe("no-store");
+      // The second paragraph is past the excerpt: never in HTML or Flight.
+      expect(answer.body, name).not.toContain(PUBLIC_MEMORY.paragraphs[1]);
+      for (const id of ids) {
+        expect(scanned.includes(id), `${name}: ${id}`).toBe(false);
+      }
+      for (const absent of [
+        "thumb.wikimedia.org",
+        "upload.wikimedia.org",
+        GRACE_ARTIST_PHOTO.credit,
+        "Artist journal",
+        "Solo artist",
+      ]) {
+        expect(answer.body, `${name}: ${absent}`).not.toContain(absent);
+      }
+    }
+    // An archived artist is plain text in an album's credits (catalog
+    // wording, as on the album journal), never one of the Artists cards.
+    const page = (await home(on)).body;
+    const artistsSection = page.slice(
+      page.indexOf('id="ph-artists"'),
+      page.indexOf('id="ph-memories"'),
+    );
+    expect(artistsSection.length).toBeGreaterThan(0);
+    expect(artistsSection).not.toContain(ARTIST_MARKERS.archived);
+    // The build's own addresses for the Home, with reads on: no second
+    // paragraph and no hidden memory either.
+    for (const path of INDEX_PATHS) {
+      const answer = await request(on.baseURL, path);
+      expect(answer.headers["cache-control"], path).toContain("no-store");
+      expect(answer.body, path).not.toContain(PUBLIC_MEMORY.paragraphs[1]);
+      for (const marker of MEMORY_MARKER_LIST) {
+        expect(answer.body, `${path}: ${marker}`).not.toContain(marker);
+      }
+    }
+    // Nothing about a memory or an artist was written to the server's disk.
+    expect(
+      filesContaining(".next", [
+        memoryPrefix,
+        artistPrefix,
+        PUBLIC_MEMORY.title,
+        PUBLIC_MEMORY.paragraphs[1],
+        LONG_BAND_NAME,
+        ...MEMORY_MARKER_LIST,
+        ...HIDDEN_ONLY_LIST,
+      ]),
+    ).toEqual([]);
+    // The Home's policy is unchanged: no image host for photographs.
+    expect((await home(on)).headers["content-security-policy"]).toBe(
+      CONTENT_SECURITY_POLICY,
+    );
+  });
+
+  it("describes the Home and nothing it lists in its metadata", async () => {
+    const markup = (await home(on)).body.replace(
+      /<script[\s\S]*?<\/script>/g,
+      "",
+    );
+    const head = [...markup.matchAll(/<(meta|title)[^>]*>(?:[^<]*<\/title>)?/g)]
+      .map((m) => m[0])
+      .join("\n");
+    expect(head).toContain("<title>refrain</title>");
+    for (const listed of [
+      PUBLIC_MEMORY.title,
+      "Jeff Buckley",
+      LONG_BAND_NAME,
+    ]) {
+      expect(head, listed).not.toContain(listed);
+    }
+  });
+
+  it("shows each change on the next request: unpublishing, deleting, restoring, and publishing a memory, and archiving an artist", async () => {
+    const shown = memories!.shown;
+    const listed = async () => {
+      const page = await home(on);
+      return { text: visibleText(page.body), links: linksIn(page.body) };
+    };
+    const memoryLink = `/memories/${shown.slug}`;
+    expect((await listed()).links).toContain(memoryLink);
+
+    await unpublishLanguageVersion(
+      db(),
+      author,
+      shown.entryId,
+      "en",
+      "private",
+    );
+    let now = await listed();
+    expect(now.links).not.toContain(memoryLink);
+    expect(now.text).not.toContain(PUBLIC_MEMORY.title);
+
+    await publishForTest(db(), shown.entryId, "en");
+    expect((await listed()).links).toContain(memoryLink);
+
+    await deleteMemory(db(), author, shown.entryId);
+    expect((await listed()).links).not.toContain(memoryLink);
+    // A restore keeps it private.
+    await restoreMemory(db(), author, shown.entryId);
+    expect((await listed()).links).not.toContain(memoryLink);
+    await publishForTest(db(), shown.entryId, "en");
+    expect((await listed()).links).toContain(memoryLink);
+
+    // Archiving an artist takes it off the Home at once. Two visible artists
+    // are named Jeff Buckley (this file's Grace and the artist fixtures'), so
+    // each is at a suffixed address; once one is archived, the other has the
+    // bare one, as its page does.
+    const archived = artists!.grace.artistId;
+    const suffixed = `/artists/jeff-buckley-${artistAddressSuffix(archived)}`;
+    expect((await listed()).links).toContain(suffixed);
+    expect((await listed()).links).not.toContain("/artists/jeff-buckley");
+    await archiveArtist(db(), author, archived);
+    now = await listed();
+    expect(now.links).not.toContain(suffixed);
+    expect(now.links).toContain("/artists/jeff-buckley");
+    expect((await request(on.baseURL, "/artists/jeff-buckley")).status).toBe(
+      200,
+    );
+
+    // And with the switch off, none of it ever showed, in any form.
+    expect(readerView(await home(off))).toEqual(emptyOff);
+    await expectEmptySiteWhileOff();
   });
 });
 

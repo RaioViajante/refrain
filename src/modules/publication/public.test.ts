@@ -66,8 +66,9 @@ describe("the reading entry point with reads not enabled", () => {
       expect(await listPublicAlbumJournalAddresses()).toEqual([]);
       // The Home's answer is the one for a site with nothing published
       // (ADR 0006, amendment A4), in either reader language.
-      expect(await getPublicHome("en")).toEqual({ recent: [], albums: [] });
-      expect(await getPublicHome("pt-BR")).toEqual({ recent: [], albums: [] });
+      const nothing = { recent: [], albums: [], artists: [], memories: [] };
+      expect(await getPublicHome("en")).toEqual(nothing);
+      expect(await getPublicHome("pt-BR")).toEqual(nothing);
       expect(await resolvePublicAlbumJournalSlug("any-slug")).toEqual({
         outcome: "not_found",
       });

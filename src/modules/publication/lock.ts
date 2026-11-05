@@ -2,7 +2,7 @@ import "server-only";
 
 import { sql } from "drizzle-orm";
 
-import type { DatabaseExecutor, EntryKind, Transaction } from "@/db";
+import type { EntryKind, Transaction } from "@/db";
 
 import { PublicationError } from "./errors";
 
@@ -52,17 +52,6 @@ export async function lockLiveEntry(tx: Transaction, entryId: string) {
   return entry;
 }
 
-// One consistent snapshot, without a lock. Inside a transaction already (a
-// test, or a command that composes) it reads in that transaction.
-export async function inSnapshot<Result>(
-  db: DatabaseExecutor,
-  work: (executor: DatabaseExecutor) => Promise<Result>,
-): Promise<Result> {
-  if ("rollback" in db) {
-    return work(db);
-  }
-  return db.transaction(work, {
-    isolationLevel: "repeatable read",
-    accessMode: "read only",
-  });
-}
+// One consistent snapshot, without a lock (./snapshot, shared with the public
+// Home).
+export { inSnapshot } from "./snapshot";

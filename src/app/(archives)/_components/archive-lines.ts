@@ -23,7 +23,8 @@ export function artistCountLine(artist: PublicArtistCard): string {
 /** How many songs the music line names before it says how many more there are. */
 export const MUSIC_LINE_SONGS = 3;
 
-const songText = (song: PublicMemorySong) =>
+/** One song as the music lines write it: "Holocene — Bon Iver". */
+export const songText = (song: PublicMemorySong) =>
   song.artists.length > 0
     ? `${song.title} — ${song.artists.join(", ")}`
     : song.title;

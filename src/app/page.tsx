@@ -48,7 +48,14 @@ export const instant = false;
 // of each journal only (ADR 0002, D1.2).
 const READER_LOCALE = "en";
 
-const NOTHING_PUBLISHED: PublicHome = { recent: [], albums: [] };
+// The page's own copy of the answer for a site with nothing published, so
+// this guard does not depend on the reading entry point's (ADR 0006 A4, A6).
+const NOTHING_PUBLISHED: PublicHome = {
+  recent: [],
+  albums: [],
+  artists: [],
+  memories: [],
+};
 
 /** What the Home lists, or null when the database could not answer. */
 async function load(): Promise<PublicHome | null> {

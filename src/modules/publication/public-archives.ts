@@ -114,7 +114,7 @@ const timestamp = (value: string) => new Date(value);
  * album. Columns: entry_id, slug, album_id, locale, published_at,
  * is_presented.
  */
-function shownAlbumJournals(readerLocale: Locale) {
+export function shownAlbumJournals(readerLocale: Locale) {
   return sql`
     select served.entry_id, served.slug, aj.album_id, version.locale,
            version.published_at,
@@ -242,7 +242,7 @@ interface ArtistRow extends Record<string, unknown> {
 
 // One stable order for names, whatever the database's collation: case and
 // accents do not separate names, and numbers sort as numbers.
-const nameOrder = new Intl.Collator("en", {
+export const nameOrder = new Intl.Collator("en", {
   sensitivity: "base",
   numeric: true,
 });
@@ -299,6 +299,36 @@ export async function listPublicArtistArchive(
  */
 const EXCERPT_BLOCKS = 16;
 
+/**
+ * Every link of every memory, named as the memory page names it
+ * (`memory-music.ts`): a recording by its title and credited artists, an album
+ * link by the album's title and credits. It decides no visibility: a caller
+ * reads it only for memories it has already found publicly visible, in the
+ * same statement or the same snapshot. Shared by the Memories archive and the
+ * Home (ADR 0006 A6), so both name a song the same way.
+ *
+ * Columns: memory_id, position, id, title, artists.
+ */
+export const memorySongRows = sql`
+  select mm.memory_id, mm.position, mm.id,
+         coalesce(song_track.title, song_album.title) as title,
+         case
+           when mm.track_id is not null then
+             (select array_agg(ar.name order by ta.position)
+                from track_artists ta
+                join artists ar on ar.id = ta.artist_id
+               where ta.track_id = mm.track_id)
+           else
+             (select array_agg(coalesce(aa.credited_as, ar.name)
+                               order by aa.position)
+                from album_artists aa
+                join artists ar on ar.id = aa.artist_id
+               where aa.album_id = mm.album_id)
+         end as artists
+    from memory_music mm
+    left join tracks song_track on song_track.id = mm.track_id
+    left join albums song_album on song_album.id = mm.album_id`;
+
 interface MemoryRow extends Record<string, unknown> {
   entry_id: string;
   slug: string;
@@ -319,10 +349,13 @@ interface SongRow extends Record<string, unknown> {
  * The Memories archive: every memory whose address is served, with the
  * version a reader of `readerLocale` is shown, the newest publication first
  * (ties by address). "When" is shown as written and never read as a date.
+ * With a `limit`, only the first memories of that same order are read: the
+ * Home's Memories section is this list's prefix (ADR 0006 A6).
  */
 export async function listPublicMemoryArchive(
   db: DatabaseExecutor,
   readerLocale: Locale,
+  limit?: number,
 ): Promise<PublicMemoryCard[]> {
   const memories = await db.execute<MemoryRow>(sql`
     select served.entry_id, served.slug, version.locale, version.published_at,
@@ -348,7 +381,8 @@ export async function listPublicMemoryArchive(
       join memories m on m.entry_id = served.entry_id
       join entry_texts t
         on t.entry_id = served.entry_id and t.locale = version.locale
-     order by version.published_at desc, served.slug asc`);
+     order by version.published_at desc, served.slug asc
+     ${limit === undefined ? sql`` : sql`limit ${limit}`}`);
   if (memories.rows.length === 0) {
     return [];
   }
@@ -359,30 +393,15 @@ export async function listPublicMemoryArchive(
   // publicly visible, so a memory unpublished in between gives no songs.
   const ids = memories.rows.map((row) => row.entry_id);
   const songs = await db.execute<SongRow>(sql`
-    select mm.memory_id, coalesce(t.title, a.title) as title,
-           case
-             when mm.track_id is not null then
-               (select array_agg(ar.name order by ta.position)
-                  from track_artists ta
-                  join artists ar on ar.id = ta.artist_id
-                 where ta.track_id = mm.track_id)
-             else
-               (select array_agg(coalesce(aa.credited_as, ar.name)
-                                 order by aa.position)
-                  from album_artists aa
-                  join artists ar on ar.id = aa.artist_id
-                 where aa.album_id = mm.album_id)
-           end as artists
-      from memory_music mm
-      left join tracks t on t.id = mm.track_id
-      left join albums a on a.id = mm.album_id
-     where mm.memory_id in (${sql.join(
+    select song.memory_id, song.title, song.artists
+      from (${memorySongRows}) song
+     where song.memory_id in (${sql.join(
        ids.map((id) => sql`${id}`),
        sql`, `,
      )})
        and exists (select 1 from (${publicLanguageVersions}) pv
-                    where pv.entry_id = mm.memory_id)
-     order by mm.memory_id, mm.position asc, mm.id asc`);
+                    where pv.entry_id = song.memory_id)
+     order by song.memory_id, song.position asc, song.id asc`);
   const music = new Map<string, PublicMemorySong[]>();
   for (const row of songs.rows) {
     const list = music.get(row.memory_id) ?? [];

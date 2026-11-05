@@ -172,6 +172,27 @@ async function main() {
         console.log(JSON.stringify({ entryId, slug: second }));
         break;
       }
+      case "memory-writing": {
+        // A memory's English writing as one paragraph (M3.8b: the Home's
+        // excerpt at its full length). Test fixtures only.
+        const text = second!;
+        await client.query(
+          `update entry_texts
+              set body = $2::jsonb, body_text = $3
+            where entry_id = $1 and locale = 'en'`,
+          [
+            first!,
+            JSON.stringify({
+              type: "doc",
+              content: [
+                { type: "paragraph", content: [{ type: "text", text }] },
+              ],
+            }),
+            text,
+          ],
+        );
+        break;
+      }
       case "remove-entry": {
         await client.query("delete from entry_slugs where entry_id = $1", [
           first!,

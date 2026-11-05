@@ -1,7 +1,7 @@
 # ADR 0006: Publication Decision and Acknowledgement
 
 - **Status:** **Accepted** by the project owner on 2026-11-01 (issue #25, pull request #26). Acceptance makes this design binding on later work. **It does not mean any of it exists:** no command, token, scan, switch, gate evidence, or test described here is implemented, and nothing in the repository may claim otherwise until the milestone that builds it has merged ([Deferred implementation obligations](#deferred-implementation-obligations)).
-- **Date:** 2026-11-01. Proposed and revised the same day after the owner's reviews, and accepted by the owner the same day. Amended 2026-11-02 ([A1](#amendments), [A2](#a2-the-frameworks-cache-marker-and-the-generic-prerendered-shell), [A3](#a3-the-artwork-commands-take-entry-locks-then-a-catalog-lock)) and 2026-11-03 ([A4](#a4-the-public-home-a-generic-page-that-lists-only-through-the-predicate), [A5](#a5-artist-pages-open-only-through-a-confirmed-publication)).
+- **Date:** 2026-11-01. Proposed and revised the same day after the owner's reviews, and accepted by the owner the same day. Amended 2026-11-02 ([A1](#amendments), [A2](#a2-the-frameworks-cache-marker-and-the-generic-prerendered-shell), [A3](#a3-the-artwork-commands-take-entry-locks-then-a-catalog-lock)) 2026-11-03 ([A4](#a4-the-public-home-a-generic-page-that-lists-only-through-the-predicate), [A5](#a5-artist-pages-open-only-through-a-confirmed-publication)), and 2026-11-04 ([A6](#a6-the-public-home-also-shows-served-memories-and-public-artists)).
 - **Scope:** What it means to publish, republish, and change a journal that is public; how the author's decision is represented, authenticated, validated, and bound to what the reader will see; how that holds under concurrency, deletion, restoration, and translations; how public reads and caches stay inside the publication predicate; and the gates that block the first hosted public page. It **implements** [ADR 0005 § 5](0005-restoring-deleted-journals.md#5-required-condition-for-the-m2-publishing-interface), which it does not weaken, and extends it to the album rating and to changes made after publication. It changes no accepted ADR: [conflicts and clarifications](#conflicts-and-clarifications) lists every place where existing text needed care.
 
 ## Context
@@ -501,7 +501,7 @@ An amendment clarifies how a decision is carried out. It does not change what th
 - **Why.** D4 and § 14 say that while the switch is off, *"every public content-serving surface answers the same status, body, and headers as an unknown address"*. They were written for surfaces whose existence is itself the fact to protect: a journal's address, its metadata, the sitemap. A `404` there makes a hidden journal indistinguishable from one that does not exist. The Home is not an address of anything: it exists whatever the database holds, and the not-found view itself links to it ("Back to the start"). Read literally, D4 would turn the Home into a `404` on every default deployment and send that link in a circle, while the guarantee D4 protects, that the switch can hide content and can never reveal any, holds just as well with the reading below.
 - **What holds now.**
   - **The page.** The Home at `/` always answers `200`. Its fixed content, the same in every state of the journal, is the navigation, a skip link, the original character drawing, a fixed introduction, and the footer. It is rendered on the server per request, in one pass, and sent complete (`instant = false`), so it reads the same without client JavaScript; the build prerenders nothing of its content (its entry is empty and blocking). What the framework still emits for `/` (an empty `index.html`, the resumable state in `index.meta`, and segment files holding the root layout's generic not-found fallback) is data-free and the same in every state; those artifacts, and the framework's cache marker on them, stay under [A2](#a2-the-frameworks-cache-marker-and-the-generic-prerendered-shell).
-  - **What it lists** is a public content-serving surface, and D4 applies to it fully. It is read per request, only through the Publication module's reading entry point, and only from the publication predicate: a language version whose own status is `published`, on an entry that is not deleted. Each journal is linked at an address that is **served**, by the sitemap's rule: the entry's current slug, marked as published, on an entry with a visible version; so every link answers `200`, and no previous, retired, or never-public address is ever named. Each journal is dated by the publication date of the version the reader's language selects (ADR 0002, D1.2), never by an unpublished version. Each album is shown once, by the journal ADR 0002 presents for it. The read returns no identifier, status, deletion state, count, unpublished language, or writing.
+  - **What it lists** is a public content-serving surface, and D4 applies to it fully. It is read per request, only through the Publication module's reading entry point, and only from the publication predicate: a language version whose own status is `published`, on an entry that is not deleted. Each journal is linked at an address that is **served**, by the sitemap's rule: the entry's current slug, marked as published, on an entry with a visible version; so every link answers `200`, and no previous, retired, or never-public address is ever named. Each journal is dated by the publication date of the version the reader's language selects (ADR 0002, D1.2), never by an unpublished version. Each album is shown once, by the journal ADR 0002 presents for it. The read returns no identifier, status, deletion state, count, unpublished language, or writing. *(Read with [A6](#a6-the-public-home-also-shows-served-memories-and-public-artists): the Home also lists served memories and public artists, with exactly the fields A6 names.)*
   - **While the switch is off, the Home answers what a site with nothing published answers**, in status, every header, the visible text, the markup, and the metadata, and in every request form its whole response is the same whatever the database holds. That is this surface's "unknown address": a list with nothing in it. No journal is read: the guard is applied twice, by the page and by the reading entry point, before any query, as for every other public read.
   - **Metadata.** The Home's title, description, canonical address, and Open Graph tags are the site's own, the same in every state, and name no journal.
   - **Caching and streaming.** Everything is `no-store`. Nothing about any journal is prerendered, generated, or cached; § 11 is unchanged. The page waits for its one read before it sends anything, so no part of it arrives later in hidden markup.
@@ -564,3 +564,104 @@ The way to make a page that a refused command would have opened: unpublish the j
   - Static checks of the lock order in every one of these commands ([`public-surface.test.ts`](../../src/app/public-surface.test.ts)); the studio's review lists the page, in a browser at desktop width and 390px ([`publication.spec.ts`](../../e2e/publication.spec.ts)).
   - Mutation checks, each seen to fail, are listed in [the evidence](../evidence/m3-5.md#tests).
 - **What is unchanged.** L1 to L6 word for word; A1 to A4; the publication predicate; the token's form, claims, key, and expiry; the owner's decisions 1 to 7, R1 to R5, A to C, and D1 to D5; every guarantee of §§ 4 to 6; gates G1 to G8 (G8 and C11 stay open, now explicitly for renames and credit wording); and the status of this ADR, which stays Accepted.
+
+### A6. The public Home also shows served memories and public artists
+
+- **Date and approval:** 2026-11-04. Approved by the project owner, who reviewed the complete proposed text after the M3.8b architecture proposal and approved it as the basis for M3.8b (issue #57), subject to two corrections that are applied here: the excerpt guarantee (*What may be shown*, the memory's excerpt) and the snapshot guarantee (item 8). The owner's choices on the points the proposal left open are recorded in the text: no photograph on the Home, artists ordered by their newest served album journal, a memory row naming its first recording only, the archive's excerpt rule, no publication date on a Home memory card, one read-only snapshot, a hand-drawn arrow on the "All …" links, and the screen's wording "All album journals". The implementation and its evidence are the M3.8b branch ([evidence](../evidence/m3-8b.md)). **Approval closes no gate.**
+- **Effect on the original text.** This narrows [A4](#a4-the-public-home-a-generic-page-that-lists-only-through-the-predicate) in three places and changes nothing else:
+  - A4, *"What it lists"*: besides album journals, the Home may list **memories whose address is served** and **artists whose page is served**.
+  - A4, *"The read returns no identifier, status, deletion state, count, unpublished language, or writing"*: the read may also return the memory fields and the per-artist counts listed under *What may be shown*. It still returns no identifier, status, deletion state, unpublished language, other writing, or other count.
+  - A4, *"Each journal is linked at an address that is served"*: this now also covers memories (`/memories/<slug>`) and artists (`/artists/<address>`).
+
+  D4 is unchanged for every other surface. A4's switch-off rule is unchanged and covers the new sections.
+- **Why.** M3.7 and M3.8a made memories and artists public at their own addresses and in the archives, and the approved V4.4 `Home` screen shows both. Everything this amendment allows on the Home is already shown by a served page and by an archive. **A6 authorizes a new place to show data that the Publication boundary has already disclosed. It authorizes no new data and no new visibility rule.**
+
+**What holds now.**
+
+1. **Sources: a closed list.** The Home reads only the following, through the Publication module's reading entry point, built only from the existing fragments in [`predicate.ts`](../../src/modules/publication/predicate.ts) and [`queries.ts`](../../src/modules/publication/queries.ts):
+   - album journals at `servedAlbumJournalAddresses`;
+   - memories at `servedMemoryAddresses`;
+   - artists in `publicArtists` (A5), addressed by `artistAddresses` computed over the **whole** visible set before any limit is applied;
+   - for each entry, the version that `versionPreference(readerLocale)` chooses from `publicLanguageVersions`.
+
+   No other entry kind is read (artist journals have no public reading contract). No fragment is added, and the publication predicate is not broadened.
+2. **What may be shown: a closed list for each item.**
+   - *Album journal:* what A4 allows, unchanged.
+   - *Memory:*
+     - its served address;
+     - the title of the version shown;
+     - its "when" as written, never read as a date;
+     - an excerpt of the version shown, cut on the server by the M3.8a rule ([`excerpt.ts`](../../src/modules/publication/excerpt.ts): the first readable paragraph among the first 16 top-level blocks, read with the public renderer's restrictions, about 240 characters at a word boundary). **The server may access a published memory document to derive its authorized excerpt. Only the resulting bounded excerpt may be returned by the Home read model or serialized into the rendered HTML and Flight response. The full document must never be returned or passed to a client component through this Home contract.** The excerpt comes exclusively from the publicly served language version;
+     - its music in the memory's order, named as the memory page names it (a recording's title and credited artists; an album link's title and album credits), as plain text and never as a link. A row of *Recently written* names the first one only;
+     - the publication date of the version shown (in *Most recent* and *Recently written*; a *Memories* card shows no date);
+     - that version's language, used only for `lang`.
+   - *Artist:*
+     - its name;
+     - the address of its served page;
+     - the number of albums crediting it that have a served album journal, and the number of served album journals about those albums (the Artists archive's counts and wording).
+
+     Not allowed: a photograph, a photograph's credit, the artist kind, the sort name, an external identifier, or artist-journal text.
+3. **Counts.** Only the per-artist counts in 2, each a `count(distinct …)` over served rows. There is no total, no section count, no "n more", and no number that a hidden row could change.
+4. **Order and limits.**
+   - Each section is a prefix of a deterministic order, cut in the read model by fixed constants:
+     - *Recently written*: 5, album journals and memories together;
+     - *Albums*: 4, as A4 allows, unchanged;
+     - *Artists*: 3;
+     - *Memories*: 3.
+   - The date is always the publication date of the version shown. It is never a creation, edit, `first_published_at`, or other private date.
+   - In *Recently written*, ties are broken by kind (album journal before memory), then by address.
+   - An artist is dated by the newest such date among the served album journals about albums that credit it. Ties are broken by name (the Artists archive's collation), then by address.
+   - *Most recent* is the first item of *Recently written*.
+   - No item appears on the Home that its archive (or, for *Recently written*, the sitemap) does not list.
+5. **Links.**
+   - Every link is the served address of what it names, or one of the archives `/albums`, `/artists`, or `/memories`.
+   - An "All …" link appears only inside a section that has items.
+   - The header's four links are unchanged.
+6. **Switch off.** A4 applies to the whole page:
+   - The response is the response of a site with nothing published, in every request form, Flight data included.
+   - No new read is made: the guard is applied twice, by the page and by the reading entry point, before any query.
+   - A section with nothing to show is not rendered at all (no heading, no "All …" link, no section-level empty state). So with reads **on**, a database that holds only hidden writing also renders exactly the empty-site Home.
+7. **Rendering and caching.** Unchanged from A4, § 11, and A2:
+   - The page is rendered per request in one pass (`instant = false`), sent `no-store`, and nothing of it is prerendered or cached.
+   - The metadata is the site's own and names no memory, artist, or journal.
+   - The Flight payload carries only what the HTML shows: no read-model object is passed whole to a client component.
+   - The Home's Content-Security-Policy is unchanged (no image host is added).
+8. **One snapshot.** The Home's statements run in one read-only `REPEATABLE READ` transaction that takes no lock. Every statement still applies the predicate on its own. **The transaction provides a consistent snapshot for the sections of a single Home response. It does not promise that an already-running request will reflect a concurrent publication or unpublication that commits after its snapshot begins. Subsequent requests must apply the current publication predicate and visibility state.**
+
+**What this does not authorize.**
+
+- Draft, private, deleted, restored-but-unpublished, or unpublished writing, and any previous or retired address.
+- A memory's writing beyond its excerpt in the Home's response. Any text, title, or mention of an unpublished translation.
+- Artist journals or their text.
+- An artist that has no served page: catalog-only, archived, credited only on a track, or made "public" only by a memory, a photograph, or an artist journal. An address not computed over the whole visible set.
+- Artist photographs or their credits on the Home.
+- Catalog or entry identifiers, private catalog fields, totals, or private dates.
+- Any read outside the Publication reading entry point, and any new Publication fragment or visibility rule.
+- Any difference in the Home's response, while the switch is off, that depends on the database. A "coming soon", or any wording that suggests that unpublished writing exists.
+- Any cache, prerender, or `generateStaticParams` of Home data.
+
+**Catalog wording (G8, C11).** The Home shows catalog wording that a catalog edit changes without a confirmation:
+
+- album titles, credits, and years (already so under A4);
+- artist names, and with them an artist's address, its position among ties, and a namesake's suffix;
+- artist counts, which change when a credit is removed, or added for an artist who already has a page;
+- a memory's song titles and credited artists, and an album link's title and credits.
+
+Archiving an artist removes it, which is a reduction. A5 still refuses every catalog command that would open a new artist page. A memory's title, "when", writing, and song order are authored atoms bound by § 1 and § 5, not C11. **G8 is not resolved:** its surfaces now include the Home, and no catalog field becomes public that was not public before.
+
+**Required tests** (the M3.8b branch):
+
+- **PostgreSQL** ([`public-home.integration.test.ts`](../../src/modules/publication/public-home.integration.test.ts)): each section against its archive or the sitemap, as a prefix, over every hidden state of a journal and a memory and every hidden reason of an artist; artist addresses identical to the artist pages', also for a namesake outside the first three; the language version shown and never an unpublished translation; stable order for equal dates; the limits; no identifier and no writing beyond the excerpt; the snapshot's isolation level and read-only mode, and a publication committed during a Home read invisible to every one of its statements.
+- **HTTP** ([`public-home.http.test.ts`](../../src/testing/public-home.http.test.ts)): with the switch off (unset, `TRUE`, `1`, `true ` with a space), the whole response, Flight data included, equal to the empty-site baseline in every established request form, in an empty, a hidden-only, and a populated database and after transitions; with the switch on and only hidden records, the empty-site Home; every link answers `200`; no private marker, identifier, or whole memory in any response; metadata, headers, and the CSP unchanged.
+- **Static** ([`public-surface.test.ts`](../../src/app/public-surface.test.ts)): the Home's read uses only the reading entry point and the existing fragments, and passes no read-model object to a client component.
+- **Browser** ([`e2e/home.spec.ts`](../../e2e/home.spec.ts)): every section at 1440 and 390px, also with JavaScript disabled, with axe (WCAG 2.2 A and AA), keyboard, 44px targets, reduced motion, forced colors, and no sideways scroll from 320 to 2560px.
+- **Mutation checks**, each seen to fail, are listed in the evidence.
+
+**What is unchanged.**
+
+- The publication predicate; D4 for every other surface; A1 to A5, including A5's residual windows (which now also reach the Home's artist addresses).
+- The switch: server-only and off unless exactly `true`. It hides content and never reveals any, and never replaces the predicate.
+- § 11 and A2.
+- The writers' allowlist, the token, the confirmations, and every lock rule.
+- The archives' and the detail pages' contracts.
+- Gates G1 to G8 stay open, and this ADR stays Accepted.
