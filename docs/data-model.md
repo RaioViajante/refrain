@@ -27,6 +27,8 @@ From [ADR 0003](decisions/0003-relational-schema-conventions.md):
 
 ## Relationships
 
+An entity-relationship diagram of the eight tables used in the academic demonstration, with their keys, constraint names, and delete rules, is in [Evidence: M4](evidence/m4.md#entity-relationship-diagram).
+
 ```text
 Catalog (internal; cascades allowed)
   albums          1 ── N  album_artists  N ── 1  artists      (credits, ordered)
@@ -264,7 +266,7 @@ These rules hold through transactions, module functions, and tests, not through 
 | --- | --- | --- |
 | Delete an entry | Moves to Recently deleted; hidden from public pages and from Desk listings | `UPDATE entries SET deleted_at = now()` |
 | Restore an entry | Built for album journals in M1.3C ([ADR 0005](decisions/0005-restoring-deleted-journals.md)). Owner-accepted policy ([Roadmap](roadmap.md#follow-ups-from-the-m13b-review)): draft versions return as draft, private as private, and published as **private**; restoring never republishes. It keeps the content, `first_published_at`, the slugs, and `entries.version`, and the [publication predicate](security.md#publication-predicate) and ADR 0002's INV-1 to INV-5 remain enforced. A journal that is not in Recently deleted is refused (`entry_not_deleted`), which is also the answer to a repeated or concurrent second restore | `restoreDeletedEntry`: lock the entry, set `published` versions to `private` with `published_at = NULL`, then `deleted_at = NULL`, in one transaction (boundary 10) |
-| Permanent delete ("Delete now") | Explicit author action with its own confirmation, only for an entry already in Recently deleted | `permanentlyDeleteEntry`: releases never-published slugs, retires published ones, then `DELETE FROM entries`, cascading only to rows the entry owns: language versions, subtype row, track reflections and their texts, memory links. See [Retention after permanent deletion](#entry_slugs). |
+| Permanent delete ("Delete now") | Explicit author action with its own confirmation, only for an entry already in Recently deleted. **The command exists; the Studio control does not** (M2.4), and today only tests call it | `permanentlyDeleteEntry`: releases never-published slugs, retires published ones, then `DELETE FROM entries`, cascading only to rows the entry owns: language versions, subtype row, track reflections and their texts, memory links. See [Retention after permanent deletion](#entry_slugs). |
 | Automatic purge | **Disabled** (ADR 0002, D4.4). Entries stay in Recently deleted indefinitely. The database has no trigger or rule that removes them (a test asserts it), and no purge job exists. | Enabled only after backups exist, a restore has been tested, and a tested purge mechanism exists |
 | Archive a catalog record | All writing stays; links render as plain text; re-importing restores the record | `UPDATE … SET archived_at = now()` |
 | Hard-delete a catalog record | Only when nothing in the writing references it | `DELETE`; PostgreSQL raises a foreign-key violation (23503) otherwise |
@@ -328,7 +330,7 @@ External HTTP calls (MusicBrainz, artwork) happen **before** a transaction opens
 
 These queries satisfy academic requirements AC-04 and AC-05 ([Requirements](requirements.md)) and back real interface features. Each is quoted exactly from its module, runs against the implemented schema, and is covered by an integration test.
 
-**JOIN: albums with their credited artists** (Writing Studio Catalog; [`listAlbumsWithArtists`](../src/modules/catalog/queries.ts)):
+**JOIN: albums with their credited artists** (Writing Studio Albums page, `/studio/albums`; [`listAlbumsWithArtists`](../src/modules/catalog/queries.ts)):
 
 ```sql
 select al.id, al.title, al.first_release_year,
@@ -397,7 +399,7 @@ select count(*) filter (where e.deleted_at is null)::int as total,
 
 The JOIN and the usage subquery list every catalog album, including albums whose only writing is a draft or private. They are **Writing Studio queries** and must never back a public page: a public Albums listing selects albums through the [publication predicate](security.md#publication-predicate), in the Publication module (M3).
 
-**Subquery: catalog usage** (Writing Studio Catalog, "used in 2 entries"; [`listAlbumUsage`](../src/modules/catalog/queries.ts)):
+**Subquery: catalog usage** (Writing Studio Albums page, "used in 2 entries"; [`listAlbumUsage`](../src/modules/catalog/queries.ts)):
 
 ```sql
 select al.id, al.title,
