@@ -23,7 +23,7 @@ pnpm db:up              # starts PostgreSQL 17 and waits until it is healthy
 pnpm dev                # http://localhost:3000
 ```
 
-The development page shows `Database: connected` when the server reaches PostgreSQL, and `Database: not reachable` otherwise.
+There is no database status page: the placeholder at `/` that showed one was removed in M3.1, because `/` is public ([evidence](evidence/m3-1.md#public-release-gates)). `docker compose ps postgres` shows whether PostgreSQL is running and healthy; the Writing Studio at `/studio` needs it.
 
 To create the domain tables in the development database, run `pnpm db:migrate` once (and again after pulling new migrations). It only adds what is pending and never seeds data.
 
@@ -127,7 +127,7 @@ docker compose exec -T postgres psql -U refrain -d refrain -Atc "select count(*)
 docker compose exec -T postgres psql -U refrain -d refrain -Atc "select string_agg(tablename, ' ' order by tablename) from pg_tables where schemaname = 'public' and tablename like 'auth\_%'"
 ```
 
-Expect `5` migrations (0000 to 0004), then `auth_accounts auth_rate_limits auth_sessions auth_users auth_verifications`. Migrations only add what is pending and never seed data.
+Expect `6` migrations (0000 to 0005), then `auth_accounts auth_rate_limits auth_sessions auth_users auth_verifications`. Migrations only add what is pending and never seed data.
 
 **5. Create the account, interactively.** Name the target explicitly. The command refuses unless the target matches `DATABASE_URL`:
 
@@ -145,7 +145,7 @@ The password must be 15 to 128 characters and must not contain the email. The co
 
 1. Open `http://localhost:3000/studio`. You are sent to the sign-in page.
 2. Sign in with a wrong password. The page says "That email and password don't match."
-3. Sign in with the right one. The studio shows "You are signed in. The editor is not built yet."
+3. Sign in with the right one. The studio opens the Desk.
 4. Choose "Sign out". You are back on the sign-in page.
 5. Open `/studio` again. You are sent to sign-in again.
 
@@ -168,7 +168,7 @@ After [the author account exists](#first-time-setup-of-the-author-account), `pnp
 3. **Tracks.** On the album's page, under *Tracklist*: *Create and add* makes a new track at the end; *Add to album* links one you already have (a recording is never copied); ↑ ↓ reorder and *Remove* takes a track off this album only. Tracks can also be made on their own under Tracks.
 4. **Journal.** Journals → *Write a journal* (or *Write a journal about this album* on the album page) → choose the language you write in, an opening sentence, and your reflection; a blank line starts a paragraph → *Save as draft*. Saving is explicit; Cmd or Ctrl+S works.
 5. **Come back.** Leave, reopen the journal from Journals, *Edit this journal*, and the text is as you left it. Saving again checks that nobody saved in between; if another tab did, nothing is overwritten and your text stays in the box.
-6. **Who can see it, and publishing.** On the journal page, each language version has its own *Visibility* panel. *Draft* and *Private* are only yours. **Publish…** opens a review of exactly what readers would see (the opening sentence, the reflection, the address, the album rating, and every track reflection included when published, with its track and language) and what stays private; nothing changes until you press *Publish the English version* in it. The review itself changes nothing: to change which reflections are shown, go to the tracks (it links there), save, and review again. If something changed since you opened the review, nothing is published and you are asked to review it again. **Unpublish…** asks first and keeps your writing. Publishing marks the version as published in your records; **there are no public web pages yet** (M3), so nothing opens on the web. Saving a change to a published journal shows what would change, before and after, and saves only when you confirm it.
+6. **Who can see it, and publishing.** On the journal page, each language version has its own *Visibility* panel. *Draft* and *Private* are only yours. **Publish…** opens a review of exactly what readers would see (the opening sentence, the reflection, the address, the album rating, and every track reflection included when published, with its track and language) and what stays private; nothing changes until you press *Publish the English version* in it. The review itself changes nothing: to change which reflections are shown, go to the tracks (it links there), save, and review again. If something changed since you opened the review, nothing is published and you are asked to review it again. **Unpublish…** asks first and keeps your writing. Publishing marks the version as published in your records; **a public page appears only where `REFRAIN_PUBLIC_READS_ENABLED` is `true`** ([Public page tests](#public-page-tests-m31)), which no default configuration sets. Saving a change to a published journal shows what would change, before and after, and saves only when you confirm it.
 7. **Delete, restore, and archive.** *Move to Recently deleted…* keeps the journal's writing in the database and takes it off your lists. Desk → *Recently deleted (n)*, or Journals → *Open Recently deleted*, lists what you moved; *Restore…* brings a journal back exactly as it was. A journal that was published when it was deleted comes back as **private**, and nothing is ever published by a restore. The studio does not delete permanently and nothing removes writing automatically. An artist, album, or track can be archived (hidden from pickers) or, only if nothing refers to it, deleted; otherwise the page says what still depends on it.
 8. **Numbers.** The Desk and the lists show counts that PostgreSQL computed on that request ([evidence](evidence/m1-3b.md)).
 
@@ -181,6 +181,7 @@ Do this to see the journey without touching your own writing. It uses the dispos
 ```sh
 pnpm db:test:up                                   # the disposable test database
 TESTURL=$(grep -E '^TEST_DATABASE_URL=' .env | cut -d= -f2-)   # read, never printed
+DATABASE_URL="$TESTURL" pnpm db:migrate           # the tables, in a freshly recreated test database
 pnpm build                                        # needs no database
 
 # A synthetic author in the TEST database only (the password is a test value).
@@ -195,7 +196,9 @@ DATABASE_URL="$TESTURL" BETTER_AUTH_SECRET=$(openssl rand -base64 32) \
   pnpm exec next start -H 127.0.0.1 -p 3400
 ```
 
-Open `http://127.0.0.1:3400/studio`, sign in as `author@example.com` with that password, and follow [Using the Writing Studio](#using-the-writing-studio-m13b). When you are done, stop the server and discard everything with `pnpm db:test:down && pnpm db:test:up`.
+Open `http://127.0.0.1:3400/studio` (exactly this origin: it is `BETTER_AUTH_URL`), sign in as `author@example.com` with that password, and follow [Using the Writing Studio](#using-the-writing-studio-m13b). When you are done, stop the server and discard everything with `pnpm db:test:down && pnpm db:test:up`.
+
+Each `next start` above gets a new secret, so restarting the server signs the author out. For the academic presentation, which restarts the server on purpose and must not lose its session, use the [M4 runbook](evidence/m4.md#local-environment-runbook) instead: one terminal pointed only at the test database, one throwaway secret kept across restarts, and the order in which tests and the demonstration share that database.
 
 The same journey, without a browser and with its negative cases, is what `pnpm test:http` runs: create an artist, an album, and tracks; reorder them; write a journal of several paragraphs; save; leave and return; edit and save again with every earlier paragraph still there; and see that every action is refused without the author's session. The same journey in a real browser is `pnpm test:e2e` ([Browser tests](#browser-tests)).
 
@@ -369,7 +372,7 @@ pnpm exec playwright show-report           # the HTML report of the last local r
 | `journal.spec.ts` | A private draft with several paragraphs and literal markup; leave and return to the exact text; edit one field without touching the others; a stale tab is refused as a conflict and keeps its text; draft and private, and no control to publish |
 | `recovery.spec.ts` | Delete a journal, find it in Recently deleted, restore it with every word; a journal that was published returns private with its history; a second restore from a stale tab is refused in words; an editor opened before a delete and restore cannot overwrite newer writing |
 | `negative.spec.ts` | An expired, revoked, forged, and tampered session; a session that ends while the author is writing (the save is refused in words, nothing is stored, the text stays); invalid input |
-| `academic.spec.ts` | The AC-04 example (album, credited artist, linked tracks, private journal) read back with a JOIN, the aggregates, and a subquery; a change made in SQL appears in the interface |
+| `academic.spec.ts` | The AC-04 example (album, credited artist, linked tracks, private journal) read back with a JOIN, the aggregates, and a subquery; a change made in SQL appears in the interface; one track reflection makes the Desk read "1 of 2 tracks written", as a count in SQL does (M4.2) |
 | `layout.spec.ts` | The Studio's lateral contract, measured at 390, 768, 1280, 1440, and 2560 px: the shell is `min(100% - 35.2px, 1320px)` and centered, header, content, and footer share its edges, no Studio page scrolls sideways even with long names, the header follows the reference (one row above 720 px, centered and stacked at 720 px and below) with two destinations that never wrap at 320 to 2560 px, the editor's Save and save state stay reachable and clear of the writing on a wide screen and a phone, the writing keeps its measure on an ultrawide screen, the skip link works after client-side navigation, the navigation has a 2px focus ring and 44 px targets, and reduced motion stops every transition |
 | `navigation.spec.ts` | The header has exactly two destinations, Desk and Catalog, on every page; which is current (Desk for the journals and their editors, Catalog for artists, albums and tracks); the Catalog's sections are always-visible links with the current one marked; every section is reachable by clicking and browser history works; navigation is client-side (no document request, the `window` survives); keyboard navigation raises no console, script, or hydration error; and a recorded known limitation, that focus is no longer on the activated link ([Studio visual fidelity](design/studio-visual-fidelity.md#navigation-investigation-issue-23)) |
 | `accessibility.spec.ts` | axe-core (WCAG 2.0, 2.1 and 2.2, A and AA) on 16 Studio pages at 1280 and 390 px, the open dialog and sign-in, a canary that proves the scanner reports a broken element, the drawn boundary of the editor's inputs and Save button at rest, on hover and in focus (at least 3:1), and forced-colors emulation (real borders and no drawn image on the editor's controls, and no drawn underline on Sign out, at rest, on hover and in focus). axe is a floor, not a verdict ([Accessibility notes](design/studio-visual-fidelity.md#accessibility-notes)) |
@@ -447,7 +450,7 @@ iCloud Drive is synchronization, not versioned or offline backup. A file that is
 | Symptom | Cause and fix |
 | --- | --- |
 | `Set POSTGRES_PASSWORD in .env` from Docker Compose | `.env` is missing. Run `cp .env.example .env`. |
-| `Database: not reachable` | PostgreSQL is not running. Run `pnpm db:up` and check `docker compose ps`. The server log records only an error code, never connection details. |
+| Studio pages fail, or say "The studio isn't available right now." | PostgreSQL is not running, or authentication is not configured (next row). Run `pnpm db:up` and check `docker compose ps`. The server log records only an error code, never connection details. |
 | `DATABASE_URL is not set` | `.env` is missing, or it lacks `DATABASE_URL`. |
 | `Refusing to run integration tests: …` | A [test database](#test-database) safety check failed; the message names it. Usually `TEST_DATABASE_URL` is missing from an older `.env` (copy it from `.env.example`), or the test database is not running (`pnpm db:test:up`). Never point it at a database whose contents matter. |
 | Integration tests fail with `ECONNREFUSED` on port 5433 | The test database is not running. Run `pnpm db:test:up`. |
