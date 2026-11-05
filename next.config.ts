@@ -15,6 +15,10 @@ const STUDIO_CONTENT_SECURITY_POLICY =
 const ARTIST_CONTENT_SECURITY_POLICY =
   "frame-ancestors 'none'; img-src 'self' data: blob: https://coverartarchive.org https://archive.org https://*.archive.org https://thumb.wikimedia.org";
 
+// Every studio and authentication response: kept by no cache, shared or
+// private, and never reused without asking the server (F-01).
+const PRIVATE_NO_STORE = "private, no-store, max-age=0, must-revalidate";
+
 const nextConfig: NextConfig = {
   // Data is dynamic unless it is explicitly cached with `use cache`, so nothing
   // is prerendered from the database by accident (docs/architecture.md).
@@ -30,11 +34,16 @@ const nextConfig: NextConfig = {
   // AGENTS.md is maintained by hand; `next dev` must not append to it.
   agentRules: false,
   // The studio and the authentication endpoints are never framed (no
-  // clickjacking of the sign-in form) and never sniffed or leaked through a
-  // referrer. Caching is controlled where the responses are made: studio
-  // pages are dynamic, and the auth handler sets `Cache-Control: no-store`.
+  // clickjacking of the sign-in form), never sniffed or leaked through a
+  // referrer, and never stored by any cache. `Cache-Control` is set here, not
+  // left to the framework: under Cache Components every studio page is
+  // partially prerendered, and on Vercel the document is the cached generic
+  // shell with the author's data streamed into the same response, which the
+  // platform answers with `public, max-age=0, must-revalidate` unless a header
+  // says otherwise (F-01, issue #63, docs/security.md#studio-responses).
   async headers() {
     const privateHeaders = [
+      { key: "Cache-Control", value: PRIVATE_NO_STORE },
       { key: "X-Frame-Options", value: "DENY" },
       { key: "Content-Security-Policy", value: STUDIO_CONTENT_SECURITY_POLICY },
       { key: "X-Content-Type-Options", value: "nosniff" },
@@ -74,6 +83,10 @@ const nextConfig: NextConfig = {
       { source: "/sitemap.xml", headers: publicHeaders },
       { source: "/robots.txt", headers: publicHeaders },
       { source: "/studio/:path*", headers: privateHeaders },
+      // The desk's transport files sit beside `/studio`, not under it
+      // (`/studio.rsc`, `/studio.segments/…`), so `/studio/:path*` does not
+      // match them.
+      { source: "/studio\\.:transport(.*)", headers: privateHeaders },
       { source: "/api/auth/:path*", headers: privateHeaders },
     ];
   },

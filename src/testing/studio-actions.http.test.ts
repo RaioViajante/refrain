@@ -3086,24 +3086,26 @@ describe("what a request without the author's session can do", () => {
             `${path} ${JSON.stringify(headers)} leaked ${text}`,
           ).not.toContain(text);
         }
-        if (response.status === 200) {
-          const cache = response.headers.get("cache-control") ?? "";
-          if (!cache.includes("no-store")) {
-            // Only Next.js's prerendered static shell, answering a router
-            // prefetch, may be stored by a cache. Its body held none of the
-            // private strings (above), and the next test shows it is the same
-            // for a record that exists and one that does not.
-            expect(
-              headers["next-router-prefetch"] ??
-                headers["next-router-segment-prefetch"],
-              `${path} ${JSON.stringify(headers)} is stored by a cache (${cache})`,
-            ).toBeDefined();
-          }
-        } else {
+        // Every studio response, the generic prefetch shell and the redirect
+        // included, is kept by no cache (F-01, next.config.ts;
+        // src/testing/studio-private-cache.http.test.ts covers every form).
+        const cache = response.headers.get("cache-control") ?? "";
+        expect(cache, `${path} ${JSON.stringify(headers)}`).toContain(
+          "private",
+        );
+        expect(cache, `${path} ${JSON.stringify(headers)}`).toContain(
+          "no-store",
+        );
+        const barePrefetch =
+          headers["next-router-prefetch"] !== undefined &&
+          headers["next-router-segment-prefetch"] === undefined;
+        if (barePrefetch && response.status === 404) {
+          // A bare prefetch is an empty `404` until the server process has
+          // some history for the route (studio-private-cache.http.test.ts);
+          // its body held none of the private strings (above).
+        } else if (response.status !== 200) {
           // The router's own request without a session is answered with a
-          // redirect to sign-in. Next.js sends no cache header on it, and a
-          // 307 is not cacheable by default (RFC 9111 § 3). It reveals only
-          // the sign-in address.
+          // redirect to sign-in. It reveals only the sign-in address.
           expect(response.status, `${path} ${JSON.stringify(headers)}`).toBe(
             307,
           );

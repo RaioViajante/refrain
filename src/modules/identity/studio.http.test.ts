@@ -187,7 +187,12 @@ describe("sign-in, the studio, and sign-out", () => {
     // Attempt 1.
     const signIn = await post("/api/auth/sign-in/email", { email, password });
     expect(signIn.status).toBe(200);
-    expect(signIn.headers.get("cache-control")).toBe("no-store");
+    // The handler sets `no-store` itself (auth.test.ts); over HTTP, the header
+    // route of next.config.ts replaces it with the studio's stricter policy
+    // (F-01, docs/security.md#studio-responses).
+    expect(signIn.headers.get("cache-control")).toBe(
+      "private, no-store, max-age=0, must-revalidate",
+    );
     const setCookie = sessionSetCookie(signIn);
     expect(setCookie).toMatch(/; HttpOnly/i);
     expect(setCookie).toMatch(/; SameSite=Strict/i);
