@@ -6,7 +6,9 @@ import { named, withDatabase } from "./support";
 // artist, its linked tracks, and a private journal, made through the Studio
 // and then read back from PostgreSQL with a real JOIN, aggregates, and a
 // subquery. A change made in the database then appears in the interface, so
-// both directions of AC-06 are shown. Every record is synthetic.
+// both directions of AC-06 are shown. Last, one track reflection makes the
+// Desk's "n of N tracks written" aggregate non-zero (M4.2,
+// docs/evidence/m4.md). Every record is synthetic.
 
 test.describe.configure({ mode: "serial" });
 
@@ -14,7 +16,9 @@ const artist = named("Academic Artist");
 const album = named("Academic Album");
 const trackTitles = [named("Academic Track A"), named("Academic Track B")];
 const journalText = "[Test] E2E Academic journal text.";
+const reflectionText = "[Test] E2E Academic reflection on track A.";
 let albumUrl = "";
+let journalUrl = "";
 
 test("builds the example through the Studio", async ({ page }) => {
   await page.goto("/studio/artists/new");
@@ -51,6 +55,7 @@ test("builds the example through the Studio", async ({ page }) => {
   await page.getByLabel("Your reflection").fill(journalText);
   await page.getByRole("button", { name: "Save as draft" }).click();
   await page.waitForURL(/\/studio\/journals\/[0-9a-f-]{36}$/);
+  journalUrl = page.url();
   await page.getByRole("button", { name: "Private" }).click();
   await expect(page.getByText("Now private.")).toBeVisible();
 });
@@ -142,4 +147,55 @@ test("a change made in the database appears in the interface after a reload", as
   await expect(
     page.getByRole("list", { name: "Artists" }).getByText(renamed),
   ).toBeVisible();
+});
+
+test("the Desk shows a non-zero count of written tracks, as PostgreSQL computes it", async ({
+  page,
+}) => {
+  // One reflection, on the first of the album's two tracks, in the journal's
+  // own language, saved through the track-by-track editor.
+  await page.goto(`${journalUrl}/edit`);
+  await expect(
+    page.getByLabel("Your reflection", { exact: true }),
+  ).toBeVisible();
+  const head = page.getByRole("button", { name: trackTitles[0] });
+  if ((await head.getAttribute("aria-expanded")) !== "true") {
+    await head.click();
+  }
+  await page
+    .getByLabel(`Your reflection on ${trackTitles[0]}`)
+    .fill(reflectionText);
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText("Saved just now")).toBeVisible();
+
+  // AC-05: the count as SQL gives it. This is an equivalent of the counting
+  // part of `listAlbumJournalProgress`, narrowed to this album: a track is
+  // written when its reflection has non-empty text in the journal's original
+  // language and is not marked "still writing".
+  const written = await withDatabase(async (client) => {
+    const result = await client.query<{ tracks_written: number }>(
+      `select count(trt.track_reflection_id)::int as tracks_written
+         from albums al
+         join album_journals aj on aj.album_id = al.id
+         join entry_texts o     on o.entry_id = aj.entry_id and o.is_original
+         join track_reflections tr on tr.album_journal_id = aj.entry_id
+         join track_reflection_texts trt on trt.track_reflection_id = tr.id
+                                        and trt.locale = o.locale
+                                        and trt.body_text <> ''
+                                        and not tr.is_still_writing
+        where al.title = $1`,
+      [album],
+    );
+    return result.rows;
+  });
+  expect(written).toEqual([{ tracks_written: 1 }]);
+
+  // The same number on the Desk, beside the journal it belongs to.
+  await page.goto("/studio");
+  await expect(
+    page
+      .getByRole("list", { name: "Journals" })
+      .getByRole("listitem")
+      .filter({ hasText: album }),
+  ).toContainText("1 of 2 tracks written");
 });
