@@ -7,6 +7,7 @@ export {
   expectRejected,
   inRollbackTransaction,
   inScratchTransaction,
+  restrictedDeleteCode,
   rowsAdded,
   type CountedTable,
   SqlState,

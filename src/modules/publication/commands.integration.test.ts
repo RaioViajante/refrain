@@ -10,6 +10,7 @@ import {
   expectRejected,
   inRollbackTransaction,
   publishForTest,
+  restrictedDeleteCode,
   SqlState,
   testAuthor,
 } from "@/testing";
@@ -27,7 +28,7 @@ import { resolvePublicSlug } from "./queries";
 // published slugs after permanent deletion. Route-level behavior (HTTP 308
 // and 404) arrives with the public routes.
 
-const { checkViolation, foreignKeyViolation, uniqueViolation } = SqlState;
+const { checkViolation, uniqueViolation } = SqlState;
 const longAgo = new Date("2026-01-01T00:00:00Z");
 
 async function transactionNow(tx: Transaction): Promise<Date> {
@@ -522,7 +523,10 @@ describe("slug retention after permanent deletion (ADR 0003)", () => {
       const memoryId = await draftMemory(tx);
       await expectRejected(
         tx,
-        { code: foreignKeyViolation, constraint: "entry_slugs_entry_fk" },
+        {
+          code: await restrictedDeleteCode(tx),
+          constraint: "entry_slugs_entry_fk",
+        },
         (sp) =>
           sp.delete(schema.entries).where(eq(schema.entries.id, memoryId)),
       );

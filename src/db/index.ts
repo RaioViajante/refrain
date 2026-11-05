@@ -8,7 +8,12 @@ export {
 } from "./client";
 export { withDatabase } from "./bind";
 export { DatabaseConfigError, readDatabaseUrl } from "./env";
-export { databaseErrorOf, SqlState, type DatabaseErrorShape } from "./errors";
+export {
+  databaseErrorOf,
+  isReferencedRowRefusal,
+  SqlState,
+  type DatabaseErrorShape,
+} from "./errors";
 export { checkDatabaseConnection } from "./health";
 export * as schema from "./schema";
 export {

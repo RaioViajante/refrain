@@ -3,7 +3,7 @@
 **Status:** implemented in M1.2. The schema is [`src/db/schema.ts`](../src/db/schema.ts); the applied SQL is in [`src/db/migrations/`](../src/db/migrations/). The publication transitions, slug changes, and "Delete now" exist as transactional module commands; M1.3B adds the catalog and album-journal commands and the Writing Studio screens that call them ([Roadmap](roadmap.md)). It changes no table and adds no migration.
 
 - The domain rules come from [ADR 0002](decisions/0002-domain-model-decisions.md), which is accepted. The schema conventions, publication history, and slug retention are in [ADR 0003](decisions/0003-relational-schema-conventions.md), which is accepted.
-- Every constraint below is declared in PostgreSQL. Integration tests against a real PostgreSQL 17 database exercise them as described under [Validation](#validation).
+- Every constraint below is declared in PostgreSQL. Integration tests against real PostgreSQL 17 and 18 databases exercise them as described under [Validation](#validation).
 
 The model implements the rules in [Product](product.md). All SQL is PostgreSQL.
 
@@ -269,7 +269,7 @@ These rules hold through transactions, module functions, and tests, not through 
 | Permanent delete ("Delete now") | Explicit author action with its own confirmation, only for an entry already in Recently deleted. **The command exists; the Studio control does not** (M2.4), and today only tests call it | `permanentlyDeleteEntry`: releases never-published slugs, retires published ones, then `DELETE FROM entries`, cascading only to rows the entry owns: language versions, subtype row, track reflections and their texts, memory links. See [Retention after permanent deletion](#entry_slugs). |
 | Automatic purge | **Disabled** (ADR 0002, D4.4). Entries stay in Recently deleted indefinitely. The database has no trigger or rule that removes them (a test asserts it), and no purge job exists. | Enabled only after backups exist, a restore has been tested, and a tested purge mechanism exists |
 | Archive a catalog record | All writing stays; links render as plain text; re-importing restores the record | `UPDATE … SET archived_at = now()` |
-| Hard-delete a catalog record | Only when nothing in the writing references it | `DELETE`; PostgreSQL raises a foreign-key violation (23503) otherwise |
+| Hard-delete a catalog record | Only when nothing in the writing references it | `DELETE`; otherwise PostgreSQL refuses it: 23503 (`foreign_key_violation`) on PostgreSQL 17, 23001 (`restrict_violation`) on PostgreSQL 18 |
 | Remove music from a memory | Deletes only the link row | `DELETE FROM memory_music` |
 
 ## Transaction boundaries
@@ -449,7 +449,7 @@ Artist journals use the same query with `artist_journals` and `artist_id`.
 
 ## Validation
 
-M1.2 integration tests run against a disposable PostgreSQL 17 database after applying the committed migrations ([Development § Test database](development.md#test-database)). Each rejection test checks the SQLSTATE and the name of the constraint that fired.
+M1.2 integration tests run against a disposable PostgreSQL 17 database after applying the committed migrations ([Development § Test database](development.md#test-database)). Each rejection test checks the SQLSTATE and the name of the constraint that fired. Since issue #61 the suites also run on PostgreSQL 18, where a refused delete by an `ON DELETE RESTRICT` key reports `23001` instead of `23503`; the tests expect the exact code of the server they run on.
 
 Coverage, measured against the migrated database (112 named constraints and unique indexes: 98 for the catalog and the writing, 14 for Identity; M3.3 added `artists_photo_file_sha1_check` and `artists_photo_provenance_check`): every `CHECK` constraint, every `RESTRICT` foreign key, every partial unique index, and every `UNIQUE` constraint that states a rule is triggered by a test and asserted by name. Not asserted by name:
 

@@ -26,7 +26,8 @@ jobs:
       # and is discarded with it. No development or production data is ever
       # reachable from CI.
       postgres:
-        # Keep in step with the postgres-test service in compose.yaml.
+        # Keep in step with the postgres-test service in compose.yaml. The
+        # verify-postgres-18 job below runs the database suites on 18.
         image: postgres:17.11-trixie
         env:
           # Disposable credentials for this job's throwaway database. Not a secret.
@@ -113,6 +114,8 @@ jobs:
         run: pnpm test:integration
         env:
           TEST_DATABASE_URL: postgres://refrain_test:refrain-test-ci-only@127.0.0.1:5432/refrain_test
+          # The connection test fails unless the server is this major version.
+          EXPECTED_POSTGRES_MAJOR: "17"
 
       # The production build from the build step, served by `next start` and
       # tested over real HTTP. Global setup applies the same safety checks to
@@ -134,5 +137,73 @@ jobs:
       # the session file is written during the run and is never uploaded.
       - name: Browser tests (production build, Chromium)
         run: pnpm exec playwright test
+        env:
+          TEST_DATABASE_URL: postgres://refrain_test:refrain-test-ci-only@127.0.0.1:5432/refrain_test
+
+  # The supported PostgreSQL 18 (issue #61): the hosted database's major
+  # version. The same database suites as above against a PostgreSQL 18
+  # service, in parallel with the first job. Lint, types, unit tests, the
+  # audit, and the browser tests do not depend on the server version and run
+  # once, in the job above.
+  verify-postgres-18:
+    name: Database tests (PostgreSQL 18)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    services:
+      postgres:
+        # Keep in step with the postgres-test-18 service in compose.yaml.
+        image: postgres:18.6-trixie
+        env:
+          # Disposable credentials for this job's throwaway database. Not a secret.
+          POSTGRES_USER: refrain_test
+          POSTGRES_PASSWORD: refrain-test-ci-only
+          POSTGRES_DB: refrain_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -p 5432 -U refrain_test -d refrain_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up pnpm (version from package.json packageManager)
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Set up Node.js (version from .nvmrc)
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The HTTP tests serve this build. DATABASE_URL is absent, as above.
+      - name: Production build
+        run: pnpm build
+
+      - name: Mark the service database as disposable
+        run: >-
+          docker exec -i "${{ job.services.postgres.id }}"
+          psql -v ON_ERROR_STOP=1 -U refrain_test -d refrain_test
+          < docker/postgres-test/01-mark-disposable.sql
+
+      - name: Integration tests (PostgreSQL 18)
+        run: pnpm test:integration
+        env:
+          TEST_DATABASE_URL: postgres://refrain_test:refrain-test-ci-only@127.0.0.1:5432/refrain_test
+          EXPECTED_POSTGRES_MAJOR: "18"
+
+      - name: HTTP tests (production build, PostgreSQL 18)
+        run: pnpm test:http
         env:
           TEST_DATABASE_URL: postgres://refrain_test:refrain-test-ci-only@127.0.0.1:5432/refrain_test

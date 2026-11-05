@@ -254,13 +254,16 @@ pnpm db:up
 
 Integration tests write data, so they run against their own PostgreSQL server, never the development database.
 
-| | Development database | Test database |
-| --- | --- | --- |
-| Compose service | `postgres` | `postgres-test` (profile `test`; `pnpm db:up` does not start it) |
-| Host port | `127.0.0.1:5432` | `127.0.0.1:5433` |
-| User / database | `refrain` / `refrain` | `refrain_test` / `refrain_test` |
-| Storage | Named volume `refrain_postgres-data` | In memory (`tmpfs`). Discarded whenever the container stops. |
-| Read through | `DATABASE_URL` | `TEST_DATABASE_URL` |
+| | Development database | Test database | Test database, PostgreSQL 18 |
+| --- | --- | --- | --- |
+| Compose service | `postgres` | `postgres-test` (profile `test`; `pnpm db:up` does not start it) | `postgres-test-18` (profile `test-18`) |
+| Image | `postgres:17.11-trixie` | `postgres:17.11-trixie` | `postgres:18.6-trixie` |
+| Host port | `127.0.0.1:5432` | `127.0.0.1:5433` | `127.0.0.1:5434` |
+| User / database | `refrain` / `refrain` | `refrain_test` / `refrain_test` | `refrain_test` / `refrain_test` |
+| Storage | Named volume `refrain_postgres-data` | In memory (`tmpfs`). Discarded whenever the container stops. | The same |
+| Read through | `DATABASE_URL` | `TEST_DATABASE_URL` | `TEST_DATABASE_URL`, set for that run |
+
+**Supported PostgreSQL versions: 17 and 18** (issue #61). PostgreSQL 17 is the local default (Compose, the academic demonstration). PostgreSQL 18 is the hosted database's major version. CI runs the integration and HTTP tests on both. The one behavior that differs is how a foreign key reports a refused delete: PostgreSQL 17 reports `23503` (`foreign_key_violation`); PostgreSQL 18 reports a refusal by an `ON DELETE RESTRICT` key as `23001` (`restrict_violation`). `isReferencedRowRefusal` in [`src/db/errors.ts`](../src/db/errors.ts) recognizes both, and tests expect the exact code of the server they run on (`restrictedDeleteCode` in [`src/testing/database.ts`](../src/testing/database.ts)). Another major version is supported only after the suites pass on it and [`src/db/client.integration.test.ts`](../src/db/client.integration.test.ts) lists it. In CI each job also sets `EXPECTED_POSTGRES_MAJOR` (`17` or `18`), and that test fails if the job's server is any other version, so neither version's coverage can disappear silently.
 
 **Safety checks.** The integration tests never read `DATABASE_URL`. Before any test file runs, [`src/testing/global-setup.ts`](../src/testing/global-setup.ts) applies the checks in [`src/testing/test-database.ts`](../src/testing/test-database.ts) and refuses to continue unless all of them pass:
 
@@ -283,6 +286,16 @@ pnpm db:test:up          # start a fresh, marked test database and wait until it
 pnpm test:integration    # safety checks, then the integration tests
 pnpm db:test:down        # stop it and discard its data
 ```
+
+The same suites on PostgreSQL 18, without touching `postgres-test`:
+
+```sh
+pnpm db:test18:up
+TEST_DATABASE_URL=postgres://refrain_test:refrain-test-local-only@127.0.0.1:5434/refrain_test pnpm test:integration
+pnpm db:test18:down
+```
+
+The HTTP and browser tests take the same `TEST_DATABASE_URL` override. They refuse a database whose identity tables already hold an account, such as the academic demonstration's: use a fresh test database for them, never that one.
 
 **Recovery.** If the test database is in a bad state, run `pnpm db:test:down` and `pnpm db:test:up`: the new container starts empty and marked. This never affects the development database or its volume.
 
@@ -497,7 +510,7 @@ Versions are exact in `package.json`, and the lockfile is committed. Each was ch
 | `@playwright/test` | 1.64.1 | Browser tests (M1.3C). Published 2026-10-14, older than the seven-day minimum. Chromium is downloaded by `playwright install`, not by the package. |
 | `@types/node` | 24.19.2 | Matches the Node.js major version |
 | `@types/react`, `@types/react-dom` | 19.3.0 | |
-| PostgreSQL image | `postgres:17.11-trixie` | Same image locally and in CI |
+| PostgreSQL images | `postgres:17.11-trixie`, `postgres:18.6-trixie` | The supported majors, the same images locally and in CI ([Test database](#test-database)) |
 
 Planned dependencies (Tiptap, next-intl, Rough.js) are added with the features that need them, after the same compatibility check.
 
@@ -545,8 +558,8 @@ If the plan changes or the repository becomes public, enable these as protection
 | Unit tests | `pnpm test` | In CI. Configuration validation, test-database safety checks, module boundaries, rating and slug rules. `DATABASE_URL` and `TEST_DATABASE_URL` are removed before unit tests run, so a unit test cannot reach a database. |
 | Build | `pnpm build` | In CI, run without `DATABASE_URL` to prove that the build does not need a database |
 | Schema consistency | `pnpm db:check`, then `pnpm db:generate` must produce no new migration | In CI. Fails when `src/db/schema.ts` changes without a committed migration. |
-| Integration tests | `pnpm test:integration` | In CI, against a disposable PostgreSQL 17 service container with test credentials, marked as disposable by the same script as the local test database. Global setup applies the committed migrations first. Covers connectivity, test-database isolation, migrations and delete rules, the schema constraints ([coverage](data-model.md#validation)), transactions, the academic queries, and the database-level parts of INV-1 to INV-5. |
-| HTTP tests | `pnpm test:http` | In CI, after the build and the integration tests, against the same disposable service database (and before the browser tests, which need the identity tables empty). The production build over real HTTP: studio access with and without a valid session, sign-in, cookies, sign-out, sign-up, origins, rate limiting, the author command, and the server log. |
+| Integration tests | `pnpm test:integration` | In CI, against a disposable PostgreSQL 17 service container and, in a parallel job, a PostgreSQL 18 one, with test credentials, marked as disposable by the same script as the local test database. Global setup applies the committed migrations first. Covers connectivity, test-database isolation, migrations and delete rules, the schema constraints ([coverage](data-model.md#validation)), transactions, the academic queries, and the database-level parts of INV-1 to INV-5. |
+| HTTP tests | `pnpm test:http` | In CI, after the build and the integration tests, against the same disposable service database (PostgreSQL 17, and 18 in the parallel job), and before the browser tests, which need the identity tables empty. The production build over real HTTP: studio access with and without a valid session, sign-in, cookies, sign-out, sign-up, origins, rate limiting, the author command, and the server log. |
 | Dependency audit | `pnpm audit --audit-level=high` | In CI (M1.3C). High and critical advisories fail the run; the two moderate advisories listed under [Toolchain](#toolchain) are in development tools and are reviewed, not hidden. |
 | Browser tests | `pnpm exec playwright test` | In CI (M1.3C), after `playwright install --with-deps chromium`: the production build in Chromium against the same disposable service database ([Browser tests](#browser-tests)). Public flows arrive with the public pages. |
 

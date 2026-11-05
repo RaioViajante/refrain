@@ -34,7 +34,7 @@ Refrain is a **modular monolith**: one deployable Next.js application, one Postg
 | Hand-drawn strokes | Rough.js, pre-generated as inline SVG |
 | Rich-text editing | Tiptap |
 | Validation | Zod (installed) |
-| Database / ORM and migrations | PostgreSQL 17 / Drizzle ORM and Drizzle Kit, with the `pg` driver (installed) |
+| Database / ORM and migrations | PostgreSQL 17 and 18 (both tested; [Development § Test database](development.md#test-database)) / Drizzle ORM and Drizzle Kit, with the `pg` driver (installed) |
 | Authentication | Better Auth (installed; [ADR 0004](decisions/0004-single-author-identity.md)) |
 | Interface localization | next-intl (`en`, `pt-BR`) |
 | Unit and integration tests | Vitest (installed) |

@@ -145,3 +145,20 @@ export async function expectRejected(
     expected.constraint === undefined ? { code: expected.code } : expected,
   );
 }
+
+/**
+ * The SQLSTATE that the server under test reports when an `ON DELETE
+ * RESTRICT` foreign key refuses to delete a row it refers to: 23503
+ * (foreign_key_violation) on PostgreSQL 17, 23001 (restrict_violation) on
+ * PostgreSQL 18. Tests expect exactly this code, so each supported version is
+ * checked strictly rather than accepting either.
+ */
+export async function restrictedDeleteCode(tx: Transaction): Promise<string> {
+  const result = await tx.execute<{ server_version_num: string }>(
+    sql`show server_version_num`,
+  );
+  const version = Number(result.rows[0]?.server_version_num);
+  return version >= 180000
+    ? SqlState.restrictViolation
+    : SqlState.foreignKeyViolation;
+}
