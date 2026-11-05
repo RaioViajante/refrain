@@ -86,4 +86,4 @@ planned: the home's artists and memories sections, artist journals, the brazilia
 
 nothing is deployed. public pages stay off until the [release gates](docs/security.md#public-page-release-gates) are closed. see [roadmap.md](docs/roadmap.md).
 
-refrain is also a university project, presented on november 16, 2026. see [requirements.md](docs/requirements.md).
+refrain is also a university project, presented on november 16, 2026. see [requirements.md](docs/requirements.md), and the demonstration kit in [evidence/m4.md](docs/evidence/m4.md).
