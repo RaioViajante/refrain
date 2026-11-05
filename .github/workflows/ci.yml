@@ -114,6 +114,8 @@ jobs:
         run: pnpm test:integration
         env:
           TEST_DATABASE_URL: postgres://refrain_test:refrain-test-ci-only@127.0.0.1:5432/refrain_test
+          # The connection test fails unless the server is this major version.
+          EXPECTED_POSTGRES_MAJOR: "17"
 
       # The production build from the build step, served by `next start` and
       # tested over real HTTP. Global setup applies the same safety checks to
@@ -199,6 +201,7 @@ jobs:
         run: pnpm test:integration
         env:
           TEST_DATABASE_URL: postgres://refrain_test:refrain-test-ci-only@127.0.0.1:5432/refrain_test
+          EXPECTED_POSTGRES_MAJOR: "18"
 
       - name: HTTP tests (production build, PostgreSQL 18)
         run: pnpm test:http

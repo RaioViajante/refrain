@@ -28,7 +28,7 @@ import { resolvePublicSlug } from "./queries";
 // published slugs after permanent deletion. Route-level behavior (HTTP 308
 // and 404) arrives with the public routes.
 
-const { checkViolation, foreignKeyViolation, uniqueViolation } = SqlState;
+const { checkViolation, uniqueViolation } = SqlState;
 const longAgo = new Date("2026-01-01T00:00:00Z");
 
 async function transactionNow(tx: Transaction): Promise<Date> {

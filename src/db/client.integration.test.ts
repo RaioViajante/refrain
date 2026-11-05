@@ -17,14 +17,22 @@ describe("PostgreSQL connection", () => {
   });
 
   // The supported major versions: 17 (Compose, the academic demonstration)
-  // and 18 (the hosted database). Each is tested in CI. Any other major fails
-  // here until it has been tested and added.
+  // and 18 (the hosted database). Any other major fails here until it has been
+  // tested and added. Each CI job also names the one major it must run on
+  // (EXPECTED_POSTGRES_MAJOR), so a job that silently changed version, and so
+  // lost that version's coverage, fails instead of passing.
   it("connects to a supported PostgreSQL major version (17 or 18)", async () => {
     const result = await getDb().execute<{ server_version_num: string }>(
       sql`show server_version_num`,
     );
-    const version = Number(result.rows[0]?.server_version_num);
-    expect([17, 18]).toContain(Math.floor(version / 10000));
+    const major = Math.floor(
+      Number(result.rows[0]?.server_version_num) / 10000,
+    );
+    expect([17, 18]).toContain(major);
+    const expected = process.env.EXPECTED_POSTGRES_MAJOR?.trim();
+    if (expected) {
+      expect(major).toBe(Number(expected));
+    }
   });
 
   it("reports the connection as healthy", async () => {

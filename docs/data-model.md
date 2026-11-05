@@ -269,7 +269,7 @@ These rules hold through transactions, module functions, and tests, not through 
 | Permanent delete ("Delete now") | Explicit author action with its own confirmation, only for an entry already in Recently deleted. **The command exists; the Studio control does not** (M2.4), and today only tests call it | `permanentlyDeleteEntry`: releases never-published slugs, retires published ones, then `DELETE FROM entries`, cascading only to rows the entry owns: language versions, subtype row, track reflections and their texts, memory links. See [Retention after permanent deletion](#entry_slugs). |
 | Automatic purge | **Disabled** (ADR 0002, D4.4). Entries stay in Recently deleted indefinitely. The database has no trigger or rule that removes them (a test asserts it), and no purge job exists. | Enabled only after backups exist, a restore has been tested, and a tested purge mechanism exists |
 | Archive a catalog record | All writing stays; links render as plain text; re-importing restores the record | `UPDATE … SET archived_at = now()` |
-| Hard-delete a catalog record | Only when nothing in the writing references it | `DELETE`; PostgreSQL raises a foreign-key violation (23503) otherwise |
+| Hard-delete a catalog record | Only when nothing in the writing references it | `DELETE`; otherwise PostgreSQL refuses it: 23503 (`foreign_key_violation`) on PostgreSQL 17, 23001 (`restrict_violation`) on PostgreSQL 18 |
 | Remove music from a memory | Deletes only the link row | `DELETE FROM memory_music` |
 
 ## Transaction boundaries
