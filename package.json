@@ -24,6 +24,8 @@
     "db:down": "docker compose down",
     "db:test:up": "docker compose --profile test up --detach --wait postgres-test",
     "db:test:down": "docker compose --profile test rm --stop --force postgres-test",
+    "db:test18:up": "docker compose --profile test-18 up --detach --wait postgres-test-18",
+    "db:test18:down": "docker compose --profile test-18 rm --stop --force postgres-test-18",
     "design:strokes": "tsx src/design/write-strokes.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
