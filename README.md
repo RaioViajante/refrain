@@ -80,9 +80,11 @@ also merged, local only: m3.6, the memories studio: memories written privately, 
 
 also merged, local only: m3.7, public memories: a memory is published through the same review and confirmation as an album journal, a change to a published memory asks first, and a published memory has a page at `/memories/<slug>`, behind the same switch.
 
-in progress: m3.8a, public archives, on its own branch and not merged: `/albums`, `/artists`, and `/memories` list exactly what has a public page, and the header links all four sections.
+also merged, local only: m3.8a, public archives: `/albums`, `/artists`, and `/memories` list exactly what has a public page, and the header links all four sections; and m3.8b, the home's artists and memories sections.
 
-planned: the home's artists and memories sections, artist journals, the brazilian portuguese interface and its language selector, author translations, "delete now", and the academic release (m4).
+in progress: m4.2, the academic demonstration kit, on its own branch.
+
+planned: artist journals, the brazilian portuguese interface and its language selector, author translations, "delete now", and the academic release (m4).
 
 nothing is deployed. public pages stay off until the [release gates](docs/security.md#public-page-release-gates) are closed. see [roadmap.md](docs/roadmap.md).
 
