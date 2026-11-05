@@ -10,6 +10,7 @@ import {
   createTestTrackReflection,
   expectRejected,
   inRollbackTransaction,
+  restrictedDeleteCode,
   SqlState,
 } from "@/testing";
 
@@ -393,7 +394,10 @@ describe("remaining catalog checks", () => {
       );
       await expectRejected(
         tx,
-        { code: foreignKeyViolation, constraint: "track_artists_artist_fk" },
+        {
+          code: await restrictedDeleteCode(tx),
+          constraint: "track_artists_artist_fk",
+        },
         (sp) =>
           sp
             .delete(schema.albumArtists)
@@ -473,19 +477,28 @@ describe("archive versus delete (ADR 0002, D4.5)", () => {
 
       await expectRejected(
         tx,
-        { code: foreignKeyViolation, constraint: "album_journals_album_fk" },
+        {
+          code: await restrictedDeleteCode(tx),
+          constraint: "album_journals_album_fk",
+        },
         (sp) =>
           sp.delete(schema.albums).where(eq(schema.albums.id, album.albumId)),
       );
       await expectRejected(
         tx,
-        { code: foreignKeyViolation, constraint: "album_artists_artist_fk" },
+        {
+          code: await restrictedDeleteCode(tx),
+          constraint: "album_artists_artist_fk",
+        },
         (sp) =>
           sp.delete(schema.artists).where(eq(schema.artists.id, artistId)),
       );
       await expectRejected(
         tx,
-        { code: foreignKeyViolation, constraint: "memory_music_track_fk" },
+        {
+          code: await restrictedDeleteCode(tx),
+          constraint: "memory_music_track_fk",
+        },
         (sp) =>
           sp.delete(schema.tracks).where(eq(schema.tracks.id, single!.id)),
       );
@@ -493,7 +506,7 @@ describe("archive versus delete (ADR 0002, D4.5)", () => {
       await expectRejected(
         tx,
         {
-          code: foreignKeyViolation,
+          code: await restrictedDeleteCode(tx),
           constraint: "track_reflections_album_track_fk",
         },
         (sp) =>
@@ -515,7 +528,10 @@ describe("archive versus delete (ADR 0002, D4.5)", () => {
       await createTestArtistJournal(tx, { artistId });
       await expectRejected(
         tx,
-        { code: foreignKeyViolation, constraint: "artist_journals_artist_fk" },
+        {
+          code: await restrictedDeleteCode(tx),
+          constraint: "artist_journals_artist_fk",
+        },
         (sp) =>
           sp.delete(schema.artists).where(eq(schema.artists.id, artistId)),
       );
@@ -528,7 +544,10 @@ describe("archive versus delete (ADR 0002, D4.5)", () => {
       await createTestMemory(tx, { music: [{ albumId }] });
       await expectRejected(
         tx,
-        { code: foreignKeyViolation, constraint: "memory_music_album_fk" },
+        {
+          code: await restrictedDeleteCode(tx),
+          constraint: "memory_music_album_fk",
+        },
         (sp) => sp.delete(schema.albums).where(eq(schema.albums.id, albumId)),
       );
     });

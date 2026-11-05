@@ -16,13 +16,15 @@ describe("PostgreSQL connection", () => {
     expect(result.rows).toEqual([{ ok: 1 }]);
   });
 
-  it("connects to PostgreSQL 17", async () => {
+  // The supported major versions: 17 (Compose, the academic demonstration)
+  // and 18 (the hosted database). Each is tested in CI. Any other major fails
+  // here until it has been tested and added.
+  it("connects to a supported PostgreSQL major version (17 or 18)", async () => {
     const result = await getDb().execute<{ server_version_num: string }>(
       sql`show server_version_num`,
     );
     const version = Number(result.rows[0]?.server_version_num);
-    expect(version).toBeGreaterThanOrEqual(170000);
-    expect(version).toBeLessThan(180000);
+    expect([17, 18]).toContain(Math.floor(version / 10000));
   });
 
   it("reports the connection as healthy", async () => {

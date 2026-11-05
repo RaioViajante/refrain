@@ -10,6 +10,7 @@ import {
   expectRejected,
   inRollbackTransaction,
   publishForTest,
+  restrictedDeleteCode,
   SqlState,
   testAuthor,
 } from "@/testing";
@@ -522,7 +523,10 @@ describe("slug retention after permanent deletion (ADR 0003)", () => {
       const memoryId = await draftMemory(tx);
       await expectRejected(
         tx,
-        { code: foreignKeyViolation, constraint: "entry_slugs_entry_fk" },
+        {
+          code: await restrictedDeleteCode(tx),
+          constraint: "entry_slugs_entry_fk",
+        },
         (sp) =>
           sp.delete(schema.entries).where(eq(schema.entries.id, memoryId)),
       );
