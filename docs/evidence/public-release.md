@@ -4,7 +4,7 @@ The record that [Security § Public-release gate](../security.md#public-release-
 
 **Owner decisions (2026-11-06):**
 - The **existing** repository becomes public with its complete, authentic history. No history is rewritten or filtered, and no replacement repository is created.
-- Historical `reference/` material, the personal email address in 33 commits made through GitHub's merge buttons, and the existing issues, pull requests, and reviews may all become public.
+- Historical `reference/` material, the personal email address in the commits made through GitHub's merge buttons (34 so far), and the existing issues, pull requests, and reviews may all become public.
 - **Only the owner changes the visibility**, after this gate passes.
 
 Audited: `main` at `5b050e229a3663abe7ac5f068c9f4f459b184eb6`, plus this pull request.
@@ -27,11 +27,11 @@ Audited: `main` at `5b050e229a3663abe7ac5f068c9f4f459b184eb6`, plus this pull re
 
 ## Secret scanning
 
-The scan of 2026-11-06 used a mirror of every reference: 34 branches and 33 pull-request refs, 386 commits in all.
+The final scan on 2026-11-06 used a fresh mirror of every reference, taken after this pull request's last content commit (`aa575cb`): 35 branches and the refs of 34 pull requests, 390 commits in all, and no tags. The first scan, of the 386 commits before this pull request, gave the same results.
 
 | Check | Result |
 | --- | --- |
-| `gitleaks git --redact --log-opts=--all` (v8.24.2) | 1 finding: `63889a5…:src/modules/identity/config.test.ts:generic-api-key:5`, the known synthetic value ([Security § Public-release gate](../security.md#public-release-gate)) |
+| `gitleaks git --redact --log-opts=--all` (v8.24.2) | 1 finding: `63889a5…:src/modules/identity/config.test.ts:generic-api-key:5`, the known synthetic value ([Security § Public-release gate](../security.md#public-release-gate)). With [`.gitleaksignore`](../../.gitleaksignore): no leaks |
 | gitleaks on every distinct historical blob, which includes the content of merge commits | The same single finding |
 | TruffleHog 3.88 (`--no-verification`, so no candidate was sent to any provider) | 0 findings |
 | Exact match of the real production, provider, demonstration, and local secret values against every blob | 0 real matches. The only match was the local loopback-only development password, which is identical to the published placeholder in `.env.example` |
@@ -41,7 +41,7 @@ The scan of 2026-11-06 used a mirror of every reference: 34 branches and 33 pull
 The values compared were never printed. The temporary pattern file holding them was deleted after the scan.
 
 **Accepted by the owner:**
-- The personal address in 33 commits: 32 merge commits made with GitHub's merge button, and one squash merge (`87f2b2a`, #10). Every other commit uses the account's noreply address.
+- The personal address in 34 commits: 33 merge commits made with GitHub's merge button or `gh pr merge`, and one squash merge (`87f2b2a`, #10). Every other commit uses the account's noreply address. Each further merge through GitHub adds one, unless the owner turns on **Keep my email addresses private** in GitHub's email settings.
 - Hosting-provider preview comments that show the team's slug. Their deployments are protected and were cancelled.
 
 ## Dependency advisories
