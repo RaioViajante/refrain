@@ -10,6 +10,7 @@ Significant architectural, data, and workflow decisions are recorded here as sho
 | [0004](0004-single-author-identity.md) | Single-Author Identity and Access | Accepted |
 | [0005](0005-restoring-deleted-journals.md) | Restoring Deleted Journals | Accepted |
 | [0006](0006-publication-decision-and-acknowledgement.md) | Publication Decision and Acknowledgement | Accepted; amended 2026-11-02 (A1) |
+| [0007](0007-hosted-backups-and-retention.md) | Hosted Backups, Retention, and Recovery | Proposed |
 
 ## Format
 
