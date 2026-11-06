@@ -1465,3 +1465,49 @@ describe("the recovery review (refrain-backup reconcile)", () => {
     }
   });
 });
+
+describe("the inventory comparison (ops/backup/reconcile.awk)", () => {
+  const compare = (newer: string, candidate: string) => {
+    const directory = newOutput();
+    writeFileSync(join(directory, "newer.txt"), newer);
+    writeFileSync(join(directory, "candidate.txt"), candidate);
+    return tools(
+      [
+        "awk",
+        "-F|",
+        "-f",
+        "/opt/refrain-backup/reconcile.awk",
+        "/out/newer.txt",
+        "/out/candidate.txt",
+      ],
+      { out: directory },
+    );
+  };
+  const candidate = [
+    "entry|a1|album_journal|deleted=false|en:published,pt-BR:private",
+    "entry|b2|memory|deleted=true|en:private",
+    "reflection|r1|journal=a1|published=true",
+    "",
+  ].join("\n");
+
+  it("reports every candidate entry as deleted since when the newer inventory is empty", () => {
+    const result = compare("", candidate);
+    expect(result.code, result.stderr).toBe(0);
+    expect(result.stdout.trim().split("\n").sort()).toEqual([
+      "deleted-since|a1|album_journal",
+      "deleted-since|b2|memory",
+    ]);
+  });
+
+  it("reports only what changed, and nothing for identical inventories", () => {
+    expect(compare(candidate, candidate).stdout).toBe("");
+    const result = compare(
+      "entry|a1|album_journal|deleted=false|en:private,pt-BR:private\n",
+      candidate,
+    );
+    expect(result.stdout.trim().split("\n").sort()).toEqual([
+      "changed-since|a1|album_journal|then deleted=false en:published,pt-BR:private|now deleted=false en:private,pt-BR:private",
+      "deleted-since|b2|memory",
+    ]);
+  });
+});

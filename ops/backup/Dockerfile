@@ -14,7 +14,7 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 COPY refrain-backup.sh fingerprint.sql inventory.sql backup-role.sql backup-role-audit.sql \
-  recovery-demote.sql recovery-check.sql /opt/refrain-backup/
+  recovery-demote.sql recovery-check.sql reconcile.awk /opt/refrain-backup/
 RUN ln -s /opt/refrain-backup/refrain-backup.sh /usr/local/bin/refrain-backup
 
 # Not the server: this image never starts PostgreSQL.

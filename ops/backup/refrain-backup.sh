@@ -513,16 +513,7 @@ cmd_reconcile() {
   inventory_of "$candidate" "$work/candidate.txt"
   inventory_of "$newer" "$work/newer.txt"
   # entry|<id>|<kind>|deleted=<bool>|<locale:status,...>
-  awk -F'|' '
-    FNR == NR { if ($1 == "entry") newer[$2] = $0; next }
-    $1 == "entry" {
-      if (!($2 in newer)) { print "deleted-since|" $2 "|" $3; next }
-      if (newer[$2] != $0) {
-        split(newer[$2], now, "|")
-        print "changed-since|" $2 "|" $3 "|then " $4 " " $5 "|now " now[4] " " now[5]
-      }
-    }
-  ' "$work/newer.txt" "$work/candidate.txt" | sort
+  awk -F'|' -f "$HERE/reconcile.awk" "$work/newer.txt" "$work/candidate.txt" | sort
   say "reconciled: entries above were deleted or changed after the candidate backup; review each before the restored copy is used"
 }
 

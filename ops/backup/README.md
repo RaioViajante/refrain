@@ -14,6 +14,7 @@ it is the design, the runbook, and the owner's drill.
 | `backup-role-audit.sql` | Read-only audit of that role's privileges |
 | `recovery-demote.sql` | Recovery: every published version becomes private, in one transaction |
 | `recovery-check.sql` | Recovery: read-only, fails while anything is published |
+| `reconcile.awk` | Recovery review: compares two inventories (used by `reconcile`) |
 | `automation/` | Templates for the private automation repository. GitHub does not run them here |
 
 Tests: `pnpm test:backup` (src/ops/hosted-backup.backup.test.ts), on the
