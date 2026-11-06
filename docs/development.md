@@ -427,7 +427,7 @@ pnpm db:test:down        # discards the scratch database
 
 An archive made by PostgreSQL 18's `pg_dump` (the hosted database's version, [Hosted Backups](hosted-backups.md)) is restored into the PostgreSQL 18 test container instead: `pnpm db:test18:up`, then the same command with `--postgres=18`, then `pnpm db:test18:down`. The tool reads which `pg_dump` made the archive and refuses one newer than the restore server before creating anything. Without the flag nothing changes: the PostgreSQL 17 container, as before.
 
-`--file` must be a backup you made: restoring runs its contents as SQL, as the database superuser, on the disposable container. The archive is first copied to a private temporary file (removed when the command ends, including on Ctrl-C, SIGTERM, or a closed terminal; a run that is killed outright, with SIGKILL, can leave a `refrain-verify-…` folder in the temporary directory, which you delete by hand), and the checksum, the listing, and the restore all read that one copy. If a `.sha256` file sits next to the archive it must match, or nothing is restored (this catches damage and edits, not a file that was hostile from the start). The archive is then listed and refused if it is not a valid `pg_dump` archive. The restore runs as one transaction that stops at the first error. The check then confirms that every table of the restored copy is accounted for, that the three tables whose rows a backup leaves out (`auth_sessions`, `auth_verifications`, `auth_rate_limits`) came back empty, and, with `--compare-with`, compares the source and the restored copy table by table: the row count and a digest over the full text of every row of the **19 tables** that hold the writing, its status and publication history, deletion and versions, the slugs and their marks, the catalog, the reflections and memories (not built yet, so empty), and the author's account including the password hash. The digests are computed in PostgreSQL and never printed. The migration count must match too. Any difference fails. A table that the tool neither compares nor deliberately excludes also fails, so a table added later cannot be silently left out. Without `--compare-with` it claims only that the archive restored without error. The comparison reads the source with `SELECT` only. Run it right after the backup, with nothing saved in the studio in between: a later save is a real difference, and the check will report it.
+`--file` must be a backup you made: restoring runs its contents as SQL, as the database superuser, on the disposable container. The archive is first copied to a private temporary file (removed when the command ends, including on Ctrl-C, SIGTERM, or a closed terminal; a run that is killed outright, with SIGKILL, can leave a `refrain-verify-…` folder in the temporary directory, which you delete by hand), and the checksum, the listing, and the restore all read that one copy. If a `.sha256` file sits next to the archive it must match, or nothing is restored (this catches damage and edits, not a file that was hostile from the start). The archive is then listed and refused if it is not a valid `pg_dump` archive. The restore runs as one transaction that stops at the first error. The check then confirms that every table of the restored copy is accounted for, that the three tables whose rows a backup leaves out (`auth_sessions`, `auth_verifications`, `auth_rate_limits`) came back empty, and, with `--compare-with`, compares the source and the restored copy table by table: the row count and a digest over the full text of every row of the **19 tables** that hold the writing, its status and publication history, deletion and versions, the slugs and their marks, the catalog, the reflections and memories, and the author's account including the password hash. The digests are computed in PostgreSQL and never printed. The migration count must match too. Any difference fails. A table that the tool neither compares nor deliberately excludes also fails, so a table added later cannot be silently left out. Without `--compare-with` it claims only that the archive restored without error. The comparison reads the source with `SELECT` only. Run it right after the backup, with nothing saved in the studio in between: a later save is a real difference, and the check will report it.
 
 **Before the first backup: encrypt this disk.** The archive is not encrypted, and it holds private writing and the password hash. Turn on FileVault (check with `fdesetup status`, which must say `FileVault is On`) before creating one. If encryption is still in progress, wait for it to finish. Git ignoring `*.dump` is not a security boundary. Time Machine copies `~/refrain-backups` too, so its destination must be encrypted as well, or the folder excluded.
 
@@ -541,13 +541,33 @@ Merge only after the required checks pass and the PR has had an independent revi
 
 ### Repository protection
 
-The GitHub repository is private. On its current plan, GitHub refuses branch protection for private repositories (the API returned HTTP 403, "Upgrade to GitHub Pro or make this repository public", on 2026-10-31). Until protection is available, the rules above are enforced by convention and must be followed as if they were enforced:
+On GitHub Free, branch protection is unavailable for private repositories (the API returned HTTP 403, "Upgrade to GitHub Pro or make this repository public", on 2026-10-31 and again on 2026-11-06). While the repository is private, the rules above are enforced by convention and must be followed as if they were enforced:
 
 - changes reach `main` only through pull requests;
 - no force pushes and no branch deletion on `main`;
-- required checks must pass before merging, once CI exists (M1).
+- required checks must pass before merging.
 
-If the plan changes or the repository becomes public, enable these as protection rules.
+**When the repository becomes public**, the owner enables these immediately (Settings):
+
+1. **Branches → `main`:**
+   - require a pull request before merging;
+   - require the status checks `Verify` and `Database tests (PostgreSQL 18)`;
+   - block force pushes and deletion.
+2. **Actions → General:**
+   - require approval for workflows from **all outside collaborators**;
+   - keep the default `GITHUB_TOKEN` permission read-only (it is read-only today);
+   - do not allow GitHub Actions to approve pull requests (not allowed today).
+3. **Code security:**
+   - turn on private vulnerability reporting ([SECURITY.md](../SECURITY.md));
+   - turn on secret scanning with push protection;
+   - turn on Dependabot alerts.
+
+Public-repository risks the workflow already handles ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)):
+- It runs on `pull_request` and pushes to `main` only. Never `pull_request_target` or `workflow_run`, so code from a fork never runs with secrets or a write token.
+- Its permissions are `contents: read`.
+- It uses no secrets: its database passwords are placeholders for throwaway containers.
+- Every action is pinned to a full commit SHA.
+- Nothing in it deploys, publishes, or merges.
 
 ## Quality gates
 

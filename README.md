@@ -13,6 +13,7 @@ songs, albums, artists, and the moments they stayed with me.
 02. <a href="#run-it">run</a> ······ start it locally
 03. <a href="#read-next">docs</a> ····· the longer version
 04. <a href="#current-status">status</a> ··· a work in progress
+05. <a href="#license">license</a> ·· code, artwork, contributing
 </pre>
 
 #### the journal
@@ -27,7 +28,7 @@ each track can have its own reflection, rating, and favourite mark. ratings are 
 
 black ink on white paper; the only color comes from album art and photographs. the interface speaks english and brazilian portuguese, and writing stays in the language it was written in.
 
-part of this is built and runs locally; nothing is online yet, and the interface is english only for now. what exists and what doesn't is under [status](#current-status). the approved design is written down in [design-system](docs/design-system.md).
+most of this is built and runs locally. a private, sign-in-protected test deployment exists, but nothing is public yet, and the interface is english only for now. what exists and what doesn't is under [status](#current-status). the approved design is written down in [design-system](docs/design-system.md).
 
 #### what's inside
 
@@ -36,10 +37,12 @@ src/app/           routes · the studio, the home, one public journal page
 src/modules/       catalog, journals, publication, identity
 src/integrations/  musicbrainz, cover art archive
 src/db/            database client, schema, migrations
+src/ops/           local backup and restore check
+ops/backup/        hosted-backup toolchain · not provisioned yet
 e2e/               browser tests
 docs/              the long version
 public/            app assets · the illustration
-compose.yaml       local postgresql 17
+compose.yaml       local postgresql 17, and 17 and 18 for tests
 .github/           ci on every pull request
 ```
 
@@ -86,6 +89,12 @@ in progress: m4.2, the academic demonstration kit, on its own branch.
 
 planned: artist journals, the brazilian portuguese interface and its language selector, author translations, "delete now", and the academic release (m4).
 
-nothing is deployed. public pages stay off until the [release gates](docs/security.md#public-page-release-gates) are closed. see [roadmap.md](docs/roadmap.md).
+also merged: postgresql 18 support (the hosted database's version, tested in ci alongside 17); a fix that keeps studio responses out of shared caches; and a hosted-backup toolchain with encrypted, restore-checked bundles and an owner's restore drill ([hosted-backups.md](docs/hosted-backups.md)), not provisioned yet. its retention policy is proposed in [adr 0007](docs/decisions/0007-hosted-backups-and-retention.md).
+
+hosting: one private test deployment, behind the hosting provider's sign-in on every request, with the public-reads switch off and synthetic data only. no real writing is hosted until backups are running and tested. public pages stay off until the [release gates](docs/security.md#public-page-release-gates) are closed. see [roadmap.md](docs/roadmap.md).
 
 refrain is also a university project, presented on november 16, 2026. see [requirements.md](docs/requirements.md), and the demonstration kit in [evidence/m4.md](docs/evidence/m4.md).
+
+#### license
+
+the source code and documentation are under the [mit license](LICENSE). the original artwork is all rights reserved, and the design references in the history are not licensed: see [license-artwork](LICENSE-ARTWORK.md). to report a security problem, see [security](SECURITY.md); to contribute, see [contributing](CONTRIBUTING.md).
