@@ -17,7 +17,7 @@ Refrain's most valuable asset is the author's writing: personal, unpublished, an
 
 ## Public code, private writing
 
-The repository is private today and is intended to become public. **Security never depends on the source code being secret.** Assume that an attacker has read all of it:
+The repository is written to be public, with its complete history, once the owner completes the [public-release gate](#public-release-gate). **Security never depends on the source code being secret.** Assume that an attacker has read all of it:
 
 - the code;
 - the SQL schema and the migrations;
@@ -395,8 +395,8 @@ The Home's expansion under [ADR 0006 A6](decisions/0006-publication-decision-and
 | HTTP-level privacy tests (404 versus 308, metadata, caches) | M2, M3 | **Built in M3.1 for the album-journal page, the sitemap, and `robots.txt`** (see Implemented, M3.1), **in M3.4 for the Home's listings** (see Implemented, M3.4), **and in M3.5 for the artist pages** (see Implemented, M3.5). Artist journals, memories, and list pages have no page yet |
 | Optimistic concurrency on saves | M2 for other entry kinds and track reflections | Done for album-journal text (M1.3B) |
 | Scheduled off-device backups of a hosted database, and a restore tested on the real data | Before any hosted database holds real writing | A local tool exists and a restore was rehearsed on synthetic data ([Development § Backup and restore](development.md#backup-and-restore)). Nothing is scheduled, and nothing protects against losing the device or the Docker volume until the owner copies backups elsewhere |
-| Private vulnerability reporting channel | Before the repository becomes public | Not available while the repository is private ([`SECURITY.md`](../SECURITY.md)) |
-| Branch protection | When the plan allows it, or when the repository becomes public | Followed by convention ([Development § Repository protection](development.md#repository-protection)) |
+| Private vulnerability reporting channel | Before the repository becomes public | GitHub private vulnerability reporting, enabled by the owner at publication. [`SECURITY.md`](../SECURITY.md) describes how to use it, and a fallback |
+| Branch protection | When the plan allows it, or when the repository becomes public | Followed by convention until publication, then enforced on `main` ([Development § Repository protection](development.md#repository-protection)) |
 | Automated dependency advisory alerts | Not decided | Advisories are checked manually with `pnpm audit` |
 
 ## Required tests
@@ -531,7 +531,7 @@ Making the **repository** public is a separate decision from deploying the appli
 10. **Licenses decided.** Licenses for the source code and for the original artwork are chosen separately and recorded. The artwork includes the homepage character illustration. No license is added without the owner's decision.
 11. **Independent review.** A security review of the whole repository by someone who did not write the code. A review agent run in a separate context counts.
 
-The design references that were tracked before M1.1 (`reference/`, removed from tracking in #3) remain in the Git history **by the owner's decision**. They contain bracketed placeholders, not personal writing, so rewriting history to remove them is not required. Rewriting history is reserved for actual secrets or personal data.
+The design references that were tracked before M1.1 (`reference/`, removed from tracking in #3) remain in the Git history **by the owner's decision**, confirmed for publication on 2026-11-06. The history is published as it is: it is not rewritten or filtered, and every commit SHA, branch, issue, and pull request is preserved. The references contain bracketed placeholders, not personal writing. Rewriting history is reserved for actual secrets or personal data. No licence is granted for them ([`LICENSE-ARTWORK.md`](../LICENSE-ARTWORK.md)). One file in them, `reference/refrain/pages/support.js`, includes a design-tool runtime that carries no licence notice; whether its terms allow redistribution is the owner's open question at the gate ([evidence](evidence/public-release.md#historical-design-references)).
 
 **Known history finding (M1.3A).** `gitleaks` reports one `generic-api-key` hit in commit `63889a5`, at `src/modules/identity/config.test.ts:5`. Its fingerprint is `63889a5181b6570cecf3952f79194007d71ab3cc:src/modules/identity/config.test.ts:generic-api-key:5`.
 
@@ -540,7 +540,9 @@ The design references that were tracked before M1.1 (`reference/`, removed from 
 - **Removed.** Commit `1326517` replaced it with a value generated at runtime. The tree contains no secret-like literal.
 - **Merge.** By the owner's one-time exception, #10 is to be squash-merged, so that the commit never enters `main`'s ancestry.
 - **What squashing does not do.** It does not delete the commit. The commit stays reachable from the pull request's references (`refs/pull/10/head`, `refs/pull/10/merge`), from the branch until someone deletes it, and from existing clones. GitHub may also keep it internally. The repository allows merge commits, rebase merges, and squash merges, so squash has to be chosen explicitly for #10.
-- **At the gate.** The full-history scan will still report it. Record it as reviewed, for example with that fingerprint in a `.gitleaksignore`, rather than rewriting history: history is rewritten only for real secrets ([Secrets](#secrets)).
+- **At the gate.** The full-history scan will still report it. It is recorded as reviewed in [`.gitleaksignore`](../.gitleaksignore), not removed by rewriting history: history is rewritten only for real secrets ([Secrets](#secrets)).
+
+**Gate record.** The results for this release are in [Evidence: public release](evidence/public-release.md).
 
 ## Security reviews
 

@@ -541,13 +541,33 @@ Merge only after the required checks pass and the PR has had an independent revi
 
 ### Repository protection
 
-The GitHub repository is private. On its current plan, GitHub refuses branch protection for private repositories (the API returned HTTP 403, "Upgrade to GitHub Pro or make this repository public", on 2026-10-31). Until protection is available, the rules above are enforced by convention and must be followed as if they were enforced:
+On GitHub Free, branch protection is unavailable for private repositories (the API returned HTTP 403, "Upgrade to GitHub Pro or make this repository public", on 2026-10-31 and again on 2026-11-06). While the repository is private, the rules above are enforced by convention and must be followed as if they were enforced:
 
 - changes reach `main` only through pull requests;
 - no force pushes and no branch deletion on `main`;
-- required checks must pass before merging, once CI exists (M1).
+- required checks must pass before merging.
 
-If the plan changes or the repository becomes public, enable these as protection rules.
+**When the repository becomes public**, the owner enables these immediately (Settings):
+
+1. **Branches → `main`:**
+   - require a pull request before merging;
+   - require the status checks `Verify` and `Database tests (PostgreSQL 18)`;
+   - block force pushes and deletion.
+2. **Actions → General:**
+   - require approval for workflows from **all outside collaborators**;
+   - keep the default `GITHUB_TOKEN` permission read-only (it is read-only today);
+   - do not allow GitHub Actions to approve pull requests (not allowed today).
+3. **Code security:**
+   - turn on private vulnerability reporting ([SECURITY.md](../SECURITY.md));
+   - turn on secret scanning with push protection;
+   - turn on Dependabot alerts.
+
+Public-repository risks the workflow already handles ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)):
+- It runs on `pull_request` and pushes to `main` only. Never `pull_request_target` or `workflow_run`, so code from a fork never runs with secrets or a write token.
+- Its permissions are `contents: read`.
+- It uses no secrets: its database passwords are placeholders for throwaway containers.
+- Every action is pinned to a full commit SHA.
+- Nothing in it deploys, publishes, or merges.
 
 ## Quality gates
 
