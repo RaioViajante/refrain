@@ -15,7 +15,7 @@ Refrain is in development and has not been released.
 
   The full list, with what is still planned, is in [README.md](README.md#current-status) and [docs/roadmap.md](docs/roadmap.md).
 - **Hosting:** one private test deployment exists. Every request to it needs the owner's hosting-account authentication, its public-reads switch is off, and it holds synthetic data only. **It is not a target:** do not probe it (see [Responsible disclosure](#responsible-disclosure)). No public instance exists.
-- **Repository:** public, once the owner completes the [public-release gate](docs/security.md#public-release-gate), with its complete development history. That history includes design references that are not licensed for reuse ([LICENSE-ARTWORK.md](LICENSE-ARTWORK.md)).
+- **Repository:** public since 2026-11-06, after the [public-release gate](docs/security.md#public-release-gate), with its complete development history. That history includes design references that are not licensed for reuse ([LICENSE-ARTWORK.md](LICENSE-ARTWORK.md)).
 
 The protections that exist today, and the ones that are still planned, are listed in [docs/security.md](docs/security.md#implemented-and-planned-protections).
 
@@ -41,7 +41,7 @@ Use **GitHub's private vulnerability reporting**:
 
 Only the maintainer and you can see the report. The maintainer is notified, and the fix can be prepared in a private fork and published as a GitHub security advisory.
 
-The owner enables this feature as part of making the repository public ([public-release gate](docs/security.md#public-release-gate), item 9). If the **Report a vulnerability** button is ever missing, do not describe the problem anywhere public. Open an issue titled "Security contact request", with no details, and the maintainer will reply with a private channel. There is no dedicated security email address.
+This feature has been enabled since the repository became public on 2026-11-06 ([public-release gate](docs/security.md#public-release-gate), item 9). If the **Report a vulnerability** button is ever missing, do not describe the problem anywhere public. Open an issue titled "Security contact request", with no details, and the maintainer will reply with a private channel. There is no dedicated security email address.
 
 ### What to include
 
@@ -82,7 +82,7 @@ Refrain has one maintainer and is maintained on a best-effort basis. There is no
 
 - **Security never depends on secrecy of the source.** Protection comes from server-verified authorization, data isolation, least privilege, and tested behavior ([docs/security.md](docs/security.md)).
 - **Security requirements** are written in [docs/security.md](docs/security.md) and in the accepted [architecture decisions](docs/decisions/). Each privacy rule needs an automated test before the feature it governs ships.
-- **Reviews.** Changes reach `main` only through pull requests, and are reviewed independently where possible. Once the repository is public, branch protection enforces this on `main` ([docs/development.md](docs/development.md#repository-protection)); before that, the rule is followed by convention. Changes that touch a trust boundary are reviewed with the project's security review procedure ([`.claude/skills/refrain-security-review/SKILL.md`](.claude/skills/refrain-security-review/SKILL.md)).
+- **Reviews.** Changes reach `main` only through pull requests, and are reviewed independently where possible. Since the repository became public, branch protection enforces this on `main` ([docs/development.md](docs/development.md#repository-protection)). Changes that touch a trust boundary are reviewed with the project's security review procedure ([`.claude/skills/refrain-security-review/SKILL.md`](.claude/skills/refrain-security-review/SKILL.md)).
 - **Dependencies.** Versions are pinned exactly and the lockfile is committed. pnpm installs only versions published at least seven days earlier, and blocks dependency install scripts unless they are explicitly allowed. Advisories are evaluated with `pnpm audit`.
 - **CI** has read-only permissions and no secrets, and its actions are pinned to full commit SHAs. It runs on `pull_request`, never `pull_request_target`, so a pull request from a fork gets no secret and no write token. Requiring the maintainer's approval before a fork's workflows run is a repository setting, enabled at publication ([docs/development.md](docs/development.md#repository-protection)), not something the workflow can guarantee.
 - **Fixes** are made on a branch, with a regression test where the problem can be tested. Once the repository is public, a confirmed vulnerability gets a GitHub security advisory.

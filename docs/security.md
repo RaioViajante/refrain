@@ -395,8 +395,8 @@ The Home's expansion under [ADR 0006 A6](decisions/0006-publication-decision-and
 | HTTP-level privacy tests (404 versus 308, metadata, caches) | M2, M3 | **Built in M3.1 for the album-journal page, the sitemap, and `robots.txt`** (see Implemented, M3.1), **in M3.4 for the Home's listings** (see Implemented, M3.4), **and in M3.5 for the artist pages** (see Implemented, M3.5). **Memories in M3.7 and the archive pages in M3.8a too** (see Implemented, M3.7 and M3.8a). Artist journals have no page yet |
 | Optimistic concurrency on saves | M2 for other entry kinds and track reflections | Done for album-journal text (M1.3B) |
 | Scheduled off-device backups of a hosted database, and a restore tested on the real data | Before any hosted database holds real writing | A local tool exists and a restore was rehearsed on synthetic data ([Development § Backup and restore](development.md#backup-and-restore)). Nothing is scheduled, and nothing protects against losing the device or the Docker volume until the owner copies backups elsewhere |
-| Private vulnerability reporting channel | Before the repository becomes public | GitHub private vulnerability reporting, enabled by the owner at publication. [`SECURITY.md`](../SECURITY.md) describes how to use it, and a fallback |
-| Branch protection | When the plan allows it, or when the repository becomes public | Followed by convention until publication, then enforced on `main` ([Development § Repository protection](development.md#repository-protection)) |
+| Private vulnerability reporting channel | Before the repository becomes public | **Done (2026-11-06):** GitHub private vulnerability reporting, enabled at publication and verified. [`SECURITY.md`](../SECURITY.md) describes how to use it, and a fallback |
+| Branch protection | When the plan allows it, or when the repository becomes public | **Done (2026-11-06):** enforced on `main` since publication ([Development § Repository protection](development.md#repository-protection)) |
 | Automated dependency advisory alerts | Not decided | Advisories are checked manually with `pnpm audit` |
 
 ## Required tests
@@ -517,7 +517,7 @@ ADR 0006 requires, as an M3.1 deliverable with its own tests, a server-only, def
 
 ## Public-release gate
 
-Making the **repository** public is a separate decision from deploying the application, and only the repository owner makes it. Agents and contributors never change the repository's visibility. Before visibility changes, every item below must be checked and its result recorded in the issue or pull request that prepares the release:
+Making the **repository** public is a separate decision from deploying the application, and only the repository owner makes it. Agents and contributors never change the repository's visibility on their own. The one exception, the publication on 2026-11-06, was specifically authorized by the owner for that operation alone ([evidence](evidence/public-release.md#one-time-authorization)). **Status:** passed, and the repository has been public since 2026-11-06 ([evidence](evidence/public-release.md)). Before visibility changes, every item below must be checked and its result recorded in the issue or pull request that prepares the release:
 
 1. **No committed credentials.** No real secret is present in any tracked file: tokens, passwords, keys, or connection strings. The placeholder values for disposable local and CI databases are not secrets.
 2. **History reviewed for secrets.** The full Git history of every branch is scanned, for example with `gitleaks git --redact --log-opts="--all"`, and every finding is resolved. If a real secret is found, it is rotated first, and only then removed from history (see [Secrets](#secrets)).
