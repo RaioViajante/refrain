@@ -1,6 +1,8 @@
 # Hosted Launch: Custom Domain and Public Release (M5)
 
-**Status: plan only (2026-11-06).** Nothing below has been executed:
+**Status (2026-11-06): S1 and S2 done; S3 and S4 not started.** The Studio is on `https://refrain.raioviajante.com`, served by `dpl_BzRwrBYXiX9U7dDVp23kbXxhDWr7` (`4caf07b`), behind Vercel Authentication on All Deployments, with public reads off ([Evidence: M5 hosting](evidence/m5-hosting.md)). The state table in § 1 is the state before S1.
+
+**When this plan was written, nothing below had been executed:**
 - no DNS record, Vercel domain, environment variable, deployment, or protection setting has changed;
 - public reads stay off;
 - every hosted release gate (G1 to G8, [#47](https://github.com/RaioViajante/refrain/issues/47)) stays open.
@@ -179,7 +181,7 @@ On the day, with S1 done and verified:
    - CI green on it;
    - locally `pnpm install --frozen-lockfile`, `pnpm build` (no `DATABASE_URL`).
 3. **Rollback preflight, immediately before changing anything.** Stop if any of these fails:
-   - `dpl_HTKitAaHNyYV67zf8bUHyp95ZdNq` is Ready, and is the current production target (Vercel API);
+   - `dpl_HTKitAaHNyYV67zf8bUHyp95ZdNq` is Ready, and every production address points at it, **checked alias by alias** (`GET /v4/aliases/<hostname>`). Not by the project's "production target" field, which names the most recent production deployment even when it was cancelled;
    - the author signs in on `https://refrain-chi.vercel.app` **today**, which proves that it still serves with its own `BETTER_AUTH_URL`;
    - `vercel promote --help` works with the installed CLI;
    - the deployment was not deleted, and no newer production deployment exists.
