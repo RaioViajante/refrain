@@ -1,6 +1,6 @@
 # Security Policy
 
-Refrain is a single-author personal music journal. Its security goal is that the author's unpublished writing stays private and that nobody else can change it, **even someone who has read every line of this repository**. The source code is meant to become public, so Refrain's security never depends on keeping the code, the schema, or the route structure secret.
+Refrain is a single-author personal music journal. Its security goal is that the author's unpublished writing stays private and that nobody else can change it, **even someone who has read every line of this repository**. The source code is public, so Refrain's security never depends on keeping the code, the schema, or the route structure secret.
 
 ## Project status
 
