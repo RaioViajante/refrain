@@ -113,6 +113,24 @@ jobs:
       - name: Summary (no content)
         run: cat "$RUNNER_TEMP/refrain-backup-out/summary.txt" >> "$GITHUB_STEP_SUMMARY"
 
+      # Belt and braces: the step above fails on any error and writes its
+      # output only after the restore check, but nothing is uploaded unless
+      # the folder holds exactly one age bundle, its matching checksum, and a
+      # summary that says the restore check passed.
+      - name: Only a verified, encrypted bundle is uploaded
+        working-directory: ${{ runner.temp }}/refrain-backup-out
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          bundles=(refrain-*.tar.age)
+          test "${#bundles[@]}" -eq 1
+          test "$(find . -mindepth 1 | wc -l)" -eq 3
+          test -f "${bundles[0]}.sha256" && test -f summary.txt
+          sha256sum --check --strict "${bundles[0]}.sha256"
+          test "$(head -c 21 "${bundles[0]}")" = "age-encryption.org/v1"
+          grep -qx 'restore_check=passed (plaintext dump, before encryption)' summary.txt
+          ! grep -aq -e 'AGE-SECRET-KEY' -e 'postgres://' -e 'PGDMP' "${bundles[0]}" summary.txt
+
       - name: Keep the encrypted bundle for 90 days
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

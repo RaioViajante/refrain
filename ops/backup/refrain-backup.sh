@@ -17,6 +17,11 @@
 #       The owner's restore drill: decrypts with the owner's identity, restores
 #       into a NEW database on a disposable restore server, and compares with
 #       the fingerprint taken at backup time.
+#   refrain-backup reconcile <restore candidate.tar.age> <newer bundle.tar.age>
+#       Recovery review: decrypts only the two inventories and lists, by
+#       identifier and state, the entries the candidate holds that the newer
+#       backup no longer held (deleted permanently since), and those whose
+#       publication state differs. Never content.
 #
 # Configuration comes from the environment only; nothing secret is ever an
 # argument or printed:
@@ -29,6 +34,11 @@
 #   REFRAIN_BACKUP_TEST_ONLY_INSECURE_SOURCE=1
 #       Tests only: allows a source without TLS, and only on a loopback host
 #       and a database named *_test.
+#   REFRAIN_BACKUP_TEST_PAUSE=<dir>:<point>
+#       Tests only, and only with the variable above: waits at <point>
+#       (snapshot: after the snapshot is exported; restore: after the scratch
+#       database exists) until <dir>/<point>.continue appears, so a test can
+#       write concurrently or interrupt the run.
 set -Eeuo pipefail
 umask 077
 export LC_ALL=C.UTF-8 PGTZ=UTC PGAPPNAME=refrain-backup PGCONNECT_TIMEOUT=30
@@ -126,6 +136,18 @@ create_placeholder_roles() {
       placeholder_roles+=("$role")
     fi
   done < <(sed -nE 's/^role\|//p' "$fingerprint")
+}
+
+test_pause() {
+  local spec=${REFRAIN_BACKUP_TEST_PAUSE:-}
+  [[ -n $spec && ${REFRAIN_BACKUP_TEST_ONLY_INSECURE_SOURCE:-} == 1 ]] || return 0
+  local directory=${spec%:*} point=${spec##*:} waited=0
+  [[ $point == "$1" ]] || return 0
+  : >"$directory/$point.reached"
+  until [[ -e $directory/$point.continue ]]; do
+    ((waited++ < 1200)) || die "test pause timed out"
+    sleep 0.1
+  done
 }
 
 new_work_directory() {
@@ -270,6 +292,7 @@ restore_and_verify() {
   scratch_database=$name
   local target="$restore_maintenance dbname=$scratch_database"
   create_placeholder_roles "$bundle/source.fingerprint"
+  test_pause restore
 
   # One transaction, stopping at the first error. No --clean: the database is
   # new, and nothing existing is dropped or overwritten. Owners and grants are
@@ -362,6 +385,7 @@ cmd_backup() {
   local snapshot
   snapshot="$(head -n 1 "$work/snapshot.id")"
   [[ $snapshot =~ ^[0-9A-F]+-[0-9A-F]+-[0-9]+$ ]] || die "unexpected snapshot identifier"
+  test_pause snapshot
 
   mkdir "$work/bundle"
   local wrapper="$work/fingerprint-run.sql"
@@ -472,10 +496,41 @@ cmd_drill() {
   say "drill passed: decrypted with the owner's key, restored into a new PostgreSQL $REQUIRED_MAJOR database, and identical to the backup-time fingerprint ($tables_verified tables); made $(sed -nE 's/^created=//p' "$bundle/meta.txt")"
 }
 
+inventory_of() {
+  # $1 bundle, $2 output file: only inventory.txt is extracted, never the dump.
+  check_sidecar "$1"
+  # shellcheck disable=SC2016 # expanded by the inner bash, from its arguments
+  run_tool "decryption failed (wrong key, or a damaged bundle)" bash -o pipefail -c \
+    'age -d -i "$1" "$2" | tar -xOf - bundle/inventory.txt > "$3"' _ "$REFRAIN_BACKUP_IDENTITY_FILE" "$1" "$2"
+}
+
+cmd_reconcile() {
+  local candidate=${1:-} newer=${2:-}
+  command -v age >/dev/null || die "age is not installed"
+  [[ -n ${REFRAIN_BACKUP_IDENTITY_FILE:-} && -f $REFRAIN_BACKUP_IDENTITY_FILE ]] ||
+    die "REFRAIN_BACKUP_IDENTITY_FILE is not a file"
+  new_work_directory
+  inventory_of "$candidate" "$work/candidate.txt"
+  inventory_of "$newer" "$work/newer.txt"
+  # entry|<id>|<kind>|deleted=<bool>|<locale:status,...>
+  awk -F'|' '
+    FNR == NR { if ($1 == "entry") newer[$2] = $0; next }
+    $1 == "entry" {
+      if (!($2 in newer)) { print "deleted-since|" $2 "|" $3; next }
+      if (newer[$2] != $0) {
+        split(newer[$2], now, "|")
+        print "changed-since|" $2 "|" $3 "|then " $4 " " $5 "|now " now[4] " " now[5]
+      }
+    }
+  ' "$work/newer.txt" "$work/candidate.txt" | sort
+  say "reconciled: entries above were deleted or changed after the candidate backup; review each before the restored copy is used"
+}
+
 tables_verified=0
 case "${1:-}" in
   backup) cmd_backup "${2:-}" ;;
   check) cmd_check "${2:-}" ;;
   drill) cmd_drill "${2:-}" ;;
-  *) die "usage: refrain-backup backup <empty dir> | check <bundle.tar.age> | drill <bundle.tar.age>" ;;
+  reconcile) cmd_reconcile "${2:-}" "${3:-}" ;;
+  *) die "usage: refrain-backup backup <empty dir> | check <bundle.tar.age> | drill <bundle.tar.age> | reconcile <candidate.tar.age> <newer.tar.age>" ;;
 esac

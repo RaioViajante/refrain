@@ -209,9 +209,19 @@ jobs:
           TEST_DATABASE_URL: postgres://refrain_test:refrain-test-ci-only@127.0.0.1:5432/refrain_test
 
       # The hosted-backup toolchain (ops/backup, F-02) on scratch databases of
-      # this job's PostgreSQL 18 service. It builds the tools image (Debian
-      # packages over the network) and needs no secret.
+      # the Compose postgres-test-18 service (the one the owner's drill uses),
+      # so db:backup:verify --postgres=18, which reaches its container through
+      # `docker compose exec`, runs here too and no test is skipped. It builds
+      # the tools image (Debian packages over the network) and needs no secret.
+      # POSTGRES_PASSWORD only satisfies compose.yaml's interpolation of the
+      # development service, which is never started here.
+      - name: Start the Compose PostgreSQL 18 test server
+        run: docker compose --profile test-18 up --detach --wait postgres-test-18
+        env:
+          POSTGRES_PASSWORD: unused-in-ci
+
       - name: Hosted-backup tests (PostgreSQL 18)
         run: pnpm test:backup
         env:
-          TEST_DATABASE_URL: postgres://refrain_test:refrain-test-ci-only@127.0.0.1:5432/refrain_test
+          TEST_DATABASE_URL: postgres://refrain_test:refrain-test-local-only@127.0.0.1:5434/refrain_test
+          POSTGRES_PASSWORD: unused-in-ci

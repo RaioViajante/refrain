@@ -38,11 +38,34 @@ Restoring a whole database from a backup is a far larger restore than ADR 0005's
 
 ### 2. Retention, explicit and bounded
 
-1. **Daily bundles:** 90 days (`retention-days: 90`), then GitHub deletes them.
-2. **Monthly owner copies:** 12 months. The owner deletes older copies from every place at the monthly drill.
-3. **Nothing is kept indefinitely.** A longer-lived archive (for example, a yearly copy) needs a new, explicit decision.
-4. **Stated exception to ADR 0003's minimal retention:** writing that the author permanently deletes can survive in encrypted backups for up to **90 days** in daily bundles and **12 months** in monthly copies, readable only with the owner's key. Writing that must disappear sooner needs a manual step: delete the bundles and copies made since that writing existed.
-5. **Truthful copy (as INV-4 requires for purge):** when the Studio gets its "Delete now" control (M2.4), its confirmation must say that encrypted backups keep the writing for up to the retention above. No text may say that permanent deletion also removes it from backups.
+1. **Daily bundles** expire after **90 days** (`retention-days: 90`). GitHub then deletes them, and a deleted artifact "cannot be restored".
+2. **Monthly owner copies** expire after **12 months**. At each monthly drill, the owner deletes copies older than that from every place they were kept: iCloud Drive and the offline drive.
+3. **Nothing is retained indefinitely by policy.** A longer-lived archive, such as a yearly copy, needs a new, explicit decision.
+
+### 2a. The retention exception to ADR 0003 (stated, not silent)
+
+ADR 0003 promises that permanent deletion keeps nothing of the writing except slugs that were already public. Backups change what "permanent" means. If this ADR is accepted, the promise reads:
+
+1. **"Delete now" removes the writing from the serving application at once.** That is the database the Studio and the public pages read. Nothing changes there: `permanentlyDeleteEntry` behaves as ADR 0003 says.
+2. **Historical encrypted backups made while the writing existed can still hold it,** until they expire:
+   - at most **90 days** in daily bundles;
+   - at most **12 months** in monthly owner copies.
+
+   Only the owner's private key can read them.
+3. **After that, nothing of it remains anywhere**, by policy, except the reserved slugs of ADR 0003.
+4. **Writing that must disappear sooner** needs a manual step: delete every bundle and copy made while it existed. Doing so also removes those days from the backup history.
+5. **A recovery never brings it back silently:** see § 3.4.
+
+On acceptance, ADR 0003's status line gets a note pointing to this section. Its decision is not edited. The same note goes on [Security § Data protection](../security.md#data-protection), [Data Model § Retention after permanent deletion](../data-model.md), and [Product](../product.md) item 7, which today mark this as proposed.
+
+### 2b. Truthful copy for the future "Delete now" control
+
+INV-4 requires truthful recovery wording, and the same rule applies here. The Studio has no "Delete now" control yet (M2.4), and no interface text today says that deleted writing is erased. When the control is built, its confirmation must state the backup retention, and no text may say that permanent deletion also removes writing from backups. **Proposed** wording, for the owner's approval with M2.4 (it changes nothing now):
+
+- **en:** "Delete permanently? This removes the journal and everything in it from Refrain now. It cannot be restored from Recently deleted. Encrypted backups made while it existed keep a copy until they expire: up to 90 days, and up to 12 months in monthly copies."
+- **pt-BR:** "Excluir permanentemente? Isto remove agora o diário e tudo o que ele contém do Refrain. Não será possível restaurá-lo de Excluídos recentemente. Os backups criptografados feitos enquanto ele existia guardam uma cópia até expirarem: até 90 dias, e até 12 meses nas cópias mensais."
+
+The pt-BR wording must use the Studio's existing name for *Recently deleted* when M2.4 is built.
 
 ### 3. What a recovery may do
 
@@ -51,7 +74,7 @@ A restore from a backup:
 1. **Never targets the serving database.** It goes into a new database or branch. The switch to it is a separate, deliberate step.
 2. **Never restores sessions, verification values, or rate-limit counters.** Their rows are not in a backup. The `BETTER_AUTH_SECRET` is rotated as part of a recovery, so no earlier cookie or confirmation token is valid.
 3. **Makes nothing public.** Before the application uses the restored copy, every `published` language version becomes `private`, and its `published_at` is cleared, in one transaction (`ops/backup/recovery-demote.sql`). A read-only check (`ops/backup/recovery-check.sql`) fails while any version is published, and is run immediately before the switch. Both are tested, but they are steps of the owner's procedure, not something the application enforces. Publication history and slugs are kept, as ADR 0005 does for a single journal. `REFRAIN_PUBLIC_READS_ENABLED` stays `false` until the release gates are re-run. The author republishes through the confirmed workflow of ADR 0006.
-4. **Never silently brings back permanently deleted writing.** Each bundle carries an inventory of entry identifiers and states, never content. The restored inventory is compared with the newest inventory available. An entry missing from a later backup was permanently deleted after this backup: the owner reviews each one and deletes it again before the copy is used. If no later inventory exists, the owner reviews every restored entry, all of which are private by rule 3.
+4. **Never silently brings back permanently deleted writing.** Each bundle carries an inventory of entry identifiers and states, never content. `refrain-backup reconcile <candidate> <newer>` compares the restored candidate's inventory with the newest one available (tested). An entry missing from a later backup was permanently deleted after this backup: the owner reviews each one and deletes it again before the copy is used. If no later inventory exists, the owner reviews every restored entry, all of which are private by rule 3.
 
 ### 4. What the automation may hold
 

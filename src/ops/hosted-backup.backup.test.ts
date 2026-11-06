@@ -8,12 +8,13 @@
 // removed by name in afterAll. The tools run in the image built from
 // ops/backup/Dockerfile, attached to the test server's network namespace, as
 // the scheduled job runs them.
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import {
   chmodSync,
   copyFileSync,
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
@@ -28,7 +29,7 @@ import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { schema, type Transaction } from "@/db";
+import { closeDb, schema, type Transaction } from "@/db";
 import {
   createTestAlbum,
   createTestAlbumJournal,
@@ -80,6 +81,13 @@ function tools(
   command: string[],
   options: { out?: string; env?: Record<string, string> } = {},
 ) {
+  return docker(toolsArgs(command, options));
+}
+
+function toolsArgs(
+  command: string[],
+  options: { out?: string; env?: Record<string, string>; name?: string },
+) {
   const env = {
     PGSERVICEFILE: "/cfg/pg_service.conf",
     PGPASSFILE: "/cfg/pgpass",
@@ -88,9 +96,10 @@ function tools(
     REFRAIN_BACKUP_TEST_ONLY_INSECURE_SOURCE: "1",
     ...options.env,
   };
-  return docker([
+  return [
     "run",
     "--rm",
+    ...(options.name ? ["--name", options.name] : []),
     "--network",
     `container:${serverContainer}`,
     "--user",
@@ -101,7 +110,74 @@ function tools(
     ...Object.entries(env).flatMap(([key, value]) => ["-e", `${key}=${value}`]),
     IMAGE,
     ...command,
-  ]);
+  ];
+}
+
+/** Starts a tools command without waiting for it. */
+function toolsInBackground(
+  command: string[],
+  options: { out?: string; env?: Record<string, string>; name: string },
+) {
+  const child = spawn("docker", toolsArgs(command, options));
+  let stdout = "";
+  let stderr = "";
+  child.stdout.on("data", (chunk) => (stdout += String(chunk)));
+  child.stderr.on("data", (chunk) => (stderr += String(chunk)));
+  const done = new Promise<{
+    code: number | null;
+    stdout: string;
+    stderr: string;
+  }>((resolvePromise) =>
+    child.on("close", (code) => resolvePromise({ code, stdout, stderr })),
+  );
+  return { done };
+}
+
+async function waitForFile(path: string, timeoutMs = 120_000) {
+  const start = Date.now();
+  while (!existsSync(path)) {
+    if (Date.now() - start > timeoutMs) {
+      throw new Error(`timed out waiting for ${path}`);
+    }
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 100));
+  }
+}
+
+/** A directory under the mounted configuration for one test pause. */
+function pauseDirectory(name: string) {
+  const directory = join(config, name);
+  mkdirSync(directory);
+  chmodSync(directory, 0o777);
+  return { host: directory, container: `/cfg/${name}` };
+}
+
+/**
+ * The public Home, read through the application's real public entry point
+ * (the switch, then the publication predicate), against one database.
+ */
+async function publicHomeOf(database: string, readsEnabled: boolean) {
+  const url = new URL(admin);
+  url.pathname = `/${database}`;
+  const saved = {
+    DATABASE_URL: process.env.DATABASE_URL,
+    REFRAIN_PUBLIC_READS_ENABLED: process.env.REFRAIN_PUBLIC_READS_ENABLED,
+  };
+  await closeDb();
+  process.env.DATABASE_URL = url.toString();
+  process.env.REFRAIN_PUBLIC_READS_ENABLED = readsEnabled ? "true" : "false";
+  try {
+    const { getPublicHome } = await import("@/modules/publication/public");
+    return await getPublicHome("en");
+  } finally {
+    await closeDb();
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  }
 }
 
 function newOutput(): string {
@@ -499,6 +575,54 @@ describe("a backup (refrain-backup backup)", () => {
     expect(readFileSync(join(out, name)).includes("[Test] F02")).toBe(false);
   });
 
+  it("passes the automation template's upload guard, which refuses anything else", () => {
+    const workflow = readFileSync(
+      join(
+        repositoryRoot,
+        "ops/backup/automation/.github/workflows/backup.yml",
+      ),
+      "utf8",
+    );
+    const guard =
+      /- name: Only a verified, encrypted bundle is uploaded\n(?:.*\n)*?\s+run: \|\n((?:\s{10}.*\n)+)/.exec(
+        workflow,
+      )?.[1];
+    expect(guard, "the guard step's script").toBeDefined();
+    const script = guard!.replace(/^ {10}/gm, "");
+    const runGuard = (directory: string) =>
+      tools(["bash", "-c", `cd /out && bash -c "$GUARD"`], {
+        out: directory,
+        env: { GUARD: script },
+      });
+    expect(runGuard(out).code, runGuard(out).stderr).toBe(0);
+
+    const name = bundleIn(out);
+    const variants: [string, (directory: string) => void][] = [
+      ["an extra file", (d) => writeFileSync(join(d, "refrain.dump"), "PGDMP")],
+      ["no summary", (d) => rmSync(join(d, "summary.txt"))],
+      [
+        "a summary without a passed restore",
+        (d) => writeFileSync(join(d, "summary.txt"), "restore_check=failed\n"),
+      ],
+      [
+        "a changed bundle",
+        (d) =>
+          writeFileSync(
+            join(d, name),
+            Buffer.from("age-encryption.org/v1 changed"),
+          ),
+      ],
+    ];
+    for (const [label, change] of variants) {
+      const copy = newOutput();
+      for (const file of readdirSync(out)) {
+        copyFileSync(join(out, file), join(copy, file));
+      }
+      change(copy);
+      expect(runGuard(copy).code, label).not.toBe(0);
+    }
+  });
+
   it("is intact without being decrypted (refrain-backup check)", () => {
     const checked = tools(
       ["refrain-backup", "check", `/out/${bundleIn(out)}`],
@@ -639,7 +763,22 @@ describe("a backup (refrain-backup backup)", () => {
       });
     });
 
-    it("is made private by recovery-demote.sql, which recovery-check.sql requires before a switch", () => {
+    it("is served by nothing while public reads are off, and the switch alone would serve it if the demotion were skipped", async () => {
+      const off = await publicHomeOf(copyDatabase, false);
+      expect(off).toEqual({
+        recent: [],
+        albums: [],
+        artists: [],
+        memories: [],
+      });
+      // Why the demotion is a required step: a restored copy keeps the
+      // backup's publication state, so turning the switch on is enough.
+      const skipped = await publicHomeOf(copyDatabase, true);
+      expect(skipped.recent).toHaveLength(1);
+      expect(skipped.albums).toHaveLength(1);
+    });
+
+    it("is made private by recovery-demote.sql, which recovery-check.sql requires before a switch", async () => {
       const sql = (file: string) =>
         tools([
           "psql",
@@ -659,6 +798,13 @@ describe("a backup (refrain-backup backup)", () => {
       expect(after.code, after.stderr).toBe(0);
       expect(after.stdout.trim()).toBe("published|0");
       expect(sql("recovery-demote.sql").stdout.trim()).toBe("demoted|0");
+      // After the demotion, even with the switch on, nothing is public.
+      expect(await publicHomeOf(copyDatabase, true)).toEqual({
+        recent: [],
+        albums: [],
+        artists: [],
+        memories: [],
+      });
     });
 
     it("keeps the publication history and slugs after the demotion", async () => {
@@ -1031,5 +1177,291 @@ describe("refusals", () => {
     const busy = tools(["refrain-backup", "backup", "/out"], { out });
     expect(busy.code).not.toBe(0);
     expect(busy.stderr).toMatch(/not empty/);
+  });
+});
+
+describe("a passphrase-protected owner key (as docs/hosted-backups.md generates it)", () => {
+  const passphrase = `f02 ${randomBytes(12).toString("base64url")}`;
+  // age reads a passphrase only from a terminal: `script` gives it one, and
+  // the passphrase arrives on its input as if typed. Neither the terminal
+  // (stty -echo) nor `script` itself (--echo never) echoes it.
+  const typed = (command: string, input: string, out: string, env = {}) =>
+    tools(
+      [
+        "bash",
+        "-c",
+        `printf '%s' "$TYPED" | script --quiet --echo never --return --command ${JSON.stringify(`stty -echo; ${command}`)} /dev/null`,
+      ],
+      { out, env: { TYPED: input, ...env } },
+    );
+  let out: string;
+
+  beforeAll(() => {
+    mkdirSync(join(config, "protected"));
+    chmodSync(join(config, "protected"), 0o777);
+    const generated = typed(
+      "age-keygen 2>/cfg/protected/keygen.txt | age -p -a -o /cfg/protected/identity.age",
+      `${passphrase}\n${passphrase}\n`,
+      newOutput(),
+    );
+    expect(generated.code, generated.stdout).toBe(0);
+    const recipient = /^Public key: (age1[0-9a-z]+)$/m.exec(
+      readFileSync(join(config, "protected/keygen.txt"), "utf8"),
+    )?.[1];
+    expect(recipient).toBeDefined();
+    writeFileSync(join(config, "protected/recipients.txt"), `${recipient}\n`);
+    out = newOutput();
+    const backup = tools(["refrain-backup", "backup", "/out"], {
+      out,
+      env: { REFRAIN_BACKUP_RECIPIENTS_FILE: "/cfg/protected/recipients.txt" },
+    });
+    expect(backup.code, backup.stderr).toBe(0);
+  });
+
+  it("stores the private key only encrypted", () => {
+    const identity = readFileSync(
+      join(config, "protected/identity.age"),
+      "utf8",
+    );
+    expect(identity.startsWith("-----BEGIN AGE ENCRYPTED FILE-----")).toBe(
+      true,
+    );
+    expect(identity).not.toContain("AGE-SECRET-KEY");
+  });
+
+  it("decrypts and passes the drill with the right passphrase, and prints neither the passphrase nor a key", () => {
+    const drill = typed(
+      `refrain-backup drill /out/${bundleIn(out)}`,
+      `${passphrase}\n`,
+      out,
+      { REFRAIN_BACKUP_IDENTITY_FILE: "/cfg/protected/identity.age" },
+    );
+    expect(drill.code, drill.stdout).toBe(0);
+    expect(drill.stdout).toMatch(/drill passed/);
+    expect(drill.stdout).not.toContain(passphrase);
+    expect(drill.stdout).not.toContain("AGE-SECRET-KEY");
+    expect(drill.stdout).not.toContain("[Test]");
+  });
+
+  it("fails with a wrong passphrase, and with another identity, restoring nothing", async () => {
+    const wrong = typed(
+      `refrain-backup drill /out/${bundleIn(out)}`,
+      "not the passphrase\n",
+      out,
+      { REFRAIN_BACKUP_IDENTITY_FILE: "/cfg/protected/identity.age" },
+    );
+    expect(wrong.code).not.toBe(0);
+    expect(wrong.stdout).toMatch(/decryption failed/);
+    expect(wrong.stdout).not.toContain(passphrase);
+    const other = tools(["refrain-backup", "drill", `/out/${bundleIn(out)}`], {
+      out,
+    });
+    expect(other.code).not.toBe(0);
+    expect(other.stderr).toMatch(/decryption failed/);
+    const left = await asAdmin(
+      "refrain_test",
+      async (client) =>
+        (
+          await client.query(
+            "select 1 from pg_database where datname like 'refrain\\_verify\\_%'",
+          )
+        ).rowCount,
+    );
+    expect(left).toBe(0);
+  });
+});
+
+describe("consistency and interruption", () => {
+  it("dumps and fingerprints one snapshot, so a write during the backup is in neither", async () => {
+    const pause = pauseDirectory("pause-snapshot");
+    const out = newOutput();
+    const late = `[Test] F02 late ${run}`;
+    const running = toolsInBackground(["refrain-backup", "backup", "/out"], {
+      out,
+      name: `refrain-f02-snap-${run}`,
+      env: { REFRAIN_BACKUP_TEST_PAUSE: `${pause.container}:snapshot` },
+    });
+    try {
+      await waitForFile(join(pause.host, "snapshot.reached"));
+      await asAdmin(sourceDatabase, async (client) => {
+        await client.query(
+          "insert into artists (name, kind) values ($1, 'person')",
+          [late],
+        );
+        await client.query(
+          "update entry_texts set body_text = body_text || ' [Test] edited late' where status = 'draft'",
+        );
+      });
+    } finally {
+      writeFileSync(join(pause.host, "snapshot.continue"), "");
+    }
+    const result = await running.done;
+    try {
+      // The restore check compared the dump with a fingerprint of the same
+      // snapshot: had either seen the write, the comparison would fail.
+      expect(result.code, result.stderr).toBe(0);
+      const dumped = tools(
+        [
+          "bash",
+          "-o",
+          "pipefail",
+          "-c",
+          `age -d -i /cfg/identity.txt /out/${bundleIn(out)} | tar -xOf - bundle/refrain.dump | pg_restore --data-only --table=artists --table=entry_texts -f -`,
+        ],
+        { out },
+      );
+      expect(dumped.code, dumped.stderr).toBe(0);
+      expect(dumped.stdout).toContain("[Test] F02 Artist");
+      expect(dumped.stdout).not.toContain(late);
+      expect(dumped.stdout).not.toContain("edited late");
+    } finally {
+      await asAdmin(sourceDatabase, async (client) => {
+        await client.query("delete from artists where name = $1", [late]);
+        await client.query(
+          "update entry_texts set body_text = replace(body_text, ' [Test] edited late', '') where status = 'draft'",
+        );
+      });
+    }
+  });
+
+  it("removes its scratch database and placeholder roles when interrupted mid-restore", async () => {
+    const role = `refrain_gone_${run}`;
+    await asAdmin(sourceDatabase, (client) =>
+      client.query(
+        `create role ${role} nologin; grant select on public.albums to ${role}`,
+      ),
+    );
+    const out = newOutput();
+    const backup = tools(["refrain-backup", "backup", "/out"], { out });
+    expect(backup.code, backup.stderr).toBe(0);
+    await asAdmin(sourceDatabase, (client) =>
+      client.query(
+        `revoke select on public.albums from ${role}; drop role ${role}`,
+      ),
+    );
+    const pause = pauseDirectory("pause-restore");
+    const name = `refrain-f02-int-${run}`;
+    const running = toolsInBackground(
+      ["refrain-backup", "drill", `/out/${bundleIn(out)}`],
+      {
+        out,
+        name,
+        env: { REFRAIN_BACKUP_TEST_PAUSE: `${pause.container}:restore` },
+      },
+    );
+    await waitForFile(join(pause.host, "restore.reached"));
+    const during = await asAdmin("refrain_test", async (client) => ({
+      scratch: (
+        await client.query(
+          "select 1 from pg_database where datname like 'refrain\\_verify\\_%'",
+        )
+      ).rowCount,
+      role: (
+        await client.query("select 1 from pg_roles where rolname = $1", [role])
+      ).rowCount,
+    }));
+    expect(during).toEqual({ scratch: 1, role: 1 });
+    docker(["kill", "--signal", "TERM", name]);
+    const result = await running.done;
+    expect(result.code).not.toBe(0);
+    const after = await asAdmin("refrain_test", async (client) => ({
+      scratch: (
+        await client.query(
+          "select 1 from pg_database where datname like 'refrain\\_verify\\_%'",
+        )
+      ).rowCount,
+      role: (
+        await client.query("select 1 from pg_roles where rolname = $1", [role])
+      ).rowCount,
+    }));
+    expect(after).toEqual({ scratch: 0, role: 0 });
+  });
+});
+
+describe("the recovery review (refrain-backup reconcile)", () => {
+  it("lists writing deleted and publication changed after a backup, by identifier only", async () => {
+    let doomed = "";
+    await asAdmin(sourceDatabase, async (client) => {
+      const db = drizzle({ client, schema });
+      await db.transaction(async (raw) => {
+        doomed = await createTestMemory(raw as unknown as Transaction, {
+          versions: [
+            { locale: "en", status: "private", text: "[Test] F02 doomed" },
+          ],
+        });
+      });
+    });
+    const older = newOutput();
+    expect(
+      tools(["refrain-backup", "backup", "/out"], { out: older }).code,
+    ).toBe(0);
+    let published = "";
+    await asAdmin(sourceDatabase, async (client) => {
+      // A permanent deletion, as "Delete now" removes an entry and what it owns.
+      await client.query("delete from entry_texts where entry_id = $1", [
+        doomed,
+      ]);
+      await client.query("delete from memories where entry_id = $1", [doomed]);
+      await client.query("delete from entries where id = $1", [doomed]);
+      published = (
+        await client.query<{ entry_id: string }>(
+          "update entry_texts set status = 'private', published_at = null where status = 'published' returning entry_id",
+        )
+      ).rows[0]!.entry_id;
+    });
+    try {
+      const newer = newOutput();
+      expect(
+        tools(["refrain-backup", "backup", "/out"], { out: newer }).code,
+      ).toBe(0);
+      const both = newOutput();
+      for (const [from, label] of [
+        [older, "older"],
+        [newer, "newer"],
+      ] as const) {
+        const name = bundleIn(from);
+        copyFileSync(join(from, name), join(both, `${label}-${name}`));
+        copyFileSync(
+          join(from, `${name}.sha256`),
+          join(both, `${label}-${name}.sha256`),
+        );
+        writeFileSync(
+          join(both, `${label}-${name}.sha256`),
+          readFileSync(join(both, `${label}-${name}.sha256`), "utf8").replace(
+            name,
+            `${label}-${name}`,
+          ),
+        );
+      }
+      const [olderName, newerName] = ["older", "newer"].map((label) =>
+        readdirSync(both).find(
+          (n) => n.startsWith(`${label}-`) && n.endsWith(".tar.age"),
+        )!,
+      );
+      const review = tools(
+        [
+          "refrain-backup",
+          "reconcile",
+          `/out/${olderName}`,
+          `/out/${newerName}`,
+        ],
+        { out: both },
+      );
+      expect(review.code, review.stderr).toBe(0);
+      expect(review.stdout).toContain(`deleted-since|${doomed}|memory`);
+      expect(review.stdout).toMatch(
+        new RegExp(
+          `changed-since\\|${published}\\|album_journal\\|then deleted=false en:published,pt-BR:private\\|now deleted=false en:private,pt-BR:private`,
+        ),
+      );
+      expect(review.stdout).not.toContain("[Test]");
+    } finally {
+      await asAdmin(sourceDatabase, (client) =>
+        client.query(
+          "update entry_texts set status = 'published', published_at = first_published_at where entry_id = $1 and locale = 'en'",
+          [published],
+        ),
+      );
+    }
   });
 });

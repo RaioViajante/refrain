@@ -51,6 +51,7 @@ iCloud Drive and an offline drive, kept 12 months
 | `backup <empty dir>` | Dumps, fingerprints, restores and compares the plaintext dump, encrypts, and writes `refrain-<UTC>.tar.age`, its `.sha256`, and `summary.txt` | The dump restores and equals the source, before encryption |
 | `check <bundle>` | Checks the `.sha256` and the age header | The encrypted file is intact (it is not decrypted) |
 | `drill <bundle>` | Decrypts with the owner's identity, checks the bundle's own records, restores into a new database, and compares with the backup-time fingerprint | The bundle decrypts, and the copy restores and equals the source as it was |
+| `reconcile <candidate> <newer>` | Decrypts only the two inventories, and lists by identifier the entries the candidate holds that the newer bundle no longer held, and those whose state changed | What a recovery from the candidate would bring back that was deleted, or unpublished, since |
 
 **Configuration comes from the environment only.** Nothing secret is an argument, appears in a process listing, or is printed:
 - `PGSERVICEFILE`: libpq services `refrain_source` and `refrain_restore`.
@@ -109,6 +110,7 @@ Dumping the whole database, rather than `--schema=public --schema=drizzle`, mean
 2. The fingerprint and the inventory are read in that snapshot (`SET TRANSACTION SNAPSHOT`), and so is `pg_dump --snapshot=<id>`.
 3. The source and its dump are therefore the same instant, even if the author writes during the run.
 4. Sequence values are not transactional: if a number were drawn during the run, the comparison would fail and the next run would retry. Refrain's only sequence is the migration table's.
+5. **Tested:** a test pauses the run right after the snapshot is exported, then commits a new artist and an edited text. The backup still passes its restore comparison, and neither write is in the dump.
 5. This needs the **direct** Neon endpoint. Neon: "Always use direct connections for `pg_dump`", because PgBouncer's transaction mode does not support `SET`.
 
 ## Verification, at three levels that are not interchangeable
@@ -184,6 +186,14 @@ docker run --rm -it --network none -v "$PWD:/k" refrain-backup-tools \
 
 Then delete `~/refrain-backup-key`. For each drill, export the file from Proton Pass into a `0700` temporary folder, and delete it afterwards.
 
+**Tested with disposable keys:**
+- A key generated exactly this way (passphrase typed on a terminal) is stored encrypted, with no `AGE-SECRET-KEY` in the file.
+- A backup encrypted to its public key passes the drill with the right passphrase.
+- It fails with a wrong passphrase, and with another identity, and restores nothing.
+- Neither the passphrase nor a key appears in the output.
+
+The owner's real key is not created until provisioning.
+
 **Losing both copies of the key makes every backup unreadable.** There is no recovery. Test the offline copy at the first drill. A compromised key: generate a new pair, update the variable, and keep the old key until every bundle encrypted to it has expired. Old bundles stay readable to whoever holds the old key.
 
 Plaintext exists only in the job's temporary directory, inside the tools container (removed on exit, including on failure), and in the drill's temporary directory on the Mac (removed on exit). `tar` streams straight into `age`, so no plaintext archive is ever written.
@@ -219,6 +229,7 @@ README.md                        pointer to this document
   - **GitHub Free:** environments, protected branches, and code-owner reviews are unavailable for private repositories ("Users with GitHub Free plans can only configure environments for public repositories"). The secrets are then repository secrets, and the control is that nobody else has access. Delete the `environment:` line.
   - **GitHub Pro:** add an environment `production-backup` limited to the default branch, holding the secrets, and a ruleset requiring a pull request and the owner's review for the default branch.
   - Required reviewers on the environment would block every scheduled run, so they are not used.
+- **Upload guard:** the upload runs only after a successful backup step. A guard step first requires exactly one `refrain-*.tar.age`, its matching `.sha256`, a summary saying the restore check passed, an age header, and no `AGE-SECRET-KEY`, `postgres://`, or plaintext-dump signature (tested against a real output folder, and against four damaged variants).
 - **Failure reporting:**
   - **A failed run** emails the owner. GitHub sends scheduled-workflow notifications "to the user who initially created the workflow", so the owner must create the workflow file.
   - **A missed run:** GitHub can delay or drop scheduled runs at high load. The freshness workflow fails when no successful run with an unexpired artifact finished in the last 30 hours.
@@ -230,7 +241,11 @@ README.md                        pointer to this document
 GitHub's billing page, read 2026-11-06:
 - **Included each month:** "$12 USD" of Actions compute and "500 MB" of artifact storage on Free; "$18 USD" and "1 GB" on Pro. Compute is a dollar amount, not minutes.
 - **Without a payment method**, "usage is blocked once you consume the included compute usage". That is a failure the freshness check and the drill would surface.
-- **Expected use:** a few minutes a day on `ubuntu-24.04` (image build, about 1 minute; dump, restore, and encryption, under a minute at today's size) and the freshness check. That is well under the included compute. Storage is about 90 bundles × tens of kilobytes, well under 500 MB.
+- **Rate:** standard Linux runners cost "$0.006 per minute", and "GitHub rounds the minutes and partial minutes each job uses up to the nearest whole minute".
+- **Expected use:** about 4 billed minutes for the daily backup (image build, dump, restore, encryption, upload) plus 1 for the freshness check, so about 150 minutes, or about $0.90 a month, against the included $12 (Free) or $18 (Pro). Storage is about 90 bundles × tens of kilobytes, well under 500 MB. Storage accrues hourly, and deleting an artifact frees current storage at once.
+- **The actual billing account was not checked.** The CLI token here lacks the `user` scope that the billing API needs, so the plan, the payment method, and current usage are unknown. Before provisioning, the owner checks https://github.com/settings/billing:
+  - **With no payment method**, usage is blocked at the included amount: no charge, but no backups either until the next month. The freshness check would report it.
+  - **With a payment method**, set a budget for Actions with "Stop usage when budget limit is reached". Without that option, "usage will not be stopped" at the budget. Alerts come at 75%, 90%, and 100%.
 - **Re-estimate** when the database grows.
 - **Retention:** artifacts expire after `retention-days: 90`, within the private-repository maximum of 400 days. Deleting a run deletes its artifacts. A deleted artifact "cannot be restored".
 - **No paid service** is used, and none should be bought for this.
@@ -257,6 +272,10 @@ On the first weekend of each month, about 30 minutes, on the Mac with FileVault 
    ```
 
    It asks for the passphrase and must end with `drill passed`. Then delete `~/refrain-drill/key/` and run `pnpm db:test18:down`. The drill never touches `postgres-test` (17) or the development database.
+
+   **The drill never starts the application.** The restored copy lives only in a scratch database on the local disposable server, which nothing public reads, and it is dropped at the end. Separately, check that `REFRAIN_PUBLIC_READS_ENABLED` is still `false` in Vercel (Production and Preview) before and after: the drill does not depend on it, but a recovery does.
+   - **An interrupted drill or backup** (Ctrl-C, `docker stop`) drops its scratch database and its placeholder roles before exiting (tested).
+   - **A run killed outright** (SIGKILL) can leave a `refrain_verify_…_test` database or a `NOLOGIN` placeholder role, only on the disposable server. `pnpm db:test18:down` discards both, and CI's server is discarded with the job.
 4. **Keep the copy.** Copy the `.tar.age` and its `.sha256` (never a decrypted file) to a private iCloud Drive folder and to the offline encrypted drive. Check `shasum -a 256 -c` on each copy.
 5. **Delete** monthly copies older than 12 months from both places ([ADR 0007 § 2](decisions/0007-hosted-backups-and-retention.md)).
 6. **Record** the date, the bundle name, its sha256, and "drill passed" in the private log (Proton Pass note). Never record the content.
@@ -275,7 +294,10 @@ Never automatic, never into the serving database, and never with public reads on
    3. Run the backup-role audit, and check the runtime role's privileges.
 4. **Make nothing public by the restore** ([ADR 0007 § 3](decisions/0007-hosted-backups-and-retention.md), proposed):
    1. Run [`ops/backup/recovery-demote.sql`](../ops/backup/recovery-demote.sql) on the new database. In one transaction, every `published` language version becomes `private` and its `published_at` is cleared, the same update as the Publication module's own restore (ADR 0005). Publication history and slugs are kept. It fails, changing nothing, if anything published remains (tested).
-   2. Compare the restored inventory with the newest inventory available. Any entry that a later backup no longer had was permanently deleted after this backup. The owner reviews each one and deletes it again before anything else.
+   2. Run `refrain-backup reconcile <restored bundle> <newest bundle available>` (tested).
+      - Each `deleted-since` entry was permanently deleted after this backup: the owner deletes it again before anything else.
+      - Each `changed-since` entry shows its state then and now: the owner decides it.
+      - If no newer bundle exists, the owner reviews every restored entry, all of which are private after step 1.
    3. Run [`ops/backup/recovery-check.sql`](../ops/backup/recovery-check.sql) (read-only) immediately before the switch. It fails while any version is published (tested).
 
    These are steps of the owner's procedure, enforced by tested SQL, not by the application: skipping them is possible, which is why the switch below comes after the check.
@@ -322,5 +344,5 @@ F-02 and G6 close only on recorded evidence that the owner has reviewed:
   All are checked at the first dispatch.
 - **Permanently deleted writing survives** in bundles for up to 90 days and in monthly copies for up to 12 months ([ADR 0007](decisions/0007-hosted-backups-and-retention.md)).
 - **The recovery demotion is a manual step** with a tested script and a refusing check. Nothing stops an operator who skips both, except the procedure, and public reads staying off until the gates are re-run.
-- **The passphrase-protected identity** (`age -p`) was not exercised by the automated tests, because they use a disposable identity without a passphrase. It is exercised at the first drill.
-- **The macOS `db:backup:verify --postgres=18` route** restores a decrypted dump but does not compare it with the backup-time fingerprint. The drill does that.
+- **The passphrase-protected identity** is tested with disposable keys through a pseudo-terminal. The owner's real key and the offline copy are first exercised at the first drill.
+- **The macOS `db:backup:verify --postgres=18` route** restores a decrypted dump but does not compare it with the backup-time fingerprint. The drill does that. CI runs the backup suite against the Compose `postgres-test-18` service, so this route is tested there too, with no test skipped.

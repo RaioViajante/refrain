@@ -7,7 +7,7 @@ it is the design, the runbook, and the owner's drill.
 | File | Purpose |
 | --- | --- |
 | `Dockerfile` | PostgreSQL 18 client tools and age, pinned; never runs a server |
-| `refrain-backup.sh` | `backup`, `check`, `drill` |
+| `refrain-backup.sh` | `backup`, `check`, `drill`, `reconcile` |
 | `fingerprint.sql` | Structure and per-table digests, compared after every restore |
 | `inventory.sql` | Entry identifiers and states, for the recovery review |
 | `backup-role.sql` | The read-only `refrain_backup` role (for owner review; not applied) |

@@ -165,7 +165,7 @@ Built in M3.2 for MusicBrainz and the Cover Art Archive ([Evidence](evidence/m3-
 ## Data protection
 
 - **No cascade from catalog to writing.** Catalog records referenced by writing are archived, never deleted ([Data Model](data-model.md#deletion-and-recovery)).
-- **Minimal retention after permanent deletion.** "Delete now" removes the entry and everything it owns. Only its published slugs remain, as reserved strings with no link to any writing; slugs that were never public are deleted ([ADR 0003](decisions/0003-relational-schema-conventions.md)).
+- **Minimal retention after permanent deletion.** "Delete now" removes the entry and everything it owns from the serving database. (**Proposed, [ADR 0007 § 2a](decisions/0007-hosted-backups-and-retention.md#2a-the-retention-exception-to-adr-0003-stated-not-silent):** encrypted backups made while it existed can keep it until they expire, at most 90 days for daily bundles and 12 months for monthly copies; nothing is kept indefinitely. This is not in force until the owner accepts ADR 0007, and no hosted backup exists yet.) Only its published slugs remain, as reserved strings with no link to any writing; slugs that were never public are deleted ([ADR 0003](decisions/0003-relational-schema-conventions.md)).
 - **Recoverable deletion.** Deleted entries stay in Recently deleted for at least 30 days. **Automatic permanent deletion stays disabled** until backups exist, a restore has been performed successfully, and the purge job is designed and covered by tests (ADR 0002, D4.4).
 - **Optimistic concurrency** on saves, so a stale browser tab cannot silently overwrite newer writing.
 - **Unsaved text survives a failed save** on the author's device, as the design requires, and never in a shared or server-side log.
