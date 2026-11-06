@@ -1,14 +1,23 @@
 # Artwork and other material not covered by the MIT License
 
-**Status: proposed.** The licences in this repository are the owner's proposal for the public release ([Security § Public-release gate](docs/security.md#public-release-gate), item 10). They take effect when the owner confirms them, before the repository becomes public.
+**Status: confirmed by the owner on 2026-11-06** ([Security § Public-release gate](docs/security.md#public-release-gate), item 10).
 
-The [MIT License](LICENSE) covers Refrain's source code and its documentation. It does **not** cover the material below.
+The [MIT License](LICENSE), copyright RaioViajante, covers Refrain's original source code and documentation. It does **not** cover the material below. Third-party components keep their own licences, or their own unverified status where no licence is stated (see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)). Nothing in this repository grants rights over them.
 
 ## Original artwork: all rights reserved
 
 Copyright © 2026 RaioViajante. All rights reserved.
 
-These files are the owner's original drawings, or copies made from them for the site and the documentation:
+This covers all original artwork the owner creates for Refrain, wherever it appears in this repository or its history:
+
+- **the home character** and its likeness;
+- **the illustrations**, such as the home and not-found drawings, in every size, format, colour treatment, and derived copy;
+- **Refrain's visual identity**: any mark, favicon, cursor, or other identifying artwork;
+- **any other original artwork by the owner**, including the owner's designs among the historical design references below.
+
+The code that implements the interface is source code under the MIT License. That includes the components, the CSS, and the stroke generator with its generated output. That licence does not extend to the artwork the code displays.
+
+In the current tree, these files are artwork:
 
 | File | What it is |
 | --- | --- |
