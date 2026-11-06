@@ -4,7 +4,7 @@ The record that [Security § Public-release gate](../security.md#public-release-
 
 **Owner decisions (2026-11-06):**
 - The **existing** repository becomes public with its complete, authentic history. No history is rewritten or filtered, and no replacement repository is created.
-- Historical `reference/` material, the personal email address in the commits made through GitHub's merge buttons (34 so far), and the existing issues, pull requests, and reviews may all become public.
+- Historical `reference/` material, the personal email address in the commits made through GitHub's merge buttons (33 on `main` so far), and the existing issues, pull requests, and reviews may all become public.
 - **Only the owner changes the visibility**, after this gate passes.
 
 Audited: `main` at `5b050e229a3663abe7ac5f068c9f4f459b184eb6`, plus this pull request.
@@ -41,7 +41,7 @@ The final scan on 2026-11-06 used a fresh mirror of every reference, taken after
 The values compared were never printed. The temporary pattern file holding them was deleted after the scan.
 
 **Accepted by the owner:**
-- The personal address in 34 commits: 33 merge commits made with GitHub's merge button or `gh pr merge`, and one squash merge (`87f2b2a`, #10). Every other commit uses the account's noreply address. Each further merge through GitHub adds one, unless the owner turns on **Keep my email addresses private** in GitHub's email settings.
+- The personal address in 33 commits on `main`: 32 merges made with GitHub's merge button or `gh pr merge`, and one squash merge (`87f2b2a`, #10). GitHub also uses it for its own test-merge commits of open pull requests (`refs/pull/*/merge`), which it regenerates. Every other commit uses the account's noreply address. Each further merge through GitHub adds one, unless the owner turns on **Keep my email addresses private** in GitHub's email settings.
 - Hosting-provider preview comments that show the team's slug. Their deployments are protected and were cancelled.
 
 ## Dependency advisories
