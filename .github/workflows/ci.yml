@@ -207,3 +207,11 @@ jobs:
         run: pnpm test:http
         env:
           TEST_DATABASE_URL: postgres://refrain_test:refrain-test-ci-only@127.0.0.1:5432/refrain_test
+
+      # The hosted-backup toolchain (ops/backup, F-02) on scratch databases of
+      # this job's PostgreSQL 18 service. It builds the tools image (Debian
+      # packages over the network) and needs no secret.
+      - name: Hosted-backup tests (PostgreSQL 18)
+        run: pnpm test:backup
+        env:
+          TEST_DATABASE_URL: postgres://refrain_test:refrain-test-ci-only@127.0.0.1:5432/refrain_test

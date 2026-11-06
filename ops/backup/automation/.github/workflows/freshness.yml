@@ -1,0 +1,41 @@
+# TEMPLATE for the private automation repository (see backup.yml).
+#
+# A missed backup is as dangerous as a failed one, and GitHub can delay or
+# drop scheduled runs. This check fails (and GitHub emails the owner) when no
+# successful backup with an unexpired artifact finished in the last 30 hours.
+# It holds no database credential.
+name: Backup freshness
+
+on:
+  schedule:
+    - cron: "23 13 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  freshness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read
+    steps:
+      - name: A successful backup in the last 30 hours, with its artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          since="$(date -u -d '30 hours ago' +%Y-%m-%dT%H:%M:%SZ)"
+          run_id="$(gh api "repos/$REPO/actions/workflows/backup.yml/runs?status=success&per_page=20" \
+            --jq "[.workflow_runs[] | select(.updated_at >= \"$since\")][0].id // empty")"
+          if [ -z "$run_id" ]; then
+            echo "::error::No successful backup since $since."
+            exit 1
+          fi
+          count="$(gh api "repos/$REPO/actions/runs/$run_id/artifacts" \
+            --jq '[.artifacts[] | select(.expired == false)] | length')"
+          if [ "$count" -lt 1 ]; then
+            echo "::error::The latest successful backup ($run_id) has no artifact."
+            exit 1
+          fi
+          echo "Latest successful backup: run $run_id, artifact present."

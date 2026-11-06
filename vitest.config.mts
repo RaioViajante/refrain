@@ -34,7 +34,11 @@ export default defineConfig({
         test: {
           name: "unit",
           include: ["src/**/*.test.ts"],
-          exclude: ["src/**/*.integration.test.ts", "src/**/*.http.test.ts"],
+          exclude: [
+            "src/**/*.integration.test.ts",
+            "src/**/*.http.test.ts",
+            "src/**/*.backup.test.ts",
+          ],
           setupFiles: ["src/testing/unit-setup.ts"],
         },
       },
@@ -66,6 +70,22 @@ export default defineConfig({
           fileParallelism: false,
           testTimeout: 30_000,
           hookTimeout: 60_000,
+        },
+      },
+      {
+        // The hosted-backup toolchain (ops/backup) end to end: it builds the
+        // tools image, and dumps, restores, encrypts, and drills against
+        // scratch databases on the disposable PostgreSQL 18 test server in
+        // TEST_DATABASE_URL (`pnpm db:test18:up`). Needs Docker. It refuses
+        // any database that fails the same safety checks as the other
+        // database suites, and any server that is not PostgreSQL 18.
+        extends: true,
+        test: {
+          name: "backup",
+          include: ["src/**/*.backup.test.ts"],
+          fileParallelism: false,
+          testTimeout: 180_000,
+          hookTimeout: 600_000,
         },
       },
     ],
