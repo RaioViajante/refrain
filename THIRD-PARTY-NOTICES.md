@@ -2,9 +2,14 @@
 
 Refrain vendors no third-party code in its current tree. Its dependencies are downloaded by `pnpm install` under their own licences ([LICENSE-ARTWORK.md § Material Refrain fetches](LICENSE-ARTWORK.md#material-refrain-fetches-but-does-not-contain)).
 
-The repository's **history**, however, contains one file with third-party code: `reference/refrain/pages/support.js`, added in `24ccad7` and removed from the tracked tree in `fa9c2ba`. It is the runtime that a design tool exported with the V4.4 mockups. It bundles the open-source components below, and their headers in that file point to licence texts that the historical tree never included. Those texts are reproduced here, so every copy of the repository carries them.
+The repository's **history**, however, contains one file with third-party code: `reference/refrain/pages/support.js`, added in `24ccad7` and removed from the tracked tree in `fa9c2ba`. It is the runtime that Claude Design included in its downloadable export of the V4.4 mockups. It bundles the open-source components below, and their headers in that file point to licence texts that the historical tree never included. Those texts are reproduced here, so every copy of the repository carries them.
 
-The file **also contains a design-tool runtime with no licence notice.** Nothing here licenses it. See [LICENSE-ARTWORK.md](LICENSE-ARTWORK.md#historical-design-references-not-licensed) and the open question in [Evidence: public release](docs/evidence/public-release.md#historical-design-references).
+The file **also contains Claude Design's own runtime, with no licence notice.**
+- It is not this project's, and nothing here licenses it.
+- The MIT License in [LICENSE](LICENSE) does not apply to it.
+- No licence text for it is known, so none is reproduced.
+
+The owner accepts that it stays in the public history as a redistribution uncertainty, not a verified licence. See [LICENSE-ARTWORK.md](LICENSE-ARTWORK.md#historical-design-references-not-licensed) and [Evidence: public release](docs/evidence/public-release.md#historical-design-references).
 
 ## React and ReactDOM 18 (`react.production.min.js`, `react-dom.production.min.js`)
 

@@ -22,7 +22,7 @@ Audited: `main` at `5b050e229a3663abe7ac5f068c9f4f459b184eb6`, plus this pull re
 | 7 | Public metadata and caching reviewed | **Met by existing tests** | Required tests 2 to 5 (predicate, metadata, sitemap, caches), and the F-01 fix (studio responses private and `no-store`), verified on the host (#63, #64). |
 | 8 | Dependency advisories evaluated | **Met** | See [Advisories](#dependency-advisories). |
 | 9 | A working private reporting channel | **Pending: the owner, at publication** | GitHub only allows private vulnerability reporting on public repositories (the API returns *Not Found* while private). [`SECURITY.md`](../../SECURITY.md) describes the procedure and a fallback. The owner enables it right after the visibility change. |
-| 10 | Licenses decided | **Pending: owner confirmation** | Proposed: [MIT](../../LICENSE) for the source code and documentation; **all rights reserved** for the original artwork; no licence for the historical design references ([`LICENSE-ARTWORK.md`](../../LICENSE-ARTWORK.md)). Open question: [the design-tool runtime](#historical-design-references). |
+| 10 | Licenses decided | **Pending: owner confirmation of the proposal** | Proposed: [MIT](../../LICENSE) for the source code and documentation, with the copyright holder's name to confirm; **all rights reserved** for the original artwork; no licence for the historical design references ([`LICENSE-ARTWORK.md`](../../LICENSE-ARTWORK.md)). Claude Design's runtime in the history: an [owner-accepted uncertainty](#historical-design-references), not a licence. |
 | 11 | Independent review | See [Independent review](#independent-review) | A full-repository review in a separate context (Codex, read-only). |
 
 ## Secret scanning
@@ -63,14 +63,39 @@ They are re-checked when those development tools are updated.
 
 None of it is used by the application, and no licence is granted for it.
 
-**Third-party material, unresolved: an owner decision before publication.** `reference/refrain/pages/support.js` (blob `08e782a`, 188 KB, minified) is the runtime the design tool exported with the mockups:
+**Third-party material.** `reference/refrain/pages/support.js` (blob `08e782a`, 188 KB, minified) is the runtime that **Claude Design** included in its downloadable project export with the mockups. The owner states this; the file itself names no product:
 
 - **Lines 1 to about 300** are React and ReactDOM 18 production builds, with an embedded Modernizr build. They are redistributable under the MIT License. Their headers in the file point to licence texts that the historical tree never contained, so [THIRD-PARTY-NOTICES.md](../../THIRD-PARTY-NOTICES.md) now carries those texts.
-- **The rest** is the design tool's own runtime (`__dcBoot`, `__dc_design_mode`, and related code). It has **no licence notice, no copyright line, and no product name**. Its authors' terms are unknown, so publishing it is a redistribution this repository cannot license.
+- **The rest** is Claude Design's own runtime (`__dcBoot`, `__dc_design_mode`, and related code). It has **no licence notice, no copyright line, and no product name**. It is Anthropic's, not the owner's. This repository does not license it, and the MIT License does not apply to it.
 
-The owner's approval to make the history public does not settle the tool author's rights. Before publication, the owner identifies the tool and confirms that its terms allow users to share exported files, including the runtime, or accepts that risk in writing. The alternative is removing the file from history, which the owner has ruled out. Every other historical reference file is the owner's design output.
+**Owner-accepted uncertainty (2026-11-06).** The owner explicitly accepts that this exported file stays readable in the repository's public history. The file came directly from Claude Design's downloadable export. This is recorded as an **accepted third-party redistribution uncertainty**:
+- it is **not** an independently verified licence to redistribute Claude Design's runtime;
+- no separate authorization from Anthropic was sought;
+- the owner decided that none is a prerequisite for this release.
+
+If Anthropic or any rights holder asks, the owner will respond. The file is kept unchanged, and the history is not rewritten. Every other historical reference file is the owner's design output.
 
 The mockups also name real albums, artists, tracks, and labels as sample content. Their placeholder covers are not real artwork, and they load fonts and libraries from public servers instead of embedding them.
+
+## Confirmed compliance versus accepted risk
+
+**Confirmed by evidence:**
+- **No secret** in the tree or in any historical blob: gitleaks, TruffleHog, and the exact-value match ([Secret scanning](#secret-scanning)).
+- **No private writing or personal data,** apart from the accepted email address.
+- **React, ReactDOM, and Modernizr** in the historical `support.js`: MIT, with their notices reproduced in [THIRD-PARTY-NOTICES.md](../../THIRD-PARTY-NOTICES.md) as their publishers ship them.
+- **Fonts, dependencies, album artwork, and photographs** are not vendored. They are fetched under their own licences.
+- **The CI workflow is fork-safe:** no secrets, a read-only token, `pull_request` only, and pinned actions.
+- **The two moderate advisories** are in development tools only.
+- **The existing test suites** cover authorization, sessions, and public caching.
+
+**Accepted by the owner (2026-11-06), not verified compliance:**
+1. **Claude Design's runtime** stays in the public history without a verified redistribution licence ([Historical design references](#historical-design-references)).
+2. **The historical `reference/` material** becomes public, including real music names used as sample content in the mockups.
+3. **The personal email address** in the merge commits made through GitHub.
+4. **The reviewed synthetic test value** in `63889a5` stays in history.
+5. **Hosting-provider preview comments** that show the team's slug, and the public issues about the fixed F-01.
+
+**Still to do by the owner** (gate items 9 and 10, and the settings): confirm the licences and the copyright holder's name, merge this pull request, make the repository public, then enable private vulnerability reporting and the [repository settings](../development.md#repository-protection).
 
 ## Public GitHub Actions
 
@@ -101,7 +126,7 @@ Codex ran a read-only review of the whole repository on 2026-11-06, in a separat
 
 | Finding | Severity | Disposition |
 | --- | --- | --- |
-| The design-tool runtime in `support.js` has no licence notice. Also, React's headers point to licence texts that the history lacks | Medium | **React, ReactDOM, and the embedded Modernizr:** fixed. [THIRD-PARTY-NOTICES.md](../../THIRD-PARTY-NOTICES.md) reproduces the notices as `react-dom` 18.3.1 ships them, and what Modernizr's licence page states, without naming holders the sources do not name. **The design-tool runtime:** open, and only the owner can resolve it: identify the tool and its terms, get permission, or accept the risk in writing ([above](#historical-design-references)). It blocks publication until resolved |
+| The design-tool runtime in `support.js` has no licence notice. Also, React's headers point to licence texts that the history lacks | Medium | **React, ReactDOM, and the embedded Modernizr:** fixed. [THIRD-PARTY-NOTICES.md](../../THIRD-PARTY-NOTICES.md) reproduces the notices as `react-dom` 18.3.1 ships them, and what Modernizr's licence page states, without naming holders the sources do not name. **Claude Design's runtime:** the owner identified the tool and accepted the redistribution uncertainty on 2026-11-06 ([above](#historical-design-references)). It is recorded as an accepted risk, not as verified compliance |
 | This record was stale (commit count, merge-commit wording) and described the review before it happened | Low | Fixed: the counts come from the full-history scan at `aa575cb` ([Secret scanning](#secret-scanning)), with the final tree scanned separately, and the wording is corrected |
 | Security and development docs still called merged milestones branch-only, and memories unbuilt | Low | Fixed: a note on the matrix headings (kept so links work), and the two sentences corrected |
 | "A fork's workflows run only after approval" depends on a setting, not on the workflow | Low | Fixed: stated as a repository setting enabled at publication |

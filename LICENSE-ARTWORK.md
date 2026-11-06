@@ -21,13 +21,13 @@ They are not licensed for reuse. You may view them here and run the application 
 
 ## Historical design references: not licensed
 
-The repository's history contains a `reference/` directory: the V4.4 design mockups, their screen captures, a favicon kit, a cursor kit, and design notes. It was added in `24ccad7` and removed from the tracked tree in `fa9c2ba`. It stays in the history by the owner's decision ([Security § Public-release gate](docs/security.md#public-release-gate)). **No licence is granted for anything in it**, at any commit.
+The repository's history contains a `reference/` directory: the V4.4 design mockups made with Claude Design and exported from it, their screen captures, a favicon kit, a cursor kit, and design notes. It was added in `24ccad7` and removed from the tracked tree in `fa9c2ba`. It stays in the history by the owner's decision ([Security § Public-release gate](docs/security.md#public-release-gate)). **No licence is granted for anything in it**, at any commit.
 
 - **The owner's designs** in it are all rights reserved, as above.
 - **It also holds material that is not the owner's.** The owner claims no rights over that material, and this repository grants none:
-  - `reference/refrain/pages/support.js` is the runtime that the design tool exported with the mockups.
+  - `reference/refrain/pages/support.js` is the runtime that Claude Design included in its downloadable export of the mockups.
     - Most of it is React and ReactDOM 18, which embed a Modernizr build, all under the MIT License. The file keeps their short headers. Their full licence texts, which the historical tree lacked, are in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
-    - The rest, a design-tool runtime (`__dcBoot` and related code), carries no licence notice. It belongs to its authors and is not licensed here. Whether its terms allow redistribution is an open question for the owner ([Evidence: public release](docs/evidence/public-release.md#historical-design-references)).
+    - The rest is Claude Design's own runtime (`__dcBoot` and related code), with no licence notice. It is Anthropic's, not the owner's. It is not licensed here, and the MIT License does not apply to it. The owner accepts that it stays in the public history as an unverified redistribution, not as a licensed one ([Evidence: public release](docs/evidence/public-release.md#historical-design-references)).
   - The mockups name real albums, artists, tracks, and record labels as sample content, and load fonts and libraries from third-party servers. Those names, fonts, and libraries belong to their owners.
 
 ## Material Refrain fetches but does not contain
