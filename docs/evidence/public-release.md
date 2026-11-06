@@ -22,7 +22,7 @@ Audited: `main` at `5b050e229a3663abe7ac5f068c9f4f459b184eb6`, plus this pull re
 | 7 | Public metadata and caching reviewed | **Met by existing tests** | Required tests 2 to 5 (predicate, metadata, sitemap, caches), and the F-01 fix (studio responses private and `no-store`), verified on the host (#63, #64). |
 | 8 | Dependency advisories evaluated | **Met** | See [Advisories](#dependency-advisories). |
 | 9 | A working private reporting channel | **Pending: the owner, at publication** | GitHub only allows private vulnerability reporting on public repositories (the API returns *Not Found* while private). [`SECURITY.md`](../../SECURITY.md) describes the procedure and a fallback. The owner enables it right after the visibility change. |
-| 10 | Licenses decided | **Pending: owner confirmation of the proposal** | Proposed: [MIT](../../LICENSE) for the source code and documentation, with the copyright holder's name to confirm; **all rights reserved** for the original artwork; no licence for the historical design references ([`LICENSE-ARTWORK.md`](../../LICENSE-ARTWORK.md)). Claude Design's runtime in the history: an [owner-accepted uncertainty](#historical-design-references), not a licence. |
+| 10 | Licenses decided | **Met: confirmed by the owner on 2026-11-06** | [MIT](../../LICENSE), copyright RaioViajante, for the original source code and documentation. **All rights reserved** for the owner's original artwork, illustrations, and visual identity. No licence for the historical design references ([`LICENSE-ARTWORK.md`](../../LICENSE-ARTWORK.md)). Third-party components keep their own licensing status ([`THIRD-PARTY-NOTICES.md`](../../THIRD-PARTY-NOTICES.md)). Claude Design's runtime in the history remains an [owner-accepted uncertainty](#historical-design-references), not verified permission. |
 | 11 | Independent review | See [Independent review](#independent-review) | A full-repository review in a separate context (Codex, read-only). |
 
 ## Secret scanning
@@ -95,7 +95,13 @@ The mockups also name real albums, artists, tracks, and labels as sample content
 4. **The reviewed synthetic test value** in `63889a5` stays in history.
 5. **Hosting-provider preview comments** that show the team's slug, and the public issues about the fixed F-01.
 
-**Still to do by the owner** (gate items 9 and 10, and the settings): confirm the licences and the copyright holder's name, merge this pull request, make the repository public, then enable private vulnerability reporting and the [repository settings](../development.md#repository-protection).
+**Done by the owner:** the licences confirmed on 2026-11-06 (gate item 10), and the readiness pull request #67 merged (`342bc41`).
+
+**Still to do by the owner:**
+1. Make the repository public.
+2. Enable private vulnerability reporting (gate item 9).
+3. Enable the [repository settings](../development.md#repository-protection).
+4. Have the settings verified after the switch. The gate is complete only then.
 
 ## Public GitHub Actions
 
