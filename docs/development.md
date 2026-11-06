@@ -541,13 +541,15 @@ Merge only after the required checks pass and the PR has had an independent revi
 
 ### Repository protection
 
-On GitHub Free, branch protection is unavailable for private repositories (the API returned HTTP 403, "Upgrade to GitHub Pro or make this repository public", on 2026-10-31 and again on 2026-11-06). While the repository is private, the rules above are enforced by convention and must be followed as if they were enforced:
+Since the repository became public on 2026-11-06, the rules above are enforced by GitHub, and were verified that day ([evidence](evidence/public-release.md#publication)):
 
-- changes reach `main` only through pull requests;
-- no force pushes and no branch deletion on `main`;
-- required checks must pass before merging.
+- changes reach `main` only through pull requests (no approval count required, so the sole maintainer can merge their own);
+- the checks `Verify` and `Database tests (PostgreSQL 18)` must pass before merging;
+- force pushes and deletion of `main` are blocked.
 
-**When the repository becomes public**, the owner enables these immediately (Settings):
+Admin enforcement is off, so an admin can override, and GitHub marks an override as such. The rule is never to do so. Before publication, branch protection was unavailable on GitHub Free for private repositories (HTTP 403, "Upgrade to GitHub Pro or make this repository public"), and the rules were followed by convention.
+
+The settings, all enabled and verified on 2026-11-06 (Settings):
 
 1. **Branches → `main`:**
    - require a pull request before merging;

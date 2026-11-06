@@ -1,11 +1,11 @@
 # Evidence: Public Release of the Repository
 
-The record that [Security § Public-release gate](../security.md#public-release-gate) requires before the repository's visibility changes. It covers the **source repository** only. The hosted application stays private and protected, and public pages stay behind the release gates G1 to G8 ([#47](https://github.com/RaioViajante/refrain/issues/47)).
+The record that [Security § Public-release gate](../security.md#public-release-gate) requires before the repository's visibility changes, and of the publication itself. **The repository has been public since 2026-11-06** ([Publication](#publication)). This record covers the **source repository** only. The hosted application stays private and protected, and public pages stay behind the release gates G1 to G8 ([#47](https://github.com/RaioViajante/refrain/issues/47)).
 
 **Owner decisions (2026-11-06):**
 - The **existing** repository becomes public with its complete, authentic history. No history is rewritten or filtered, and no replacement repository is created.
 - Historical `reference/` material, the personal email address in the commits made through GitHub's merge buttons (33 on `main` so far), and the existing issues, pull requests, and reviews may all become public.
-- **Only the owner changes the visibility**, after this gate passes.
+- **Only the owner changes the visibility**, after this gate passes. The owner then specifically authorized the agent to perform this one change on the owner's behalf ([One-time authorization](#one-time-authorization)).
 
 Audited: `main` at `5b050e229a3663abe7ac5f068c9f4f459b184eb6`, plus this pull request.
 
@@ -21,7 +21,7 @@ Audited: `main` at `5b050e229a3663abe7ac5f068c9f4f459b184eb6`, plus this pull re
 | 6 | Production secrets isolated | **Met for the repository** | Production credentials exist only in the hosting provider's encrypted environment. None is in the repository, CI (which has no secrets), or the development `.env`. Temporary local copies made during hosted verification sit outside the repository, in the owner's private working folder, and are awaiting the owner's separate clean-up. |
 | 7 | Public metadata and caching reviewed | **Met by existing tests** | Required tests 2 to 5 (predicate, metadata, sitemap, caches), and the F-01 fix (studio responses private and `no-store`), verified on the host (#63, #64). |
 | 8 | Dependency advisories evaluated | **Met** | See [Advisories](#dependency-advisories). |
-| 9 | A working private reporting channel | **Pending: the owner, at publication** | GitHub only allows private vulnerability reporting on public repositories (the API returns *Not Found* while private). [`SECURITY.md`](../../SECURITY.md) describes the procedure and a fallback. The owner enables it right after the visibility change. |
+| 9 | A working private reporting channel | **Met: enabled 2026-11-06, right after publication** | GitHub only allows private vulnerability reporting on public repositories. After the visibility change it was enabled, and the API read back `enabled: true`. The repository's Security page shows **Report a vulnerability** to signed-out visitors. [`SECURITY.md`](../../SECURITY.md) describes the procedure and a fallback ([Publication](#publication)). |
 | 10 | Licenses decided | **Met: confirmed by the owner on 2026-11-06** | [MIT](../../LICENSE), copyright RaioViajante, for the original source code and documentation. **All rights reserved** for the owner's original artwork, illustrations, and visual identity. No licence for the historical design references ([`LICENSE-ARTWORK.md`](../../LICENSE-ARTWORK.md)). Third-party components keep their own licensing status ([`THIRD-PARTY-NOTICES.md`](../../THIRD-PARTY-NOTICES.md)). Claude Design's runtime in the history remains an [owner-accepted uncertainty](#historical-design-references), not verified permission. |
 | 11 | Independent review | See [Independent review](#independent-review) | A full-repository review in a separate context (Codex, read-only). |
 
@@ -95,13 +95,12 @@ The mockups also name real albums, artists, tracks, and labels as sample content
 4. **The reviewed synthetic test value** in `63889a5` stays in history.
 5. **Hosting-provider preview comments** that show the team's slug, and the public issues about the fixed F-01.
 
-**Done by the owner:** the licences confirmed on 2026-11-06 (gate item 10), and the readiness pull request #67 merged (`342bc41`).
+**Done:**
+- The licences confirmed on 2026-11-06 (gate item 10).
+- The readiness pull requests merged: #67 (`342bc41`) and #68 (`e201d5a`).
+- The repository made public, and its settings enabled and verified ([Publication](#publication)).
 
-**Still to do by the owner:**
-1. Make the repository public.
-2. Enable private vulnerability reporting (gate item 9).
-3. Enable the [repository settings](../development.md#repository-protection).
-4. Have the settings verified after the switch. The gate is complete only then.
+**Nothing is left open in the source-publication gate.** The hosted application's gates are separate: see the start of this record.
 
 ## Public GitHub Actions
 
@@ -125,6 +124,48 @@ Making the repository public changes nothing in hosting:
 - the database and its credentials are untouched.
 
 Changing visibility triggers no deployment.
+
+## Publication
+
+**The visibility change.**
+- **What:** `RaioViajante/refrain`, repository ID `1440036347`, changed from private to public on **2026-11-06 between 16:15:09 and 16:15:14 UTC**, with the official GitHub CLI: `gh repo edit RaioViajante/refrain --visibility public --accept-visibility-change-consequences`.
+- **`main` at publication:** `e201d5a338d6e100fb39dfe65922dfdf4d061f03`. Its post-merge CI (run 42246886266) was green.
+- **Same repository:** no new repository was created, and nothing was renamed, rewritten, filtered, or force-pushed.
+
+**Checks made just before the change:** the repository was private; `main` matched the approved commit; #68 was merged and its CI green; gate 10 was recorded as met. Snapshot: 36 branches, 35 pull-request refs, 69 issues and pull requests, root commit `24ccad7`.
+
+### Evidence after the change
+
+| Check | How it was checked | Result |
+| --- | --- | --- |
+| Visibility and identity | `gh repo view`, and the unauthenticated REST API (`api.github.com/repos/RaioViajante/refrain`, no token) | `PUBLIC`, `private: false`, the same ID `1440036347`; GitHub detects the licence as MIT |
+| Anonymous web access | `curl` with no credentials | HTTP 200 for the repository, `LICENSE`, `SECURITY.md`, `LICENSE-ARTWORK.md`, issue #65, pull request #67, and commit `24ccad7` |
+| History preserved | An anonymous mirror clone (no token, no credential helper) | 36 branches and 35 pull-request refs, the same as just before; 397 commits; `main` at `e201d5a`; root commit `24ccad7`, where `reference/` is readable |
+| Private vulnerability reporting | `PUT …/private-vulnerability-reporting`, then a read-back | `enabled: true`; the signed-out Security page shows **Report a vulnerability** |
+| Secret scanning and push protection | `PATCH` of the repository's `security_and_analysis`, then a read-back | both `enabled` |
+| Dependabot alerts | `PUT …/vulnerability-alerts`, then `GET` | enabled (`204`) |
+| Workflows from forks | `PUT …/actions/permissions/fork-pr-contributor-approval`, then a read-back | `all_external_contributors` (it was `first_time_contributors`) |
+| Workflow token | `PUT …/actions/permissions/workflow`, then a read-back | `read`; Actions cannot approve pull requests (unchanged) |
+| Protection of `main` | `PUT …/branches/main/protection`, then a read-back | Pull request required (0 approvals, so the sole maintainer can merge their own); required checks `Verify` and `Database tests (PostgreSQL 18)`, from GitHub Actions (app 15368), the exact names on `main`'s latest commit; branches not required to be up to date; force pushes and deletion blocked |
+| Hosting unchanged | The hosting provider's API, and an anonymous request | No deployment created after the change. Both production aliases still point at the protected deployment. Authentication on every deployment, no bypass, the Ignored Build Step, "create deployments: disabled", and fork protection all unchanged. The public-reads switch is `false`. An anonymous `/studio` request is redirected to the provider's sign-in |
+
+### Deliberate choices and limits
+
+- **Not verified, assumed:**
+  - The anonymous checks were made from a terminal with `curl` and `git`, without credentials, not in a browser.
+  - **Report a vulnerability** was seen in the page's HTML; no report was submitted.
+  - The settings were read back through the same owner's API access. Their effect on a real fork pull request or a real secret push has not been exercised.
+- **Admin enforcement is off** (`enforce_admins: false`). Admins can override the protection, and GitHub shows an override as such. The project's rule is never to bypass it ([`AGENTS.md`](../../AGENTS.md) § 10). It is off so that an outage or a flaky test (#69) cannot lock out the sole maintainer, and the owner may turn it on.
+- **Not enabled, because they were not requested:** Dependabot security-update pull requests, and secret scanning's validity checks and non-provider patterns.
+- **What cannot be undone:** once public, clones, forks, and caches made since then outlive any later return to private.
+
+### One-time authorization
+
+The project's rule is that agents never change the repository's visibility ([`AGENTS.md`](../../AGENTS.md) § 5, [Security § Public-release gate](../security.md#public-release-gate)). For this publication, the owner gave an explicit, written, one-time authorization for the agent to run the single visibility change above, on the owner's behalf, after the final checks.
+
+- **It covers only this completed operation:** making `RaioViajante/refrain` public on 2026-11-06.
+- **It does not authorize** any other visibility change, of this or any other repository, in any future task.
+- **The general rule is unchanged:** agents do not change a repository's visibility without the owner's specific authorization for that change.
 
 ## Independent review
 

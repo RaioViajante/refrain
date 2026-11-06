@@ -28,7 +28,7 @@ each track can have its own reflection, rating, and favourite mark. ratings are 
 
 black ink on white paper; the only color comes from album art and photographs. the interface speaks english and brazilian portuguese, and writing stays in the language it was written in.
 
-most of this is built and runs locally. a private, sign-in-protected test deployment exists, but nothing is public yet, and the interface is english only for now. what exists and what doesn't is under [status](#current-status). the approved design is written down in [design-system](docs/design-system.md).
+most of this is built and runs locally. the source code is public; the website is not yet. a private, sign-in-protected test deployment exists, no public page is online, and the interface is english only for now. what exists and what doesn't is under [status](#current-status). the approved design is written down in [design-system](docs/design-system.md).
 
 #### what's inside
 
