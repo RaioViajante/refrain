@@ -89,6 +89,15 @@ checks(name, ok, detail) as (
               and has_column_privilege(:'backup_role', c.oid, a.attnum, 'INSERT, UPDATE, REFERENCES')),
          null
   union all
+  select 'can execute no SECURITY DEFINER routine outside the system schemas',
+         not exists (
+           select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+            where n.nspname not like 'pg\_%' and n.nspname <> 'information_schema'
+              and p.prosecdef and has_function_privilege(:'backup_role', p.oid, 'EXECUTE')),
+         (select string_agg(n.nspname || '.' || p.proname, ',') from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname not like 'pg\_%' and n.nspname <> 'information_schema'
+             and p.prosecdef and has_function_privilege(:'backup_role', p.oid, 'EXECUTE'))
+  union all
   select 'sessions are read-only by default',
          exists (
            select 1 from pg_db_role_setting s join role r on r.oid = s.setrole

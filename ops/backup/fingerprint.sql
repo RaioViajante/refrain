@@ -8,13 +8,18 @@
 --   - the structure: tables, columns, constraints (with their validation
 --     state), indexes, sequences, enum types, functions, triggers, views, and
 --     row-level-security settings and policies;
+--   - owners and grants: the owner and ACL of every schema, relation, column,
+--     type, and function, the default privileges, and every role they name
+--     (`role|`), so the restore check can recreate those roles as
+--     placeholders and prove that ownership and privileges restore too;
 --   - the data: for every table, its row count and an md5 over the text of
 --     every row in a fixed order, so a changed value anywhere differs. The
 --     digests travel only inside the encrypted bundle and are never printed.
 -- A table whose rows a backup deliberately leaves out (:excluded) is listed
 -- without a count; the restore check proves separately that it is empty.
--- Owners and privileges are not compared: a backup is restored with
--- --no-owner --no-privileges, and the recovery procedure grants them again.
+-- Any schema besides public and drizzle is listed (`schema|`), and the
+-- backup script refuses it: nothing outside these two schemas is ever in a
+-- dump without being compared.
 --
 -- psql variable: excluded, a list of quoted, schema-qualified table names,
 -- for example: 'public.auth_sessions','public.auth_rate_limits'.
@@ -23,15 +28,64 @@
 \pset tuples_only on
 \pset null '<null>'
 
--- Any other schema with tables would not be in the backup (it dumps public
--- and drizzle only), so it is listed and the comparison fails loudly.
 select 'schema|' || n.nspname
   from pg_namespace n
  where n.nspname not in ('pg_catalog', 'information_schema', 'pg_toast')
    and n.nspname not like 'pg\_temp\_%'
    and n.nspname not like 'pg\_toast\_temp\_%'
-   and (n.nspname in ('public', 'drizzle')
-        or exists (select 1 from pg_class c where c.relnamespace = n.oid and c.relkind in ('r', 'p', 'v', 'm', 'S')))
+ order by 1;
+
+-- Every role that owns, grants, or is granted something here (not PUBLIC,
+-- not predefined pg_ roles).
+with named(oid) as (
+  select nspowner from pg_namespace where nspname in ('public', 'drizzle')
+  union select (aclexplode(nspacl)).grantor from pg_namespace where nspname in ('public', 'drizzle') and nspacl is not null
+  union select (aclexplode(nspacl)).grantee from pg_namespace where nspname in ('public', 'drizzle') and nspacl is not null
+  union select c.relowner from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname in ('public', 'drizzle')
+  union select (aclexplode(c.relacl)).grantor from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname in ('public', 'drizzle') and c.relacl is not null
+  union select (aclexplode(c.relacl)).grantee from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname in ('public', 'drizzle') and c.relacl is not null
+  union select (aclexplode(a.attacl)).grantee from pg_attribute a join pg_class c on c.oid = a.attrelid join pg_namespace n on n.oid = c.relnamespace where n.nspname in ('public', 'drizzle') and a.attacl is not null
+  union select t.typowner from pg_type t join pg_namespace n on n.oid = t.typnamespace where n.nspname in ('public', 'drizzle')
+  union select p.proowner from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname in ('public', 'drizzle')
+  union select d.defaclrole from pg_default_acl d
+  union select (aclexplode(d.defaclacl)).grantee from pg_default_acl d
+)
+select distinct 'role|' || r.rolname
+  from named join pg_roles r on r.oid = named.oid
+ where r.rolname not like 'pg\_%'
+ order by 1;
+
+select 'owner|schema|' || n.nspname || '|' || pg_get_userbyid(n.nspowner) || '|acl=' || coalesce(n.nspacl::text, 'default')
+  from pg_namespace n where n.nspname in ('public', 'drizzle')
+ order by 1;
+
+select 'owner|relation|' || n.nspname || '.' || c.relname || '|' || pg_get_userbyid(c.relowner)
+       || '|acl=' || coalesce(c.relacl::text, 'default')
+  from pg_class c join pg_namespace n on n.oid = c.relnamespace
+ where n.nspname in ('public', 'drizzle') and c.relkind in ('r', 'p', 'v', 'm', 'S')
+ order by 1;
+
+select 'owner|column|' || n.nspname || '.' || c.relname || '.' || a.attname || '|acl=' || a.attacl::text
+  from pg_attribute a join pg_class c on c.oid = a.attrelid join pg_namespace n on n.oid = c.relnamespace
+ where n.nspname in ('public', 'drizzle') and a.attacl is not null
+ order by 1;
+
+select 'owner|type|' || n.nspname || '.' || t.typname || '|' || pg_get_userbyid(t.typowner)
+       || '|acl=' || coalesce(t.typacl::text, 'default')
+  from pg_type t join pg_namespace n on n.oid = t.typnamespace
+ where n.nspname in ('public', 'drizzle') and t.typtype in ('e', 'd', 'c', 'r', 'm')
+   and not exists (select 1 from pg_class c where c.reltype = t.oid and c.relkind <> 'c')
+ order by 1;
+
+select 'owner|function|' || n.nspname || '.' || p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')|'
+       || pg_get_userbyid(p.proowner) || '|acl=' || coalesce(p.proacl::text, 'default')
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname in ('public', 'drizzle')
+ order by 1;
+
+select 'defaultacl|' || pg_get_userbyid(d.defaclrole) || '|' || coalesce(n.nspname, '*') || '|' || d.defaclobjtype::text
+       || '|' || d.defaclacl::text
+  from pg_default_acl d left join pg_namespace n on n.oid = d.defaclnamespace
  order by 1;
 
 select 'table|' || n.nspname || '.' || c.relname || '|' || c.relkind::text

@@ -47,6 +47,7 @@ const IMAGE = "refrain-backup-tools:test";
 const run = randomBytes(4).toString("hex");
 const sourceDatabase = `refrain_bksrc_${run}_test`;
 const copyDatabase = `refrain_bkcopy_${run}_test`;
+const runtimeRole = `refrain_runtime_${run}`;
 const backupRole = `refrain_backup_${run}`;
 const backupPassword = randomBytes(24).toString("base64url");
 const repositoryRoot = resolve(__dirname, "..", "..");
@@ -349,6 +350,7 @@ afterAll(async () => {
       );
     }
     await client.query(`drop role if exists ${backupRole}`);
+    await client.query(`drop role if exists ${runtimeRole}`);
   });
   for (const directory of [...outputs, config]) {
     if (directory) {
@@ -375,7 +377,7 @@ describe("the backup role (ops/backup/backup-role.sql)", () => {
     const lines = audit.stdout.trim().split("\n");
     expect(lines.filter((line) => line.startsWith("FAIL"))).toEqual([]);
     expect(lines.at(-1)).toBe("result|pass");
-    expect(lines.filter((line) => line.startsWith("ok|")).length).toBe(14);
+    expect(lines.filter((line) => line.startsWith("ok|")).length).toBe(15);
   });
 
   it("reads everything, and can write, create, or become nothing", async () => {
@@ -637,6 +639,53 @@ describe("a backup (refrain-backup backup)", () => {
       });
     });
 
+    it("is made private by recovery-demote.sql, which recovery-check.sql requires before a switch", () => {
+      const sql = (file: string) =>
+        tools([
+          "psql",
+          `service=refrain_restore dbname=${copyDatabase}`,
+          "-X",
+          "-q",
+          "-f",
+          `/opt/refrain-backup/${file}`,
+        ]);
+      const before = sql("recovery-check.sql");
+      expect(before.code).not.toBe(0);
+      expect(before.stderr).toMatch(/run recovery-demote\.sql first/);
+      const demoted = sql("recovery-demote.sql");
+      expect(demoted.code, demoted.stderr).toBe(0);
+      expect(demoted.stdout.trim()).toBe("demoted|1");
+      const after = sql("recovery-check.sql");
+      expect(after.code, after.stderr).toBe(0);
+      expect(after.stdout.trim()).toBe("published|0");
+      expect(sql("recovery-demote.sql").stdout.trim()).toBe("demoted|0");
+    });
+
+    it("keeps the publication history and slugs after the demotion", async () => {
+      const rows = await asAdmin(
+        copyDatabase,
+        async (client) =>
+          (
+            await client.query<{
+              status: string;
+              published_at: Date | null;
+              first_published_at: Date | null;
+            }>(
+              "select status, published_at, first_published_at from entry_texts where first_published_at is not null",
+            )
+          ).rows,
+      );
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.status).toBe("private");
+      expect(rows[0]!.published_at).toBeNull();
+      expect(rows[0]!.first_published_at).not.toBeNull();
+      const slugs = await both(
+        "select slug, is_current, was_published from entry_slugs order by slug",
+        (found) => found,
+      );
+      expect(slugs.copy).toEqual(slugs.source);
+    });
+
     it("keeps owners and grants in the archive, for a recovery into Neon", () => {
       const listing = tools(
         [
@@ -808,7 +857,59 @@ describe("a backup (refrain-backup backup)", () => {
   });
 });
 
+describe("owners and grants of roles the restore server lacks", () => {
+  it("restores them onto placeholder roles, compares them, and drops the placeholders", async () => {
+    await asAdmin(sourceDatabase, (client) =>
+      client.query(
+        `create role ${runtimeRole} nologin; grant select on public.artists to ${runtimeRole}`,
+      ),
+    );
+    const out = newOutput();
+    const backup = tools(["refrain-backup", "backup", "/out"], { out });
+    expect(backup.code, backup.stderr).toBe(0);
+    // The role now exists nowhere on the restore server.
+    await asAdmin(sourceDatabase, (client) =>
+      client.query(
+        `revoke select on public.artists from ${runtimeRole}; drop role ${runtimeRole}`,
+      ),
+    );
+    const drill = tools(["refrain-backup", "drill", `/out/${bundleIn(out)}`], {
+      out,
+    });
+    expect(drill.code, drill.stderr).toBe(0);
+    const left = await asAdmin(
+      "refrain_test",
+      async (client) =>
+        (
+          await client.query("select 1 from pg_roles where rolname = $1", [
+            runtimeRole,
+          ])
+        ).rowCount,
+    );
+    expect(left).toBe(0);
+  });
+});
+
 describe("refusals", () => {
+  it("refuses a database with a schema besides public and drizzle", async () => {
+    await asAdmin(sourceDatabase, (client) =>
+      client.query("create schema f02_extra"),
+    );
+    try {
+      const out = newOutput();
+      const backup = tools(["refrain-backup", "backup", "/out"], { out });
+      expect(backup.code).not.toBe(0);
+      expect(backup.stderr).toMatch(
+        /schema besides public and drizzle \(f02_extra\)/,
+      );
+      expect(readdirSync(out)).toEqual([]);
+    } finally {
+      await asAdmin(sourceDatabase, (client) =>
+        client.query("drop schema f02_extra"),
+      );
+    }
+  });
+
   it("fails, writing nothing, when the role cannot read a table", async () => {
     await asAdmin(sourceDatabase, (client) =>
       client.query(`revoke select on public.memories from ${backupRole}`),
@@ -885,6 +986,23 @@ describe("refusals", () => {
     });
     expect(unmarked.code).not.toBe(0);
     expect(unmarked.stderr).toMatch(/not marked as disposable/);
+  });
+
+  it("refuses a source role that can write, like the owner or the runtime role", async () => {
+    await asAdmin(sourceDatabase, (client) =>
+      client.query(`grant insert on public.artists to ${backupRole}`),
+    );
+    try {
+      const out = newOutput();
+      const backup = tools(["refrain-backup", "backup", "/out"], { out });
+      expect(backup.code).not.toBe(0);
+      expect(backup.stderr).toMatch(/can write or create/);
+      expect(readdirSync(out)).toEqual([]);
+    } finally {
+      await asAdmin(sourceDatabase, (client) =>
+        client.query(`revoke insert on public.artists from ${backupRole}`),
+      );
+    }
   });
 
   it("refuses a recipients file that holds a private key, and a non-empty output directory", () => {

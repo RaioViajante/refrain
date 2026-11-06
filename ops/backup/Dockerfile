@@ -13,7 +13,8 @@ RUN apt-get update \
   && apt-get install --yes --no-install-recommends 'age=1.2.1-*' ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
-COPY refrain-backup.sh fingerprint.sql inventory.sql backup-role.sql backup-role-audit.sql /opt/refrain-backup/
+COPY refrain-backup.sh fingerprint.sql inventory.sql backup-role.sql backup-role-audit.sql \
+  recovery-demote.sql recovery-check.sql /opt/refrain-backup/
 RUN ln -s /opt/refrain-backup/refrain-backup.sh /usr/local/bin/refrain-backup
 
 # Not the server: this image never starts PostgreSQL.

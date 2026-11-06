@@ -62,7 +62,7 @@ iCloud Drive and an offline drive, kept 12 months
 - **The source:**
   - The connection is forced to `sslmode=verify-full sslrootcert=system` (system CA store and host name).
   - It must be PostgreSQL 18.
-  - It must not be a superuser.
+  - It must not be a superuser, and must not be able to write a table, create in the database, create roles or databases, or bypass RLS. This refuses the Neon owner (which is not a PostgreSQL superuser) and the runtime role.
 - **The restore server:**
   - It must be on a loopback host.
   - It must be PostgreSQL 18.
@@ -79,9 +79,9 @@ iCloud Drive and an offline drive, kept 12 months
 A **whole-database** `pg_dump --format=custom` (PostgreSQL 18):
 - **The schema:** tables, columns, defaults, constraints, indexes, sequences, and the enum types.
 - **All rows** of every table, except the ones listed below.
-- **Owners and grants**, so a recovery into Neon can restore the runtime role's privileges.
+- **Owners and grants**, so a recovery into Neon can restore the runtime role's privileges. The daily check restores and compares them too (see below).
 
-Dumping the whole database, rather than `--schema=public --schema=drizzle`, means a schema the role cannot read makes `pg_dump` fail instead of being skipped. (Selecting `public` explicitly also makes PostgreSQL 18 emit a `CREATE SCHEMA public` that cannot be restored.)
+Dumping the whole database, rather than `--schema=public --schema=drizzle`, means a schema the role cannot read makes `pg_dump` fail instead of being skipped. (Selecting `public` explicitly also makes PostgreSQL 18 emit a `CREATE SCHEMA public` that cannot be restored.) The comparison covers `public` and `drizzle`, so **a database with any other schema is refused** (tested) rather than dumped without being compared.
 
 **It includes** every language version with its status, the deletion state, the publication history, slugs, ratings, reflections and their flags, memories, the catalog, the author's account **with its password hash**, and the migration history. Drafts, private writing, and Recently deleted entries are all in it.
 
@@ -95,6 +95,7 @@ Dumping the whole database, rather than `--schema=public --schema=drizzle`, mean
   - constraints and their validation state, and indexes;
   - sequences and their current values;
   - enum types, functions, triggers, views, and policies;
+  - the owner and ACL of every schema, relation, column, type, and function, and the default privileges, plus every role they name;
   - for each table, its row count and an md5 over the text of every row in a fixed order (`excluded` for the three tables above).
   - The digests are not secret, but they are never printed.
 - **`inventory.txt`:** entry identifiers, kinds, deletion flags, and per-language statuses, and reflection identifiers and flags. It holds no titles, writing, or slugs. It is the input to the recovery review ([ADR 0007 § 3](decisions/0007-hosted-backups-and-retention.md)).
@@ -114,7 +115,8 @@ Dumping the whole database, rather than `--schema=public --schema=drizzle`, mean
 
 1. **The plaintext dump, before encryption** (every daily run). The job restores the dump into a fresh database on a throwaway PostgreSQL 18 service and runs these checks:
    - The restore runs with `--exit-on-error --single-transaction`, and its success means every constraint was valid on the restored data: foreign keys, unique, check, and not-null.
-   - The fingerprint must be byte-identical. That covers structure, constraint validation, and every table's count and digest.
+   - The restore also applies the owners and grants. Each role they name that the throwaway server lacks (`neondb_owner`, `refrain_app`, `refrain_backup`) is created there as a `NOLOGIN` placeholder for that run and dropped afterwards (tested). So a grant that would not restore fails the day it is made, not during a recovery.
+   - The fingerprint must be byte-identical. That covers structure, owners and grants, constraint validation, and every table's count and digest.
    - The three excluded tables must be empty.
    - Every sequence that feeds a column must be ahead of the values already used.
 
@@ -144,10 +146,10 @@ alter default privileges for role neondb_owner in schema public, drizzle
 
 The password is set with `\password` and generated in the password manager (Neon requires at least 60 bits of entropy). It never goes in a file or on a command line.
 
-**What the role cannot do** (asserted by the audit's 14 checks, and by behavior: each statement below is refused with `42501` on the test server):
+**What the role cannot do** (asserted by the audit's 15 checks, and by behavior: each statement below is refused with `42501` on the test server):
 - **Write:** no insert, update, delete, or truncate, and no `nextval`.
 - **Create:** no table, schema, database, or role.
-- **Escalate:** no `SET ROLE` to the owner, no membership in any role, no owned objects, and no bypass of RLS.
+- **Escalate:** no `SET ROLE` to the owner, no membership in any role, no owned objects, no bypass of RLS, and no `SECURITY DEFINER` routine it can execute (none exists today; the audit fails if one appears).
 - **Lifting read-only does not help:** a session that sets `default_transaction_read_only = off` is still refused by privileges. The read-only default is defense in depth, not the boundary.
 - **Residual:** like every role, it can create temporary tables (PostgreSQL grants `TEMP` to `PUBLIC`). Revoking that would change the runtime role's privileges, which is out of scope.
 
@@ -212,7 +214,7 @@ README.md                        pointer to this document
 - **Secrets:**
   - `REFRAIN_BACKUP_SOURCE_SERVICE` holds the direct endpoint's `host`, `port`, `dbname`, and `user` lines.
   - `REFRAIN_BACKUP_PGPASS` holds one `.pgpass` line.
-  - Both are written to owner-only files in `$RUNNER_TEMP` with `printf` (a shell builtin, never visible as an argument), mounted read-only into the container, and removed in an `always()` step.
+  - Both are written to owner-only files (`0600` in a `0700` folder) in `$RUNNER_TEMP` with `printf` (a shell builtin, never visible as an argument), mounted read-only into the container (which runs as the same user), and removed in an `always()` step.
 - **Who can change workflows:** a single-owner private repository with no collaborators. Controls by plan:
   - **GitHub Free:** environments, protected branches, and code-owner reviews are unavailable for private repositories ("Users with GitHub Free plans can only configure environments for public repositories"). The secrets are then repository secrets, and the control is that nobody else has access. Delete the `environment:` line.
   - **GitHub Pro:** add an environment `production-backup` limited to the default branch, holding the secrets, and a ruleset requiring a pull request and the owner's review for the default branch.
@@ -272,8 +274,11 @@ Never automatic, never into the serving database, and never with public reads on
    2. Run `pg_restore --exit-on-error --single-transaction --no-owner` into the new database, as the owner, through the direct endpoint with `sslmode=verify-full`. Keep privileges, so the runtime role's grants return.
    3. Run the backup-role audit, and check the runtime role's privileges.
 4. **Make nothing public by the restore** ([ADR 0007 § 3](decisions/0007-hosted-backups-and-retention.md), proposed):
-   1. In one transaction, every `published` language version becomes `private` and its `published_at` is cleared. This is the same rule as restoring a deleted journal (ADR 0005); publication history and slugs are kept.
+   1. Run [`ops/backup/recovery-demote.sql`](../ops/backup/recovery-demote.sql) on the new database. In one transaction, every `published` language version becomes `private` and its `published_at` is cleared, the same update as the Publication module's own restore (ADR 0005). Publication history and slugs are kept. It fails, changing nothing, if anything published remains (tested).
    2. Compare the restored inventory with the newest inventory available. Any entry that a later backup no longer had was permanently deleted after this backup. The owner reviews each one and deletes it again before anything else.
+   3. Run [`ops/backup/recovery-check.sql`](../ops/backup/recovery-check.sql) (read-only) immediately before the switch. It fails while any version is published (tested).
+
+   These are steps of the owner's procedure, enforced by tested SQL, not by the application: skipping them is possible, which is why the switch below comes after the check.
 5. **Invalidate.** Sessions are not in a backup. Rotate `BETTER_AUTH_SECRET` as well, so no cookie or 15-minute confirmation token signed before the incident is valid.
 6. **Switch.** Point `DATABASE_URL` at the new database, and redeploy the same commit. Verify the Studio, then re-run the release gates.
 7. **Republish.** The author republishes through the Studio's confirmed workflow (ADR 0006), one entry at a time.
@@ -312,8 +317,10 @@ F-02 and G6 close only on recorded evidence that the owner has reviewed:
   - whether Neon allows the grants and default privileges as written;
   - TLS `verify-full` with `sslrootcert=system` against Neon's certificate chain;
   - snapshot export on the direct endpoint;
-  - compute auto-suspend during a run.
+  - compute auto-suspend during a run;
+  - whether the Neon database has extensions that the stock PostgreSQL 18 image lacks. A whole-database dump would carry their `CREATE EXTENSION`, and the restore check would then fail loudly every day until it is handled.
   All are checked at the first dispatch.
 - **Permanently deleted writing survives** in bundles for up to 90 days and in monthly copies for up to 12 months ([ADR 0007](decisions/0007-hosted-backups-and-retention.md)).
+- **The recovery demotion is a manual step** with a tested script and a refusing check. Nothing stops an operator who skips both, except the procedure, and public reads staying off until the gates are re-run.
 - **The passphrase-protected identity** (`age -p`) was not exercised by the automated tests, because they use a disposable identity without a passphrase. It is exercised at the first drill.
 - **The macOS `db:backup:verify --postgres=18` route** restores a decrypted dump but does not compare it with the backup-time fingerprint. The drill does that.

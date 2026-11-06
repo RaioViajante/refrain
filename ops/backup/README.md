@@ -12,6 +12,8 @@ it is the design, the runbook, and the owner's drill.
 | `inventory.sql` | Entry identifiers and states, for the recovery review |
 | `backup-role.sql` | The read-only `refrain_backup` role (for owner review; not applied) |
 | `backup-role-audit.sql` | Read-only audit of that role's privileges |
+| `recovery-demote.sql` | Recovery: every published version becomes private, in one transaction |
+| `recovery-check.sql` | Recovery: read-only, fails while anything is published |
 | `automation/` | Templates for the private automation repository. GitHub does not run them here |
 
 Tests: `pnpm test:backup` (src/ops/hosted-backup.backup.test.ts), on the

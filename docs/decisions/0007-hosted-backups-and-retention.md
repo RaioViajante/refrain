@@ -50,7 +50,7 @@ A restore from a backup:
 
 1. **Never targets the serving database.** It goes into a new database or branch. The switch to it is a separate, deliberate step.
 2. **Never restores sessions, verification values, or rate-limit counters.** Their rows are not in a backup. The `BETTER_AUTH_SECRET` is rotated as part of a recovery, so no earlier cookie or confirmation token is valid.
-3. **Never makes anything public.** Before the application uses the restored copy, every `published` language version becomes `private`, and its `published_at` is cleared, in one transaction. Publication history and slugs are kept, as ADR 0005 does for a single journal. `REFRAIN_PUBLIC_READS_ENABLED` stays `false` until the release gates are re-run. The author republishes through the confirmed workflow of ADR 0006.
+3. **Makes nothing public.** Before the application uses the restored copy, every `published` language version becomes `private`, and its `published_at` is cleared, in one transaction (`ops/backup/recovery-demote.sql`). A read-only check (`ops/backup/recovery-check.sql`) fails while any version is published, and is run immediately before the switch. Both are tested, but they are steps of the owner's procedure, not something the application enforces. Publication history and slugs are kept, as ADR 0005 does for a single journal. `REFRAIN_PUBLIC_READS_ENABLED` stays `false` until the release gates are re-run. The author republishes through the confirmed workflow of ADR 0006.
 4. **Never silently brings back permanently deleted writing.** Each bundle carries an inventory of entry identifiers and states, never content. The restored inventory is compared with the newest inventory available. An entry missing from a later backup was permanently deleted after this backup: the owner reviews each one and deletes it again before the copy is used. If no later inventory exists, the owner reviews every restored entry, all of which are private by rule 3.
 
 ### 4. What the automation may hold
@@ -65,7 +65,7 @@ A restore from a backup:
 - **Positive:**
   - Writing survives the loss of Neon, of Vercel, of the Mac, or of the GitHub account, with at most a day lost in the first three cases and at most a month in the last.
   - Every daily backup is proven restorable on the day it is made, and the owner proves decryption monthly.
-  - A recovery cannot publish, cannot revive a session, and cannot quietly revive deleted writing.
+  - A recovery that follows the procedure publishes nothing, revives no session, and revives no deleted writing without the owner's review. The demotion and the check are tested SQL. Skipping them remains possible, and only the procedure and the public-reads switch stand in the way.
 - **Negative:**
   - "Delete now" is not immediate for backups. The exception above must be disclosed in the Studio's copy.
   - A recovery costs the author a re-publication of every public entry.

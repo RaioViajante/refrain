@@ -47,6 +47,7 @@ work=""
 holder=""
 restore_maintenance=""
 scratch_database=""
+placeholder_roles=()
 
 say() { printf 'refrain-backup: %s\n' "$*"; }
 die() {
@@ -85,10 +86,13 @@ cleanup() {
     kill "$holder" 2>/dev/null
     wait "$holder" 2>/dev/null
   fi
+  # Only what this run created: the scratch database, then the placeholder
+  # roles (which own nothing once that database is gone).
   if [[ -n $scratch_database && -n $restore_maintenance ]]; then
     psql "$restore_maintenance" -X -q -v ON_ERROR_STOP=1 \
       -c "drop database if exists \"$scratch_database\" with (force)" >/dev/null 2>&1
   fi
+  drop_placeholder_roles >/dev/null 2>&1
   if [[ -n $work && -d $work ]]; then
     rm -rf -- "$work"
   fi
@@ -96,6 +100,33 @@ cleanup() {
 }
 trap cleanup EXIT
 trap 'exit 130' INT TERM HUP
+
+drop_placeholder_roles() {
+  local role
+  for role in "${placeholder_roles[@]}"; do
+    psql "$restore_maintenance" -X -q -v ON_ERROR_STOP=1 -c "drop role if exists \"$role\"" || return 1
+  done
+  placeholder_roles=()
+}
+
+# The roles the source's owners and grants name must exist for them to
+# restore. On the disposable restore server, each missing one is created as a
+# NOLOGIN placeholder for this run only, and dropped afterwards.
+create_placeholder_roles() {
+  local fingerprint=$1 role exists
+  while IFS= read -r role; do
+    [[ $role =~ ^[a-z_][a-z0-9_]{0,62}$ ]] || die "the backup names a role this procedure does not handle"
+    # psql interpolates variables in a script, not in -c.
+    exists="$(psql "$restore_maintenance" -X -q -At -v ON_ERROR_STOP=1 -v role="$role" \
+      <<<"select count(*) from pg_roles where rolname = :'role'" 2>/dev/null)" ||
+      die "could not read the restore server's roles"
+    if [[ $exists == 0 ]]; then
+      run_tool "could not create a placeholder role" \
+        psql "$restore_maintenance" -X -q -v ON_ERROR_STOP=1 -c "create role \"$role\" nologin"
+      placeholder_roles+=("$role")
+    fi
+  done < <(sed -nE 's/^role\|//p' "$fingerprint")
+}
 
 new_work_directory() {
   work="$(mktemp -d "${TMPDIR:-/tmp}/refrain-backup.XXXXXXXX")"
@@ -127,7 +158,14 @@ connection_facts() {
     -c "select 'major=' || (current_setting('server_version_num')::int / 10000)" \
     -c "select 'ssl=' || coalesce((select ssl from pg_stat_ssl where pid = pg_backend_pid()), false)" \
     -c "select 'marker=' || coalesce(shobj_description(oid, 'pg_database'), '') from pg_database where datname = current_database()" \
-    -c "select 'superuser=' || current_setting('is_superuser')"
+    -c "select 'superuser=' || current_setting('is_superuser')" \
+    -c "select 'writer=' || (r.rolsuper or r.rolcreatedb or r.rolcreaterole or r.rolbypassrls
+          or exists (select 1 from pg_class c join pg_namespace n on n.oid = c.relnamespace
+                      where n.nspname not like 'pg\\_%' and n.nspname <> 'information_schema'
+                        and c.relkind in ('r', 'p')
+                        and has_table_privilege(c.oid, 'INSERT, UPDATE, DELETE, TRUNCATE'))
+          or has_database_privilege(current_database(), 'CREATE'))
+        from pg_roles r where r.rolname = current_user"
 }
 
 fact() { sed -nE "s/^$1=(.*)$/\1/p" <<<"$2" | head -n 1; }
@@ -152,6 +190,10 @@ check_source() {
     die "the source is not PostgreSQL $REQUIRED_MAJOR; pg_dump $REQUIRED_MAJOR would make an archive this procedure has not tested"
   [[ "$(fact superuser "$facts")" == off ]] ||
     die "the source connection is a superuser; use the dedicated read-only backup role"
+  # Not the owner or the runtime role either: a role that can write a table,
+  # create in the database, or create roles is refused.
+  [[ "$(fact writer "$facts")" == false ]] ||
+    die "the source role can write or create; use the dedicated read-only backup role"
   if [[ ${REFRAIN_BACKUP_TEST_ONLY_INSECURE_SOURCE:-} == 1 ]]; then
     is_loopback "$(fact host "$facts")" || die "the insecure test source must be on a loopback host"
     [[ "$(fact database "$facts")" =~ _test$ ]] || die "the insecure test source must be a *_test database"
@@ -215,15 +257,20 @@ restore_and_verify() {
   dumped_by="$(sed -nE 's/^;[[:space:]]+Dumped by pg_dump version: //p' "$listing" | major_of)"
   [[ $dumped_by == "$REQUIRED_MAJOR" ]] || die "the archive was not made by pg_dump $REQUIRED_MAJOR"
 
-  scratch_database="refrain_verify_$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')_test"
+  local name
+  name="refrain_verify_$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')_test"
   run_tool "could not create the scratch database" \
-    psql "$restore_maintenance" -X -q -v ON_ERROR_STOP=1 -c "create database \"$scratch_database\""
+    psql "$restore_maintenance" -X -q -v ON_ERROR_STOP=1 -c "create database \"$name\""
+  # Recorded only once created: cleanup never drops a database it did not make.
+  scratch_database=$name
   local target="$restore_maintenance dbname=$scratch_database"
+  create_placeholder_roles "$bundle/source.fingerprint"
 
   # One transaction, stopping at the first error. No --clean: the database is
-  # new, and nothing existing is dropped or overwritten.
+  # new, and nothing existing is dropped or overwritten. Owners and grants are
+  # restored too, and compared, as a recovery into Neon would restore them.
   run_tool "the restore failed" \
-    pg_restore --exit-on-error --single-transaction --no-owner --no-privileges \
+    pg_restore --exit-on-error --single-transaction \
     --dbname="$target" "$bundle/refrain.dump"
 
   fingerprint "$target" "$work/restored.fingerprint"
@@ -260,6 +307,7 @@ SQL
   run_tool "could not drop the scratch database" \
     psql "$restore_maintenance" -X -q -v ON_ERROR_STOP=1 -c "drop database \"$scratch_database\" with (force)"
   scratch_database=""
+  drop_placeholder_roles || die "could not drop the placeholder roles"
 }
 
 check_recipients() {
@@ -315,6 +363,11 @@ cmd_backup() {
   fingerprint "$source" "$work/bundle/snapshot.fingerprint" "$snapshot"
   grep -E '^(entry|reflection)\|' "$work/bundle/snapshot.fingerprint" >"$work/bundle/inventory.txt" || true
   grep -vE '^(entry|reflection)\|' "$work/bundle/snapshot.fingerprint" >"$work/bundle/source.fingerprint"
+  # The dump holds the whole database; the fingerprint compares public and
+  # drizzle. Any other schema would be dumped without being compared.
+  local extra
+  extra="$(sed -nE 's/^schema\|//p' "$work/bundle/source.fingerprint" | grep -vxE 'public|drizzle' | tr '\n' ' ' || true)"
+  [[ -z $extra ]] || die "the database has a schema besides public and drizzle (${extra% }); the comparison does not cover it"
   rm -f "$work/bundle/snapshot.fingerprint" "$wrapper"
 
   # Owners and grants stay in the archive, so a recovery into Neon, where the

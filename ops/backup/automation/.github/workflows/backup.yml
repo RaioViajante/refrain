@@ -83,7 +83,9 @@ jobs:
         run: |
           umask 077
           config="$RUNNER_TEMP/refrain-backup-config"
-          mkdir -m 755 "$config" "$RUNNER_TEMP/refrain-backup-out"
+          # The container runs as this same user, so owner-only modes suffice.
+          mkdir -m 700 "$config"
+          mkdir -m 755 "$RUNNER_TEMP/refrain-backup-out"
           chmod 777 "$RUNNER_TEMP/refrain-backup-out"
           {
             printf '[refrain_source]\n%s\n\n' "$SOURCE_SERVICE"
@@ -94,8 +96,7 @@ jobs:
             printf '127.0.0.1:5432:*:refrain_restore:refrain-restore-ci-only\n'
           } > "$config/pgpass"
           printf '%s\n' "$RECIPIENT" > "$config/recipients.txt"
-          chmod 644 "$config/pg_service.conf" "$config/recipients.txt"
-          chmod 600 "$config/pgpass"
+          chmod 600 "$config/pg_service.conf" "$config/pgpass" "$config/recipients.txt"
 
       - name: Back up, restore-check, encrypt
         run: >-
