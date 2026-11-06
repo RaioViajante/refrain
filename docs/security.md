@@ -185,7 +185,7 @@ Logs record events and identifiers. They never contain entry titles or bodies, s
 
 ## Implemented and planned protections
 
-This matrix records what exists on `main` today and what is still a requirement. *Implemented* means the control is in the code and verified as shown. *Planned* means it is a requirement in this document with no implementation yet. Carry-forward requirements for the coming milestones are tracked in issue #6.
+This matrix records what exists on `main` today and what is still a requirement. Each section's heading was written when its milestone was built. A heading that says "on its branch until merged" is kept so links to it keep working: every milestone below is merged, through M3.8b and the F-01 and F-02 work ([Roadmap](roadmap.md)). *Implemented* means the control is in the code and verified as shown. *Planned* means it is a requirement in this document with no implementation yet. Carry-forward requirements for the coming milestones are tracked in issue #6.
 
 ### Implemented (M1.1, M1.2, M1.3A)
 
@@ -392,7 +392,7 @@ The Home's expansion under [ADR 0006 A6](decisions/0006-publication-decision-and
 | Allow-listed rich-text rendering | M2, M3 (Tiptap) | No editor or renderer exists; the database checks only the outer document shape |
 | Public caching only from predicate data; revalidation on every visibility change; `no-store` studio responses | M2, M3 | Nothing is cached. Since M3.1 the first public release has no shared cache at all (ADR 0006 § 11), so no revalidation is needed, and the tests show the next request reflects every change |
 | Predicate applied to metadata, sitemaps, feeds, and search | M3 | **Metadata, Open Graph, and the sitemap: built in M3.1** (the title and description come from the same read model, and a page that is not served has the not-found metadata). Feeds and search do not exist |
-| HTTP-level privacy tests (404 versus 308, metadata, caches) | M2, M3 | **Built in M3.1 for the album-journal page, the sitemap, and `robots.txt`** (see Implemented, M3.1), **in M3.4 for the Home's listings** (see Implemented, M3.4), **and in M3.5 for the artist pages** (see Implemented, M3.5). Artist journals, memories, and list pages have no page yet |
+| HTTP-level privacy tests (404 versus 308, metadata, caches) | M2, M3 | **Built in M3.1 for the album-journal page, the sitemap, and `robots.txt`** (see Implemented, M3.1), **in M3.4 for the Home's listings** (see Implemented, M3.4), **and in M3.5 for the artist pages** (see Implemented, M3.5). **Memories in M3.7 and the archive pages in M3.8a too** (see Implemented, M3.7 and M3.8a). Artist journals have no page yet |
 | Optimistic concurrency on saves | M2 for other entry kinds and track reflections | Done for album-journal text (M1.3B) |
 | Scheduled off-device backups of a hosted database, and a restore tested on the real data | Before any hosted database holds real writing | A local tool exists and a restore was rehearsed on synthetic data ([Development § Backup and restore](development.md#backup-and-restore)). Nothing is scheduled, and nothing protects against losing the device or the Docker volume until the owner copies backups elsewhere |
 | Private vulnerability reporting channel | Before the repository becomes public | GitHub private vulnerability reporting, enabled by the owner at publication. [`SECURITY.md`](../SECURITY.md) describes how to use it, and a fallback |

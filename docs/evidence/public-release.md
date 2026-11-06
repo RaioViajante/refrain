@@ -4,7 +4,7 @@ The record that [Security § Public-release gate](../security.md#public-release-
 
 **Owner decisions (2026-11-06):**
 - The **existing** repository becomes public with its complete, authentic history. No history is rewritten or filtered, and no replacement repository is created.
-- Historical `reference/` material, the personal email address in 33 GitHub merge commits, and the existing issues, pull requests, and reviews may all become public.
+- Historical `reference/` material, the personal email address in 33 commits made through GitHub's merge buttons, and the existing issues, pull requests, and reviews may all become public.
 - **Only the owner changes the visibility**, after this gate passes.
 
 Audited: `main` at `5b050e229a3663abe7ac5f068c9f4f459b184eb6`, plus this pull request.
@@ -41,7 +41,7 @@ The scan of 2026-11-06 used a mirror of every reference: 34 branches and 33 pull
 The values compared were never printed. The temporary pattern file holding them was deleted after the scan.
 
 **Accepted by the owner:**
-- The personal address in the 33 merge commits made through GitHub's merge button. Every other commit uses the account's noreply address.
+- The personal address in 33 commits: 32 merge commits made with GitHub's merge button, and one squash merge (`87f2b2a`, #10). Every other commit uses the account's noreply address.
 - Hosting-provider preview comments that show the team's slug. Their deployments are protected and were cancelled.
 
 ## Dependency advisories
@@ -65,7 +65,7 @@ None of it is used by the application, and no licence is granted for it.
 
 **Third-party material, unresolved: an owner decision before publication.** `reference/refrain/pages/support.js` (blob `08e782a`, 188 KB, minified) is the runtime the design tool exported with the mockups:
 
-- **Lines 1 to about 300** are React and ReactDOM 18 production builds. They are redistributable under the MIT License, and their notices are kept.
+- **Lines 1 to about 300** are React and ReactDOM 18 production builds, with an embedded Modernizr build. They are redistributable under the MIT License. Their headers in the file point to licence texts that the historical tree never contained, so [THIRD-PARTY-NOTICES.md](../../THIRD-PARTY-NOTICES.md) now carries those texts.
 - **The rest** is the design tool's own runtime (`__dcBoot`, `__dc_design_mode`, and related code). It has **no licence notice, no copyright line, and no product name**. Its authors' terms are unknown, so publishing it is a redistribution this repository cannot license.
 
 The owner's approval to make the history public does not settle the tool author's rights. Before publication, the owner identifies the tool and confirms that its terms allow users to share exported files, including the runtime, or accepts that risk in writing. The alternative is removing the file from history, which the owner has ruled out. Every other historical reference file is the owner's design output.
@@ -97,4 +97,11 @@ Changing visibility triggers no deployment.
 
 ## Independent review
 
-Codex ran a read-only review of the whole repository, its history, and this pull request on 2026-11-06. The findings and their resolution are in the pull request that adds this file.
+Codex ran a read-only review of the whole repository on 2026-11-06, in a separate context: its history, the trust boundaries of the application, the public workflow, licensing, and these documents. It found no credential, no private writing, no material hosting identifier, and no Critical or High issue. The authorization, session, publication-switch, predicate, provider, caching, and backup boundaries showed no new issue. The global sign-in rate-limit bucket remains a documented availability risk, not a publication risk.
+
+| Finding | Severity | Disposition |
+| --- | --- | --- |
+| The design-tool runtime in `support.js` has no licence notice. Also, React's headers point to licence texts that the history lacks | Medium | **React, ReactDOM, Modernizr:** fixed, their MIT texts are in [THIRD-PARTY-NOTICES.md](../../THIRD-PARTY-NOTICES.md). **The design-tool runtime:** open, the owner's decision ([above](#historical-design-references)). It blocks publication until resolved |
+| This record was stale (commit count, merge-commit wording) and described the review before it happened | Low | Fixed: the counts come from the scan of the final refs below, and the wording is corrected |
+| Security and development docs still called merged milestones branch-only, and memories unbuilt | Low | Fixed: a note on the matrix headings (kept so links work), and the two sentences corrected |
+| "A fork's workflows run only after approval" depends on a setting, not on the workflow | Low | Fixed: stated as a repository setting enabled at publication |

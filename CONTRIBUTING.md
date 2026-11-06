@@ -19,7 +19,7 @@ Larger changes, new features, redesigns, and new dependencies are not accepted w
 5. Every privacy rule needs a test ([Security § Required tests](docs/security.md#required-tests)). A change that touches a trust boundary gets a security review ([Security § Security reviews](docs/security.md#security-reviews)).
 6. Never commit secrets, `.env` files, database dumps, or real personal writing. Use synthetic fixtures labeled `[Test]`.
 
-Continuous integration runs on every pull request. It has read-only repository access and no secrets. A pull request from a fork runs only after the author approves its workflows.
+Continuous integration runs on every pull request. It has read-only repository access and no secrets. Once the repository is public, a fork's workflows run only after the author approves them (a repository setting, [Development § Repository protection](docs/development.md#repository-protection)).
 
 ## Licences
 
