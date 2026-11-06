@@ -184,7 +184,7 @@ On the day, with S1 done and verified:
    - `dpl_HTKitAaHNyYV67zf8bUHyp95ZdNq` is Ready, and every production address points at it, **checked alias by alias** (`GET /v4/aliases/<hostname>`). Not by the project's "production target" field, which names the most recent production deployment even when it was cancelled;
    - the author signs in on `https://refrain-chi.vercel.app` **today**, which proves that it still serves with its own `BETTER_AUTH_URL`;
    - `vercel promote --help` works with the installed CLI;
-   - the deployment was not deleted, and no newer production deployment exists.
+   - the deployment was not deleted, and no newer **Ready** (or staged) production deployment exists. Cancelled ones (from the suppressed Git builds) are expected, and never serve.
 
    Record the result. This is what makes the rollback below possible.
 4. **Environment:** Production `BETTER_AUTH_URL` → `https://refrain.raioviajante.com`. Change no other variable.
