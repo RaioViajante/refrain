@@ -52,7 +52,7 @@ Each stage is a separate owner approval. Later stages never start because an ear
 | **S3. Hosted gate work** | The [launch-critical fixes](#7-minimal-launch-critical-fixes) and the gate evidence, each as its own reviewed PR and verification | Protected; public reads off |
 | **S4. Public release** | Only when every gate in [§ 6](#6-hosted-release-gates-g1g8-and-their-dependencies) is closed by owner-reviewed evidence: public reads on, and protection changed so that only the canonical domain is public | The Studio stays behind Better Auth; every other hostname protected or redirected |
 
-S1 and S2 do **not** authorize S4. No gate is waived for the 2026-11-16 presentation ([§ 9](#9-academic-acceptance-plan-2026-11-16)).
+S1 and S2 do **not** authorize S4, whose own order and emergency stop are in [Public release sequence](#public-release-sequence-stage-s4). No gate is waived for the 2026-11-16 presentation ([§ 9](#9-academic-acceptance-plan-2026-11-16)).
 
 ## 3. DNS and TLS (stage S1)
 
@@ -101,7 +101,9 @@ The application accepts **exactly one** origin, by design: the handler and every
 
 ### Why the staged deployment cannot sign in
 
-A staged production deployment (`--skip-domain`) is reached at its own generated `*.vercel.app` URL. With `BETTER_AUTH_URL=https://refrain.raioviajante.com` built in, every `POST` from that URL fails the exact-origin check. **Authenticated tests are only possible after promotion,** on the custom domain. The staged deployment is checked anonymously: protection, sign-in page, public-route `404`s with the switch off, F-01 headers.
+A staged production deployment (`--skip-domain`) is reached at its own generated `*.vercel.app` URL, and has `BETTER_AUTH_URL=https://refrain.raioviajante.com` built in.
+- **In a browser,** pages served from that URL send their own origin, so the sign-in `POST` and every Studio action fail the exact-origin check. **Browser-based authenticated tests are only possible after promotion,** on the custom domain.
+- **A non-browser client** that sets `Origin: https://refrain.raioviajante.com` by hand and holds valid credentials could still sign in there, because the check compares the `Origin` header, not the request's URL. That is the standard CSRF model (browsers do not let a page forge `Origin`), and it is no weakness for the Studio. The plan does not rely on it, and does not test with forged headers against production. The staged deployment is checked anonymously: protection, sign-in page, public-route `404`s with the switch off, F-01 headers.
 
 ## 5. The old hostnames
 
@@ -125,7 +127,7 @@ From [#47](https://github.com/RaioViajante/refrain/issues/47) and [Security § P
 | Gate | Local evidence today | Missing for a hosted public site | Depends on |
 | --- | --- | --- | --- |
 | **G1** Status and redirect semantics | M3.1, M3.4, M3.5 HTTP tests (identical `404`, `308` only for a visible entry's old address) | The same checks on the **hosted** configuration and canonical domain. The owner's decision on a stored artist slug (artist addresses come from names; a rename leaves the old address `404`) | S2, and the switch on (for a private demo only, see § 9) |
-| **G2** Cache behaviour | No shared cache, `no-store` responses, F-01 studio headers verified on the host | Through the **real public URL**: the next request after unpublish, delete, restore, unflag, rating cleared, address change, and text edit. Sitemap, metadata, back/forward. The repeated-slash `308` without `no-store` (an owner decision) | S2, G1 |
+| **G2** Cache behaviour | No shared cache, `no-store` responses, F-01 studio headers verified on the host | Through the **real public URL**, including the hosting provider's edge:<ul><li>the next request after unpublish, delete, restore, unflag, rating cleared, address change, and text edit shows the new state;</li><li>`Cache-Control: no-store` on **every response class** (pages, `404`, `308`, RSC and prefetch forms, sitemap, `robots`, metadata images);</li><li>no cache-hit indicator (`Age`, `x-vercel-cache` hits) except as ADR 0006 A2 narrowly allows;</li><li>no journal data in the build output;</li><li>sitemap, metadata, back/forward.</li></ul>The repeated-slash `308` without `no-store` is an owner decision | S2, G1 |
 | **G3** Writers of public state | None. Not started | The inventory of every writer: application, scripts, migrations, fixtures, **restore** (the procedure exists in [Hosted Backups § Recovery](hosted-backups.md#recovery)), manual access, CI | — |
 | **G4** Database-layer enforcement | None | An ADR deciding triggers, row-level security, least-privilege roles, or accepted risk; then implementation and tests | G3 |
 | **G5** Predicate and configuration | The oracle and privacy matrix pass on the production build with the **test** role | The same against the production build with the **hosted role**. The secret's generation method recorded. HTTPS `BETTER_AUTH_URL`. The Studio unreachable without a session and `noindex` (it is: `robots: noindex, nofollow`). Error pages, `robots`, sitemap, and Open Graph serving only public content. Deployment-gate items 1–5 (#11) | S2, #11 |
@@ -136,6 +138,7 @@ From [#47](https://github.com/RaioViajante/refrain/issues/47) and [Security § P
 | Deployment gate item 6: album covers | Covers built for local use | The owner's recorded rights review (Cover Art Archive, MusicBrainz terms, attribution, removal, CSP, privacy notice), **or covers cleared** before public pages show them | — |
 | Deployment gate item 7: artist photographs | Built, with licence and attribution | The per-photograph licence review, the removal channel, the privacy notice, `img-src` against the real host, **or photographs cleared** | — |
 | #44 | — | The public album journal readable without JavaScript | — |
+| #54 (ADR 0006 § 5) | The memory editor asks first (M3.7) | The album-journal editor must ask before a save unflags a reflection, clears a reflection text, or clears a rating of a published journal. The owner rejected the current behaviour as an exception: **required before any hosted launch** ([Security](security.md#public-page-release-gates)) | — |
 | #69 | — | The intermittent browser failure in `publication.spec.ts` explained (CI reliability for every launch PR) | — |
 
 **Domain preparation (S1, S2) closes no gate.** It provides the hosted configuration that G1, G2, and G5 must be tested on.
@@ -154,7 +157,7 @@ Each is its own reviewed PR, with tests, before S4. None changes production when
 3. **G8 catalog wording:** the owner's choice between a confirmation for catalog edits that change public wording, and an independently verified alternative (for example, refusing such edits while a page is public).
 4. **G3 inventory and the G4 ADR**, then whatever G4 decides, through `/refrain-db-change`.
 5. **Covers and photographs** (items 6 and 7): the owner's rights review, or clear them for the first public release.
-6. **#44**, readable without JavaScript, and **#69**, the intermittent CI failure.
+6. **#54**, the album-journal editor asks before a removal from a published journal (required before any hosted launch); **#44**, readable without JavaScript; and **#69**, the intermittent CI failure.
 7. **Backups (G6)**, through #65.
 
 Deliberately **not** proposed:
@@ -175,26 +178,58 @@ On the day, with S1 done and verified:
 2. **Checks on that commit:**
    - CI green on it;
    - locally `pnpm install --frozen-lockfile`, `pnpm build` (no `DATABASE_URL`).
-3. **Environment:** Production `BETTER_AUTH_URL` → `https://refrain.raioviajante.com`. Change no other variable.
+3. **Rollback preflight, immediately before changing anything.** Stop if any of these fails:
+   - `dpl_HTKitAaHNyYV67zf8bUHyp95ZdNq` is Ready, and is the current production target (Vercel API);
+   - the author signs in on `https://refrain-chi.vercel.app` **today**, which proves that it still serves with its own `BETTER_AUTH_URL`;
+   - `vercel promote --help` works with the installed CLI;
+   - the deployment was not deleted, and no newer production deployment exists.
+
+   Record the result. This is what makes the rollback below possible.
+4. **Environment:** Production `BETTER_AUTH_URL` → `https://refrain.raioviajante.com`. Change no other variable.
    - This does not affect the running deployment.
    - **From here, a deployment built from this project uses the new value**, so no other production deployment is made until promotion or rollback.
-4. **Staged deployment:**
+5. **Staged deployment:**
    - `vercel deploy --prod --skip-domain` from the clean checkout, linked to project `refrain`;
    - record the deployment ID, its URL, and `meta`;
    - check that the uploaded file list matches `git ls-files` (provenance).
-5. **Anonymous checks on the staged URL:**
+6. **Anonymous checks on the staged URL:**
    - Vercel's sign-in redirect;
    - with the owner's Vercel session in a fresh browser profile: the sign-in page renders, and `POST /api/auth/sign-in/email` is refused with `INVALID_ORIGIN` (expected);
    - public routes `404` with the switch off;
    - the F-01 probe: every Studio form `private, no-store`.
-6. **Promote:** `vercel promote <staged id>`. Both production aliases and the custom domain move to it. Record the time.
-7. **Authenticated checks on `https://refrain.raioviajante.com`,** as in the F-01 verification:
+7. **Promote:** `vercel promote <staged id>`. Both production aliases and the custom domain move to it. Record the time.
+8. **Authenticated checks on `https://refrain.raioviajante.com`,** as in the F-01 verification:
    - sign in, the Desk;
    - CRUD of one synthetic `[Test]` record, then deleting it;
    - the F-01 probe as the author and without a session;
    - sign-out ends the session;
    - an old-hostname `POST` refused.
-8. **Record:** in an evidence file, with no secret, cookie, or private content.
+9. **Record:** in an evidence file, with no secret, cookie, or private content.
+
+## Public release sequence (stage S4)
+
+Only after every gate and condition in [§ 6](#6-hosted-release-gates-g1g8-and-their-dependencies) is closed by owner-reviewed evidence, and the canonical-host redirect ([§ 7](#7-minimal-launch-critical-fixes), item 2) is deployed and verified. The order makes each step safe if the next one fails.
+
+1. **Reads still off.** Confirm `REFRAIN_PUBLIC_READS_ENABLED=false` in the running production deployment: every public route answers the unknown-address `404` on the canonical domain, with the owner's Vercel session.
+2. **Change the protection mode,** from All Deployments to the mode the owner approves, which leaves only production domains public.
+3. **Inventory every hostname at once, anonymously** (no Vercel session), while reads are still off:
+
+   | Hostname | Expected |
+   | --- | --- |
+   | `refrain.raioviajante.com` | The site, with public routes answering `404` (reads off) and `/studio` answering the sign-in |
+   | `refrain-chi.vercel.app`, `refrain-bryanalvarenga-5889s-projects.vercel.app` | `308` to the canonical domain, or the provider's sign-in. Never the site under its own name |
+   | The current deployment's generated URL, a staged deployment's URL, and every `refrain-git-…` alias | The provider's sign-in (protected) |
+
+   **Any other result:** go back to All Deployments at once, then investigate.
+4. **Turn reads on:** set `REFRAIN_PUBLIC_READS_ENABLED=true` (Production), make a staged deployment of the same approved commit from a clean checkout, and check it. Then promote it. Environment changes reach only new deployments, so this is a deployment, not a toggle.
+5. **Verify publicly,** without a session: the Home, the archives, a published `[Test]` page, an unpublished address answering the identical `404`, the sitemap, `no-store` on every response class, and the Studio's sign-in. Re-run the inventory in step 3.
+
+**Emergency stop, in order of speed:**
+1. **Set Deployment Protection back to All Deployments.** It takes effect immediately, needs no deployment, and makes every hostname private again.
+2. **Promote the previous deployment,** which has reads off (no rebuild).
+3. **Set `REFRAIN_PUBLIC_READS_ENABLED=false`,** so that any later deployment matches.
+
+None of these touches the database.
 
 ## Rollback and forward recovery
 
