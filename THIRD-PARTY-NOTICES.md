@@ -8,6 +8,8 @@ The file **also contains a design-tool runtime with no licence notice.** Nothing
 
 ## React and ReactDOM 18 (`react.production.min.js`, `react-dom.production.min.js`)
 
+The licence file of React v18.3.1 (https://raw.githubusercontent.com/facebook/react/v18.3.1/LICENSE). The `react-dom@18.3.1` package ships the same text as its only licence file. Read 2026-11-06.
+
 ```
 MIT License
 
@@ -34,4 +36,6 @@ SOFTWARE.
 
 ## Modernizr 3.0.0pre, custom build, embedded in ReactDOM
 
-The file's header reads "Modernizr 3.0.0pre (Custom Build) | MIT". Modernizr is distributed under the MIT License by the Modernizr project (https://modernizr.com). The copyright holders are the Modernizr authors, as their own licence names them. The permission notice is the MIT text above.
+ReactDOM's production build contains a small Modernizr build, introduced by the comment "Modernizr 3.0.0pre (Custom Build) | MIT", which the historical file keeps. ReactDOM's publisher distributes it within `react-dom` under the React licence above, together with that comment, and these notices reproduce the same set.
+
+Modernizr's own licence page (https://modernizr.com/license, read 2026-11-06) states the MIT License with the line "Copyright © 2009-2018" and the permission notice above. It names no copyright holder, and the licence file in Modernizr's repository could not be retrieved. No holder is named here beyond what those sources state.

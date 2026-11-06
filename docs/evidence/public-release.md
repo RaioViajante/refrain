@@ -27,7 +27,7 @@ Audited: `main` at `5b050e229a3663abe7ac5f068c9f4f459b184eb6`, plus this pull re
 
 ## Secret scanning
 
-The final scan on 2026-11-06 used a fresh mirror of every reference, taken after this pull request's last content commit (`aa575cb`): 35 branches and the refs of 34 pull requests, 390 commits in all, and no tags. The first scan, of the 386 commits before this pull request, gave the same results.
+The final full-history scan on 2026-11-06 used a fresh mirror of every reference at `aa575cb`, this pull request's last commit that changed anything but this file's wording: 35 branches and the refs of 34 pull requests, 390 commits, and no tags. The first scan, of the 386 commits before this pull request, gave the same results. The commits after `aa575cb` change only this file and `THIRD-PARTY-NOTICES.md`. gitleaks on the final tree found no leaks.
 
 | Check | Result |
 | --- | --- |
@@ -101,7 +101,7 @@ Codex ran a read-only review of the whole repository on 2026-11-06, in a separat
 
 | Finding | Severity | Disposition |
 | --- | --- | --- |
-| The design-tool runtime in `support.js` has no licence notice. Also, React's headers point to licence texts that the history lacks | Medium | **React, ReactDOM, Modernizr:** fixed, their MIT texts are in [THIRD-PARTY-NOTICES.md](../../THIRD-PARTY-NOTICES.md). **The design-tool runtime:** open, the owner's decision ([above](#historical-design-references)). It blocks publication until resolved |
+| The design-tool runtime in `support.js` has no licence notice. Also, React's headers point to licence texts that the history lacks | Medium | **React, ReactDOM, and the embedded Modernizr:** fixed. [THIRD-PARTY-NOTICES.md](../../THIRD-PARTY-NOTICES.md) reproduces the notices as `react-dom` 18.3.1 ships them, and what Modernizr's licence page states, without naming holders the sources do not name. **The design-tool runtime:** open, and only the owner can resolve it: identify the tool and its terms, get permission, or accept the risk in writing ([above](#historical-design-references)). It blocks publication until resolved |
 | This record was stale (commit count, merge-commit wording) and described the review before it happened | Low | Fixed: the counts come from the scan of the final refs below, and the wording is corrected |
 | Security and development docs still called merged milestones branch-only, and memories unbuilt | Low | Fixed: a note on the matrix headings (kept so links work), and the two sentences corrected |
 | "A fork's workflows run only after approval" depends on a setting, not on the workflow | Low | Fixed: stated as a repository setting enabled at publication |
