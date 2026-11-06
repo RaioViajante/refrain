@@ -988,20 +988,32 @@ describe("refusals", () => {
     expect(unmarked.stderr).toMatch(/not marked as disposable/);
   });
 
-  it("refuses a source role that can write, like the owner or the runtime role", async () => {
-    await asAdmin(sourceDatabase, (client) =>
-      client.query(`grant insert on public.artists to ${backupRole}`),
-    );
-    try {
-      const out = newOutput();
-      const backup = tools(["refrain-backup", "backup", "/out"], { out });
-      expect(backup.code).not.toBe(0);
-      expect(backup.stderr).toMatch(/can write or create/);
-      expect(readdirSync(out)).toEqual([]);
-    } finally {
-      await asAdmin(sourceDatabase, (client) =>
-        client.query(`revoke insert on public.artists from ${backupRole}`),
-      );
+  it("refuses a source role that can write, create, or become a role that can", async () => {
+    const writer = `refrain_writer_${run}`;
+    for (const [grant, revoke] of [
+      [
+        `grant insert on public.artists to ${backupRole}`,
+        `revoke insert on public.artists from ${backupRole}`,
+      ],
+      [
+        `grant create on schema public to ${backupRole}`,
+        `revoke create on schema public from ${backupRole}`,
+      ],
+      [
+        `create role ${writer} nologin; grant insert on public.artists to ${writer}; grant ${writer} to ${backupRole} with inherit false`,
+        `revoke ${writer} from ${backupRole}; revoke insert on public.artists from ${writer}; drop role ${writer}`,
+      ],
+    ] as const) {
+      await asAdmin(sourceDatabase, (client) => client.query(grant));
+      try {
+        const out = newOutput();
+        const backup = tools(["refrain-backup", "backup", "/out"], { out });
+        expect(backup.code, grant).not.toBe(0);
+        expect(backup.stderr, grant).toMatch(/can write or create/);
+        expect(readdirSync(out)).toEqual([]);
+      } finally {
+        await asAdmin(sourceDatabase, (client) => client.query(revoke));
+      }
     }
   });
 

@@ -62,7 +62,7 @@ iCloud Drive and an offline drive, kept 12 months
 - **The source:**
   - The connection is forced to `sslmode=verify-full sslrootcert=system` (system CA store and host name).
   - It must be PostgreSQL 18.
-  - It must not be a superuser, and must not be able to write a table, create in the database, create roles or databases, or bypass RLS. This refuses the Neon owner (which is not a PostgreSQL superuser) and the runtime role.
+  - It must not be a superuser, and must not be able to write a table, create in the database or in any schema, create roles or databases, bypass RLS, or be a member of any role (which could `SET ROLE` to a writer). This refuses the Neon owner (which is not a PostgreSQL superuser) and the runtime role.
 - **The restore server:**
   - It must be on a loopback host.
   - It must be PostgreSQL 18.

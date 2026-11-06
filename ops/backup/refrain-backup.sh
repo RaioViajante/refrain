@@ -164,7 +164,11 @@ connection_facts() {
                       where n.nspname not like 'pg\\_%' and n.nspname <> 'information_schema'
                         and c.relkind in ('r', 'p')
                         and has_table_privilege(c.oid, 'INSERT, UPDATE, DELETE, TRUNCATE'))
-          or has_database_privilege(current_database(), 'CREATE'))
+          or has_database_privilege(current_database(), 'CREATE')
+          or exists (select 1 from pg_namespace n
+                      where n.nspname not like 'pg\\_%' and n.nspname <> 'information_schema'
+                        and has_schema_privilege(n.oid, 'CREATE'))
+          or exists (select 1 from pg_auth_members m where m.member = r.oid))
         from pg_roles r where r.rolname = current_user"
 }
 
@@ -191,7 +195,8 @@ check_source() {
   [[ "$(fact superuser "$facts")" == off ]] ||
     die "the source connection is a superuser; use the dedicated read-only backup role"
   # Not the owner or the runtime role either: a role that can write a table,
-  # create in the database, or create roles is refused.
+  # create in the database or in a schema, create roles, or is a member of any
+  # role (and so could SET ROLE to one that writes) is refused.
   [[ "$(fact writer "$facts")" == false ]] ||
     die "the source role can write or create; use the dedicated read-only backup role"
   if [[ ${REFRAIN_BACKUP_TEST_ONLY_INSECURE_SOURCE:-} == 1 ]]; then
