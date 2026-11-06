@@ -1,0 +1,146 @@
+# TEMPLATE for the separate, private automation repository (refrain-backups).
+# NOT active here: it lives under ops/backup/automation/, which GitHub never
+# runs. Copy it only when the owner authorizes provisioning
+# (docs/hosted-backups.md § Provisioning).
+#
+# Daily encrypted backup of Refrain's hosted PostgreSQL 18 database. It holds
+# the production backup credential, so it runs only on a schedule or by the
+# owner's manual dispatch: never on a pull request, a push, or a fork.
+name: Backup
+
+on:
+  schedule:
+    # 05:41 UTC (02:41 in São Paulo), away from the top of the hour, when
+    # GitHub delays or drops scheduled runs most. Scheduled runs use the
+    # default branch's latest commit.
+    - cron: "41 5 * * *"
+  workflow_dispatch:
+
+# Nothing by default; the job asks for exactly what it uses.
+permissions: {}
+
+# One backup at a time; a second one waits instead of racing the first.
+concurrency:
+  group: refrain-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    name: Encrypted, restore-checked backup
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    # GitHub Pro (private repositories): an environment that only the default
+    # branch can use, holding the secrets below. On GitHub Free, environments
+    # are unavailable for private repositories: delete this line and store the
+    # same names as repository secrets.
+    environment: production-backup
+
+    services:
+      # The disposable restore server: a fresh, empty PostgreSQL 18 that exists
+      # only for this job. The plaintext dump is restored here and compared
+      # before it is encrypted.
+      restore:
+        image: postgres:18.6-trixie@sha256:3a4264520e121176619f54ff867d12774bc81e95e7b84db58d63bccdb6144b81
+        env:
+          # Credentials of this job's throwaway server. Not a secret.
+          POSTGRES_USER: refrain_restore
+          POSTGRES_PASSWORD: refrain-restore-ci-only
+          POSTGRES_DB: refrain_restore_test
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -p 5432 -U refrain_restore -d refrain_restore_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - name: Check out (the vendored toolkit only)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: The vendored toolkit is exactly the reviewed copy
+        run: sha256sum --check --strict toolkit/SHA256SUMS
+
+      - name: Mark the restore server as disposable
+        run: >-
+          docker exec "${{ job.services.restore.id }}"
+          psql -v ON_ERROR_STOP=1 -U refrain_restore -d refrain_restore_test
+          -c "comment on database refrain_restore_test is 'refrain:disposable-test-database'"
+
+      - name: Build the toolchain (PostgreSQL 18 client tools and age)
+        run: docker build --tag refrain-backup-tools toolkit
+
+      - name: Write the connection files (owner-only, never printed)
+        env:
+          # host, port, dbname, user of the DIRECT (unpooled) Neon endpoint
+          SOURCE_SERVICE: ${{ secrets.REFRAIN_BACKUP_SOURCE_SERVICE }}
+          # one .pgpass line for refrain_backup
+          SOURCE_PGPASS: ${{ secrets.REFRAIN_BACKUP_PGPASS }}
+          # the owner's age public key (not a secret; a variable)
+          RECIPIENT: ${{ vars.REFRAIN_BACKUP_AGE_RECIPIENT }}
+        run: |
+          umask 077
+          config="$RUNNER_TEMP/refrain-backup-config"
+          # The container runs as this same user, so owner-only modes suffice.
+          mkdir -m 700 "$config"
+          mkdir -m 755 "$RUNNER_TEMP/refrain-backup-out"
+          chmod 777 "$RUNNER_TEMP/refrain-backup-out"
+          {
+            printf '[refrain_source]\n%s\n\n' "$SOURCE_SERVICE"
+            printf '[refrain_restore]\nhost=127.0.0.1\nport=5432\ndbname=refrain_restore_test\nuser=refrain_restore\nsslmode=disable\n'
+          } > "$config/pg_service.conf"
+          {
+            printf '%s\n' "$SOURCE_PGPASS"
+            printf '127.0.0.1:5432:*:refrain_restore:refrain-restore-ci-only\n'
+          } > "$config/pgpass"
+          printf '%s\n' "$RECIPIENT" > "$config/recipients.txt"
+          chmod 600 "$config/pg_service.conf" "$config/pgpass" "$config/recipients.txt"
+
+      - name: Back up, restore-check, encrypt
+        run: >-
+          docker run --rm
+          --network "container:${{ job.services.restore.id }}"
+          --user "$(id -u):$(id -g)"
+          -v "$RUNNER_TEMP/refrain-backup-config:/cfg:ro"
+          -v "$RUNNER_TEMP/refrain-backup-out:/out"
+          -e PGSERVICEFILE=/cfg/pg_service.conf
+          -e PGPASSFILE=/cfg/pgpass
+          -e REFRAIN_BACKUP_RECIPIENTS_FILE=/cfg/recipients.txt
+          refrain-backup-tools refrain-backup backup /out
+
+      - name: Summary (no content)
+        run: cat "$RUNNER_TEMP/refrain-backup-out/summary.txt" >> "$GITHUB_STEP_SUMMARY"
+
+      # Belt and braces: the step above fails on any error and writes its
+      # output only after the restore check, but nothing is uploaded unless
+      # the folder holds exactly one age bundle, its matching checksum, and a
+      # summary that says the restore check passed.
+      - name: Only a verified, encrypted bundle is uploaded
+        working-directory: ${{ runner.temp }}/refrain-backup-out
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          bundles=(refrain-*.tar.age)
+          test "${#bundles[@]}" -eq 1
+          test "$(find . -mindepth 1 | wc -l)" -eq 3
+          test -f "${bundles[0]}.sha256" && test -f summary.txt
+          sha256sum --check --strict "${bundles[0]}.sha256"
+          test "$(head -c 21 "${bundles[0]}")" = "age-encryption.org/v1"
+          grep -qx 'restore_check=passed (plaintext dump, before encryption)' summary.txt
+          ! grep -aq -e 'AGE-SECRET-KEY' -e 'postgres://' -e 'PGDMP' "${bundles[0]}" summary.txt
+
+      - name: Keep the encrypted bundle for 90 days
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: refrain-backup-${{ github.run_id }}
+          path: ${{ runner.temp }}/refrain-backup-out/
+          retention-days: 90
+          if-no-files-found: error
+          # Already encrypted (and compressed inside): zipping gains nothing.
+          compression-level: 0
+
+      - name: Remove the connection files
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/refrain-backup-config"

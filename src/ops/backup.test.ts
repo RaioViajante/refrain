@@ -1,6 +1,7 @@
 import {
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -11,14 +12,17 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
+  checkArchiveVersion,
   checkOutputPath,
   checkSidecar,
   COMPARED_TABLES,
+  dumpedByMajor,
   EXCLUDED_DATA,
   knownServices,
   OpsError,
   parseArguments,
   resolveTarget,
+  RESTORE_SERVERS,
   runVerify,
   targetOfUrl,
   unaccountedTables,
@@ -177,11 +181,21 @@ describe("the commands and their flags", () => {
       command: "verify",
       file: "/x/a.dump",
       compareWith: "127.0.0.1:5432/refrain",
+      postgres: "17",
     });
     expect(parseArguments(["verify", "--file=/x/a.dump"])).toEqual({
       command: "verify",
       file: "/x/a.dump",
       compareWith: undefined,
+      postgres: "17",
+    });
+    expect(
+      parseArguments(["verify", "--file=/x/a.dump", "--postgres=18"]),
+    ).toEqual({
+      command: "verify",
+      file: "/x/a.dump",
+      compareWith: undefined,
+      postgres: "18",
     });
   });
 
@@ -205,6 +219,11 @@ describe("the commands and their flags", () => {
       ["verify"],
       ["verify", "--file=/x/a.dump", "--into=127.0.0.1:5432/refrain"],
       ["verify", "--file=/x/a.dump", "--clean=1"],
+      ["verify", "--file=/x/a.dump", "--postgres=16"],
+      ["verify", "--file=/x/a.dump", "--postgres=19"],
+      ["verify", "--file=/x/a.dump", "--postgres=toString"],
+      ["verify", "--file=/x/a.dump", "--postgres=18", "--postgres=17"],
+      ["backup", "--target=a", "--output=/x", "--postgres=18"],
       ["restore", "--file=/x/a.dump"],
       ["dropdb", "refrain"],
       [],
@@ -333,5 +352,51 @@ describe("verify refuses, before it touches anything", () => {
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
+  });
+});
+
+describe("which restore server a backup goes to", () => {
+  it("is one of the two disposable test containers, chosen by major version", () => {
+    expect(RESTORE_SERVERS).toEqual({
+      "17": "postgres-test",
+      "18": "postgres-test-18",
+    });
+  });
+
+  const listing = (version: string) =>
+    [
+      ";",
+      "; Archive created at 2026-11-06 00:00:00 UTC",
+      ";     dbname: refrain",
+      ";     Dumped from database version: 18.6",
+      `;     Dumped by pg_dump version: ${version}`,
+      ";",
+    ].join("\n");
+
+  it("reads which pg_dump made an archive", () => {
+    expect(dumpedByMajor(listing("18.6 (Debian 18.6-1.pgdg13+2)"))).toBe(18);
+    expect(dumpedByMajor(listing("17.11"))).toBe(17);
+    expect(dumpedByMajor("not a listing")).toBeUndefined();
+  });
+
+  it("refuses an archive newer than the restore server, or of unknown origin", () => {
+    expect(() => checkArchiveVersion(listing("17.11"), 17)).not.toThrow();
+    expect(() => checkArchiveVersion(listing("17.11"), 18)).not.toThrow();
+    expect(() => checkArchiveVersion(listing("18.6"), 18)).not.toThrow();
+    expect(() => checkArchiveVersion(listing("18.6"), 17)).toThrow(
+      /--postgres=18/,
+    );
+    expect(() => checkArchiveVersion("no header", 18)).toThrow(OpsError);
+  });
+});
+
+describe("the hosted backup script and this tool leave out the same rows", () => {
+  it("excludes exactly EXCLUDED_DATA in ops/backup/refrain-backup.sh", () => {
+    const script = readFileSync("ops/backup/refrain-backup.sh", "utf8");
+    const line = /^readonly EXCLUDED_TABLES=\(([^)]*)\)$/m.exec(script);
+    expect(line, "EXCLUDED_TABLES in the script").not.toBeNull();
+    expect(line![1]!.split(/\s+/).filter(Boolean).sort()).toEqual(
+      EXCLUDED_DATA.map((table) => `public.${table}`).sort(),
+    );
   });
 });

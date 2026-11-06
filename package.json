@@ -17,6 +17,7 @@
     "test": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
     "test:http": "vitest run --project http",
+    "test:backup": "vitest run --project backup",
     "test:e2e": "pnpm build && playwright test",
     "test:e2e:run": "playwright test",
     "review:screens": "pnpm build && VISUAL_REVIEW=1 playwright test --project=visual-review",
