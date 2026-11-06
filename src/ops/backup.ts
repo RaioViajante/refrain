@@ -37,6 +37,11 @@ import { TEST_DATABASE_MARKER } from "@/testing/test-database";
 //   pg_restore run *inside* the Compose container, over its local socket, as
 //   the container's own user; nothing here reads, passes, or prints a
 //   password or a connection string.
+// - **The restore server's major version is explicit.** `verify` restores
+//   into the PostgreSQL 17 test container by default, or into the PostgreSQL
+//   18 one with `--postgres=18` (the hosted database's version). An archive
+//   made by a newer pg_dump than the restore server is refused before
+//   anything is created.
 // - **Nothing is overwritten or deleted.** The output file must not exist,
 //   is created with owner-only permissions (0600), and a partial file left by
 //   a failed run is removed (and only that, the file this run created). No
@@ -54,12 +59,31 @@ export class OpsError extends Error {
 
 /** The two local Compose services, and the environment that names each. */
 export interface Service {
-  name: "postgres" | "postgres-test";
+  name: "postgres" | "postgres-test" | "postgres-test-18";
   /** `host:port/database`, lowercase, as the environment resolves it. */
   target: string;
 }
 
 type Env = Readonly<Record<string, string | undefined>>;
+
+/** The disposable containers a backup can be restored into, by major version. */
+export const RESTORE_SERVERS = {
+  "17": "postgres-test",
+  "18": "postgres-test-18",
+} as const satisfies Record<string, Service["name"]>;
+
+export type RestoreVersion = keyof typeof RESTORE_SERVERS;
+
+/** The Compose profile that defines each service (compose.yaml). */
+function profileOf(service: Service["name"]): string[] {
+  if (service === "postgres-test") {
+    return ["--profile", "test"];
+  }
+  if (service === "postgres-test-18") {
+    return ["--profile", "test-18"];
+  }
+  return [];
+}
 
 const LOOPBACK = new Set(["localhost", "127.0.0.1", "::1"]);
 const DATABASE_NAME = /^[a-z][a-z0-9_]{0,62}$/;
@@ -188,7 +212,12 @@ function safeLstat(path: string) {
 
 export type Command =
   | { command: "backup"; target: string; output: string }
-  | { command: "verify"; file: string; compareWith?: string };
+  | {
+      command: "verify";
+      file: string;
+      compareWith?: string;
+      postgres: RestoreVersion;
+    };
 
 /** Only the documented flags exist: an unknown flag is refused. */
 export function parseArguments(argv: readonly string[]): Command {
@@ -197,7 +226,7 @@ export function parseArguments(argv: readonly string[]): Command {
     command === "backup"
       ? ["target", "output"]
       : command === "verify"
-        ? ["file", "compare-with"]
+        ? ["file", "compare-with", "postgres"]
         : undefined;
   if (!allowed) {
     throw new OpsError("The command is backup or verify.");
@@ -226,7 +255,18 @@ export function parseArguments(argv: readonly string[]): Command {
   if (!file) {
     throw new OpsError("verify needs --file=<absolute path of a backup>.");
   }
-  return { command: "verify", file, compareWith: values.get("compare-with") };
+  const postgres = values.get("postgres") ?? "17";
+  if (!Object.hasOwn(RESTORE_SERVERS, postgres)) {
+    throw new OpsError(
+      "--postgres names the restore server's major version: 17 (the default) or 18.",
+    );
+  }
+  return {
+    command: "verify",
+    file,
+    compareWith: values.get("compare-with"),
+    postgres: postgres as RestoreVersion,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -239,13 +279,7 @@ interface Execution {
 }
 
 function composeArguments(service: Service["name"]): string[] {
-  return [
-    "compose",
-    ...(service === "postgres-test" ? ["--profile", "test"] : []),
-    "exec",
-    "-T",
-    service,
-  ];
+  return ["compose", ...profileOf(service), "exec", "-T", service];
 }
 
 // The container's own user runs the tool, over its local socket: nothing here
@@ -386,13 +420,7 @@ function runHost(args: string[], cwd: string): Promise<Execution> {
 async function assertServicePort(service: Service, cwd: string): Promise<void> {
   const port = service.target.split("/")[0]!.split(":").pop();
   const published = await runHost(
-    [
-      "compose",
-      ...(service.name === "postgres-test" ? ["--profile", "test"] : []),
-      "port",
-      service.name,
-      "5432",
-    ],
+    ["compose", ...profileOf(service.name), "port", service.name, "5432"],
     cwd,
   ).catch(() => undefined);
   if (!published || published.code !== 0) {
@@ -589,8 +617,39 @@ async function snapshotOf(
   };
 }
 
+/** The major version of the pg_dump that made an archive, from its listing. */
+export function dumpedByMajor(listing: string): number | undefined {
+  const match = /^;\s+Dumped by pg_dump version: (\d+)\./m.exec(listing);
+  return match ? Number(match[1]) : undefined;
+}
+
+/**
+ * Refuses an archive whose maker is unknown or newer than the restore server:
+ * PostgreSQL promises that a dump loads into the same or a newer server, not
+ * an older one.
+ */
+export function checkArchiveVersion(
+  listing: string,
+  serverMajor: number,
+): void {
+  const major = dumpedByMajor(listing);
+  if (major === undefined) {
+    throw new OpsError(
+      "The archive does not say which pg_dump made it, so nothing was restored.",
+    );
+  }
+  if (major > serverMajor) {
+    throw new OpsError(
+      `The archive was made by pg_dump ${major}, which is newer than the PostgreSQL ${serverMajor} restore server. Use --postgres=${major}. Nothing was restored.`,
+    );
+  }
+}
+
 export interface VerifyResult {
   scratch: string;
+  /** The disposable container that holds the scratch database. */
+  restoreServer: Service["name"];
+  serverMajor: number;
   counts: Record<string, string>;
   migrations: string;
   compared: boolean;
@@ -609,6 +668,8 @@ export interface VerifyResult {
 export async function runVerify(options: {
   file: string;
   compareWith?: string;
+  /** The restore server's major version; 17 unless stated. */
+  postgres?: RestoreVersion;
   env: Env;
   repositoryRoot: string;
 }): Promise<VerifyResult> {
@@ -660,6 +721,7 @@ async function verifyArchive(options: {
   /** The archive the user named, when `file` is a private copy of it. */
   original: string;
   compareWith?: string;
+  postgres?: RestoreVersion;
   env: Env;
   repositoryRoot: string;
 }): Promise<VerifyResult> {
@@ -683,16 +745,21 @@ async function verifyArchive(options: {
     await assertServicePort(source, options.repositoryRoot);
   }
 
-  // The destination is always the disposable test container, which must carry
-  // the disposable marker. It is not configurable.
+  // The destination is always a disposable test container, which must carry
+  // the disposable marker: the PostgreSQL 17 one, or the 18 one when asked.
+  // Nothing else can be named.
+  const version = options.postgres ?? "17";
+  const restore = RESTORE_SERVERS[version];
+  const startCommand =
+    version === "18" ? "pnpm db:test18:up" : "pnpm db:test:up";
   const marker = await scalar(
-    "postgres-test",
+    restore,
     "refrain_test",
     "select shobj_description(oid, 'pg_database') from pg_database where datname = current_database()",
     options.repositoryRoot,
   ).catch(() => {
     throw new OpsError(
-      "The disposable test database is not running. Start it with pnpm db:test:up.",
+      `The disposable PostgreSQL ${version} test database is not running. Start it with ${startCommand}.`,
     );
   });
   if (marker !== TEST_DATABASE_MARKER) {
@@ -701,24 +768,37 @@ async function verifyArchive(options: {
     );
   }
 
-  // The archive must be a readable pg_dump archive, and is checked before anything is created.
-  const listing = await inContainer(
-    "postgres-test",
-    `exec pg_restore --list > /dev/null`,
-    [],
-    { cwd: options.repositoryRoot, stdin: createReadStream(options.file) },
-  );
+  // The archive must be a readable pg_dump archive, made by a pg_dump no
+  // newer than the restore server, and is checked before anything is created.
+  const listing = await inContainer(restore, `exec pg_restore --list`, [], {
+    cwd: options.repositoryRoot,
+    stdin: createReadStream(options.file),
+  });
   if (listing.code !== 0) {
     throw new OpsError(
-      `The file is not a valid PostgreSQL archive:\n${firstLines(listing.stderr)}`,
+      `The file is not a valid PostgreSQL archive:\n${firstLines(listing.stderr)}` +
+        (version === "17"
+          ? "\nAn archive made by a newer pg_dump (the hosted database is PostgreSQL 18) needs --postgres=18."
+          : ""),
     );
   }
+  const serverMajor = Math.floor(
+    Number(
+      await scalar(
+        restore,
+        "refrain_test",
+        "show server_version_num",
+        options.repositoryRoot,
+      ),
+    ) / 10000,
+  );
+  checkArchiveVersion(listing.stdout, serverMajor);
   // A new database, with a name that cannot already exist, and the restore in
   // one transaction that stops at the first error. `create database`
   // fails if it does; nothing is dropped, cleaned, or overwritten.
   const scratch = `refrain_restore_${randomBytes(4).toString("hex")}_test`;
   const created = await inContainer(
-    "postgres-test",
+    restore,
     `${PSQL} -d postgres -c "create database ${scratch}"`,
     [],
     { cwd: options.repositoryRoot },
@@ -730,7 +810,7 @@ async function verifyArchive(options: {
   }
 
   const restored = await inContainer(
-    "postgres-test",
+    restore,
     `exec pg_restore --no-owner --no-privileges --exit-on-error --single-transaction -U "$POSTGRES_USER" -d "$1"`,
     [scratch],
     { cwd: options.repositoryRoot, stdin: createReadStream(options.file) },
@@ -743,7 +823,7 @@ async function verifyArchive(options: {
   // rows are deliberately left out of a backup really came back empty.
   const present = (
     await scalar(
-      "postgres-test",
+      restore,
       scratch,
       "select coalesce(string_agg(tablename, ' ' order by tablename), '') from pg_tables where schemaname = 'public'",
       options.repositoryRoot,
@@ -759,7 +839,7 @@ async function verifyArchive(options: {
   }
   for (const table of EXCLUDED_DATA) {
     const left = await scalar(
-      "postgres-test",
+      restore,
       scratch,
       `select count(*) from public.${table}`,
       options.repositoryRoot,
@@ -771,11 +851,7 @@ async function verifyArchive(options: {
     }
   }
 
-  const after = await snapshotOf(
-    "postgres-test",
-    scratch,
-    options.repositoryRoot,
-  );
+  const after = await snapshotOf(restore, scratch, options.repositoryRoot);
   let compared = false;
   if (source) {
     const database = source.target.split("/")[1]!;
@@ -801,6 +877,8 @@ async function verifyArchive(options: {
   }
   return {
     scratch,
+    restoreServer: restore,
+    serverMajor,
     counts: Object.fromEntries(
       Object.entries(after.tables).map(([table, value]) => [table, value.rows]),
     ),

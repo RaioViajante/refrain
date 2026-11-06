@@ -44,12 +44,13 @@ async function main(): Promise<number> {
     const result = await runVerify({
       file: command.file,
       compareWith: command.compareWith,
+      postgres: command.postgres,
       env: process.env,
       repositoryRoot: root,
     });
     console.log(
       [
-        `Restored into a new scratch database on the disposable test container: ${result.scratch}`,
+        `Restored into a new scratch database on the disposable PostgreSQL ${result.serverMajor} test container (${result.restoreServer}): ${result.scratch}`,
         `  migrations applied: ${result.migrations}`,
         ...Object.entries(result.counts).map(([t, n]) => `  ${t}: ${n} rows`),
         result.checksumChecked
@@ -58,7 +59,9 @@ async function main(): Promise<number> {
         result.compared
           ? `Every row of the ${COMPARED_TABLES.length} compared tables (the writing, its status and publication history, deletion, versions, slugs, the catalog, and the author's account) equals the source's, and the migration count matches. The three session and rate-limit tables are deliberately empty in a backup.`
           : "Not compared with a source (no --compare-with): the archive restored without error, nothing more is claimed.",
-        "The scratch database is discarded by pnpm db:test:down.",
+        result.restoreServer === "postgres-test-18"
+          ? "The scratch database is discarded by pnpm db:test18:down."
+          : "The scratch database is discarded by pnpm db:test:down.",
       ].join("\n"),
     );
     return 0;
