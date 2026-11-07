@@ -1,7 +1,7 @@
 # ADR 0007: Hosted Backups, Retention, and Recovery
 
-- **Status:** **Proposed.** It is waiting for the owner's decision. Nothing here is in force until the owner accepts it, and no backup of the hosted database exists yet.
-- **Date:** 2026-11-06. Proposed with F-02 (issue [#65](https://github.com/RaioViajante/refrain/issues/65)), for gate G6 ([#47](https://github.com/RaioViajante/refrain/issues/47)).
+- **Status:** **Accepted** by the owner on 2026-11-07, including the retention exception to ADR 0003 in § 2a ([Acceptance](#acceptance)). Acceptance sets the policy only. **No backup of the hosted database exists yet:** nothing is provisioned, and F-02 (#65) and gate G6 stay open until their [closing criteria](../hosted-backups.md#closing-f-02-and-g6) are met.
+- **Date:** Proposed 2026-11-06; accepted 2026-11-07. Proposed with F-02 (issue [#65](https://github.com/RaioViajante/refrain/issues/65)), for gate G6 ([#47](https://github.com/RaioViajante/refrain/issues/47)).
 - **Scope:** How long backups of the hosted database keep writing, including writing deleted later; what a restore from a backup may and may not do to publication and sessions; and where backups live. The mechanics are in [Hosted Backups](../hosted-backups.md).
 
 ## Context
@@ -14,7 +14,7 @@
 
 Three existing decisions meet it:
 
-- **[ADR 0003 § 3](0003-relational-schema-conventions.md#3-published-slugs-stay-reserved-after-permanent-deletion), minimal retention:** "permanent deletion keeps nothing of the writing except slugs that were already public." The [product promise](../product.md) is that permanent deletion happens only on the author's explicit "Delete now". A backup taken before a "Delete now" still holds the writing. Retaining backups therefore **conflicts with the letter of ADR 0003** unless their retention is bounded and stated. This ADR does not change ADR 0003. It proposes the stated exception, for the owner to accept or refuse.
+- **[ADR 0003 § 3](0003-relational-schema-conventions.md#3-published-slugs-stay-reserved-after-permanent-deletion), minimal retention:** "permanent deletion keeps nothing of the writing except slugs that were already public." The [product promise](../product.md) is that permanent deletion happens only on the author's explicit "Delete now". A backup taken before a "Delete now" still holds the writing. Retaining backups therefore **conflicts with the letter of ADR 0003** unless their retention is bounded and stated. This ADR does not change ADR 0003's decision. It states a bounded exception for backups, which the owner accepted on 2026-11-07.
 - **[ADR 0005](0005-restoring-deleted-journals.md):** restoring a deleted journal never republishes. Its published versions return as private.
 - **[ADR 0006](0006-publication-decision-and-acknowledgement.md):** writing becomes public only through a reviewed, confirmed publication.
 
@@ -28,7 +28,7 @@ Restoring a whole database from a backup is a far larger restore than ADR 0005's
 - **Keep only 7 days.** Too short to notice slow damage, such as a bad migration found weeks later.
 - **Purge deleted writing from old backups.** Not possible with encrypted, immutable archives without re-encrypting history.
 
-## Decision (proposed)
+## Decision
 
 ### 1. Where backups live
 
@@ -44,7 +44,7 @@ Restoring a whole database from a backup is a far larger restore than ADR 0005's
 
 ### 2a. The retention exception to ADR 0003 (stated, not silent)
 
-ADR 0003 promises that permanent deletion keeps nothing of the writing except slugs that were already public. Backups change what "permanent" means. If this ADR is accepted, the promise reads:
+ADR 0003 promises that permanent deletion keeps nothing of the writing except slugs that were already public. Backups change what "permanent" means. **The owner accepted this exception on 2026-11-07.** The promise now reads:
 
 1. **"Delete now" removes the writing from the serving application at once.** That is the database the Studio and the public pages read. Nothing changes there: `permanentlyDeleteEntry` behaves as ADR 0003 says.
 2. **Historical encrypted backups made while the writing existed can still hold it,** until they expire:
@@ -56,7 +56,7 @@ ADR 0003 promises that permanent deletion keeps nothing of the writing except sl
 4. **Writing that must disappear sooner** needs a manual step: delete every bundle and copy made while it existed. Doing so also removes those days from the backup history.
 5. **A recovery never brings it back silently:** see § 3.4.
 
-On acceptance, ADR 0003's status line gets a note pointing to this section. Its decision is not edited. The same note goes on [Security § Data protection](../security.md#data-protection), [Data Model § Retention after permanent deletion](../data-model.md), and [Product](../product.md) item 7, which today mark this as proposed.
+On acceptance, ADR 0003's status line gained a note pointing to this section. Its decision is not edited. The same exception is stated in [Security § Data protection](../security.md#data-protection), [Data Model § Retention after permanent deletion](../data-model.md), and [Product](../product.md) item 7.
 
 ### 2b. Truthful copy for the future "Delete now" control
 
@@ -98,9 +98,27 @@ A restore from a backup:
   - Automatic purge (ADR 0002 D4.4 stays: disabled).
   - Whether G4 adds row-level security. If it does, the backup role needs a deliberate `BYPASSRLS` decision, and backups fail loudly until then.
 
+## Acceptance
+
+On 2026-11-07 the owner accepted this decision as written:
+
+1. Daily encrypted PostgreSQL 18 backups, encrypted with age before they are uploaded, kept **90 days**.
+2. Monthly owner copies outside GitHub, kept **12 months**.
+3. The private key is held by the owner only, in Proton Pass and in an independent offline copy, never in GitHub.
+4. A dedicated, read-only Neon role, `refrain_backup`.
+5. A restore and integrity comparison on every daily run, and a monthly decryption and restore drill by the owner.
+6. Recovery only into a new database, never into the serving one. Everything published is demoted to private before a recovered copy is used. Writing permanently deleted after the backup is reconciled and reviewed. Sessions and verification values are not in backups. `BETTER_AUTH_SECRET` is rotated during an actual recovery.
+7. **The retention exception to ADR 0003 (§ 2a):** writing permanently deleted from the serving application can remain in encrypted backups until they expire, for up to 90 days in daily bundles and up to 12 months in monthly copies.
+
+**What acceptance does not do:**
+- It provisions nothing. No key pair, `refrain_backup` role, private repository, secret, schedule, or export exists. Each step in [Hosted Backups § Provisioning](../hosted-backups.md#provisioning-each-step-needs-the-owners-explicit-authorization) needs the owner's separate authorization.
+- It does not close F-02 (#65) or G6 (#47). Until they close, the hosted database holds only synthetic `[Test]` records.
+- It does not approve the interface wording in § 2b. That wording is approved with M2.4, when "Delete now" is built.
+- It does not change ADR 0002 D4.4: automatic purge stays disabled.
+
 ## Revisit when
 
 - The database grows beyond what a daily full dump handles comfortably (minutes, or more than a few hundred MB).
 - The author wants deleted writing removed from backups sooner.
-- GitHub's free allowance or retention rules change.
+- GitHub's included Actions allowance, budget enforcement, or retention rules change.
 - The project moves to another database provider.

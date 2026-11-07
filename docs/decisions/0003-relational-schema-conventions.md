@@ -1,6 +1,6 @@
 # ADR 0003: Relational Schema Conventions
 
-- **Status:** Accepted
+- **Status:** Accepted. **Note (2026-11-07):** [ADR 0007 § 2a](0007-hosted-backups-and-retention.md#2a-the-retention-exception-to-adr-0003-stated-not-silent), accepted by the owner, states a bounded exception to § 3's minimal retention for encrypted backups: writing permanently deleted from the serving database can remain in backups made while it existed, for up to 90 days in daily bundles and up to 12 months in monthly copies. This ADR's decision is not changed.
 - **Date:** 2026-10-31. Proposed with M1.2 (issue #4, pull request #5). The author amended slug retention and publication history in review, and accepted the amended decision the same day.
 - **Scope:** How the first migrations represent ADR 0002, and the open questions from [ADR 0002](0002-domain-model-decisions.md#still-open-after-this-adr) and [Data Model](../data-model.md#open-questions) that the schema depends on. It refines ADR 0002 and changes none of its decisions.
 
