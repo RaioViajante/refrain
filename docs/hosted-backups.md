@@ -33,7 +33,7 @@ iCloud Drive and an offline drive, kept 12 months
 - **Independent of Neon and Vercel.** The bundles live on GitHub, and their monthly copies live off GitHub. The Neon history window (6 hours on the Free plan) is the provider's own and does not count.
 - **Encrypted before it is stored.** GitHub holds only ciphertext, and the decryption key never reaches GitHub.
 - **Restored daily.** A dump that cannot be restored fails that day's run, not a recovery months later.
-- **No paid service** beyond the owner's existing GitHub Pro subscription, and no charge beyond it (see [Cost and quotas](#cost-and-quotas)).
+- **No paid service** beyond the owner's existing GitHub Pro subscription. The expected use fits well within Pro's included allowance. Whether an overage could ever be billed depends on the account's payment method and budget, which the owner checks before provisioning (see [Cost and quotas](#cost-and-quotas)).
 - **One small, auditable toolchain:** bash, `psql`, `pg_dump`, `pg_restore`, and `age` in one pinned image, without the application's code or its npm dependencies, because the job holds a production credential.
 
 **Alternatives considered:**
@@ -276,17 +276,17 @@ The first manual run (Provisioning step 6) measures the real billed minutes. Re-
    - **Yes:** go to step 3.
 3. **Budgets and alerts:** list the existing budgets. If there is none for Actions, the decision is the owner's. The recommendation is a **GitHub Actions** budget for the account with **"Stop usage when budget limit is reached"** selected and all alerts on, created **before** `refrain-backups` exists, because a budget counts only usage after its creation. Choose the amount:
    - **$0.** The strictest setting for compute beyond the allowance. GitHub does not document whether it also blocks the included usage. If it does, the first manual run is refused for billing reasons. That is visible, costs nothing, and the owner then decides whether to raise it.
-   - **A small amount, such as $1.** It caps the worst case at that amount, if included usage runs out.
+   - **A small amount, such as $1.** It bounds Actions **compute** charges at that amount, if included usage runs out. Whether it also bounds storage is not documented.
 
    An account-level budget covers every private repository the owner has, which is the point. GitHub's example says an exhausted stopping budget blocks "all GitHub-hosted runners"; whether that also stops the free runs of the **public** `refrain` CI is not documented. Watch the next `refrain` CI run after creating it. A budget scoped to `refrain-backups` alone, created after step 4 and before step 6, avoids that question but leaves other private repositories unbudgeted.
 4. **Included usage alerts:** keep GitHub's alerts at 90% and 100% of the included allowance on. GitHub sends them whether or not a budget exists.
 5. **Storage:** confirm that the account's artifact and Packages storage is well under 1 GB. Whether the Actions budget covers storage is not documented. At about 10 MB of bundles, an overage would take years of growth.
 
-Record what was checked, never card or account details, in #65. These steps change no setting unless the owner chooses to create a budget.
+Keep the details (usage, payment-method status, budget amount) in the owner's private log. In the public #65, record only "billing check done" and whether a stopping budget is in place. These steps change no setting unless the owner chooses to create a budget.
 
 **Retention:** artifacts expire after `retention-days: 90`, within the private-repository maximum of 400 days. Deleting a run deletes its artifacts. A deleted artifact "cannot be restored".
 
-**No paid service** is used, and none should be bought for this.
+**No paid service** is used, and none should be bought for this. The aim is no charge beyond the Pro subscription. That holds while use stays within the included allowance, or when no payment method is on file. With a payment method, only a stopping budget limits an overage, and only as far as the budget covers.
 
 ## Monthly owner copy and drill
 
@@ -315,7 +315,9 @@ On the first weekend of each month, about 30 minutes, on the Mac with FileVault 
    - **An interrupted drill or backup** (Ctrl-C, `docker stop`) drops its scratch database and its placeholder roles before exiting (tested).
    - **A run killed outright** (SIGKILL) can leave a `refrain_verify_…_test` database or a `NOLOGIN` placeholder role, only on the disposable server. `pnpm db:test18:down` discards both, and CI's server is discarded with the job.
 4. **Keep the copy.** Copy the `.tar.age` and its `.sha256` (never a decrypted file) to a private iCloud Drive folder and to the offline encrypted drive. Check `shasum -a 256 -c` on each copy.
-5. **Delete** monthly copies older than 12 months from both places ([ADR 0007 § 2](decisions/0007-hosted-backups-and-retention.md)).
+5. **Delete** monthly copies older than 12 months from both places ([ADR 0007 § 2](decisions/0007-hosted-backups-and-retention.md)). Age is the bundle's UTC timestamp in its name, not the file's date.
+
+   **Expiry does not depend on the drill.** Keep a separate, dated monthly reminder for this deletion, and do it even in a month when the drill is skipped. Otherwise a missed drill would keep a copy past the 12 months that ADR 0007 promises.
 6. **Record** the date, the bundle name, its sha256, and "drill passed" in the private log (Proton Pass note). Never record the content.
 
 Optionally, wrap the copy in the AES-256 disk image of the local procedure as well. It adds nothing cryptographically, but keeps one procedure for both kinds of backup.
@@ -347,6 +349,8 @@ Never automatic, never into the serving database, and never with public reads on
 
 Every step below that changes production, infrastructure, or an account needs the owner's **separate, explicit authorization**. No agent generates, sees, or stores the private key, the passphrase, or a database password. A step that fails stops the sequence, and is recorded.
 
+**Where evidence goes.** `refrain` is public, so its issue #65 gets **attestations only**: a step done, a check passed, a run's conclusion, a commit. Run IDs, row counts, digests, summaries, usage, payment status, and budget details go in the owner's **private log** (the Proton Pass note), or in an issue of the private `refrain-backups`. No secret or content goes anywhere.
+
 | # | Step | Who | Changes | Evidence (never a secret or content) |
 | --- | --- | --- | --- | --- |
 | 0 | **Policy:** accept [ADR 0007](decisions/0007-hosted-backups-and-retention.md) | Owner | Documentation | **Done 2026-11-07** |
@@ -355,14 +359,15 @@ Every step below that changes production, infrastructure, or an account needs th
 | 2 | **Verify custody:** the identity and passphrase in Proton Pass, and an independent offline copy (drive and paper, the passphrase kept apart). Decrypt a throwaway test file with the **offline** copy | Owner only | None | "Offline identity decrypts the test file", with the date |
 | 3 | **Create and audit `refrain_backup`** in Neon ([The backup role](#the-backup-role)), through `/refrain-db-change` | Owner. An agent may help only if authorized for exactly this; the owner sets the password with `\password` | One read-only role in the production database | `backup-role-audit.sql` prints `result\|pass`; an attempted write is refused with `42501`; Neon accepted the grants and `neondb_owner` is the role that runs migrations (the default privileges depend on it); the direct (not `-pooler`) host; a `verify-full` connection succeeds |
 | 4 | **Create `RaioViajante/refrain-backups`, private**, with no collaborators | Owner, or an agent the owner authorizes | A new private repository | Visibility `PRIVATE`, collaborators none |
-| 5 | **Configure it.** Vendor `ops/backup/` into `toolkit/` from a reviewed `refrain` commit, with `SHA256SUMS` and `SOURCE`. Add the workflows **without their `schedule:` triggers**, so nothing runs before step 8 passes. Then add:<ul><li>the environment `production-backup`, deployment branches limited to `main`;</li><li>the two secrets in the environment, entered in GitHub's interface or by `gh secret set` reading from standard input, never as an argument;</li><li>the recipient variable;</li><li>`main` protected (no force push, no deletion);</li><li>`CODEOWNERS`.</li></ul>Fork pull-request workflows stay off | Owner, or an agent for everything except the secrets | Repository settings | The `SOURCE` commit, `sha256sum --check` passing, the workflow diff against the templates (only the removed `schedule:` blocks), the settings as configured |
-| 6 | **One manual backup:** `workflow_dispatch` of `backup.yml`. **This is the first export of production data** | Owner's authorization for this run | One run, one artifact | Run ID, conclusion, billed minutes, the summary's counts and digests. Logs and summary inspected: no credential, plaintext, or content |
+| 5 | **Configure it.** Vendor `ops/backup/` into `toolkit/` from a reviewed `refrain` commit, with `SHA256SUMS` and `SOURCE`. Add the workflows **without their `schedule:` triggers**, so nothing runs before step 8 passes. Then add:<ul><li>the environment `production-backup`, deployment branches limited to `main`;</li><li>the two secrets in the environment, entered in GitHub's interface or by `gh secret set` reading from standard input, never as an argument;</li><li>the recipient variable;</li><li>`main` protected (no force push, no deletion);</li><li>`CODEOWNERS`, with its comment corrected: the template's comment still mentions a ruleset requiring a review, which Pro does not offer and this plan does not use. Correct it in the template too, in a separate change, before vendoring.</li></ul>Fork pull-request workflows stay off | Owner, or an agent for everything except the secrets | Repository settings | The `SOURCE` commit, `sha256sum --check` passing, the workflow diff against the templates (only the removed `schedule:` blocks), the settings as configured |
+| 6 | **One manual backup:** `workflow_dispatch` of `backup.yml`. **This is the first export of production data** | Owner's authorization for this run | One run, one artifact | **Private log:** run ID, billed minutes, the summary's counts and digests. **Public #65:** the run's conclusion, billed minutes, and "logs and summary inspected: no credential, plaintext, or content" |
 | 7 | **Download and decrypt** with the owner's **offline** identity ([Monthly owner copy and drill](#monthly-owner-copy-and-drill)) | Owner only | None in any service | `check` passes, and the `.sha256` matches |
 | 8 | **Genuine PostgreSQL 18 restore drill** on `postgres-test-18` | Owner (an agent may run the commands without the key) | Local disposable server only | `drill passed`, and `pnpm db:test18:down` run |
 | 9 | **Copies outside GitHub:** iCloud Drive and the offline drive | Owner only | None in any service | `shasum -a 256 -c` passes on each copy |
 | 10 | **Enable the schedules:** the owner commits the `schedule:` blocks of both workflows, exactly as templated, so failure notifications go to the owner | Owner | Two scheduled workflows | The commit, and the first scheduled backup and freshness runs |
 | 11 | **Seven consecutive successful scheduled runs**, with freshness green | Automatic | None | Run IDs and dates. A failure or a missed day restarts the count |
-| 12 | **Record the evidence** in #65 and ask for the owner's review of G6 (#47). The recovery rehearsal (closing criterion 7) needs its own authorization, because its target is a new database | Owner | None | The evidence record |
+| 12 | **Recovery rehearsal** ([Recovery](#recovery)) into a new database, never the serving one, including the demotion to private and the reconciliation, timed (closing criterion 7). The target, a new Neon branch or database or the local disposable server, is the owner's choice and needs its own authorization | Owner | A new, non-serving database, or none | The time taken, `recovery-check.sql` passing, the target dropped afterwards |
+| 13 | **Record the evidence** and ask for the owner's review of G6 (#47) | Owner | None | Public #65: attestations only. Private log: the details |
 
 **The fastest safe path to the first verified backup** is steps 0a to 8, probably in one session of about two hours (an estimate):
 - The owner does 0a, 1, and 2 alone.
@@ -386,7 +391,7 @@ F-02 and G6 close only on recorded evidence that the owner has reviewed:
 ## Remaining risks
 
 - **One GitHub account** holds both the automation and up to 90 days of bundles. The monthly copy limits the loss to a month.
-- **Monthly copies depend on the owner's habit.** A missed month widens the gap, and the private log makes it visible.
+- **Monthly copies depend on the owner's habit.** A missed month widens the gap, and the private log makes it visible. **Their expiry also depends on the owner:** the separate monthly reminder is what keeps the 12-month limit.
 - **Key loss is unrecoverable.** That is why there are two independent copies, and a test of the offline one.
 - **The included allowance can be exhausted** (blocked runs, or a charge if a payment method is on file without a stopping budget). The freshness check reports it.
 - **Neon-specific behavior is untested locally:**
