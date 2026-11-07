@@ -89,7 +89,7 @@ in progress: m4.2, the academic demonstration kit, on its own branch.
 
 planned: artist journals, the brazilian portuguese interface and its language selector, author translations, "delete now", and the academic release (m4).
 
-also merged: postgresql 18 support (the hosted database's version, tested in ci alongside 17); a fix that keeps studio responses out of shared caches; and a hosted-backup toolchain with encrypted, restore-checked bundles and an owner's restore drill ([hosted-backups.md](docs/hosted-backups.md)), not provisioned yet. its retention policy is proposed in [adr 0007](docs/decisions/0007-hosted-backups-and-retention.md).
+also merged: postgresql 18 support (the hosted database's version, tested in ci alongside 17); a fix that keeps studio responses out of shared caches; and a hosted-backup toolchain with encrypted, restore-checked bundles and an owner's restore drill ([hosted-backups.md](docs/hosted-backups.md)), not provisioned yet. its retention policy, [adr 0007](docs/decisions/0007-hosted-backups-and-retention.md), was accepted on 2026-11-07.
 
 hosting: one private test deployment, behind the hosting provider's sign-in on every request, with the public-reads switch off and synthetic data only. no real writing is hosted until backups are running and tested. public pages stay off until the [release gates](docs/security.md#public-page-release-gates) are closed. see [roadmap.md](docs/roadmap.md).
 
