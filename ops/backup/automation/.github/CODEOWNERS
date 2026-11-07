@@ -1,4 +1,9 @@
-# Every file, and the workflows above all, are the owner's. With GitHub Pro,
-# a ruleset on the default branch requires a pull request and the owner's
-# review (docs/hosted-backups.md § The automation repository).
+# Every file, and the workflows above all, are the owner's. In this
+# single-owner private repository on GitHub Pro, this file records ownership
+# only: required code-owner review is not turned on, because the only owner
+# cannot approve their own pull request, and no ruleset is used (GitHub
+# documents rulesets for Team and Enterprise). The controls are a protected
+# default branch (no force push, no deletion), the secrets in an environment
+# limited to that branch, and no collaborators
+# (docs/hosted-backups.md § The automation repository).
 * @RaioViajante
