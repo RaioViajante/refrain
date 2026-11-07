@@ -39,7 +39,7 @@ Restoring a whole database from a backup is a far larger restore than ADR 0005's
 ### 2. Retention, explicit and bounded
 
 1. **Daily bundles** expire after **90 days** (`retention-days: 90`). GitHub then deletes them, and a deleted artifact "cannot be restored".
-2. **Monthly owner copies** expire after **12 months**. At each monthly drill, the owner deletes copies older than that from every place they were kept: iCloud Drive and the offline drive.
+2. **Monthly owner copies** expire after **12 months**. The owner deletes each copy from every place it was kept (iCloud Drive and the offline drive) on or before its 12-month expiry, judged by the bundle's UTC timestamp. This is a dated monthly task of its own, done even in a month when the drill is skipped.
 3. **Nothing is retained indefinitely by policy.** A longer-lived archive, such as a yearly copy, needs a new, explicit decision.
 
 ### 2a. The retention exception to ADR 0003 (stated, not silent)
