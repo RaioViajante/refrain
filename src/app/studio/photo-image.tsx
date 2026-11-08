@@ -6,7 +6,8 @@ import { useEffect, useRef, useState } from "react";
 // chosen cover. If it fails to load, it is removed, so the frame's fallback is
 // all that remains: no broken-image icon or border is drawn over it. A failure
 // can happen before the page is hydrated, when no error handler is attached
-// yet, so the image's state is also read once after hydration.
+// yet, so the image's state is also read once after hydration. A frame keys this
+// component by its source, so a new image never inherits an earlier failure.
 
 export function PhotoImage({
   src,

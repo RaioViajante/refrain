@@ -44,6 +44,7 @@ export function ArtworkPlaceholder({
     >
       <span aria-hidden>artwork not shown</span>
       <PhotoImage
+        key={artwork.src}
         src={artwork.src}
         srcSet={artwork.srcSet}
         sizes={`${size ?? 160}px`}
@@ -69,6 +70,7 @@ export function AlbumThumb({
       <Icon name="album" size={26} />
       {artwork ? (
         <PhotoImage
+          key={artwork.src}
           src={artwork.src}
           srcSet={artwork.srcSet}
           sizes="56px"
