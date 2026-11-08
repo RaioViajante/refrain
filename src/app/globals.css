@@ -1777,7 +1777,7 @@ html:has(.studio-editorbar[data-mode="edit"]) {
   }
 
   /* A placeholder says nothing; real artwork will be shown here. */
-  .studio-journal .studio-artwork {
+  .studio-journal .studio-artwork:not(.studio-cover) {
     display: none;
   }
 }
