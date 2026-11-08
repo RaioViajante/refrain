@@ -4,11 +4,13 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { accessDenied } from "@/app/studio/access";
+import { AlbumThumb } from "@/app/studio/artwork-placeholder";
 import { formatDate, plural } from "@/app/studio/format";
 import { StudioFrame } from "@/app/studio/frame";
 import { Icon } from "@/app/studio/icons";
 import { StudioLoading } from "@/app/studio/studio-loading";
 import { StatusMark } from "@/app/studio/status-mark";
+import { listAlbumCovers, type AlbumCover } from "@/modules/catalog";
 import { authorizeAuthor } from "@/modules/identity";
 import {
   getJournalStatistics,
@@ -34,10 +36,11 @@ async function Journals() {
     return accessDenied(authorization.reason);
   }
   const { author } = authorization;
-  const [journals, deleted, statistics] = await Promise.all([
+  const [journals, deleted, statistics, covers] = await Promise.all([
     listAlbumJournals(author),
     listDeletedAlbumJournals(author),
     getJournalStatistics(author),
+    listAlbumCovers(author),
   ]);
 
   return (
@@ -72,7 +75,7 @@ async function Journals() {
             {statistics.draft === 1 ? "draft" : "drafts"}, {statistics.private}{" "}
             private, {statistics.published} published.
           </p>
-          <JournalList journals={journals} label="Journals" />
+          <JournalList journals={journals} covers={covers} label="Journals" />
         </>
       )}
 
@@ -99,9 +102,11 @@ async function Journals() {
 
 function JournalList({
   journals,
+  covers,
   label,
 }: {
   journals: AlbumJournalSummary[];
+  covers: Map<string, AlbumCover>;
   label: string;
 }) {
   // The album is the journal's subject and heading (ADR 0002); the author's own
@@ -111,9 +116,7 @@ function JournalList({
     <ul className="studio-list" aria-label={label}>
       {journals.map((journal) => (
         <li key={journal.entryId} className="studio-row studio-entry">
-          <span className="studio-thumb" aria-hidden="true">
-            <Icon name="album" size={26} />
-          </span>
+          <AlbumThumb artwork={covers.get(journal.albumId)} />
           <span className="studio-entry-body">
             <span className="studio-row-title">
               <Link href={`/studio/journals/${journal.entryId}`}>

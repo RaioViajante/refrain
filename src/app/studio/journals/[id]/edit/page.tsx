@@ -5,9 +5,11 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { accessDenied } from "@/app/studio/access";
+import { ArtworkPlaceholder } from "@/app/studio/artwork-placeholder";
 import { StudioFrame } from "@/app/studio/frame";
 import { JournalEditor } from "@/app/studio/journals/journal-editor";
 import { StudioLoading } from "@/app/studio/studio-loading";
+import { getAlbumCover } from "@/modules/catalog";
 import { authorizeAuthor } from "@/modules/identity";
 import { getAlbumJournal, getTrackByTrack } from "@/modules/journals";
 
@@ -72,7 +74,10 @@ async function EditJournal({ params }: { params: Promise<{ id: string }> }) {
     );
   }
 
-  const trackByTrack = await getTrackByTrack(authorization.author, id);
+  const [trackByTrack, cover] = await Promise.all([
+    getTrackByTrack(authorization.author, id),
+    getAlbumCover(authorization.author, journal.albumId),
+  ]);
 
   return (
     <StudioFrame current="journals" layout="wide">
@@ -82,16 +87,62 @@ async function EditJournal({ params }: { params: Promise<{ id: string }> }) {
           label: "The journal",
         }}
         heading={
-          <div className="studio-editor-head">
-            <p className="studio-meta">Editing your album journal</p>
-            <h1 className="studio-title studio-title-editor">
-              <span className="studio-sr-only">Editing: </span>
-              {journal.albumTitle}
-            </h1>
-            {journal.artistNames ? (
-              <p className="studio-meta">{journal.artistNames}</p>
-            ) : null}
+          <div className="studio-editor-head studio-editor-head-album">
+            <ArtworkPlaceholder
+              artwork={cover}
+              title={journal.albumTitle}
+              size={120}
+            />
+            <div>
+              <p className="studio-meta">Editing your album journal</p>
+              <h1 className="studio-title studio-title-editor">
+                <span className="studio-sr-only">Editing: </span>
+                {journal.albumTitle}
+              </h1>
+              {journal.artistNames ? (
+                <p className="studio-meta">{journal.artistNames}</p>
+              ) : null}
+            </div>
           </div>
+        }
+        catalog={
+          <>
+            <section aria-labelledby="editor-catalog" className="space-y-1">
+              <h2 id="editor-catalog" className="studio-margin-title">
+                From your catalog
+              </h2>
+              <p className="studio-meta">
+                {[journal.artistNames, journal.albumTitle]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+              <p>
+                <Link
+                  href={`/studio/albums/${journal.albumId}`}
+                  className="studio-link studio-meta"
+                >
+                  Edit in catalog
+                </Link>
+              </p>
+            </section>
+            <section aria-labelledby="editor-artwork" className="space-y-1">
+              <h2 id="editor-artwork" className="studio-margin-title">
+                Artwork
+              </h2>
+              <p className="studio-meta">
+                {cover ? "Cover Art Archive" : "No artwork yet"}
+              </p>
+              <p>
+                <Link
+                  href={`/studio/albums/${journal.albumId}/artwork`}
+                  className="studio-link studio-meta"
+                >
+                  Change…
+                  <span className="studio-sr-only"> the album’s artwork</span>
+                </Link>
+              </p>
+            </section>
+          </>
         }
         edit={{
           entryId: journal.entryId,

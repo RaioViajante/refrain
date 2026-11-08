@@ -2,20 +2,25 @@
 
 import { useEffect, useRef, useState } from "react";
 
-// The image inside an artist photograph's frame (M3.3). If it fails to load,
-// it is removed, so the frame's fallback is all that remains: no broken-image
-// icon or border is drawn over it. A failure can happen before the page is
-// hydrated, when no error handler is attached yet, so the image's state is
-// also read once after hydration.
+// The image inside a studio frame: an artist's photograph (M3.3) or an album's
+// chosen cover. If it fails to load, it is removed, so the frame's fallback is
+// all that remains: no broken-image icon or border is drawn over it. A failure
+// can happen before the page is hydrated, when no error handler is attached
+// yet, so the image's state is also read once after hydration.
 
 export function PhotoImage({
   src,
   srcSet,
   sizes,
+  width = 330,
+  height = 412,
 }: {
   src: string;
   srcSet: string;
   sizes: string;
+  /** The intrinsic size, so the frame reserves its place before loading. */
+  width?: number;
+  height?: number;
 }) {
   const image = useRef<HTMLImageElement>(null);
   const [failed, setFailed] = useState(false);
@@ -37,8 +42,8 @@ export function PhotoImage({
       src={src}
       srcSet={srcSet}
       sizes={sizes}
-      width={330}
-      height={412}
+      width={width}
+      height={height}
       alt=""
       decoding="async"
       referrerPolicy="no-referrer"

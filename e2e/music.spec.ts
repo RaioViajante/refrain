@@ -286,6 +286,120 @@ test("changes and removes the cover only on purpose", async ({
   }
 });
 
+test("shows the chosen cover on every studio surface, and the fallback when it fails", async ({
+  page,
+}, testInfo) => {
+  const albumId = await withDatabase(
+    async (client) =>
+      (
+        await client.query(
+          "select id from albums where mb_release_group_id = $1",
+          [FIXTURE.paperMoon],
+        )
+      ).rows[0].id as string,
+  );
+  // A journal about the album, through the Studio's own form.
+  await page.goto(`/studio/albums/${albumId}`);
+  await page
+    .getByRole("link", { name: "Write a journal about this album" })
+    .click();
+  await page
+    .getByLabel("Your reflection", { exact: true })
+    .fill("[Test] E2E words about the cover.");
+  await page.getByRole("button", { name: "Save as draft" }).click();
+  await page.waitForURL(/\/studio\/journals\/[0-9a-f-]{36}$/);
+  const journalUrl = new URL(page.url()).pathname;
+
+  // A row's thumbnail holds the cover, square, over the record mark.
+  const expectCoverRow = async (path: string, list: string) => {
+    await page.goto(path);
+    const thumb = page
+      .getByRole("list", { name: list })
+      .getByRole("listitem")
+      .filter({ hasText: "[Test] Paper Moon" })
+      .locator(".studio-thumb");
+    const image = thumb.locator("img");
+    await expect
+      .poll(() =>
+        image.evaluate((element: HTMLImageElement) => element.naturalWidth),
+      )
+      .toBeGreaterThan(0);
+    const box = await image.boundingBox();
+    expect(box!.width).toBeCloseTo(box!.height, 0);
+    await expect(thumb.locator("svg")).toBeAttached();
+    await noAxeViolations(page);
+    if (isMobile(page)) {
+      await expectNoHorizontalOverflow(page);
+    }
+  };
+  await expectCoverRow("/studio", "Journals");
+  await screenshot(page, "desk-with-cover", testInfo.project.name);
+  await expectCoverRow("/studio/journals", "Journals");
+  await expectCoverRow("/studio/albums", "Albums");
+  await expectCoverRow(
+    "/studio/catalog/add?q=paper%20moon",
+    "Already in your catalog",
+  );
+
+  const frame = page.getByRole("img", {
+    name: "Album artwork for [Test] Paper Moon",
+  });
+  await page.goto(journalUrl);
+  await expect(frame).toBeVisible();
+  await expect
+    .poll(() =>
+      frame
+        .locator("img")
+        .evaluate((element: HTMLImageElement) => element.naturalWidth),
+    )
+    .toBeGreaterThan(0);
+  await noAxeViolations(page);
+  await screenshot(page, "journal-with-cover", testInfo.project.name);
+
+  // The editor, as the approved screen has it: the frame beside the heading,
+  // and the album's artwork in the margin, with the way to change it.
+  await page.goto(`${journalUrl}/edit`);
+  await expect(frame).toBeVisible();
+  const frameBox = await frame.boundingBox();
+  expect(frameBox!.width).toBeCloseTo(120, 0);
+  expect(frameBox!.height).toBeCloseTo(120, 0);
+  await expect(page.getByRole("link", { name: /^Change…/ })).toHaveAttribute(
+    "href",
+    `/studio/albums/${albumId}/artwork`,
+  );
+  await expect(
+    page.getByRole("link", { name: "Edit in catalog" }),
+  ).toHaveAttribute("href", `/studio/albums/${albumId}`);
+  await noAxeViolations(page);
+  if (isMobile(page)) {
+    await expectNoHorizontalOverflow(page);
+  }
+  await screenshot(page, "editor-with-cover", testInfo.project.name);
+
+  // When the image cannot be loaded, the frame keeps its size and says so,
+  // and no broken image is left in it.
+  await page.unroute("https://coverartarchive.org/**");
+  await page.route("https://coverartarchive.org/**", (route) =>
+    route.abort("failed"),
+  );
+  await page.goto(`/studio/albums/${albumId}`);
+  await expect(frame.getByText("artwork not shown")).toBeAttached();
+  await expect(frame.locator("img")).toHaveCount(0);
+  const failed = await frame.boundingBox();
+  expect(failed!.width).toBeCloseTo(failed!.height, 0);
+  await noAxeViolations(page);
+  await screenshot(page, "cover-failed", testInfo.project.name);
+
+  await page.goto("/studio/albums");
+  const row = page
+    .getByRole("list", { name: "Albums" })
+    .getByRole("listitem")
+    .filter({ hasText: "[Test] Paper Moon" })
+    .locator(".studio-thumb");
+  await expect(row.locator("img")).toHaveCount(0);
+  await expect(row.locator("svg")).toBeVisible();
+});
+
 test("links an album already in the catalog without changing it", async ({
   page,
 }) => {

@@ -12,6 +12,8 @@ import {
 } from "@/testing";
 
 import {
+  getAlbumCover,
+  listAlbumCovers,
   listAlbumsWithArtists,
   listAlbumUsage,
   listRecordingChoices,
@@ -157,6 +159,58 @@ describe("listRecordingChoices (M3.6, the memory picker)", () => {
         archived: false,
       });
       expect(choices.map((choice) => choice.trackId)).not.toContain(archived);
+    });
+  });
+});
+
+describe("listAlbumCovers and getAlbumCover", () => {
+  const release = "3f8c4f8e-0000-4000-8000-000000000123";
+  const stored = `https://coverartarchive.org/release/${release}/1000000001`;
+
+  it("returns the addresses built from a valid stored cover, and nothing for an album without one", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const covered = await createTestAlbum(tx, { title: "[Test] Covered" });
+      const bare = await createTestAlbum(tx, { title: "[Test] Bare" });
+      await tx
+        .update(schema.albums)
+        .set({ coverUrl: stored, coverSource: "Cover Art Archive" })
+        .where(eq(schema.albums.id, covered.albumId));
+
+      const covers = await listAlbumCovers(tx, testAuthor());
+      expect(covers.get(covered.albumId)).toEqual({
+        src: `${stored}-500.jpg`,
+        srcSet: `${stored}-250.jpg 250w, ${stored}-500.jpg 500w, ${stored}-1200.jpg 1200w`,
+      });
+      expect(covers.has(bare.albumId)).toBe(false);
+      expect(await getAlbumCover(tx, testAuthor(), covered.albumId)).toEqual(
+        covers.get(covered.albumId),
+      );
+      expect(await getAlbumCover(tx, testAuthor(), bare.albumId)).toBeNull();
+    });
+  });
+
+  it("leaves out a stored value that does not parse, so no stored address reaches a page", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const tampered = await createTestAlbum(tx, { title: "[Test] Tampered" });
+      const foreign = await createTestAlbum(tx, { title: "[Test] Foreign" });
+      await tx
+        .update(schema.albums)
+        .set({
+          coverUrl: "https://example.org/cover.jpg",
+          coverSource: "Cover Art Archive",
+        })
+        .where(eq(schema.albums.id, tampered.albumId));
+      await tx
+        .update(schema.albums)
+        .set({ coverUrl: stored, coverSource: "Another Source" })
+        .where(eq(schema.albums.id, foreign.albumId));
+
+      const covers = await listAlbumCovers(tx, testAuthor());
+      expect(covers.has(tampered.albumId)).toBe(false);
+      expect(covers.has(foreign.albumId)).toBe(false);
+      expect(
+        await getAlbumCover(tx, testAuthor(), tampered.albumId),
+      ).toBeNull();
     });
   });
 });
