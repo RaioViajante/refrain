@@ -269,6 +269,58 @@ test("keeps the frame still and shows the fallback when the thumbnail fails", as
   await screenshot(page, "photo-image-failed", testInfo.project.name);
 });
 
+test("a new photograph replaces one that failed to load", async ({ page }) => {
+  await serveThumbnails(page);
+  // Registered after the route above, so it is consulted first: only the
+  // photograph on file fails, and the one chosen next can load.
+  await page.route(
+    (url) => url.pathname.includes(PHOTO.onStage),
+    (route) => route.abort("failed"),
+  );
+
+  await page.goto(artistUrl);
+  const frame = page.getByRole("img", { name: `Photograph of ${artistName}` });
+  // 1 and 2: the source fails, and the frame shows its fallback.
+  await expect(frame).toBeVisible();
+  await expect(frame.getByText("photograph not shown")).toBeAttached();
+  await expect(frame.locator("img")).toHaveCount(0);
+  const failed = await frame.boundingBox();
+
+  // 3: the source changes in another tab, through the Studio's own review and
+  // approval, and this open page then refreshes in place, as it does after a
+  // save, so the same frame receives the new photograph.
+  const other = await page.context().newPage();
+  await serveThumbnails(other);
+  await other.goto(`${artistUrl}/photo?q=${encodeURIComponent("Ink Quartet")}`);
+  await other
+    .getByRole("link", { name: "Review Test Ink Quartet portrait.png" })
+    .click();
+  await other
+    .getByRole("button", { name: "Use this photograph instead" })
+    .click();
+  await expect(
+    other.getByRole("heading", { level: 1, name: artistName }),
+  ).toBeVisible();
+  await other.close();
+  await page.getByRole("button", { name: "Save artist" }).click();
+
+  // 4 and 5: the new image loads, and the earlier failure is not remembered.
+  const image = frame.locator("img");
+  await expect(image).toBeVisible();
+  await expect(image).toHaveAttribute("src", new RegExp(PHOTO.portrait));
+  await expect
+    .poll(() =>
+      image.evaluate((element: HTMLImageElement) => element.naturalWidth),
+    )
+    .toBeGreaterThan(0);
+  const loaded = await frame.boundingBox();
+  expect(loaded!.width).toBeCloseTo(failed!.width, 0);
+  expect(loaded!.height).toBeCloseTo(failed!.height, 0);
+  expect((await storedPhoto()).photo_url).toBe(
+    commonsThumbnail(PHOTO.portrait, 330),
+  );
+});
+
 test("explains a file that cannot be used and never loads it", async ({
   page,
 }, testInfo) => {

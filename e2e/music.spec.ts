@@ -400,6 +400,57 @@ test("shows the chosen cover on every studio surface, and the fallback when it f
   await expect(row.locator("svg")).toBeVisible();
 });
 
+test("a new cover replaces one that failed to load", async ({ page }) => {
+  const albumId = await withDatabase(async (client) => {
+    const found = await client.query(
+      "select id from albums where mb_release_group_id = $1",
+      [FIXTURE.paperMoon],
+    );
+    const id = found.rows[0].id as string;
+    // A stored cover the archive's listing does not offer, so the chooser
+    // can replace it with the one it does.
+    await client.query("update albums set cover_url = $1 where id = $2", [
+      `https://coverartarchive.org/release/${FIXTURE.firstPressing}/${FIXTURE.legacyFrontImage}`,
+      id,
+    ]);
+    return id;
+  });
+  // Registered after the beforeEach route, so it is consulted first: only the
+  // stored cover fails, and the one the author chooses next can load.
+  await page.route(
+    (url) => url.pathname.includes(FIXTURE.legacyFrontImage),
+    (route) => route.abort("failed"),
+  );
+
+  await page.goto(`/studio/albums/${albumId}/artwork`);
+  const current = page.getByRole("img", {
+    name: "Album artwork for [Test] Paper Moon",
+    exact: true,
+  });
+  // 1 and 2: the source fails, and the frame shows its fallback.
+  await expect(current).toBeVisible();
+  await expect(current.getByText("artwork not shown")).toBeAttached();
+  await expect(current.locator("img")).toHaveCount(0);
+  const failed = await current.boundingBox();
+
+  // 3: the source changes, in this same frame, without leaving the page.
+  await page.getByRole("button", { name: /^Use this cover instead/ }).click();
+  await expect(page.getByText("Current cover")).toBeVisible();
+
+  // 4 and 5: the new image loads, and the earlier failure is not remembered.
+  const image = current.locator("img");
+  await expect(image).toBeVisible();
+  await expect(image).toHaveAttribute("src", new RegExp(FIXTURE.frontImage));
+  await expect
+    .poll(() =>
+      image.evaluate((element: HTMLImageElement) => element.naturalWidth),
+    )
+    .toBeGreaterThan(0);
+  const loaded = await current.boundingBox();
+  expect(loaded!.width).toBeCloseTo(failed!.width, 0);
+  expect(loaded!.height).toBeCloseTo(failed!.height, 0);
+});
+
 test("links an album already in the catalog without changing it", async ({
   page,
 }) => {
