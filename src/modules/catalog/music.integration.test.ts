@@ -637,6 +637,22 @@ describe("searching", () => {
       );
       if (unrelated.kind !== "albums") return;
       expect(unrelated.local).toEqual([]);
+      // A wildcard, a quote, or a later unrelated word matches nothing extra.
+      for (const query of [
+        "paper %",
+        "paper _",
+        "paper moon'",
+        "paper moon ink quartet one two three four five unrelated",
+      ]) {
+        const literal = await searchMusic(
+          tx,
+          author,
+          { kind: "albums", query },
+          providers,
+        );
+        if (literal.kind !== "albums") return;
+        expect(literal.local).toEqual([]);
+      }
     });
   });
 

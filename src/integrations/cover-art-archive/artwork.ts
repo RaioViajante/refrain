@@ -8,8 +8,9 @@
 // never follows a later change of a release's "front" image. Anything else
 // in those columns (another host, a path, a query, a size) is not artwork:
 // `coverArtworkOf` returns null and the page shows its fallback. Image
-// addresses are always built here from the two validated parts, never copied
-// from a provider response or from the database.
+// addresses are always built here from validated parts (the release and the
+// image id, or the release and the archive's fixed word `front` for a preview),
+// never copied from a provider response or from the database.
 //
 // Thumbnails (250, 500, and 1200 pixels) are documented at
 // https://musicbrainz.org/doc/Cover_Art_Archive/API and were checked live over

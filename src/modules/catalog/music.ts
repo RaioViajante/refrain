@@ -546,7 +546,7 @@ export async function searchMusic(
     );
     // Every word must be in the title or a credited artist, in any order, so
     // "grace jeff buckley" finds Grace by Jeff Buckley.
-    const words = query.split(/\s+/).filter(Boolean).slice(0, 8);
+    const words = query.split(/\s+/).filter(Boolean);
     const local = await localAlbums(
       db,
       sql.join(

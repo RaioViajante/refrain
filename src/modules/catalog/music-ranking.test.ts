@@ -121,6 +121,14 @@ describe("rankAlbumResults", () => {
     ).toBe("Кино (Album)");
   });
 
+  it("treats a provider type outside its vocabulary as any other type", () => {
+    for (const odd of ["constructor", "__proto__", "toString"]) {
+      expect(
+        titles("twin", [album("Twin", "A", odd), album("Twin", "B")])[0],
+      ).toBe("Twin (Album)");
+    }
+  });
+
   it("drops nothing and does not change the rows", () => {
     const provider = [album("A", "B"), album("C", "D")];
     const ranked = rankAlbumResults("c d", provider);

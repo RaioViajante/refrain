@@ -8,14 +8,14 @@ const MONTHS = new Intl.DateTimeFormat("en", {
 });
 
 /** MusicBrainz's own area codes that are not countries. */
-const AREAS: Record<string, string> = {
-  XW: "Worldwide",
-  XE: "Europe",
-  XG: "East Germany",
-  XC: "Czechoslovakia",
-  XU: "Soviet Union",
-  YU: "Yugoslavia",
-};
+const AREAS = new Map([
+  ["XW", "Worldwide"],
+  ["XE", "Europe"],
+  ["XG", "East Germany"],
+  ["XC", "Czechoslovakia"],
+  ["XU", "Soviet Union"],
+  ["YU", "Yugoslavia"],
+]);
 
 const COUNTRIES = new Intl.DisplayNames(["en"], {
   type: "region",
@@ -31,6 +31,14 @@ export function editionDate(date: string | null): string | null {
   if (!month) {
     return year ?? null;
   }
+  // The contract checks the shape, not the calendar: a date that is not one
+  // is shown as the provider sent it, not as a nearby real date.
+  if (Number(month) < 1 || Number(month) > 12) {
+    return date;
+  }
+  if (day && (Number(day) < 1 || Number(day) > 31)) {
+    return date;
+  }
   const name = MONTHS.format(
     new Date(Date.UTC(Number(year), Number(month) - 1)),
   );
@@ -42,7 +50,7 @@ export function editionPlace(country: string | null): string | null {
   if (country === null) {
     return null;
   }
-  const area = AREAS[country];
+  const area = AREAS.get(country);
   if (area) {
     return area;
   }

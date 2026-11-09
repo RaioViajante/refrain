@@ -37,11 +37,17 @@ function isCompleteMatch(album: RankableAlbum, typed: Set<string>): boolean {
   return [...typed].every((word) => title.has(word) || credit.has(word));
 }
 
+const TYPE_RANKS = new Map([
+  ["Album", 0],
+  ["EP", 1],
+  ["Single", 2],
+]);
+
 function typeRank(album: RankableAlbum): number {
   if (album.secondaryTypes.length > 0) {
     return 3;
   }
-  return { Album: 0, EP: 1, Single: 2 }[album.primaryType ?? ""] ?? 3;
+  return TYPE_RANKS.get(album.primaryType ?? "") ?? 3;
 }
 
 /** A new list in the order above. The provider's order breaks every tie. */
