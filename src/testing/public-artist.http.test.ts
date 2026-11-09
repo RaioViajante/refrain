@@ -491,7 +491,37 @@ describe("an artist address that is not served", () => {
     const page = await request(on.baseURL, `/albums/${seeded!.sketches.slug}`);
     expect(visibleText(page.body)).toContain(ARTIST_MARKERS.archived);
     const links = await artistLinks(on, seeded!.sketches.slug);
-    expect(links).toEqual([addresses.grace]);
+    // The credit's link and the closing "More about" link, and nothing else.
+    expect(links).toEqual([addresses.grace, addresses.grace]);
+  });
+
+  it("closes an album journal with its archive, and with only the credited artists that have a page", async () => {
+    const page = await request(on.baseURL, `/albums/${seeded!.sketches.slug}`);
+    const text = visibleText(page.body);
+    expect(page.body).toContain('href="/albums"');
+    expect(text).toContain("All albums");
+    expect(text).toContain("More about Jeff Buckley");
+    expect(text).not.toContain(`More about ${ARTIST_MARKERS.archived}`);
+    expect((text.match(/More about /g) ?? []).length).toBe(1);
+  });
+
+  it("closes an artist page with the artists archive", async () => {
+    const page = await request(on.baseURL, `/artists/${addresses.grace}`);
+    expect(page.body).toContain('href="/artists"');
+    expect(visibleText(page.body)).toContain("All artists");
+    expect(visibleText(page.body)).not.toContain("More about");
+  });
+
+  it("names no artist that must stay hidden in any closing link", async () => {
+    for (const marker of Object.values(ARTIST_MARKERS)) {
+      if (marker === ARTIST_MARKERS.archived) {
+        continue;
+      }
+      for (const slug of [seeded!.grace.slug, seeded!.sketches.slug]) {
+        const page = await request(on.baseURL, `/albums/${slug}`);
+        expect(page.body).not.toContain(`More about ${marker}`);
+      }
+    }
   });
 });
 
@@ -587,7 +617,10 @@ describe("a change shows on the next request", () => {
       "private",
     );
     expect(masked(await page(), addresses.grace)).toEqual(unknown);
-    expect(await artistLinks(on, seeded!.long.slug)).toEqual([addresses.long]);
+    expect(await artistLinks(on, seeded!.long.slug)).toEqual([
+      addresses.long,
+      addresses.long,
+    ]);
 
     await publishForTest(db, seeded!.sketches.entryId, "en");
     expect((await page()).status).toBe(200);
@@ -623,6 +656,10 @@ describe("a change shows on the next request", () => {
       ),
     ).toEqual(unknown);
     expect(await artistLinks(on, seeded!.long.slug)).toEqual([]);
+    const journal = await request(on.baseURL, `/albums/${seeded!.long.slug}`);
+    expect(journal.status).toBe(200);
+    expect(visibleText(journal.body)).toContain("All albums");
+    expect(visibleText(journal.body)).not.toContain("More about");
   });
 });
 

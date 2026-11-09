@@ -11,6 +11,7 @@ import {
   ArtistPhotoFrame,
 } from "@/app/(public)/_components/artist-photograph";
 import { Artwork } from "@/app/(public)/_components/home-view";
+import { ClosingLinks } from "@/app/(public)/_components/closing-links";
 import { PersonIcon } from "@/app/(public)/_components/person-icon";
 import { PUBLIC_CONTENT_ID } from "@/app/(public)/_components/public-frame";
 import { RecordIcon } from "@/app/(public)/_components/record-icon";
@@ -137,6 +138,7 @@ export function ArtistView({ artist }: Readonly<{ artist: PublicArtist }>) {
           ) : null}
         </div>
       </section>
+      <ClosingLinks archive="/artists" label="All artists" />
     </main>
   );
 }

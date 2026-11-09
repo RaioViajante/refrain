@@ -6,6 +6,7 @@ import type {
   PublicArtwork,
 } from "@/modules/publication/public";
 
+import { ClosingLinks } from "@/app/(public)/_components/closing-links";
 import { PUBLIC_CONTENT_ID } from "@/app/(public)/_components/public-frame";
 import { RecordIcon } from "@/app/(public)/_components/record-icon";
 import { renderDocument } from "@/app/(public)/_components/rich-text";
@@ -296,6 +297,15 @@ export function JournalView({
           </ol>
         </section>
       ) : null}
+      <ClosingLinks
+        archive="/albums"
+        label="All albums"
+        artists={credits.flatMap((credit) =>
+          credit.artistAddress
+            ? [{ name: credit.name, address: credit.artistAddress }]
+            : [],
+        )}
+      />
     </main>
   );
 }

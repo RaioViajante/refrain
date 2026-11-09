@@ -6,6 +6,7 @@ import type {
   PublicMemoryMusic,
 } from "@/modules/publication/public";
 
+import { ClosingLinks } from "@/app/(public)/_components/closing-links";
 import { NoteIcon } from "@/app/(public)/_components/note-icon";
 import { PUBLIC_CONTENT_ID } from "@/app/(public)/_components/public-frame";
 import { RecordIcon } from "@/app/(public)/_components/record-icon";
@@ -160,6 +161,11 @@ export function MemoryView({ memory }: Readonly<{ memory: PublicMemory }>) {
           ) : null}
         </aside>
       </div>
+      <ClosingLinks
+        archive="/memories"
+        label="All memories"
+        layout="notebook"
+      />
     </main>
   );
 }

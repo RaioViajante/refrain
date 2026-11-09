@@ -4,7 +4,8 @@
 export function ArrowIcon({
   className = "pj-icon",
   size = 16,
-}: Readonly<{ className?: string; size?: number }>) {
+  back = false,
+}: Readonly<{ className?: string; size?: number; back?: boolean }>) {
   return (
     <svg
       className={className}
@@ -19,8 +20,17 @@ export function ArrowIcon({
       aria-hidden="true"
       focusable="false"
     >
-      <path d="M4 12.2c4.9-.3 9.9-.2 15 0" />
-      <path d="M13.4 6.4 19.2 12l-5.6 5.6" />
+      {back ? (
+        <>
+          <path d="M20 12.2c-4.9-.3-9.9-.2-15 0" />
+          <path d="M10.6 6.4 4.8 12l5.6 5.6" />
+        </>
+      ) : (
+        <>
+          <path d="M4 12.2c4.9-.3 9.9-.2 15 0" />
+          <path d="M13.4 6.4 19.2 12l-5.6 5.6" />
+        </>
+      )}
     </svg>
   );
 }

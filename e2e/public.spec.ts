@@ -344,6 +344,45 @@ test("a track opens and closes with the keyboard, and focus is always visible", 
   await expect(page).toHaveURL(/#tracks$/);
 });
 
+test("closes with the way back to the albums and to the credited artist, in keyboard order", async ({
+  page,
+}) => {
+  await openJournal(page);
+  const closing = page.getByRole("navigation", { name: "Keep reading" });
+  const all = closing.getByRole("link", { name: "All albums" });
+  const more = closing.getByRole("link", { name: "More about Jeff Buckley" });
+  await expect(all).toHaveAttribute("href", "/albums");
+  await expect(more).toHaveAttribute("href", /^\/artists\//);
+  for (const link of [all, more]) {
+    expect((await link.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  }
+
+  // Tab reaches both, in reading order, with a visible ring.
+  await page.locator(".pj-track summary").last().focus();
+  await page.keyboard.press("Tab");
+  await expect(all).toBeFocused();
+  expect(
+    await all.evaluate((element) => getComputedStyle(element).outlineStyle),
+  ).toBe("solid");
+  await page.keyboard.press("Tab");
+  await expect(more).toBeFocused();
+  expect(
+    await more.evaluate((element) => getComputedStyle(element).outlineStyle),
+  ).toBe("solid");
+
+  await more.click();
+  await expect(page).toHaveURL(/\/artists\//);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "Jeff Buckley",
+  );
+  await openJournal(page);
+  await page
+    .getByRole("navigation", { name: "Keep reading" })
+    .getByRole("link", { name: "All albums" })
+    .click();
+  await expect(page).toHaveURL(`${base}/albums`);
+});
+
 test("respects reduced motion", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await openJournal(page);
