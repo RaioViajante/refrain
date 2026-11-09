@@ -302,6 +302,14 @@ export function JournalEditor({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  // Hydration rewrites a textarea's value, which collapses a selection made
+  // while it runs. This mark says it is over; browser tests wait for it before
+  // they type, so `fill` cannot insert beside the stored text (issue #69).
+  const formElement = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    formElement.current?.setAttribute("data-editor-ready", "");
+  }, []);
+
   function edited(update: () => void) {
     update();
     setFlagDirty(true);
@@ -325,7 +333,12 @@ export function JournalEditor({
     : undefined;
 
   return (
-    <form onSubmit={save} className="studio-editor" noValidate>
+    <form
+      ref={formElement}
+      onSubmit={save}
+      className="studio-editor"
+      noValidate
+    >
       <div className="studio-editorbar" data-mode={create ? "create" : "edit"}>
         <div className="studio-editorbar-start">
           <Link href={back.href} className="studio-crumb">

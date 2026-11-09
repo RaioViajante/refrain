@@ -376,6 +376,7 @@ pnpm exec playwright show-report           # the HTML report of the last local r
 - One worker, tests in a fixed order, each file creating the records it needs under a name of its own run (`[Test] E2E <run id> …`).
 - Every test gets its own browser context. The `setup` project signs in once through the real form and stores the session in `playwright/.auth/author.json` for the authenticated projects. The `anonymous` project has no stored session, and some tests mint a session of their own in the test database (as the HTTP tests do) so that they can end it. **The file, `playwright-report/`, and `test-results/` are ignored by Git** and traces are off in CI: they can hold the synthetic session cookie.
 - Sign-in is rate limited for all clients together (five a minute), so the suite signs in three times (once in setup, twice in `authentication.spec.ts`) and mints everything else.
+- A field can be visible before React has hydrated it, and hydration rewrites a `textarea`, so a `fill` at that moment can insert beside the stored text. A test that types into the album journal editor right after loading it first waits for `form[data-editor-ready]`, which the editor sets once hydration has finished.
 
 **What is covered** (`e2e/`, 74 tests over four projects):
 
