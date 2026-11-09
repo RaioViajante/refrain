@@ -73,3 +73,22 @@ The review ran the unit suite (906 passed), the HTTP suite (565 passed), the aff
 
 **Missing negative tests, as follow-ups:** `/studio/artists` requested anonymously, tampered, and as another author with a stored photograph in place; a rendered-page test that a tampered row never reaches its HTML; the exact shape of `listArtistPhotos`; and `referrerpolicy` and requested hosts on the list thumbnail.
 
+## Add music polish
+
+**Why "Jeff Buckley Live" came first.** MusicBrainz ranks it first. Refrain sends `(terms) OR artist:(terms)` and, until this change, kept the provider's order unchanged, so neither the query nor the presentation moved it. For "grace jeff buckley", MusicBrainz scored "Jeff Buckley Live" 100, and Grace's single and album 94 or 95 (2026-11-08 and 09): a release titled with the artist's name matches every word of the query.
+
+**The rule, and how it was tested.** A result is a complete match when the words typed are its title plus words of its credited artists. Complete matches come first, then a studio album before an EP, an EP before a single, and a release with a secondary type (a live album, a compilation) after those. Everything else keeps the provider's order. Nothing is hidden or relabelled, and the code names no album or artist. It was measured on 17 real searches before being built:
+
+| Search | The expected album's position: provider | With the rule |
+| --- | --- | --- |
+| grace jeff buckley | 3 | 1 |
+| blue joni mitchell | 3 | 1 |
+| abbey road beatles | 2 | 1 |
+| the wall pink floyd | 2 | 1 |
+| kid a | 12 | 1 |
+| pink moon nick drake, ok computer radiohead, thriller michael jackson, nevermind nirvana, grace, carrie & lowell sufjan stevens, cleopatra the lumineers, jeff buckley live, lemonade beyonce | 1 | 1 |
+| in rainbows radiohead | 2 | 2 |
+| twin fantasy car seat headrest, grace ziggy marley | none in the top 25 fits the test's "plain studio album" | Unchanged |
+
+**Edition covers.** MusicBrainz's `cover-art-archive.front` already said which editions have a front cover. A row asks for a preview only when it is `true`, from the archive's `/release/<id>/front-250` address, built from the validated identifier and never stored. There are at most 100 rows and the images are lazy, so the browser requests only what is near the viewport; the server makes no extra provider call. Of Grace's 26 editions, 22 show a cover and 4 keep the record mark. Choosing a cover is unchanged: the review, with a real image identifier, chosen by the author.
+
