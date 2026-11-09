@@ -4,11 +4,16 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { accessDenied } from "@/app/studio/access";
+import { ArtistThumb } from "@/app/studio/artist-photograph";
 import { plural } from "@/app/studio/format";
 import { StudioFrame } from "@/app/studio/frame";
-import { Icon } from "@/app/studio/icons";
 import { StudioLoading } from "@/app/studio/studio-loading";
-import { listArtists, type ArtistSummary } from "@/modules/catalog";
+import {
+  listArtistPhotos,
+  listArtists,
+  type ArtistPhotoImage,
+  type ArtistSummary,
+} from "@/modules/catalog";
 import { authorizeAuthor } from "@/modules/identity";
 
 // A fixed title: the studio never puts catalog or writing in page metadata.
@@ -27,7 +32,10 @@ async function Artists() {
   if (!authorization.ok) {
     return accessDenied(authorization.reason);
   }
-  const artists = await listArtists(authorization.author);
+  const [artists, photos] = await Promise.all([
+    listArtists(authorization.author),
+    listArtistPhotos(authorization.author),
+  ]);
   const active = artists.filter((artist) => !artist.archived);
   const archived = artists.filter((artist) => artist.archived);
 
@@ -54,7 +62,7 @@ async function Artists() {
         </div>
       ) : (
         <>
-          <ArtistList artists={active} label="Artists" />
+          <ArtistList artists={active} photos={photos} label="Artists" />
           {archived.length > 0 ? (
             <section aria-labelledby="archived-artists">
               <h2 id="archived-artists" className="studio-section-title">
@@ -64,7 +72,11 @@ async function Artists() {
                 Hidden from pickers. Their albums, tracks, and journals are
                 untouched.
               </p>
-              <ArtistList artists={archived} label="Archived artists" />
+              <ArtistList
+                artists={archived}
+                photos={photos}
+                label="Archived artists"
+              />
             </section>
           ) : null}
         </>
@@ -75,18 +87,18 @@ async function Artists() {
 
 function ArtistList({
   artists,
+  photos,
   label,
 }: {
   artists: ArtistSummary[];
+  photos: Map<string, ArtistPhotoImage>;
   label: string;
 }) {
   return (
     <ul className="studio-list" aria-label={label}>
       {artists.map((artist) => (
         <li key={artist.id} className="studio-row studio-entry">
-          <span className="studio-thumb" data-bare aria-hidden="true">
-            <Icon name="artist" size={26} />
-          </span>
+          <ArtistThumb image={photos.get(artist.id)} />
           <span className="studio-entry-body">
             <span className="studio-row-title">
               <Link href={`/studio/artists/${artist.id}`}>{artist.name}</Link>

@@ -269,6 +269,55 @@ test("keeps the frame still and shows the fallback when the thumbnail fails", as
   await screenshot(page, "photo-image-failed", testInfo.project.name);
 });
 
+test("shows the chosen photograph in the Artists list, in 4:5, with the person mark as its fallback", async ({
+  page,
+}, testInfo) => {
+  await serveThumbnails(page);
+  const withoutPhoto = named(`Photo None ${testInfo.project.name}`);
+  await page.goto("/studio/artists/new");
+  await page.getByLabel("Name", { exact: true }).fill(withoutPhoto);
+  await page.getByRole("button", { name: "Add artist" }).click();
+  await expect(
+    page.getByRole("heading", { level: 1, name: withoutPhoto }),
+  ).toBeVisible();
+
+  const thumb = (name: string) =>
+    page
+      .getByRole("list", { name: "Artists" })
+      .getByRole("listitem")
+      .filter({ hasText: name })
+      .locator(".studio-thumb");
+
+  await page.goto("/studio/artists");
+  const image = thumb(artistName).locator("img");
+  await expect(image).toBeVisible();
+  await expect
+    .poll(() =>
+      image.evaluate((element: HTMLImageElement) => element.naturalWidth),
+    )
+    .toBeGreaterThan(0);
+  const box = await image.boundingBox();
+  expect(box!.height / box!.width).toBeCloseTo(5 / 4, 1);
+  await expect(thumb(artistName).locator("svg")).toBeAttached();
+  await expect(thumb(withoutPhoto).locator("img")).toHaveCount(0);
+  await expect(thumb(withoutPhoto).locator("svg")).toBeVisible();
+  await noAxeViolations(page);
+  if (isMobile(page)) {
+    await expectNoHorizontalOverflow(page);
+  }
+  await screenshot(page, "artists-list-photograph", testInfo.project.name);
+
+  // A photograph that fails to load leaves the mark, and no broken image.
+  await page.unroute("https://thumb.wikimedia.org/**");
+  await page.route("https://thumb.wikimedia.org/**", (route) =>
+    route.abort("failed"),
+  );
+  await page.goto("/studio/artists");
+  await expect(thumb(artistName).locator("img")).toHaveCount(0);
+  await expect(thumb(artistName).locator("svg")).toBeVisible();
+  await screenshot(page, "artists-list-failed", testInfo.project.name);
+});
+
 test("a new photograph replaces one that failed to load", async ({ page }) => {
   await serveThumbnails(page);
   // Registered after the route above, so it is consulted first: only the

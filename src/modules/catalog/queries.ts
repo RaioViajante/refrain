@@ -7,6 +7,7 @@ import {
   coverArtworkOf,
   type CoverArtwork,
 } from "@/integrations/cover-art-archive";
+import { artistPhotoOf } from "@/integrations/wikimedia-commons";
 import type { AuthorizedAuthor } from "@/modules/identity";
 
 import { storedPhotoView, type StoredPhotoView } from "./photos";
@@ -111,6 +112,58 @@ export interface AlbumTrackCount {
   firstReleaseYear: number | null;
   archived: boolean;
   trackCount: number;
+}
+
+/**
+ * The photograph of every artist that has a valid one, keyed by artist, for
+ * the studio's Artists list. Private: it takes the author, and no public page
+ * reads it. Every column must hold exactly what Refrain writes
+ * (`artistPhotoOf`); anything else is left out, so the row keeps its person
+ * mark, and the addresses are rebuilt from the file name, never copied.
+ */
+export async function listArtistPhotos(
+  db: DatabaseExecutor,
+  _author: AuthorizedAuthor,
+): Promise<Map<string, ArtistPhotoImage>> {
+  const result = await db.execute<{
+    id: string;
+    photo_url: string | null;
+    photo_credit: string | null;
+    photo_license: string | null;
+    photo_source_url: string | null;
+    photo_file_sha1: string | null;
+    photo_file_timestamp: string | null;
+    photo_chosen_at: string | null;
+  }>(sql`
+    select id, photo_url, photo_credit, photo_license, photo_source_url,
+           photo_file_sha1,
+           to_char(photo_file_timestamp at time zone 'UTC',
+                   'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as photo_file_timestamp,
+           to_char(photo_chosen_at at time zone 'UTC',
+                   'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as photo_chosen_at
+      from artists
+     where photo_url is not null`);
+  const photos = new Map<string, ArtistPhotoImage>();
+  for (const row of result.rows) {
+    const photo = artistPhotoOf({
+      photoUrl: row.photo_url,
+      photoCredit: row.photo_credit,
+      photoLicense: row.photo_license,
+      photoSourceUrl: row.photo_source_url,
+      photoFileSha1: row.photo_file_sha1,
+      photoFileTimestamp: row.photo_file_timestamp,
+      photoChosenAt: row.photo_chosen_at,
+    });
+    if (photo) {
+      photos.set(row.id, { src: photo.src, srcSet: photo.srcSet });
+    }
+  }
+  return photos;
+}
+
+export interface ArtistPhotoImage {
+  src: string;
+  srcSet: string;
 }
 
 export interface AlbumCover {
