@@ -55,7 +55,7 @@ async function Memory({ params, searchParams }: MemoryProps) {
   // Only a fixed word picks the notice; the query string is never shown.
   const restoredNotice =
     restored === "private"
-      ? "Restored from Recently deleted. It was marked as published when it was deleted, and it is private now. Restoring publishes nothing."
+      ? "Restored from Recently deleted. It was published when it was deleted, and it is private now. Restoring publishes nothing."
       : restored === "1"
         ? "Restored from Recently deleted, with its writing and its songs exactly as you left them."
         : null;
@@ -139,7 +139,7 @@ function DeletedMemory({
           {formatDate(memory.deletedAt!)}. Its writing and its songs are kept,
           and it can’t be changed there until you restore it.
           {memory.versions.some((version) => version.status === "published")
-            ? " It was marked as published, and it returns as private."
+            ? " It was published, and it returns as private."
             : ""}
         </p>
         <RestoreMemoryButton

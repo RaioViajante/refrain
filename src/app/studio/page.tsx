@@ -212,7 +212,7 @@ async function Desk() {
             {memoryStatistics.draft === 1 ? "draft" : "drafts"},{" "}
             {memoryStatistics.private} private
             {memoryStatistics.published > 0
-              ? `, ${memoryStatistics.published} marked as published`
+              ? `, ${memoryStatistics.published} published`
               : ""}
             .
           </p>
