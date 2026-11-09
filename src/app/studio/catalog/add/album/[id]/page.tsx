@@ -5,8 +5,12 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { accessDenied } from "@/app/studio/access";
+import { AlbumThumb } from "@/app/studio/artwork-placeholder";
+import {
+  editionDate,
+  editionPlace,
+} from "@/app/studio/catalog/add/edition-text";
 import { StudioFrame } from "@/app/studio/frame";
-import { Icon } from "@/app/studio/icons";
 import { StudioLoading } from "@/app/studio/studio-loading";
 import {
   CatalogError,
@@ -132,9 +136,7 @@ async function Editions({ params }: { params: Promise<{ id: string }> }) {
           <ul className="studio-list" aria-labelledby="editions">
             {releases.map((release) => (
               <li key={release.id} className="studio-row studio-entry">
-                <span className="studio-thumb" data-bare aria-hidden="true">
-                  <Icon name="album" size={26} />
-                </span>
+                <AlbumThumb artwork={release.artwork} lazy />
                 <span className="studio-entry-body">
                   <span className="studio-row-title">
                     {release.title}
@@ -144,8 +146,12 @@ async function Editions({ params }: { params: Promise<{ id: string }> }) {
                   </span>
                   <span className="studio-meta">
                     {[
-                      release.date ?? "no date",
-                      release.country ?? "",
+                      release.date !== null &&
+                      release.date === group.firstReleaseDate
+                        ? "original release"
+                        : "",
+                      editionDate(release.date) ?? "no date",
+                      editionPlace(release.country) ?? "",
                       release.labels.join(", "),
                       release.formats.join(" + "),
                       `${release.trackCount} ${release.trackCount === 1 ? "track" : "tracks"}`,
@@ -169,7 +175,7 @@ async function Editions({ params }: { params: Promise<{ id: string }> }) {
                       className="studio-button"
                     >
                       Review
-                      <span className="studio-sr-only">{` the ${release.date ?? "undated"} ${release.country ?? ""} edition`}</span>
+                      <span className="studio-sr-only">{` the ${editionDate(release.date) ?? "undated"} ${editionPlace(release.country) ?? ""} edition`}</span>
                     </Link>
                   )}
                 </span>

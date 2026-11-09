@@ -1346,9 +1346,7 @@ html:has(.studio-editorbar[data-mode="edit"]) {
 
 .studio-search-kinds a[aria-current="page"] {
   color: var(--color-ink);
-  text-decoration: underline;
-  text-decoration-thickness: 1.5px;
-  text-underline-offset: 8px;
+  background: var(--stroke-underline) 0 calc(100% - 4px) / 100% 7px no-repeat;
 }
 
 .studio-in-catalog {
@@ -1370,6 +1368,12 @@ html:has(.studio-editorbar[data-mode="edit"]) {
 
 /* A fieldset is as wide as its content by default (min-inline-size:
    min-content), which would widen a phone's page to fit two covers. */
+/* The chosen cover reads as chosen before the radio's own dot is noticed. */
+.studio-choice:has(input:checked) .studio-artwork {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 3px;
+}
+
 .studio-choice-group {
   min-inline-size: 0;
   margin: 0;
@@ -1704,7 +1708,9 @@ html:has(.studio-editorbar[data-mode="edit"]) {
   .studio-nav a:hover,
   .studio-nav a[aria-current="page"],
   .studio-subnav a:hover,
-  .studio-subnav a[aria-current="page"] {
+  .studio-subnav a[aria-current="page"],
+  .studio-search-kinds a[aria-current="page"] {
+    background-image: none;
     text-decoration: underline;
     text-underline-offset: 6px;
   }

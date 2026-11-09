@@ -62,8 +62,11 @@ export function ArtworkPlaceholder({
  */
 export function AlbumThumb({
   artwork,
+  lazy = false,
 }: {
   artwork?: { src: string; srcSet: string } | null;
+  /** Load only near the viewport, for a long list of images. */
+  lazy?: boolean;
 }) {
   return (
     <span className="studio-thumb" aria-hidden="true">
@@ -76,6 +79,7 @@ export function AlbumThumb({
           sizes="56px"
           width={250}
           height={250}
+          lazy={lazy}
         />
       ) : null}
     </span>

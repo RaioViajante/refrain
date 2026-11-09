@@ -618,6 +618,41 @@ describe("searching", () => {
       expect(new URL(calls.at(-1)!.url).searchParams.get("query")).toBe(
         "(paper moon) OR artist:(paper moon)",
       );
+      // Words of the title and of the artist find it together, in any order.
+      for (const query of ["paper moon ink quartet", "quartet paper"]) {
+        const across = await searchMusic(
+          tx,
+          author,
+          { kind: "albums", query },
+          providers,
+        );
+        if (across.kind !== "albums") return;
+        expect(across.local.map((album) => album.id)).toEqual([id]);
+      }
+      const unrelated = await searchMusic(
+        tx,
+        author,
+        { kind: "albums", query: "paper someone else" },
+        providers,
+      );
+      if (unrelated.kind !== "albums") return;
+      expect(unrelated.local).toEqual([]);
+      // A wildcard, a quote, or a later unrelated word matches nothing extra.
+      for (const query of [
+        "paper %",
+        "paper _",
+        "paper moon'",
+        "paper moon ink quartet one two three four five unrelated",
+      ]) {
+        const literal = await searchMusic(
+          tx,
+          author,
+          { kind: "albums", query },
+          providers,
+        );
+        if (literal.kind !== "albums") return;
+        expect(literal.local).toEqual([]);
+      }
     });
   });
 
@@ -671,6 +706,13 @@ describe("searching", () => {
         FIXTURE.legacyEdition,
         FIXTURE.digitalEdition,
       ]);
+      // A preview only where MusicBrainz says there is a front cover, built
+      // from the release's identifier.
+      expect(before.releases[0]!.artwork?.src).toBe(
+        `https://coverartarchive.org/release/${FIXTURE.firstPressing}/front-250`,
+      );
+      expect(before.releases[2]!.hasFrontArtwork).toBe(false);
+      expect(before.releases[2]!.artwork).toBeNull();
       const { review } = await reviewed(tx, FIXTURE.firstPressing);
       const { id } = await importMusicRelease(
         tx,

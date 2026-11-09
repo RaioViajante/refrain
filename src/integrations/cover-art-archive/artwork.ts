@@ -8,8 +8,9 @@
 // never follows a later change of a release's "front" image. Anything else
 // in those columns (another host, a path, a query, a size) is not artwork:
 // `coverArtworkOf` returns null and the page shows its fallback. Image
-// addresses are always built here from the two validated parts, never copied
-// from a provider response or from the database.
+// addresses are always built here from validated parts (the release and the
+// image id, or the release and the archive's fixed word `front` for a preview),
+// never copied from a provider response or from the database.
 //
 // Thumbnails (250, 500, and 1200 pixels) are documented at
 // https://musicbrainz.org/doc/Cover_Art_Archive/API and were checked live over
@@ -51,6 +52,25 @@ export interface CoverArtwork {
   srcSet: string;
   /** The stored, canonical address (for comparisons, never for `src`). */
   coverUrl: string;
+}
+
+/**
+ * A preview of a release's front cover, for the edition list: the archive's
+ * own stable address for "this release's front", which needs no image id. It
+ * is built from a validated identifier, never stored, and never chosen:
+ * choosing a cover goes through the review, with a real image id.
+ */
+export function frontThumbnailFor(
+  releaseId: string,
+): { src: string; srcSet: string } | null {
+  if (!MBID_PATTERN.test(releaseId)) {
+    return null;
+  }
+  const base = `${COVER_ART_ARCHIVE_ORIGIN}/release/${releaseId}/front`;
+  return {
+    src: `${base}-250`,
+    srcSet: `${base}-250 250w, ${base}-500 500w`,
+  };
 }
 
 /** The canonical address to store for a chosen image, or null if invalid. */

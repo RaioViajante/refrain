@@ -5,6 +5,10 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { accessDenied } from "@/app/studio/access";
+import {
+  editionDate,
+  editionPlace,
+} from "@/app/studio/catalog/add/edition-text";
 import { formatDuration } from "@/app/studio/format";
 import { StudioFrame } from "@/app/studio/frame";
 import { StudioLoading } from "@/app/studio/studio-loading";
@@ -187,13 +191,13 @@ async function Review({ params }: { params: Promise<{ id: string }> }) {
         <dl className="studio-facts">
           <dt>Released</dt>
           <dd>
-            {release.date ?? "no date"}
+            {editionDate(release.date) ?? "no date"}
             {partialDate
               ? " (only the year is kept: the catalog stores full dates)"
               : ""}
           </dd>
           <dt>Country</dt>
-          <dd>{release.country ?? "not given"}</dd>
+          <dd>{editionPlace(release.country) ?? "not given"}</dd>
           <dt>Label</dt>
           <dd>{plan?.edition.label ?? release.labels[0] ?? "not given"}</dd>
           {release.disambiguation ? (
