@@ -104,8 +104,8 @@ export function RatingField({
         <span className="studio-rating-words" aria-hidden="true">
           {words(value)}
         </span>
-        {/* Always in the row, as in V4.4, so that choosing a first rating moves
-            nothing. Without a rating it is invisible and out of the tab order. */}
+        {/* Always in the row, so that choosing a first rating moves nothing.
+            Without a rating it is invisible and out of the tab order. */}
         <button
           type="button"
           className="studio-button-quiet"

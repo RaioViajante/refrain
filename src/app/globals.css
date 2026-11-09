@@ -2206,6 +2206,14 @@ html:has(.studio-editorbar[data-mode="edit"]) {
   visibility: hidden;
 }
 
+/* On the narrowest phones, a tighter gap keeps the words' reserved width from
+   pushing Clear onto a line of its own. */
+@media (max-width: 340px) {
+  .studio-rating-row {
+    column-gap: 8px;
+  }
+}
+
 /* "No rating" is a real radio too. It is hidden like the others, so its focus
    is drawn on the words. */
 .studio-rating-row:has(> input:focus-visible) .studio-rating-words {
