@@ -75,7 +75,6 @@ export function RatingField({
                       height="28"
                       aria-hidden="true"
                       focusable="false"
-                      data-on={value !== null && value >= half ? "" : undefined}
                     >
                       <StarInk
                         fill={

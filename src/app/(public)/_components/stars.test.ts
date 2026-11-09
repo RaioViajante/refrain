@@ -4,22 +4,42 @@ import { describe, expect, it } from "vitest";
 
 import { ratingText, Stars } from "./stars";
 
+/** What each star actually paints: none, a left half, or the whole star. */
 function drawn(halfSteps: number): string[] {
   const html = renderToStaticMarkup(
     createElement(Stars, { halfSteps, label: "My rating", size: 22 }),
   );
-  return [...html.matchAll(/data-fill="(\w+)"/g)].map((match) => match[1]!);
+  return html
+    .split("<svg")
+    .slice(1)
+    .map((star) => {
+      const ink = star.match(/<path d="([^"]+)" fill="currentColor"/)?.[1];
+      if (!ink) return "empty";
+      return ink.includes("L14.7 8.9") ? "full" : "half";
+    });
 }
 
 describe("Stars", () => {
-  it.each([
-    [1, ["half", "empty", "empty", "empty", "empty"]],
-    [2, ["full", "empty", "empty", "empty", "empty"]],
-    [5, ["full", "full", "half", "empty", "empty"]],
-    [9, ["full", "full", "full", "full", "half"]],
-    [10, ["full", "full", "full", "full", "full"]],
-  ])("draws %i half steps as exactly those stars", (halfSteps, expected) => {
-    expect(drawn(halfSteps)).toEqual(expected);
+  it.each([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])(
+    "paints %i half steps as exactly those stars",
+    (halfSteps) => {
+      expect(drawn(halfSteps)).toEqual(
+        [2, 4, 6, 8, 10].map((whole) =>
+          halfSteps >= whole
+            ? "full"
+            : halfSteps === whole - 1
+              ? "half"
+              : "empty",
+        ),
+      );
+    },
+  );
+
+  it("always draws the outline over the fill, once per star", () => {
+    const html = renderToStaticMarkup(
+      createElement(Stars, { halfSteps: 5, label: "r", size: 15 }),
+    );
+    expect(html.match(/class="star-outline"/g)).toHaveLength(5);
   });
 
   it("gives the sentence as the only accessible name", () => {

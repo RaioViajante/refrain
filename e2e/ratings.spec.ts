@@ -22,10 +22,19 @@ const trackTitle = named("Ratings Song");
 const STATES = [
   { words: "0.5 stars", halfSteps: 1 },
   { words: "1 star", halfSteps: 2 },
+  { words: "1.5 stars", halfSteps: 3 },
+  { words: "2 stars", halfSteps: 4 },
   { words: "2.5 stars", halfSteps: 5 },
+  { words: "3 stars", halfSteps: 6 },
+  { words: "3.5 stars", halfSteps: 7 },
+  { words: "4 stars", halfSteps: 8 },
   { words: "4.5 stars", halfSteps: 9 },
   { words: "5 stars", halfSteps: 10 },
 ];
+// The captures need only the states the owner's brief names.
+const CAPTURED = STATES.filter(({ halfSteps }) =>
+  [1, 2, 5, 9, 10].includes(halfSteps),
+);
 const EVERY_RADIO = [
   "0.5 stars",
   "1 star",
@@ -101,9 +110,9 @@ async function stored() {
   });
 }
 
-/** How many of the ten star halves the screen draws as filled in. */
+/** How many of the ten star halves actually paint their ink. */
 const filledHalves = (rating: Locator) =>
-  rating.locator(".studio-star-half svg[data-on]").count();
+  rating.locator('.studio-star-half svg path[fill="currentColor"]').count();
 
 async function expectState(
   rating: Locator,
@@ -315,6 +324,26 @@ test("reserves Clear's place, so a first rating moves nothing at any width", asy
   ).toHaveCount(0);
 });
 
+test("takes the system's ink in forced-colors mode", async ({ page }) => {
+  await page.emulateMedia({ forcedColors: "active", colorScheme: "dark" });
+  await openEditor(page);
+  await pick(albumRating(page), "2.5 stars");
+  const inks = await albumRating(page)
+    .locator(".studio-star-half svg")
+    .first()
+    .evaluate((drawing) => {
+      const outline = drawing.querySelector(".star-outline")!;
+      const words = document.querySelector(".studio-rating-words")!;
+      return {
+        stroke: getComputedStyle(outline).stroke,
+        text: getComputedStyle(words).color,
+      };
+    });
+  // A black star on a dark system canvas would vanish.
+  expect(inks.stroke).not.toBe("rgb(17, 17, 17)");
+  expect(inks.stroke).toBe(inks.text);
+});
+
 const WIDTHS = [1440, 390, 360, 320];
 const SHOTS = `visual-review/ratings/${process.env.E2E_SCREENSHOTS_LABEL ?? "current"}`;
 
@@ -333,7 +362,7 @@ test("captures every state of the studio's rating, at every width", async ({
     await albumRating(page).screenshot({
       path: `${SHOTS}/studio-album-${width}-none.png`,
     });
-    for (const { words, halfSteps } of STATES) {
+    for (const { words, halfSteps } of CAPTURED) {
       await pick(albumRating(page), words);
       await pick(trackRating(page), words);
       await page.mouse.move(0, 0);

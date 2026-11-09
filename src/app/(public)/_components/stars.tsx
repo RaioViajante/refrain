@@ -35,7 +35,6 @@ export function Stars({
           viewBox="0 0 24 24"
           aria-hidden="true"
           focusable="false"
-          data-fill={fill}
         >
           <StarInk fill={fill} />
         </svg>

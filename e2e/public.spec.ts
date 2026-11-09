@@ -778,10 +778,18 @@ const RATING_STATES: [number | null, string][] = [
   [null, ""],
   [1, "0.5"],
   [2, "1"],
+  [3, "1.5"],
+  [4, "2"],
   [5, "2.5"],
+  [6, "3"],
+  [7, "3.5"],
+  [8, "4"],
   [9, "4.5"],
   [10, "5"],
 ];
+const CAPTURED_RATINGS = RATING_STATES.filter(([halfSteps]) =>
+  [1, 2, 5, 9, 10].includes(halfSteps ?? 0),
+);
 
 async function setRatings(halfSteps: number | null) {
   await withDatabase(async (client) => {
@@ -850,7 +858,14 @@ test("draws every rating as the stars it is, read-only, with its sentence", asyn
       const fills = await rating
         .locator(".pj-stars svg")
         .evaluateAll((drawings) =>
-          drawings.map((drawing) => drawing.getAttribute("data-fill")),
+          // What each star actually paints.
+          drawings.map((drawing) => {
+            const ink = drawing
+              .querySelector('path[fill="currentColor"]')
+              ?.getAttribute("d");
+            if (!ink) return "empty";
+            return ink.includes("L14.7 8.9") ? "full" : "half";
+          }),
         );
       expect(fills).toEqual(
         [2, 4, 6, 8, 10].map((whole) =>
@@ -889,7 +904,7 @@ test("captures every state of the public rating, when asked for", async ({
   try {
     for (const width of [1440, 390, 360, 320]) {
       await page.setViewportSize({ width, height: 900 });
-      for (const [halfSteps] of RATING_STATES) {
+      for (const [halfSteps] of CAPTURED_RATINGS) {
         if (halfSteps === null) continue;
         await setRatings(halfSteps);
         await openJournal(page);
