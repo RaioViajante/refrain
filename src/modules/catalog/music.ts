@@ -19,6 +19,7 @@ import {
   coverArtArchive,
   coverArtworkFor,
   coverArtworkOf,
+  frontThumbnailFor,
   type ArtworkImage,
   type CoverArtArchiveClient,
   type CoverArtwork,
@@ -45,6 +46,7 @@ import { cleanText, fieldErrorsOf } from "@/validation";
 
 import { CatalogError } from "./errors";
 import { MAX_ALBUM_TRACKS, MAX_CREDITS } from "./input";
+import { rankAlbumResults } from "./music-ranking";
 
 // Adding music from MusicBrainz, and album artwork from the Cover Art Archive
 // (M3.2; docs/data-model.md § Transaction boundaries, boundary 1).
@@ -542,7 +544,24 @@ export async function searchMusic(
     const results = await provided(() =>
       providers.musicBrainz.searchReleaseGroups(query),
     );
-    const local = await localAlbums(db, sql`a.title ilike ${like}`, 5);
+    // Every word must be in the title or a credited artist, in any order, so
+    // "grace jeff buckley" finds Grace by Jeff Buckley.
+    const words = query.split(/\s+/).filter(Boolean).slice(0, 8);
+    const local = await localAlbums(
+      db,
+      sql.join(
+        words.map((word) => {
+          const wordLike = containing(word);
+          return sql`(a.title ilike ${wordLike} or exists (
+            select 1 from album_artists aa
+              join artists ar on ar.id = aa.artist_id
+             where aa.album_id = a.id
+               and (ar.name ilike ${wordLike} or aa.credited_as ilike ${wordLike})))`;
+        }),
+        sql` and `,
+      ),
+      5,
+    );
     const ids = results.map((result) => result.id);
     const known =
       ids.length === 0
@@ -558,11 +577,14 @@ export async function searchMusic(
     return {
       kind,
       local,
-      results: results.map((result) => ({
-        ...result,
-        credit: creditText(result.credits),
-        catalogAlbumId: byGroup.get(result.id) ?? null,
-      })),
+      results: rankAlbumResults(
+        query,
+        results.map((result) => ({
+          ...result,
+          credit: creditText(result.credits),
+          catalogAlbumId: byGroup.get(result.id) ?? null,
+        })),
+      ),
     };
   }
   const results = await provided(() =>
@@ -601,7 +623,11 @@ export async function searchMusic(
 
 export interface MusicEditions {
   group: ReleaseGroupResult & { credit: string };
-  releases: (ReleaseSummary & { catalogAlbumId: string | null })[];
+  releases: (ReleaseSummary & {
+    catalogAlbumId: string | null;
+    /** A preview of the front cover; null when none is listed. */
+    artwork: { src: string; srcSet: string } | null;
+  })[];
   /** How many editions MusicBrainz has; at most 100 are listed. */
   total: number;
   /** The album that already has this release group, if any. */
@@ -642,6 +668,9 @@ export async function listMusicEditions(
     releases: releases.map((release) => ({
       ...release,
       catalogAlbumId: byRelease.get(release.id) ?? null,
+      // Only an edition MusicBrainz says has a front cover asks for one.
+      artwork:
+        release.hasFrontArtwork === true ? frontThumbnailFor(release.id) : null,
     })),
     total,
     catalogAlbum: album ?? null,

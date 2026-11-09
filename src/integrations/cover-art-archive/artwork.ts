@@ -53,6 +53,25 @@ export interface CoverArtwork {
   coverUrl: string;
 }
 
+/**
+ * A preview of a release's front cover, for the edition list: the archive's
+ * own stable address for "this release's front", which needs no image id. It
+ * is built from a validated identifier, never stored, and never chosen:
+ * choosing a cover goes through the review, with a real image id.
+ */
+export function frontThumbnailFor(
+  releaseId: string,
+): { src: string; srcSet: string } | null {
+  if (!MBID_PATTERN.test(releaseId)) {
+    return null;
+  }
+  const base = `${COVER_ART_ARCHIVE_ORIGIN}/release/${releaseId}/front`;
+  return {
+    src: `${base}-250`,
+    srcSet: `${base}-250 250w, ${base}-500 500w`,
+  };
+}
+
 /** The canonical address to store for a chosen image, or null if invalid. */
 export function canonicalCoverUrl(reference: CoverReference): string | null {
   if (

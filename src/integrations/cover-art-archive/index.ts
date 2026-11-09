@@ -5,6 +5,7 @@ export {
   COVER_ART_SOURCE,
   COVER_IMAGE_HOSTS,
   coverArtworkFor,
+  frontThumbnailFor,
   coverArtworkOf,
   parseCoverUrl,
   type CoverArtwork,

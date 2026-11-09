@@ -9,6 +9,7 @@ import {
   canonicalCoverUrl,
   COVER_ART_SOURCE,
   coverArtworkOf,
+  frontThumbnailFor,
   parseCoverUrl,
 } from "./artwork";
 import { createCoverArtArchiveClient } from "./client";
@@ -224,5 +225,27 @@ describe("the archive listing", () => {
       .catch((caught: unknown) => caught);
     expect((error as ProviderError).failure).toBe("not_found");
     expect(calls).toHaveLength(0);
+  });
+});
+
+describe("the edition preview", () => {
+  const release = "b2f862e5-a1f3-475d-85a1-6cb1160286aa";
+
+  it("is built from the release's identifier, on the archive's origin", () => {
+    const preview = frontThumbnailFor(release);
+    expect(preview).toEqual({
+      src: `https://coverartarchive.org/release/${release}/front-250`,
+      srcSet: `https://coverartarchive.org/release/${release}/front-250 250w, https://coverartarchive.org/release/${release}/front-500 500w`,
+    });
+  });
+
+  it.each([
+    "",
+    "not-an-id",
+    "B2F862E5-A1F3-475D-85A1-6CB1160286AA",
+    `${release}/../..`,
+    `${release}" onerror="x`,
+  ])("refuses %j", (value) => {
+    expect(frontThumbnailFor(value)).toBeNull();
   });
 });
