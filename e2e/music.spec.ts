@@ -376,6 +376,18 @@ test("shows the chosen cover on every studio surface, and the fallback when it f
   }
   await screenshot(page, "editor-with-cover", testInfo.project.name);
 
+  // A new journal has the same frame and margin as an existing one.
+  await page.goto(`/studio/journals/new?album=${albumId}`);
+  await expect(frame).toBeVisible();
+  await expect(page.getByRole("link", { name: /^Change…/ })).toHaveAttribute(
+    "href",
+    `/studio/albums/${albumId}/artwork`,
+  );
+  await expect(
+    page.getByRole("link", { name: "Edit in catalog" }),
+  ).toHaveAttribute("href", `/studio/albums/${albumId}`);
+  await expect(page.getByText("Cover Art Archive")).toBeVisible();
+
   // When the image cannot be loaded, the frame keeps its size and says so,
   // and no broken image is left in it.
   await page.unroute("https://coverartarchive.org/**");

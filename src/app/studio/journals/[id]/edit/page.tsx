@@ -7,6 +7,7 @@ import { Suspense } from "react";
 import { accessDenied } from "@/app/studio/access";
 import { ArtworkPlaceholder } from "@/app/studio/artwork-placeholder";
 import { StudioFrame } from "@/app/studio/frame";
+import { JournalCatalogMargin } from "@/app/studio/journals/journal-catalog-margin";
 import { JournalEditor } from "@/app/studio/journals/journal-editor";
 import { StudioLoading } from "@/app/studio/studio-loading";
 import { getAlbumCover } from "@/modules/catalog";
@@ -106,43 +107,12 @@ async function EditJournal({ params }: { params: Promise<{ id: string }> }) {
           </div>
         }
         catalog={
-          <>
-            <section aria-labelledby="editor-catalog" className="space-y-1">
-              <h2 id="editor-catalog" className="studio-margin-title">
-                From your catalog
-              </h2>
-              <p className="studio-meta">
-                {[journal.artistNames, journal.albumTitle]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </p>
-              <p>
-                <Link
-                  href={`/studio/albums/${journal.albumId}`}
-                  className="studio-link studio-meta"
-                >
-                  Edit in catalog
-                </Link>
-              </p>
-            </section>
-            <section aria-labelledby="editor-artwork" className="space-y-1">
-              <h2 id="editor-artwork" className="studio-margin-title">
-                Artwork
-              </h2>
-              <p className="studio-meta">
-                {cover ? "Cover Art Archive" : "No artwork yet"}
-              </p>
-              <p>
-                <Link
-                  href={`/studio/albums/${journal.albumId}/artwork`}
-                  className="studio-link studio-meta"
-                >
-                  Change…
-                  <span className="studio-sr-only"> the album’s artwork</span>
-                </Link>
-              </p>
-            </section>
-          </>
+          <JournalCatalogMargin
+            albumId={journal.albumId}
+            albumTitle={journal.albumTitle}
+            artistNames={journal.artistNames}
+            hasCover={cover !== null}
+          />
         }
         edit={{
           entryId: journal.entryId,

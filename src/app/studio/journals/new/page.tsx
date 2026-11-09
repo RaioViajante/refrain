@@ -6,6 +6,7 @@ import { Suspense } from "react";
 import { accessDenied } from "@/app/studio/access";
 import { ArtworkPlaceholder } from "@/app/studio/artwork-placeholder";
 import { StudioFrame } from "@/app/studio/frame";
+import { JournalCatalogMargin } from "@/app/studio/journals/journal-catalog-margin";
 import { JournalEditor } from "@/app/studio/journals/journal-editor";
 import { StudioLoading } from "@/app/studio/studio-loading";
 import {
@@ -73,6 +74,14 @@ async function NewJournal({
                 {artists ? <p className="studio-meta">{artists}</p> : null}
               </div>
             </div>
+          }
+          catalog={
+            <JournalCatalogMargin
+              albumId={album.albumId}
+              albumTitle={album.title}
+              artistNames={artists}
+              hasCover={covers.has(album.albumId)}
+            />
           }
           create={{ albumId: album.albumId }}
           initial={{ opening: "", body: "" }}
