@@ -304,6 +304,15 @@ describe("a public memory's page, with public reads on", () => {
     }
   });
 
+  it("closes a memory with its archive, whatever its songs link to", async () => {
+    for (const slug of [seeded!.shown.slug, seeded!.quiet.slug]) {
+      const page = await request(on.baseURL, `/memories/${slug}`);
+      expect(page.body).toContain('href="/memories"');
+      expect(visibleText(page.body)).toContain("All memories");
+      expect(visibleText(page.body)).not.toContain("More about");
+    }
+  });
+
   it("shows a memory without songs with no music section, and a long title whole", async () => {
     const quiet = await request(on.baseURL, `/memories/${seeded!.quiet.slug}`);
     expect(quiet.status).toBe(200);

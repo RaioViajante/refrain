@@ -84,7 +84,7 @@ async function Memories({ searchParams }: MemoriesProps) {
             {statistics.draft === 1 ? "draft" : "drafts"}, {statistics.private}{" "}
             private
             {statistics.published > 0
-              ? `, ${statistics.published} marked as published`
+              ? `, ${statistics.published} published`
               : ""}
             .
           </p>

@@ -67,7 +67,7 @@ export function RestoreMemoryButton({
           The memory returns to your memories with its writing and its songs
           exactly as you left them.{" "}
           {wasPublished
-            ? "It was marked as published when it was deleted, and it comes back as private. Restoring publishes nothing."
+            ? "It was published when it was deleted, and it comes back as private. Restoring publishes nothing."
             : "A draft stays a draft and private stays private."}
         </p>
       </ConfirmDialog>

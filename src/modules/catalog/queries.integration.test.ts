@@ -10,10 +10,13 @@ import {
   inRollbackTransaction,
   testAuthor,
 } from "@/testing";
+import { setTestArtistPhoto } from "@/testing/public-artists";
+import { commonsThumbnail, PHOTO } from "@/testing/wikimedia-fixtures";
 
 import {
   getAlbumCover,
   listAlbumCovers,
+  listArtistPhotos,
   listAlbumsWithArtists,
   listAlbumUsage,
   listRecordingChoices,
@@ -211,6 +214,57 @@ describe("listAlbumCovers and getAlbumCover", () => {
       expect(
         await getAlbumCover(tx, testAuthor(), tampered.albumId),
       ).toBeNull();
+    });
+  });
+});
+
+describe("listArtistPhotos", () => {
+  const testPhoto = {
+    fileName: PHOTO.onStage,
+    credit: "[Test] Photographer One",
+    license: "CC BY-SA 4.0",
+  };
+
+  it("returns the addresses rebuilt from a valid photograph, and nothing for an artist without one", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const pictured = await createTestArtist(tx, "[Test] Pictured");
+      const bare = await createTestArtist(tx, "[Test] No Picture");
+      await setTestArtistPhoto(tx, pictured, testPhoto);
+
+      const photos = await listArtistPhotos(tx, testAuthor());
+      expect(photos.get(pictured)?.src).toBe(
+        commonsThumbnail(PHOTO.onStage, 330),
+      );
+      expect(photos.get(pictured)?.srcSet).toContain("330w");
+      expect(photos.has(bare)).toBe(false);
+    });
+  });
+
+  it("leaves out a row whose columns are not exactly what Refrain writes", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const foreign = await createTestArtist(tx, "[Test] Foreign Address");
+      const unlicensed = await createTestArtist(tx, "[Test] Unknown License");
+      const foreignSource = await createTestArtist(tx, "[Test] Foreign Source");
+      for (const artist of [foreign, unlicensed, foreignSource]) {
+        await setTestArtistPhoto(tx, artist, testPhoto);
+      }
+      await tx
+        .update(schema.artists)
+        .set({ photoUrl: "https://example.org/photo.jpg" })
+        .where(eq(schema.artists.id, foreign));
+      await tx
+        .update(schema.artists)
+        .set({ photoLicense: "All rights reserved" })
+        .where(eq(schema.artists.id, unlicensed));
+      await tx
+        .update(schema.artists)
+        .set({ photoSourceUrl: "https://example.org/wiki/File:Other.jpg" })
+        .where(eq(schema.artists.id, foreignSource));
+
+      const photos = await listArtistPhotos(tx, testAuthor());
+      expect(photos.has(foreign)).toBe(false);
+      expect(photos.has(unlicensed)).toBe(false);
+      expect(photos.has(foreignSource)).toBe(false);
     });
   });
 });

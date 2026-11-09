@@ -49,3 +49,27 @@ Procedure: `/refrain-security-review`, run by a review agent in a context separa
 The review ran the unit suite (905 passed), the HTTP suite (561 passed), the changed integration file (6 passed), `tsc`, ESLint, Prettier, and `gitleaks` with redaction (no leaks), plus the temporary probes above, which were removed. It did not run Playwright, the full integration suite, or anything hosted. The full suites were run on the final commit separately, as the pull request records.
 
 **Missing negative tests, as follow-ups:** the changed pages requested anonymously, with a forged cookie, and as another author with a stored cover in place; a rendered-page test that a tampered row never reaches HTML; `referrerpolicy` on the new thumbnails and frames; a browser test of the hosts Studio cover pages request; and `/studio/journals/<id>/edit`, `/studio/journals/new`, and `/studio/catalog/add` in the private-cache HTTP test.
+
+## Visual polish 2
+
+PR #84: the chosen photograph in the Studio's Artists list, the closing links of the public reading pages, and the Studio's "published" wording. No proxy rule, predicate, sitemap, cache directive, schema, or gate changes.
+
+**Independent security review.** `/refrain-security-review`, by a review agent in a separate context, on 2026-11-08, against `f3352eef37b707f5fcb154b241f2a9268673c609` (base `bde9bee913a7ea4b2e63ae89dc3e432ed8101673`). **Recommendation: approve with notes.** No Critical, High, or Medium finding, and no exploitable vulnerability. A passing review is evidence, not approval.
+
+- **L1 (theoretical).** The Artists list requests every chosen photograph from Wikimedia at once, and Commons file names often contain an artist's name, so someone with Wikimedia's logs could infer who is in the private catalog. No writing, Refrain identifier, status, cookie, or page address leaves. Recorded in [Security § Deployment gate](../security.md#deployment-gate), item 7, with the thumbnails' lack of attribution.
+- **L2 (test gap).** Coverage of the new query is indirect, because no committed test requests `/studio/artists` with a stored photograph in place. The review's temporary test covered it and passed.
+- **I1.** A wording error in the design document, corrected. **I2.** A stale comment in `src/integrations/wikimedia-commons/photo.ts`, older than this change. **I3.** "More about <name>" uses the credited name, as the credit link has since M3.5.
+
+| Area | Verdict | Evidence |
+| --- | --- | --- |
+| Authorization of `listArtistPhotos` | Pass | Called only by `src/app/studio/artists/page.tsx`, after `authorizeAuthor`; exported only through the server-only `studio.ts`; anonymous, tampered, and unrelated-cookie requests returned no thumbnail address or artist name |
+| Malformed stored photographs | Pass | `artistPhotoOf` requires every column to be exactly what Refrain writes, and addresses are rebuilt; foreign, attribute-injection, unknown-license, and markup rows reached no document or RSC payload |
+| Remote image handling | Pass | `thumb.wikimedia.org` only; `img-src` unchanged; `no-referrer` by header and attribute; the client component receives `src`, `srcSet`, `sizes`, `width`, and `height` only |
+| Public visibility of the new links | Pass | "More about" comes only from `credit.artistAddress` in the Publication read model, the same value and condition as the credit link since M3.5; the archive links are the header's own addresses |
+| Public-read and cache boundaries | Pass, unchanged | No diff over the proxy, headers, Publication, sitemap, or schema; the switch-off HTTP suites passed |
+| Private data exposure | Pass, with L1 | Only the viewer's address and browser metadata and the file name reach Wikimedia |
+
+The review ran the unit suite (906 passed), the HTTP suite (565 passed), the affected integration files (91 passed), `tsc`, a production build, and `gitleaks` with redaction (no leaks), and removed its temporary test. It did not run Playwright or contact any provider. The browser suite was run separately, as the pull request records.
+
+**Missing negative tests, as follow-ups:** `/studio/artists` requested anonymously, tampered, and as another author with a stored photograph in place; a rendered-page test that a tampered row never reaches its HTML; the exact shape of `listArtistPhotos`; and `referrerpolicy` and requested hosts on the list thumbnail.
+

@@ -161,8 +161,13 @@ test("builds a small catalog through the Studio", async ({ page }, info) => {
     .getByLabel("Credited artists: artist 1", { exact: true })
     .selectOption({ label: catalog.singer });
   await page.getByRole("button", { name: "Add album" }).click();
-  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  // The form's own heading is already visible, so wait for the album's page:
+  // the album is saved only once the Studio has moved there.
   const albumName = label(info, "Memory Album");
+  await page.waitForURL(/\/studio\/albums\/[0-9a-f-]{36}$/);
+  await expect(
+    page.getByRole("heading", { level: 1, name: albumName }),
+  ).toBeVisible();
 
   async function track(
     trackTitle: string,

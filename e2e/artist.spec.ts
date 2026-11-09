@@ -287,8 +287,18 @@ test("leads from an album journal's credit to the artist, and back to the journa
   ).not.toBe("none");
   expect((await link.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   await shot(page, "8-album-journal-links-to-artist", false);
+  // The closing row names only the artist with a page, never the archived one.
+  const closing = page.getByRole("navigation", { name: "Keep reading" });
+  await expect(closing.getByRole("link", { name: /^More about/ })).toHaveText([
+    "More about Jeff Buckley",
+  ]);
   await page.locator(".pj-artist a").click();
   await expect(page).toHaveURL(`${base}/artists/${address.grace}`);
+  await expect(
+    page
+      .getByRole("navigation", { name: "Keep reading" })
+      .getByRole("link", { name: "All artists" }),
+  ).toHaveAttribute("href", "/artists");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
     "Jeff Buckley",
   );

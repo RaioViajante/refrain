@@ -4,6 +4,7 @@ import {
   type PhotoLicense,
 } from "@/integrations/wikimedia-commons";
 
+import { Icon } from "./icons";
 import { PhotoImage } from "./photo-image";
 
 // An artist's photograph (M3.3): the approved V4.4 4:5 frame (`.art.pt`) with
@@ -63,6 +64,37 @@ export function PhotoFrame({
         />
       ) : null}
     </div>
+  );
+}
+
+/**
+ * A row's thumbnail in the Studio's Artists list: the person mark, and the
+ * chosen photograph over it in the 4:5 portrait of the photo frame. An
+ * owner-approved extension of V4.4 (docs/design-system.md). Decorative, because
+ * the row's title names the artist; with no photograph, or if it fails, the
+ * mark remains.
+ */
+export function ArtistThumb({
+  image,
+}: {
+  image?: { src: string; srcSet: string } | null;
+}) {
+  return (
+    <span
+      className="studio-thumb studio-thumb-portrait"
+      data-bare
+      aria-hidden="true"
+    >
+      <Icon name="artist" size={26} />
+      {image ? (
+        <PhotoImage
+          key={image.src}
+          src={image.src}
+          srcSet={image.srcSet}
+          sizes="56px"
+        />
+      ) : null}
+    </span>
   );
 }
 

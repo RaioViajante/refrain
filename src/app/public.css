@@ -1022,6 +1022,44 @@ article.pj-grid {
   background-image: var(--stroke-button-focus);
 }
 
+/* The closing row of a reading page (V4.4 `.g2` and `.nb`, inline padding 84
+   and 88px over 52px): the way back as a drawn button, then each credited
+   artist as a quiet link, in the page's writing column. The footer's own
+   rule follows. */
+.pj-end {
+  padding: 84px 0 52px;
+  font-size: 17px;
+}
+
+.pj-end-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 22px;
+  min-width: 0;
+}
+
+.pj-end-links .pj-button {
+  margin: 0;
+}
+
+.pj-end-artist {
+  gap: 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pj-end-artist svg {
+  flex: none;
+}
+
+.pm-end {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  column-gap: 64px;
+  padding-top: 88px;
+}
+
 .pj-margin-note {
   margin: 56px 0 0;
   padding-left: 16px;
@@ -1466,6 +1504,14 @@ article.pa-grid {
 }
 
 @media (max-width: 720px) {
+  .pj-end-margin {
+    display: none;
+  }
+
+  .pm-end {
+    display: block;
+  }
+
   .pj-title.pa-title {
     font-size: max(30px, min(62px, var(--pa-fit)));
   }
@@ -1688,8 +1734,6 @@ article.pa-grid {
    values are the screen's own. */
 .pm {
   padding-top: 72px;
-  /* With the footer's own 56px, the screen's spacious end of the page. */
-  padding-bottom: 72px;
 }
 
 .pm-grid {

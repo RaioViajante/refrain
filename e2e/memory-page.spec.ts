@@ -224,6 +224,17 @@ test("follows a song's album to its journal, and its artist to their page", asyn
   );
 });
 
+test("closes with the way back to the memories", async ({ page }) => {
+  await open(page, seeded.shown.slug);
+  const all = page
+    .getByRole("navigation", { name: "Keep reading" })
+    .getByRole("link", { name: "All memories" });
+  await expect(all).toHaveAttribute("href", "/memories");
+  expect((await all.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await all.click();
+  await expect(page).toHaveURL(`${base}/memories`);
+});
+
 test("shows a memory with one song, and one with none", async ({ page }) => {
   await open(page, seeded.long.slug);
   await expect(page.locator(".pm-song")).toHaveCount(1);

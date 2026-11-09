@@ -420,6 +420,18 @@
   object-fit: cover;
 }
 
+/* An artist's photograph in the Artists list: the 4:5 portrait of the photo
+   frame, the row's full height, over the person mark. */
+.studio-thumb-portrait img {
+  inset: 0 auto;
+  left: 50%;
+  width: auto;
+  height: 100%;
+  aspect-ratio: 4 / 5;
+  border: 1px solid var(--color-rule);
+  transform: translateX(-50%);
+}
+
 .studio-thumb[data-bare] {
   border-color: transparent;
 }
