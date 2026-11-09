@@ -110,9 +110,16 @@ async function stored() {
   });
 }
 
-/** How many of the ten star halves actually paint their ink. */
-const filledHalves = (rating: Locator) =>
-  rating.locator('.studio-star-half svg path[fill="currentColor"]').count();
+/** The ten star halves in order: which half each shows, and whether it paints ink. */
+const halves = (rating: Locator) =>
+  rating.locator(".studio-star-half svg").evaluateAll((drawings) =>
+    drawings.map((drawing) => ({
+      view: drawing.getAttribute("viewBox"),
+      inked: [...drawing.querySelectorAll("path")].some(
+        (path) => getComputedStyle(path).fill !== "none",
+      ),
+    })),
+  );
 
 async function expectState(
   rating: Locator,
@@ -123,7 +130,12 @@ async function expectState(
     rating.getByRole("radio", { name: words, exact: true }),
   ).toBeChecked();
   await expect(rating.locator(".studio-rating-words")).toHaveText(words);
-  expect(await filledHalves(rating)).toBe(halfSteps ?? 0);
+  expect(await halves(rating)).toEqual(
+    Array.from({ length: 10 }, (_, index) => ({
+      view: index % 2 === 0 ? "0 0 12 24" : "12 0 12 24",
+      inked: index < (halfSteps ?? 0),
+    })),
+  );
 }
 
 test("starts a journal with no rating, drawn as five empty stars", async ({
@@ -238,7 +250,7 @@ test("moves through the half steps with the arrow keys, with visible focus", asy
   const three = rating.getByRole("radio", { name: "3 stars", exact: true });
   await expect(three).toBeFocused();
   await expect(three).toBeChecked();
-  expect(await filledHalves(rating)).toBe(6);
+  expect((await halves(rating)).filter(({ inked }) => inked)).toHaveLength(6);
   // Native radios: `:focus-visible` follows the key press, and the outline is
   // drawn on the label beside the input.
   const focusedLabel = page.locator(
@@ -251,7 +263,7 @@ test("moves through the half steps with the arrow keys, with visible focus", asy
   await page.keyboard.press("ArrowLeft");
   await expect(checked).toBeFocused();
   await expect(checked).toBeChecked();
-  expect(await filledHalves(rating)).toBe(5);
+  expect((await halves(rating)).filter(({ inked }) => inked)).toHaveLength(5);
 
   await page.keyboard.press("Space");
   await expect(checked).toBeChecked();
@@ -322,6 +334,37 @@ test("reserves Clear's place, so a first rating moves nothing at any width", asy
   await expect(
     trackRating(page).getByRole("button", { name: "Clear" }),
   ).toHaveCount(0);
+});
+
+test("keeps the album's stars, words, and Clear on one line at 320 px", async ({
+  page,
+}) => {
+  await openEditor(page);
+  await page.setViewportSize({ width: 320, height: 900 });
+  const rating = albumRating(page);
+  const assertOneLine = async () => {
+    const box = await rating
+      .locator(".studio-rating-row")
+      .evaluate((row) => row.getBoundingClientRect().height);
+    expect(box).toBeLessThanOrEqual(44.5);
+    expect(
+      await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth -
+          document.documentElement.clientWidth,
+      ),
+    ).toBeLessThanOrEqual(0);
+  };
+  const clear = rating.getByRole("button", { name: "Clear" });
+  if (await clear.isVisible()) {
+    await clear.click();
+  }
+  await expect(clear).toBeHidden();
+  await assertOneLine();
+  for (const { words } of STATES) {
+    await pick(rating, words);
+    await assertOneLine();
+  }
 });
 
 test("takes the system's ink in forced-colors mode", async ({ page }) => {
