@@ -41,7 +41,8 @@ let journalUrl = "";
 let slug = "";
 
 function nameThings() {
-  const project = test.info().project.name;
+  // The repeat index keeps each `--repeat-each` round's records apart.
+  const project = `${test.info().project.name} ${test.info().repeatEachIndex}`;
   names = {
     artist: named(`Pub ${project} Artist`),
     album: named(`Pub ${project} Album`),
@@ -124,6 +125,9 @@ const changeDialog = (page: Page) =>
 
 async function openEditor(page: Page) {
   await page.goto(`${journalUrl}/edit`);
+  // Visible is not ready: hydration rewrites the field, and a `fill` running
+  // at that moment inserts beside the stored text instead of replacing it.
+  await expect(page.locator("form[data-editor-ready]")).toBeAttached();
   await expect(
     page.getByLabel("Your reflection", { exact: true }),
   ).toBeVisible();
