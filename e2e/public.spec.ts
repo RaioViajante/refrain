@@ -888,7 +888,7 @@ test("draws every rating as the stars it is, read-only, with its sentence", asyn
   }
 });
 
-test("captures every state of the public rating, when asked for", async ({
+test("captures the public rating in the named states, when asked for", async ({
   page,
 }, testInfo) => {
   test.skip(process.env.E2E_SCREENSHOTS !== "1", "set E2E_SCREENSHOTS=1");

@@ -347,7 +347,7 @@ test("takes the system's ink in forced-colors mode", async ({ page }) => {
 const WIDTHS = [1440, 390, 360, 320];
 const SHOTS = `visual-review/ratings/${process.env.E2E_SCREENSHOTS_LABEL ?? "current"}`;
 
-test("captures every state of the studio's rating, at every width", async ({
+test("captures the studio's rating in the named states, at every width", async ({
   page,
 }) => {
   test.skip(process.env.E2E_SCREENSHOTS !== "1", "set E2E_SCREENSHOTS=1");
