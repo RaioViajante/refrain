@@ -50,6 +50,7 @@ export type {
 export type {
   AlbumCredit,
   AlbumDetail,
+  AlbumCover,
   AlbumTrackCount,
   AlbumUsage,
   ArtistDetail,
@@ -90,6 +91,8 @@ export {
   getCatalogStatistics,
   getTrack,
   listAlbumsWithArtists,
+  listAlbumCovers,
+  getAlbumCover,
   listAlbumTrackCounts,
   listAlbumUsage,
   listArtists,

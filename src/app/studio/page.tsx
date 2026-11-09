@@ -3,13 +3,14 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { accessDenied } from "@/app/studio/access";
+import { AlbumThumb } from "@/app/studio/artwork-placeholder";
 import { plural } from "@/app/studio/format";
 import { StudioFrame } from "@/app/studio/frame";
 import { Icon } from "@/app/studio/icons";
 import { MemoryRows } from "@/app/studio/memories/memory-rows";
 import { StatusMark } from "@/app/studio/status-mark";
 import { StudioLoading } from "@/app/studio/studio-loading";
-import { getCatalogStatistics } from "@/modules/catalog";
+import { getCatalogStatistics, listAlbumCovers } from "@/modules/catalog";
 import { authorizeAuthor } from "@/modules/identity";
 import {
   getJournalStatistics,
@@ -43,15 +44,23 @@ async function Desk() {
     return accessDenied(authorization.reason);
   }
   const { author } = authorization;
-  const [catalog, statistics, journals, progress, memories, memoryStatistics] =
-    await Promise.all([
-      getCatalogStatistics(author),
-      getJournalStatistics(author),
-      listAlbumJournals(author),
-      listAlbumJournalProgress(author),
-      listMemories(author),
-      getMemoryStatistics(author),
-    ]);
+  const [
+    catalog,
+    statistics,
+    journals,
+    progress,
+    memories,
+    memoryStatistics,
+    covers,
+  ] = await Promise.all([
+    getCatalogStatistics(author),
+    getJournalStatistics(author),
+    listAlbumJournals(author),
+    listAlbumJournalProgress(author),
+    listMemories(author),
+    getMemoryStatistics(author),
+    listAlbumCovers(author),
+  ]);
   // "4 of 10 tracks written" is an aggregate PostgreSQL computes (AC-05); the
   // page only puts it beside the journal it belongs to.
   const tracksWritten = new Map(progress.map((row) => [row.entryId, row]));
@@ -153,9 +162,7 @@ async function Desk() {
               const written = tracksWritten.get(journal.entryId);
               return (
                 <li key={journal.entryId} className="studio-row studio-entry">
-                  <span className="studio-thumb" aria-hidden="true">
-                    <Icon name="album" size={26} />
-                  </span>
+                  <AlbumThumb artwork={covers.get(journal.albumId)} />
                   <span className="studio-entry-body">
                     <span className="studio-row-title">
                       <Link href={`/studio/journals/${journal.entryId}`}>

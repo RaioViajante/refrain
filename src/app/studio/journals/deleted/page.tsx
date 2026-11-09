@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { accessDenied } from "@/app/studio/access";
+import { AlbumThumb } from "@/app/studio/artwork-placeholder";
 import { formatDate } from "@/app/studio/format";
 import { StudioFrame } from "@/app/studio/frame";
 import { Icon } from "@/app/studio/icons";
@@ -11,6 +12,7 @@ import { RestoreJournalButton } from "@/app/studio/journals/restore-button";
 import { songsLine } from "@/app/studio/memories/memory-rows";
 import { RestoreMemoryButton } from "@/app/studio/memories/restore-memory-button";
 import { StudioLoading } from "@/app/studio/studio-loading";
+import { listAlbumCovers } from "@/modules/catalog";
 import { authorizeAuthor } from "@/modules/identity";
 import {
   listDeletedAlbumJournals,
@@ -38,9 +40,10 @@ async function RecentlyDeleted() {
   if (!authorization.ok) {
     return accessDenied(authorization.reason);
   }
-  const [deleted, deletedMemories] = await Promise.all([
+  const [deleted, deletedMemories, covers] = await Promise.all([
     listDeletedAlbumJournals(authorization.author),
     listDeletedMemories(authorization.author),
+    listAlbumCovers(authorization.author),
   ]);
 
   return (
@@ -77,9 +80,7 @@ async function RecentlyDeleted() {
             );
             return (
               <li key={journal.entryId} className="studio-row studio-entry">
-                <span className="studio-thumb" aria-hidden="true">
-                  <Icon name="album" size={26} />
-                </span>
+                <AlbumThumb artwork={covers.get(journal.albumId)} />
                 <span className="studio-entry-body">
                   <span className="studio-row-title">
                     <Link href={`/studio/journals/${journal.entryId}`}>

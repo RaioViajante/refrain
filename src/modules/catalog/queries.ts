@@ -113,6 +113,56 @@ export interface AlbumTrackCount {
   trackCount: number;
 }
 
+export interface AlbumCover {
+  src: string;
+  srcSet: string;
+}
+
+/**
+ * The chosen cover of every album that has a valid one, keyed by album, for
+ * the studio's lists. Private: it takes the author, and no public page reads
+ * it (public pages use the Publication module). A stored value that does not
+ * parse is left out, so the row keeps its record mark, and the image
+ * addresses are always rebuilt from its parts, never copied from the row.
+ */
+export async function listAlbumCovers(
+  db: DatabaseExecutor,
+  _author: AuthorizedAuthor,
+): Promise<Map<string, AlbumCover>> {
+  const result = await db.execute<{
+    id: string;
+    cover_url: string | null;
+    cover_source: string | null;
+  }>(sql`select id, cover_url, cover_source from albums
+          where cover_url is not null`);
+  const covers = new Map<string, AlbumCover>();
+  for (const row of result.rows) {
+    const artwork = coverArtworkOf(row.cover_url, row.cover_source);
+    if (artwork) {
+      covers.set(row.id, { src: artwork.src, srcSet: artwork.srcSet });
+    }
+  }
+  return covers;
+}
+
+/** One album's chosen cover, under the same rules as `listAlbumCovers`. */
+export async function getAlbumCover(
+  db: DatabaseExecutor,
+  _author: AuthorizedAuthor,
+  albumId: string,
+): Promise<AlbumCover | null> {
+  const result = await db.execute<{
+    cover_url: string | null;
+    cover_source: string | null;
+  }>(sql`select cover_url, cover_source from albums where id = ${albumId}`);
+  const row = result.rows[0];
+  if (!row) {
+    return null;
+  }
+  const artwork = coverArtworkOf(row.cover_url, row.cover_source);
+  return artwork ? { src: artwork.src, srcSet: artwork.srcSet } : null;
+}
+
 /**
  * Every album, archived ones included, with the number of recordings on it.
  * Academic requirement AC-05 (aggregate: `COUNT` with `GROUP BY` over a

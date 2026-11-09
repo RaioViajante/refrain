@@ -55,7 +55,12 @@ export function PhotoFrame({
         {image || label ? "photograph not shown" : "no photograph yet"}
       </span>
       {image ? (
-        <PhotoImage src={image.src} srcSet={image.srcSet} sizes={`${size}px`} />
+        <PhotoImage
+          key={image.src}
+          src={image.src}
+          srcSet={image.srcSet}
+          sizes={`${size}px`}
+        />
       ) : null}
     </div>
   );

@@ -4,10 +4,16 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { accessDenied } from "@/app/studio/access";
+import { ArtworkPlaceholder } from "@/app/studio/artwork-placeholder";
 import { StudioFrame } from "@/app/studio/frame";
+import { JournalCatalogMargin } from "@/app/studio/journals/journal-catalog-margin";
 import { JournalEditor } from "@/app/studio/journals/journal-editor";
 import { StudioLoading } from "@/app/studio/studio-loading";
-import { listAlbumsWithArtists, listAlbumTrackCounts } from "@/modules/catalog";
+import {
+  listAlbumCovers,
+  listAlbumsWithArtists,
+  listAlbumTrackCounts,
+} from "@/modules/catalog";
 import { authorizeAuthor } from "@/modules/identity";
 
 export const metadata: Metadata = { title: "Write a journal · refrain" };
@@ -34,9 +40,10 @@ async function NewJournal({
     return accessDenied(authorization.reason);
   }
   const { author } = authorization;
-  const [albums, credits] = await Promise.all([
+  const [albums, credits, covers] = await Promise.all([
     listAlbumTrackCounts(author),
     listAlbumsWithArtists(author),
+    listAlbumCovers(author),
   ]);
   const choices = albums.filter((album) => !album.archived);
   // The album comes from the link, but only an album that exists and is not
@@ -54,12 +61,27 @@ async function NewJournal({
         <JournalEditor
           back={{ href: "/studio/journals", label: "Journals" }}
           heading={
-            <div className="studio-editor-head">
-              <h1 className="studio-title studio-title-editor">
-                Write about {album.title}
-              </h1>
-              {artists ? <p className="studio-meta">{artists}</p> : null}
+            <div className="studio-editor-head studio-editor-head-album">
+              <ArtworkPlaceholder
+                artwork={covers.get(album.albumId)}
+                title={album.title}
+                size={120}
+              />
+              <div>
+                <h1 className="studio-title studio-title-editor">
+                  Write about {album.title}
+                </h1>
+                {artists ? <p className="studio-meta">{artists}</p> : null}
+              </div>
             </div>
+          }
+          catalog={
+            <JournalCatalogMargin
+              albumId={album.albumId}
+              albumTitle={album.title}
+              artistNames={artists}
+              hasCover={covers.has(album.albumId)}
+            />
           }
           create={{ albumId: album.albumId }}
           initial={{ opening: "", body: "" }}

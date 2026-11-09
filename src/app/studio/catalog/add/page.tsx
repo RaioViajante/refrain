@@ -4,12 +4,15 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { accessDenied } from "@/app/studio/access";
+import { AlbumThumb } from "@/app/studio/artwork-placeholder";
 import { StudioFrame } from "@/app/studio/frame";
 import { Icon } from "@/app/studio/icons";
 import { StudioLoading } from "@/app/studio/studio-loading";
 import {
   CatalogError,
+  listAlbumCovers,
   searchMusic,
+  type AlbumCover,
   type MusicSearch,
   type MusicSearchKind,
 } from "@/modules/catalog";
@@ -202,7 +205,7 @@ async function Results({
         {`${found.results.length} ${found.results.length === 1 ? "result" : "results"} from MusicBrainz.`}
       </p>
       {found.kind === "albums" ? (
-        <AlbumResults found={found} />
+        <AlbumResults found={found} covers={await listAlbumCovers(author)} />
       ) : (
         <ArtistResults found={found} />
       )}
@@ -221,8 +224,10 @@ function InCatalog({ href }: { href: string }) {
 
 function AlbumResults({
   found,
+  covers,
 }: {
   found: Extract<MusicSearch, { kind: "albums" }>;
+  covers: Map<string, AlbumCover>;
 }) {
   return (
     <>
@@ -234,9 +239,7 @@ function AlbumResults({
           <ul className="studio-list" aria-labelledby="in-catalog">
             {found.local.map((album) => (
               <li key={album.id} className="studio-row studio-entry">
-                <span className="studio-thumb" aria-hidden="true">
-                  <Icon name="album" size={26} />
-                </span>
+                <AlbumThumb artwork={covers.get(album.id)} />
                 <span className="studio-entry-body">
                   <span className="studio-row-title">
                     <Link href={`/studio/albums/${album.id}`}>

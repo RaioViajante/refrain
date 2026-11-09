@@ -4,11 +4,12 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { accessDenied } from "@/app/studio/access";
+import { AlbumThumb } from "@/app/studio/artwork-placeholder";
 import { plural } from "@/app/studio/format";
 import { StudioFrame } from "@/app/studio/frame";
-import { Icon } from "@/app/studio/icons";
 import { StudioLoading } from "@/app/studio/studio-loading";
 import {
+  listAlbumCovers,
   listAlbumsWithArtists,
   listAlbumTrackCounts,
   listAlbumUsage,
@@ -35,10 +36,11 @@ async function Albums() {
   // the albums with their credited artists (a JOIN, AC-04), the tracks on each
   // album (a COUNT with GROUP BY, AC-05), and how many entries use each album
   // (a subquery, AC-05). The page only arranges what PostgreSQL returned.
-  const [credits, counts, usage] = await Promise.all([
+  const [credits, counts, usage, covers] = await Promise.all([
     listAlbumsWithArtists(author),
     listAlbumTrackCounts(author),
     listAlbumUsage(author),
+    listAlbumCovers(author),
   ]);
 
   const artistsByAlbum = new Map<string, string[]>();
@@ -54,9 +56,7 @@ async function Albums() {
 
   const row = (album: (typeof counts)[number]) => (
     <li key={album.albumId} className="studio-row studio-entry">
-      <span className="studio-thumb" aria-hidden="true">
-        <Icon name="album" size={26} />
-      </span>
+      <AlbumThumb artwork={covers.get(album.albumId)} />
       <span className="studio-entry-body">
         <span className="studio-row-title">
           <Link href={`/studio/albums/${album.albumId}`}>{album.title}</Link>

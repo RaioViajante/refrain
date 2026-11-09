@@ -12,6 +12,7 @@ import { JournalControls } from "@/app/studio/journals/journal-controls";
 import { RestoreJournalButton } from "@/app/studio/journals/restore-button";
 import { StudioLoading } from "@/app/studio/studio-loading";
 import { StatusMark } from "@/app/studio/status-mark";
+import { getAlbumCover } from "@/modules/catalog";
 import { authorizeAuthor } from "@/modules/identity";
 import { getAlbumJournal, textToParagraphs } from "@/modules/journals";
 
@@ -47,6 +48,7 @@ async function Journal({ params, searchParams }: JournalProps) {
   if (!journal) {
     notFound();
   }
+  const cover = await getAlbumCover(authorization.author, journal.albumId);
   const deleted = journal.deletedAt !== null;
   // Only a fixed word picks the notice; the query string is never shown. It
   // is claimed only while the journal really is live, so a stale link to a
@@ -151,7 +153,11 @@ async function Journal({ params, searchParams }: JournalProps) {
         </div>
 
         <div className="studio-journal-side">
-          <ArtworkPlaceholder />
+          <ArtworkPlaceholder
+            artwork={cover}
+            title={journal.albumTitle}
+            size={220}
+          />
           {deleted ? null : (
             <p>
               <Link

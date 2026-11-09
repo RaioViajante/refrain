@@ -80,6 +80,8 @@ interface JournalEditorProps {
   back: { href: string; label: string };
   /** The page's heading, shown under the action bar. */
   heading?: ReactNode;
+  /** Catalog facts for the settings margin, rendered by the page. */
+  catalog?: ReactNode;
 }
 
 /**
@@ -95,6 +97,7 @@ export function JournalEditor({
   albumRating: initialAlbumRating = null,
   back,
   heading,
+  catalog,
 }: JournalEditorProps) {
   const router = useRouter();
   const languageNote = useId();
@@ -443,6 +446,7 @@ export function JournalEditor({
               ? "A new journal starts as a private draft. Nothing here is published."
               : "Saving never changes who can see this journal."}
           </p>
+          {catalog}
         </div>
       </div>
 

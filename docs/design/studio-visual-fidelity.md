@@ -141,6 +141,8 @@ From the numbered comparisons (`visual-review/owner-review/`, local, synthetic d
 
 **Since M3.6:** the memory editor, the Memories list, memories on the Desk and in Recently deleted ([Design System § Memories Studio](../design-system.md#memories-studio-m36)).
 
+**Since the media polish (November 2026):** the journal editor has the approved 120px artwork frame beside its heading (above it on a phone) and the settings margin's "From your catalog" and "Artwork" blocks, and a chosen cover fills the thumbnails of the Desk, Journals, Albums, Recently deleted, and Add music's catalog rows and the journal's reading page ([Design System § Add music and artwork](../design-system.md#add-music-and-artwork-m32)). The published-version notice no longer touches the first field.
+
 **In the mockups, not built (by decision or because the feature does not exist):** search and filter chips on the Desk, artist journals (the Desk's own journal and memory rows do show their status), Preview, Publish… and Unpublish…, version tabs, ratings, track by track, "Add from MusicBrainz", the language selector, "Public pages", Edit and Remove… on catalog rows, and "Delete now…".
 
 ## Navigation structure
