@@ -15,6 +15,7 @@ export function PhotoImage({
   sizes,
   width = 330,
   height = 412,
+  lazy = false,
 }: {
   src: string;
   srcSet: string;
@@ -22,6 +23,8 @@ export function PhotoImage({
   /** The intrinsic size, so the frame reserves its place before loading. */
   width?: number;
   height?: number;
+  /** Load only near the viewport, for a long list of images. */
+  lazy?: boolean;
 }) {
   const image = useRef<HTMLImageElement>(null);
   const [failed, setFailed] = useState(false);
@@ -47,6 +50,7 @@ export function PhotoImage({
       height={height}
       alt=""
       decoding="async"
+      loading={lazy ? "lazy" : undefined}
       referrerPolicy="no-referrer"
       onError={() => setFailed(true)}
     />

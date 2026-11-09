@@ -143,8 +143,23 @@ test("adds an album only after choosing an edition and approving the review", as
     .getByRole("list", { name: "Choose an edition" })
     .getByRole("listitem");
   await expect(editions).toHaveCount(3);
-  await expect(editions.first()).toContainText("1994-08-15 · GB");
-  await expect(editions.nth(2)).toContainText("no date · XW");
+  // The earliest edition is named, and dates and places are in words.
+  await expect(editions.first()).toContainText(
+    "original release · August 15, 1994 · United Kingdom",
+  );
+  await expect(editions.nth(1)).not.toContainText("original release");
+  await expect(editions.nth(2)).toContainText("no date · Worldwide");
+  // A cover only where MusicBrainz lists one, loaded lazily; else the mark.
+  const preview = editions.first().locator(".studio-thumb img");
+  await expect(preview).toHaveAttribute("loading", "lazy");
+  await expect(preview).toHaveAttribute("referrerpolicy", "no-referrer");
+  await expect
+    .poll(() =>
+      preview.evaluate((element: HTMLImageElement) => element.naturalWidth),
+    )
+    .toBeGreaterThan(0);
+  await expect(editions.nth(2).locator(".studio-thumb img")).toHaveCount(0);
+  await expect(editions.nth(2).locator(".studio-thumb svg")).toBeVisible();
   await noAxeViolations(page);
   await screenshot(page, "editions", testInfo.project.name);
   await editions
@@ -186,6 +201,19 @@ test("adds an album only after choosing an edition and approving the review", as
   await screenshot(page, "review", testInfo.project.name);
 
   await page.getByRole("radio", { name: "Front cover 1" }).check();
+  // The chosen cover reads as chosen, and the empty choice does not.
+  expect(
+    await page
+      .locator(".studio-choice", { hasText: "Front cover 1" })
+      .locator(".studio-artwork")
+      .evaluate((element) => getComputedStyle(element).outlineStyle),
+  ).toBe("solid");
+  expect(
+    await page
+      .locator(".studio-choice", { hasText: "No artwork" })
+      .locator(".studio-artwork")
+      .evaluate((element) => getComputedStyle(element).outlineStyle),
+  ).toBe("none");
   await page.getByRole("button", { name: "Add to catalog" }).click();
 
   // The album, with its cover over the fallback, its edition, and its tracks.
@@ -239,6 +267,41 @@ test("adds an album only after choosing an edition and approving the review", as
       .getByRole("list", { name: "From MusicBrainz" })
       .getByRole("link", { name: "In catalog" }),
   ).toHaveCount(1);
+});
+
+test("keeps an edition selectable when its cover cannot be loaded", async ({
+  page,
+}) => {
+  await page.unroute("https://coverartarchive.org/**");
+  await page.route("https://coverartarchive.org/**", (route) =>
+    route.abort("failed"),
+  );
+  await page.goto(`/studio/catalog/add/album/${FIXTURE.paperMoon}`);
+  const editions = page
+    .getByRole("list", { name: "Choose an edition" })
+    .getByRole("listitem");
+  await expect(editions).toHaveCount(3);
+  const thumb = editions.first().locator(".studio-thumb");
+  await expect(thumb.locator("img")).toHaveCount(0);
+  await expect(thumb.locator("svg")).toBeVisible();
+  await noAxeViolations(page);
+  if (isMobile(page)) {
+    await expectNoHorizontalOverflow(page);
+  }
+});
+
+test("finds an imported album by its title and artist together", async ({
+  page,
+}) => {
+  await page.goto(
+    `/studio/catalog/add?q=${encodeURIComponent("paper moon ink quartet")}`,
+  );
+  await expect(
+    page
+      .getByRole("list", { name: "Already in your catalog" })
+      .getByText("[Test] Paper Moon"),
+  ).toBeVisible();
+  await noAxeViolations(page);
 });
 
 test("changes and removes the cover only on purpose", async ({
