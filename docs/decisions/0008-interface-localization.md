@@ -33,8 +33,8 @@ A throwaway prototype outside this repository, on 2026-11-10, with Next.js 16.4.
 | Do `/pt/studio` header rules work? | Yes: `private, no-store` on `/pt/studio` and `/pt/studio/sign-in` |
 | Do `/en`, `/en/albums/x`, and `/pt-BR` exist? | No: each answers the `404` |
 | Does a shared `global-not-found` give a real status? | Yes: `404`, with a body identical for `/nope`, `/albums/missing`, `/pt/nope`, and `/pt/albums/missing`, and `no-store` |
-| What does a page's own `notFound()` answer? | The not-found status is not set: in a one-pass page after `connection()` it answered `200`, as a page under Cache Components does today (M3.1) |
-| Can Portuguese have its own not-found view with a real status? | **Not found.** A proxy rewrite with `status: 404` answered `500`; `notFound()` in a catch-all answered `404` with a script-only body and no `lang`; `notFound()` on a literal prerendered route answered `404` with a script-only body and `s-maxage=31536000` |
+| What does a page's own `notFound()` answer? | It depends on the page's shape. In a page that first awaits `connection()`, the shape of Refrain's pages, it answered `200`, as such a page does today (M3.1) |
+| Can Portuguese have its own address-level not-found view with a real status? | **Not found.** A proxy rewrite with `status: 404` answered `500`; `notFound()` in a catch-all answered `404` with a script-only body and no `lang`; `notFound()` on a literal prerendered route answered `404` with a script-only body and `s-maxage=31536000` |
 
 ## Decision
 
@@ -70,8 +70,8 @@ The routes in `(en)` and `pt` are thin files. Each passes its interface language
 - A string that takes values is a function in the dictionary, taking plain values. Plurals use `Intl.PluralRules` through a shared helper.
 - **Public pages** read a dictionary on the server, and no dictionary reaches a public client bundle beyond the strings a small island is given as props.
 - **Studio** client components receive only the Studio's dictionary through one provider, rendered inside the Studio's own layout.
-- The V4.4 strings are the glossary. Words the author wrote about themselves or the journal (the Home's introduction, the archives' first-person leads, and any other authored sentence) are not translated by an agent: a proposal goes to the owner, and is not shipped until approved. **Until a sentence is approved, its Portuguese dictionary value is the English sentence, rendered with `lang="en"`,** in the page and in its metadata, so parity holds and nothing unapproved ships.
-- The dictionaries hold interface copy only, never the author's writing or anything derived from a request.
+- The V4.4 strings are the glossary. Words the author wrote about themselves or the journal (the Home's introduction, the archives' first-person leads, and any other authored sentence) are not translated by an agent: a proposal goes to the owner, and is not shipped until approved. **Until a sentence is approved, its Portuguese dictionary value is the English sentence, rendered in the page with `lang="en"`,** and carried unmarked in its metadata, which has no language attribute, so parity holds and nothing unapproved ships.
+- The dictionaries hold interface copy only, never the writing of an entry or anything derived from a request.
 
 ### 5. Formats
 
@@ -96,7 +96,7 @@ Every format goes through `src/i18n/format.ts`, which takes the interface langua
 
 **Interim, by the owner's decision of 2026-11-10.** There are two paths, and they are different:
 
-- **An address that is not served: one that the proxy decides is not served, or that matches no route.** One shared view answers in both languages: the real status `404`, `no-store`, and the same body whatever the address or the reason, so that no case can be told from another (INV-5). It carries both languages, with the Portuguese part marked `lang="pt-BR"`, in `global-not-found`, which is an experimental Next.js convention (`experimental.globalNotFound`).
+- **An address that is not served: one that the proxy decides is not served, or that matches no route.** One shared view answers in both languages: the real status `404`, `no-store`, and the same body whatever the address or the reason, so that no case can be told from another (INV-5). It carries both languages, with each part marked explicitly (`lang="en"` and `lang="pt-BR"`) because the view is also rendered inside the Portuguese root, in `global-not-found`, which is an experimental Next.js convention (`experimental.globalNotFound`).
 - **A page's own `notFound()`,** of which there are 20 today (a Studio record that does not exist, and the public pages' second check after the proxy). `global-not-found` does not handle these. Each root layout has its own `not-found.tsx`, which renders the same shared view inside that root, so its `<html lang>` is the root's. Under Cache Components such a response can stream with a `200`, as it does today (M3.1): the status is not improved or changed by this ADR. The address-level status stays the proxy's.
 
 **Its limitation, stated plainly:** `<html lang>` on the shared address-level view is `en` for every address, including `/pt/...`. This is not a complete localization of the 404, and must not be described as one. A page-level localized view is revisited as below.

@@ -76,8 +76,8 @@ The layout below is the target. Today `src/app/` (the public pages behind the pu
 src/
   app/
     global-not-found.tsx   the shared, bilingual not-found view (ADR 0008 § 8)
-    (en)/                  root layout <html lang="en">, thin routes at today's addresses
-    pt/                    root layout <html lang="pt-BR">, thin routes at /pt
+    (en)/                  root layout <html lang="en">, not-found.tsx, thin routes at today's addresses
+    pt/                    root layout <html lang="pt-BR">, not-found.tsx, thin routes at /pt
     (public)/ (archives)/ (artists)/ (memories)/ studio/
                            the shared implementations of those routes
     api/                   route handlers, where needed
