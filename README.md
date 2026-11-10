@@ -26,7 +26,7 @@ album journals ··· a record, track by track
 
 each track can have its own reflection, rating, and favourite mark. ratings are optional. every entry starts as a draft and stays private until it is published on purpose. one author, no reader accounts.
 
-black ink on white paper; the only color comes from album art and photographs. the interface is in english today, with english and brazilian portuguese approved and not built yet ([adr 0008](docs/decisions/0008-interface-localization.md)), and writing stays in the language it was written in.
+black ink on white paper; the only color comes from album art and photographs. the public pages are in english and brazilian portuguese, and the writing studio is in english until its localization ([adr 0008](docs/decisions/0008-interface-localization.md)); writing stays in the language it was written in.
 
 most of this is built and runs locally. the source code is public; the website is not yet. a private, sign-in-protected test deployment exists, no public page is online, and the interface is english only for now. what exists and what doesn't is under [status](#current-status). the approved design is written down in [design-system](docs/design-system.md).
 
@@ -87,7 +87,7 @@ also merged, local only: m3.8a, public archives: `/albums`, `/artists`, and `/me
 
 also merged: m4.2, the academic demonstration kit. nothing in it is marked verified until the m4.3 rehearsal, which has not been done.
 
-approved, not built yet: the interface in english and brazilian portuguese, at `/` and `/pt`, with its language selector in the footer ([adr 0008](docs/decisions/0008-interface-localization.md)).
+the public pages in english and brazilian portuguese, at `/` and `/pt`, with the language selector in the footer ([adr 0008](docs/decisions/0008-interface-localization.md)). approved, not built yet: the writing studio in portuguese.
 
 planned: artist journals, author translations, "delete now", and the rest of the academic release (m4).
 

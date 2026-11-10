@@ -36,7 +36,7 @@ Refrain is a **modular monolith**: one deployable Next.js application, one Postg
 | Validation | Zod (installed) |
 | Database / ORM and migrations | PostgreSQL 17 and 18 (both tested; [Development § Test database](development.md#test-database)) / Drizzle ORM and Drizzle Kit, with the `pg` driver (installed) |
 | Authentication | Better Auth (installed; [ADR 0004](decisions/0004-single-author-identity.md)) |
-| Interface localization | Own typed dictionaries (`en`, `pt-BR`), with no library ([ADR 0008](decisions/0008-interface-localization.md)). Approved, not implemented: the interface is English only today |
+| Interface localization | Own typed dictionaries (`en`, `pt-BR`), with no library ([ADR 0008](decisions/0008-interface-localization.md)). Built for the public pages (`src/i18n/`); the Studio is English only until its localization |
 | Unit and integration tests | Vitest (installed) |
 | End-to-end tests | Playwright |
 | Package manager | pnpm (installed) |
@@ -49,7 +49,7 @@ Before a technology is adopted, its compatibility with the chosen Next.js and Re
 
 | Module | Responsibility | Owns | Must not |
 | --- | --- | --- | --- |
-| **Public journal** (presentation) | Home, listings, album, artist, and memory pages; footer language selector (planned, [ADR 0008](decisions/0008-interface-localization.md)) | Public routes and components | Query tables directly; receive anything but public projections |
+| **Public journal** (presentation) | Home, listings, album, artist, and memory pages; footer language selector ([ADR 0008](decisions/0008-interface-localization.md)) | Public routes and components | Query tables directly; receive anything but public projections |
 | **Writing Studio** (presentation) | Desk, editors, Catalog, Add music, preview, Recently deleted | Studio routes and components | Run without an authenticated session; hold business rules |
 | **Music Catalog** | Artists, albums (release groups), reference editions and track order, tracks, credits, artwork and photo provenance; archiving and hard-delete rules | Catalog tables | Delete or modify authored content |
 | **Journals and Reflections** | Album journals, track reflections, ratings and favourites, artist journals, memories, author translations, revisions, saving with conflict detection, deletion and restore | Authored tables, except visibility columns | Change visibility; call external providers |
@@ -70,7 +70,7 @@ Before a technology is adopted, its compatibility with the chosen Next.js and Re
 
 ### Source layout
 
-The layout below is the target. Today `src/app/` (the public pages behind the public-reads switch, the authentication route `api/auth/[...all]`, and `studio/` with its sign-in page, its desk, and its artists, albums, tracks, journals, and memories screens and server actions, all without locale routing yet), `src/db/`, `src/modules/catalog/`, `src/modules/journals/`, `src/modules/publication/`, `src/modules/identity/`, `src/integrations/musicbrainz/`, `src/integrations/cover-art-archive/`, and `src/integrations/wikimedia-commons/` (with their shared `src/integrations/provider.ts`), and `src/testing/` exist. `(en)`, `pt`, and `i18n/` below are approved and **do not exist yet** ([ADR 0008](decisions/0008-interface-localization.md)). The other directories are created by the first feature that needs them, never as empty placeholders.
+The layout below is the target. Today `src/app/` (the public pages behind the public-reads switch, the authentication route `api/auth/[...all]`, and `studio/` with its sign-in page, its desk, and its artists, albums, tracks, journals, and memories screens and server actions, the Studio without locale routing yet), `src/i18n/`, `src/db/`, `src/modules/catalog/`, `src/modules/journals/`, `src/modules/publication/`, `src/modules/identity/`, `src/integrations/musicbrainz/`, `src/integrations/cover-art-archive/`, and `src/integrations/wikimedia-commons/` (with their shared `src/integrations/provider.ts`), and `src/testing/` exist. `(en)`, `pt` (public routes only; its Studio is not built), and `i18n/` below exist ([ADR 0008](decisions/0008-interface-localization.md)). The other directories are created by the first feature that needs them, never as empty placeholders.
 
 ```text
 src/
@@ -142,7 +142,7 @@ Next.js **Cache Components** is enabled (`cacheComponents: true` in `next.config
 
 ## Interface localization (approved, not implemented)
 
-The interface is English only today. The English route tree exists: thin routes under `src/app/(en)/`, which delegate to the implementations, and `src/app/global-not-found.tsx` (PR 2A). Nothing else below is built. [ADR 0008](decisions/0008-interface-localization.md) is the accepted design for English at today's addresses and Brazilian Portuguese at `/pt`, for the public pages and the Studio:
+The public pages are built in both languages (PR 2B): thin routes under `src/app/(en)/` and `src/app/pt/`, each passing its language to a shared implementation, the dictionaries and formats in `src/i18n/`, the footer selector, the alternates, and the bilingual `src/app/global-not-found.tsx`. The Writing Studio is English only until PR 3. [ADR 0008](decisions/0008-interface-localization.md) is the accepted design for English at today's addresses and Brazilian Portuguese at `/pt`, for the public pages and the Studio:
 
 - two root layouts with literal routes, so `<html lang>` is fixed per tree and no alias of a route can exist;
 - own typed dictionaries, whose parity the type check enforces;
