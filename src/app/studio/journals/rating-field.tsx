@@ -2,14 +2,13 @@
 
 import { useId } from "react";
 
-// A half-step rating: five ink stars, each in two halves (docs/design-system.md
+import { StarInk } from "@/app/studio/journals/star-ink";
+
+// A half-step rating: five hand-drawn stars, each in two halves (docs/design-system.md
 // § Components, Rating). Optional, with "No rating" by default, and it is
 // never calculated from anything else. It is one radio group: the arrow keys
 // move through the half steps, and the row is 44px tall. The ten halves and
 // "No rating" are real radio inputs, so the value is announced in words.
-
-const STAR =
-  "M12 3.2l2.6 5.5 6 .8-4.4 4.2 1.1 6-5.3-2.9-5.3 2.9 1.1-6L3.4 9.5l6-.8z";
 
 function words(halfSteps: number | null): string {
   if (halfSteps === null) {
@@ -76,9 +75,12 @@ export function RatingField({
                       height="28"
                       aria-hidden="true"
                       focusable="false"
-                      data-on={value !== null && value >= half ? "" : undefined}
                     >
-                      <path d={STAR} />
+                      <StarInk
+                        fill={
+                          value !== null && value >= half ? "full" : "empty"
+                        }
+                      />
                     </svg>
                   </label>
                 </span>
@@ -102,15 +104,16 @@ export function RatingField({
         <span className="studio-rating-words" aria-hidden="true">
           {words(value)}
         </span>
-        {value !== null ? (
-          <button
-            type="button"
-            className="studio-button-quiet"
-            onClick={() => onChange(null)}
-          >
-            Clear
-          </button>
-        ) : null}
+        {/* Always in the row, so that choosing a first rating moves nothing.
+            Without a rating it is invisible and out of the tab order. */}
+        <button
+          type="button"
+          className="studio-button-quiet"
+          data-unset={value === null ? "" : undefined}
+          onClick={() => onChange(null)}
+        >
+          Clear
+        </button>
       </div>
       {hint ? (
         <p id={noteId} className="studio-hint">

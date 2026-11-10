@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
-import { env } from "./support";
+import { env, withDatabase } from "./support";
 
 // The public album journal in a browser (M3.1), anonymous, from the second
 // server of the same production build that has public reads switched on
@@ -772,6 +772,164 @@ test("unpublishing is seen at once, including when going back", async ({
   }
   const back = await page.goto(`${base}/albums/${slug}`);
   expect(back?.status()).toBe(200);
+});
+
+const RATING_STATES: [number | null, string][] = [
+  [null, ""],
+  [1, "0.5"],
+  [2, "1"],
+  [3, "1.5"],
+  [4, "2"],
+  [5, "2.5"],
+  [6, "3"],
+  [7, "3.5"],
+  [8, "4"],
+  [9, "4.5"],
+  [10, "5"],
+];
+const CAPTURED_RATINGS = RATING_STATES.filter(([halfSteps]) =>
+  [1, 2, 5, 9, 10].includes(halfSteps ?? 0),
+);
+
+async function setRatings(halfSteps: number | null) {
+  await withDatabase(async (client) => {
+    await client.query(
+      "update album_journals set rating_half_steps = $1 where entry_id = $2",
+      [halfSteps, entryId],
+    );
+    await client.query(
+      "update track_reflections set rating_half_steps = $1 where album_journal_id = $2 and is_published",
+      [halfSteps, entryId],
+    );
+  });
+}
+
+async function savedRatings() {
+  return withDatabase(async (client) => ({
+    album: (
+      await client.query<{ value: number | null }>(
+        "select rating_half_steps as value from album_journals where entry_id = $1",
+        [entryId],
+      )
+    ).rows[0]!.value,
+    tracks: (
+      await client.query<{ track_id: string; value: number | null }>(
+        "select track_id, rating_half_steps as value from track_reflections where album_journal_id = $1 and is_published",
+        [entryId],
+      )
+    ).rows,
+  }));
+}
+
+async function restoreRatings(saved: Awaited<ReturnType<typeof savedRatings>>) {
+  await withDatabase(async (client) => {
+    await client.query(
+      "update album_journals set rating_half_steps = $1 where entry_id = $2",
+      [saved.album, entryId],
+    );
+    for (const track of saved.tracks) {
+      await client.query(
+        "update track_reflections set rating_half_steps = $1 where album_journal_id = $2 and track_id = $3",
+        [track.value, entryId, track.track_id],
+      );
+    }
+  });
+}
+
+test("draws every rating as the stars it is, read-only, with its sentence", async ({
+  page,
+}) => {
+  const saved = await savedRatings();
+  try {
+    for (const [halfSteps, value] of RATING_STATES) {
+      await setRatings(halfSteps);
+      await openJournal(page);
+      if (halfSteps === null) {
+        await expect(page.locator(".pj-rating")).toHaveCount(0);
+        await expect(page.locator(".pj-track-rating .pj-stars")).toHaveCount(0);
+        continue;
+      }
+      const rating = page.locator(".pj-rating");
+      const name = `My rating: ${value} out of 5`;
+      await expect(
+        rating.getByRole("img", { name, exact: true }),
+      ).toBeVisible();
+      await expect(rating).toContainText(`[${value}] / 5`);
+      const fills = await rating
+        .locator(".pj-stars svg")
+        .evaluateAll((drawings) =>
+          // What each star actually paints.
+          drawings.map((drawing) => {
+            const ink = drawing
+              .querySelector('path[fill="currentColor"]')
+              ?.getAttribute("d");
+            if (!ink) return "empty";
+            return ink.includes("L14.7 8.9") ? "full" : "half";
+          }),
+        );
+      expect(fills).toEqual(
+        [2, 4, 6, 8, 10].map((whole) =>
+          halfSteps >= whole
+            ? "full"
+            : halfSteps === whole - 1
+              ? "half"
+              : "empty",
+        ),
+      );
+      const track = page.locator(".pj-track-rating").first();
+      await expect(track.getByRole("img", { name, exact: true })).toBeVisible();
+      await expect(track).toContainText(`[${value}]`);
+      // The rating is drawn in the page's ink, and nothing in it is a control.
+      await expect(rating.getByRole("radio")).toHaveCount(0);
+      await expect(rating.locator("input, button")).toHaveCount(0);
+    }
+  } finally {
+    await restoreRatings(saved);
+  }
+});
+
+test("captures the public rating in the named states, when asked for", async ({
+  page,
+}, testInfo) => {
+  test.skip(process.env.E2E_SCREENSHOTS !== "1", "set E2E_SCREENSHOTS=1");
+  test.skip(
+    testInfo.project.name !== "public-desktop",
+    "one project is enough",
+  );
+  test.setTimeout(240_000);
+  const shots = `visual-review/ratings/${process.env.E2E_SCREENSHOTS_LABEL ?? "current"}`;
+  mkdirSync(shots, { recursive: true });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const saved = await savedRatings();
+  try {
+    for (const width of [1440, 390, 360, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const [halfSteps] of CAPTURED_RATINGS) {
+        if (halfSteps === null) continue;
+        await setRatings(halfSteps);
+        await openJournal(page);
+        await page.evaluate(() => document.fonts.ready);
+        await page.locator(".pj-rating").screenshot({
+          path: `${shots}/public-album-${width}-${halfSteps}.png`,
+        });
+        await page
+          .locator(".pj-track-rating")
+          .first()
+          .screenshot({
+            path: `${shots}/public-track-${width}-${halfSteps}.png`,
+          });
+      }
+      await setRatings(9);
+      await openJournal(page);
+      await page.evaluate(() => document.fonts.ready);
+      await page.screenshot({
+        path: `${shots}/public-journal-${width}.png`,
+        fullPage: true,
+      });
+    }
+  } finally {
+    await restoreRatings(saved);
+  }
 });
 
 test("screenshots, when asked for", async ({ page }, testInfo) => {

@@ -218,7 +218,7 @@ The same journey, without a browser and with its negative cases, is what `pnpm t
 | `pnpm test:http` | HTTP tests of the production build: authentication, and every studio Server Action. Needs `pnpm build` first and the test database. Starts `next start` on `127.0.0.1` against `TEST_DATABASE_URL` only ([HTTP tests](#http-tests)). |
 | `pnpm test:e2e` | Browser tests: builds, then runs Playwright against the production build, the disposable test database, and a synthetic author ([Browser tests](#browser-tests)) |
 | `pnpm test:e2e:run` | The same without the build, for when `pnpm build` was just run (CI does this) |
-| `pnpm design:strokes` | Regenerates `src/app/strokes.css`, the Studio's hand-drawn outlines, from `src/design/strokes.ts` (fixed seeds; a unit test fails if the file is stale) |
+| `pnpm design:strokes` | Regenerates `src/app/strokes.css`, the Studio's hand-drawn outlines, and both copies of the rating star (`star-ink.tsx`), from `src/design/strokes.ts` (fixed seeds; a unit test fails if the file is stale) |
 | `pnpm review:screens` | Builds, then captures the Studio's screens at 390, 768, 1280, 1440, and 2560 px into `visual-review/` (ignored by Git), from synthetic data on the disposable test database ([Visual review](design/studio-visual-fidelity.md#reproducing-the-review)) |
 | `pnpm db:backup --target=<host>:<port>/<database> --output=<absolute path>` | Writes a new, owner-only `pg_dump` archive of a local database ([Backup and restore](#backup-and-restore)) |
 | `pnpm db:backup:verify --file=<path> [--compare-with=<target>] [--postgres=18]` | Restores an archive into a new scratch database on the disposable test container (PostgreSQL 17, or the 18 one with `--postgres=18`) and compares it with a source |

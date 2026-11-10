@@ -1,45 +1,11 @@
-// A rating shown as five hand-weighted stars in half steps (docs/design-system.md
+// A rating shown as five hand-drawn stars in half steps (docs/design-system.md
 // § Components, Rating). The value is in half steps (0 to 10). The stars are
 // decorative: the accessible name is the sentence, because a screen reader
 // should hear "4.5 out of 5" and not five shapes.
 
-const SIZE = 24;
-const CENTER = { x: 12, y: 12.8 };
-const OUTER = 10.5;
-const INNER = 4.4;
+import { StarInk, type StarFill } from "@/app/(public)/_components/star-ink";
 
-function point(angleDegrees: number, radius: number): [number, number] {
-  const angle = (angleDegrees * Math.PI) / 180;
-  return [
-    CENTER.x + radius * Math.cos(angle),
-    CENTER.y + radius * Math.sin(angle),
-  ];
-}
-
-const format = (points: [number, number][]) =>
-  points.map(([x, y]) => `${x.toFixed(2)} ${y.toFixed(2)}`).join(" L");
-
-// Outer points at -90, -18, 54, 126, 198 degrees; inner points between them.
-const OUTER_ANGLES = [-90, -18, 54, 126, 198];
-const full: [number, number][] = OUTER_ANGLES.flatMap((angle) => [
-  point(angle, OUTER),
-  point(angle + 36, INNER),
-]);
-// The left half runs from the top point round to the notch at the bottom.
-const left: [number, number][] = [
-  point(-90, OUTER),
-  point(-126, INNER),
-  point(198, OUTER),
-  point(162, INNER),
-  point(126, OUTER),
-  point(90, INNER),
-];
-const FULL_PATH = `M${format(full)} Z`;
-const HALF_PATH = `M${format(left)} Z`;
-
-type Fill = "full" | "half" | "empty";
-
-function fills(halfSteps: number): Fill[] {
+function fills(halfSteps: number): StarFill[] {
   return [1, 2, 3, 4, 5].map((star) => {
     if (halfSteps >= star * 2) return "full";
     if (halfSteps === star * 2 - 1) return "half";
@@ -66,18 +32,11 @@ export function Stars({
           key={index}
           width={size}
           height={size}
-          viewBox={`0 0 ${SIZE} ${SIZE}`}
+          viewBox="0 0 24 24"
           aria-hidden="true"
           focusable="false"
         >
-          <path
-            d={FULL_PATH}
-            fill={fill === "full" ? "currentColor" : "none"}
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinejoin="round"
-          />
-          {fill === "half" ? <path d={HALF_PATH} fill="currentColor" /> : null}
+          <StarInk fill={fill} />
         </svg>
       ))}
     </span>

@@ -2180,15 +2180,15 @@ html:has(.studio-editorbar[data-mode="edit"]) {
   cursor: pointer;
 }
 
-.studio-star-half svg path {
-  fill: none;
-  stroke: var(--color-ink);
-  stroke-width: 1.4;
-  stroke-linejoin: round;
+.studio-star-half svg {
+  color: var(--color-ink);
 }
 
-.studio-star-half svg[data-on] path {
-  fill: var(--color-ink);
+/* V4.4's hover: the outline of the half under the pointer thickens. */
+@media (hover: hover) {
+  .studio-star-half label:hover .star-outline {
+    stroke-width: 1.8;
+  }
 }
 
 .studio-star-half input:focus-visible + label {
@@ -2197,8 +2197,21 @@ html:has(.studio-editorbar[data-mode="edit"]) {
 }
 
 .studio-rating-words {
+  min-width: 64px;
   font-size: 16px;
   color: #2e2e2e;
+}
+
+.studio-rating-row [data-unset] {
+  visibility: hidden;
+}
+
+/* On the narrowest phones, a tighter gap keeps the words' reserved width from
+   pushing Clear onto a line of its own. */
+@media (max-width: 340px) {
+  .studio-rating-row {
+    column-gap: 8px;
+  }
 }
 
 /* "No rating" is a real radio too. It is hidden like the others, so its focus
@@ -2256,5 +2269,9 @@ html:has(.studio-editorbar[data-mode="edit"]) {
   .studio-check input {
     appearance: auto;
     background: none;
+  }
+
+  .studio-star-half svg {
+    color: CanvasText;
   }
 }
