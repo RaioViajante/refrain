@@ -1,11 +1,11 @@
 # Requirements
 
 **Presentation:** November 16, 2026.
-**Status:** M1.3B implemented CRUD and the screens that show the JOIN, aggregate, and subquery results, tested against real PostgreSQL and through the production build; [the M1.3B evidence](evidence/m1-3b.md) records a run, and [the M1.3C evidence](evidence/m1-3c.md) maps each requirement to its screen, tables, query, and executed check, including a browser run that made the records through the interface. **[The M4 evidence](evidence/m4.md) (M4.2) is the current account:** the requirements matrix, an ER diagram, ready-to-paste SQL, the local runbook, and the demonstration. The *Verified* column stays empty until the author reviews that evidence and the demonstration has been rehearsed on a clean database (M4.3).
+**Status:** M1.3B implemented CRUD and the screens that show the JOIN, aggregate, and subquery results, tested against real PostgreSQL and through the production build; [the M1.3B evidence](evidence/m1-3b.md) records a run, and [the M1.3C evidence](evidence/m1-3c.md) maps each requirement to its screen, tables, query, and executed check, including a browser run that made the records through the interface. **[The M4 evidence](evidence/m4.md) (M4.2, merged in #60) is the current account:** the requirements matrix, an ER diagram, ready-to-paste SQL, the local runbook, and the demonstration. The *Verified* column stays empty until the author reviews that evidence and the demonstration has been rehearsed on a clean database (M4.3).
 
 **Not in the repository:** the original assignment document. The six requirements below are the project's statement of it, not a quotation. The evidence column describes what must be captured. The *Verified* column is filled in only after the evidence exists.
 
-This document covers the **mandatory academic requirements** only. Product behavior is defined in [Product](product.md). Architectural qualities such as module boundaries, internationalization, and the hand-drawn interface are project goals, not academic requirements, and must not be presented as substitutes for them.
+This document covers the **mandatory academic requirements** only. Product behavior is defined in [Product](product.md). Architectural qualities such as module boundaries, internationalization, and the hand-drawn interface are project goals, not academic requirements, and must not be presented as substitutes for them. The English and Brazilian Portuguese interface is an approved delivery for the presentation date and is **not implemented** ([ADR 0008](decisions/0008-interface-localization.md)).
 
 ## Mandatory requirements
 
