@@ -48,7 +48,7 @@ The current script, with its runbook and SQL, is [the M4 CRUD demonstration](evi
 5. Delete an unreferenced test artist: a real `DELETE`. Try to delete the credited artist, and the album the journal is about: both refused by `RESTRICT` (AC-03 delete).
 6. Change a row in `psql` and reload; restart the application and reload (AC-06, AC-01).
 
-Optional, if time allows: move the journal to Recently deleted and restore it (an `UPDATE`, not a `DELETE`), and write one track reflection so the Desk reads "1 of 2 tracks written" (AC-05). Public pages are not part of the academic demonstration; they stay off.
+Optional, if time allows: move the journal to Recently deleted and restore it (an `UPDATE`, not a `DELETE`), and write one track reflection so the Desk reads "1 of 2 tracks written" (AC-05). The presentation of 2026-11-16 shows the Writing Studio and the public pages, both served locally ([M4 runbook](evidence/m4.md#local-environment-runbook)). That authorizes no hosted publication: nothing is deployed, and the public-release gates stay open.
 
 ## Definition of complete
 

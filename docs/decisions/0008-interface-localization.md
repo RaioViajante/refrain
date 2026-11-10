@@ -1,6 +1,6 @@
 # ADR 0008: Interface Localization (English and Brazilian Portuguese)
 
-- **Status:** **Accepted** by the owner on 2026-11-10. **Approved, not implemented:** on `main` the interface is English only, and none of the routes, dictionaries, selector, or metadata below exist yet. The work is sequenced in [Roadmap § Interface localization](../roadmap.md#interface-localization-approved-not-implemented).
+- **Status:** **Accepted** by the owner on 2026-11-10. **Approved, partly built:** the interface is English only. The English route tree of § 2 and § 3 and the not-found files of § 8 exist (PR 2A); the `/pt` routes, the dictionaries, the selector, and the alternates do not. The work is sequenced in [Roadmap § Interface localization](../roadmap.md#interface-localization-approved-not-implemented).
 - **Date:** 2026-11-10.
 - **Scope:** How the public pages and the Writing Studio are offered in English and Brazilian Portuguese: routes, dictionaries, formats, the language switch, alternates, the not-found view, and the trust limits of all of these. It replaces `next-intl` as the planned localization technology ([`AGENTS.md` § 3](../../AGENTS.md#3-architecture-constraints) lets a planned technology be replaced only through an ADR). [ADR 0006 amendment A7](0006-publication-decision-and-acknowledgement.md#a7-the-pt-surfaces) binds the `/pt` surfaces to the publication rules.
 
@@ -36,6 +36,8 @@ A throwaway prototype outside this repository, on 2026-11-10, with Next.js 16.4.
 | What does a page's own `notFound()` answer? | It depends on the page's shape. In a page that first awaits `connection()`, the shape of Refrain's pages, it answered `200`, as such a page does today (M3.1) |
 | Can Portuguese have its own address-level not-found view with a real status? | **Not found.** A proxy rewrite with `status: 404` answered `500`; `notFound()` in a catch-all answered `404` with a script-only body and no `lang`; `notFound()` on a literal prerendered route answered `404` with a script-only body and `s-maxage=31536000` |
 
+PR 2A measured the English half against the real proxy, before moving any route. A build with the routes under `(en)` and `global-not-found` was compared with the previous `main` over 2,365 requests (every public and private address, anonymous and signed in, with public reads off and on, in each request form, and the encoded and route-group spellings). Status, headers, cache policy, metadata, and visible text were the same. The transport payloads differ only by what the move itself adds: the `(en)` segment in the router's tree, the framework's default not-found boundary above the root layout, and one copy rather than two of the view in a `404` payload. The Portuguese half is measured in PR 2B.
+
 ## Decision
 
 ### 1. Terms
@@ -62,7 +64,7 @@ So `/pt/albums/<slug>` of a journal published only in English is a Portuguese pa
 
 ### 3. Route files
 
-The routes in `(en)` and `pt` are thin files. Each passes its interface language to one shared implementation and carries the route-level configuration as a literal, because Next.js reads it statically (for example, `export const instant = false`). The implementations stay in their current directories, as non-route modules. **A static test keeps the two trees equal:** every route in one exists in the other, with the same literal configuration, and does nothing but delegate.
+The routes in `(en)` and `pt` are thin files. Each passes its interface language to one shared implementation and carries the route-level configuration as a literal, because Next.js reads it statically (for example, `export const instant = false`). The implementations stay in their current directories, as non-route modules (`screen.tsx`, `section-layout.tsx`). **A static test keeps the two trees equal:** every route in one exists in the other, with the same literal configuration, and does nothing but delegate.
 
 ### 4. Dictionaries
 
@@ -71,6 +73,7 @@ The routes in `(en)` and `pt` are thin files. Each passes its interface language
 - **Public pages** read a dictionary on the server, and no dictionary reaches a public client bundle beyond the strings a small island is given as props.
 - **Studio** client components receive only the Studio's dictionary through one provider, rendered inside the Studio's own layout.
 - The V4.4 strings are the glossary. Words the author wrote about themselves or the journal (the Home's introduction, the archives' first-person leads, and any other authored sentence) are not translated by an agent: a proposal goes to the owner, and is not shipped until approved. **Until a sentence is approved, its Portuguese dictionary value is the English sentence, rendered in the page with `lang="en"`,** and carried unmarked in its metadata, which has no language attribute, so parity holds and nothing unapproved ships.
+- **That is the only English the Portuguese interface may show.** The exception covers authored sentences that await the owner's approval and nothing else. Every functional string (a label, a button, a message, an error, a state, an accessible name) has a Portuguese value, and a missing translation is a defect that English must not stand in for.
 - The dictionaries hold interface copy only, never the writing of an entry or anything derived from a request.
 
 ### 5. Formats
@@ -109,7 +112,7 @@ Other failures: a sentence that a page shows when the database cannot answer is 
 - **The language of new writing is content, not interface:** the `locale` an editor sends is validated with Zod against the existing enum, as today.
 - **Server Actions do not change.** They authorize first, return fixed codes, and take no interface language; the client chooses the sentence for a code. No confirmation token, fingerprint, or disclosure may depend on the interface language; a label in a review is presentation, resolved outside the fingerprint.
 - **A Portuguese Studio page is an authorized page like any other:** the shared implementation authorizes first, an unauthorized request goes to the sign-in page of the same language, and the private response headers cover `/pt/studio` and its transport forms. After signing in, on an already signed-in visit to the sign-in page, and after signing out, the destination stays in the language of the page the author was on, taken from that route and never from a callback parameter.
-- **Revalidation takes no language.** `revalidateAfter` keeps its callers' signature and also covers `/pt/studio`; whether its path still reaches the routes once they live under `(en)` is verified when they move.
+- **Revalidation takes no language.** `revalidateAfter` keeps its callers' signature and also covers `/pt/studio`; its path names the route group, `/(en)/studio`, because a layout's cache tag is built from the route file and not from the address.
 - **Dictionary strings are static and rendered as text.** No dictionary value is treated as HTML.
 - The selector and the alternates cannot be made to name an arbitrary address: they are built from the route table and a validated slug.
 - The public rules are in [ADR 0006 amendment A7](0006-publication-decision-and-acknowledgement.md#a7-the-pt-surfaces).

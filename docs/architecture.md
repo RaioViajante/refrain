@@ -142,7 +142,7 @@ Next.js **Cache Components** is enabled (`cacheComponents: true` in `next.config
 
 ## Interface localization (approved, not implemented)
 
-The interface is English only today. [ADR 0008](decisions/0008-interface-localization.md) is the accepted design for English at today's addresses and Brazilian Portuguese at `/pt`, for the public pages and the Studio:
+The interface is English only today. The English route tree exists: thin routes under `src/app/(en)/`, which delegate to the implementations, and `src/app/global-not-found.tsx` (PR 2A). Nothing else below is built. [ADR 0008](decisions/0008-interface-localization.md) is the accepted design for English at today's addresses and Brazilian Portuguese at `/pt`, for the public pages and the Studio:
 
 - two root layouts with literal routes, so `<html lang>` is fixed per tree and no alias of a route can exist;
 - own typed dictionaries, whose parity the type check enforces;
