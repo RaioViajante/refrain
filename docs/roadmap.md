@@ -55,7 +55,7 @@ M1 is delivered in increments, each authorized separately by the author:
 
 ### Interface localization (approved, not implemented)
 
-The interface in English and Brazilian Portuguese is an **approved delivery for November 16, by the owner's decision of 2026-11-10, and none of it is built.** On `main` the interface is English only. The architecture is [ADR 0008](decisions/0008-interface-localization.md), and the public rules are [ADR 0006 amendment A7](decisions/0006-publication-decision-and-acknowledgement.md#a7-the-pt-surfaces). Each increment needs the owner's authorization, and starts only after the previous one is merged. **No deployment is authorized by any of them, and gates G1 to G8 stay open.**
+The interface in English and Brazilian Portuguese is an **approved delivery for November 16, by the owner's decision of 2026-11-10.** The Portuguese interface is not built, and the interface is English only; PR 2A prepares the English route tree. The architecture is [ADR 0008](decisions/0008-interface-localization.md), and the public rules are [ADR 0006 amendment A7](decisions/0006-publication-decision-and-acknowledgement.md#a7-the-pt-surfaces). Each increment needs the owner's authorization, and starts only after the previous one is merged. **No deployment is authorized by any of them, and gates G1 to G8 stay open.**
 
 | Increment | Scope | State |
 | --- | --- | --- |
