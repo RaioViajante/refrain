@@ -1,6 +1,6 @@
 # Architecture
 
-**Status:** the modular monolith is an accepted decision ([ADR 0001](decisions/0001-modular-monolith.md)). The module responsibilities below reflect the accepted domain decisions in [ADR 0002](decisions/0002-domain-model-decisions.md). The application foundation (M1.1) is implemented: the Next.js application, the Persistence module's database client, and lint-enforced module boundaries. M1.2 adds the relational schema, the read queries of the Catalog, Journals, and Publication modules, and the first transactional commands: publishing and unpublishing a language version and changing a slug (Publication), and "Delete now" (Journals). No route or screen calls them yet. M1.3A adds the Identity and Access module ([ADR 0004](decisions/0004-single-author-identity.md)): Better Auth on the same database, the single author account and its local provisioning command, sessions, and the authorization boundary used by the studio, with a sign-in page and a protected studio entry point. M1.3B adds the first features on top of them ([Roadmap](roadmap.md)): the Catalog and Journals modules gain their commands and Writing Studio queries, and the Writing Studio screens call them through Server Actions that each authorize the request first. Integrations does not exist yet. Installed technologies and their versions are recorded in [Development § Toolchain](development.md#toolchain); the others remain planned.
+**Status:** the modular monolith is an accepted decision ([ADR 0001](decisions/0001-modular-monolith.md)). The module responsibilities below reflect the accepted domain decisions in [ADR 0002](decisions/0002-domain-model-decisions.md). The application foundation (M1.1) is implemented: the Next.js application, the Persistence module's database client, and lint-enforced module boundaries. M1.2 adds the relational schema, the read queries of the Catalog, Journals, and Publication modules, and the first transactional commands: publishing and unpublishing a language version and changing a slug (Publication), and "Delete now" (Journals). No route or screen calls them yet. M1.3A adds the Identity and Access module ([ADR 0004](decisions/0004-single-author-identity.md)): Better Auth on the same database, the single author account and its local provisioning command, sessions, and the authorization boundary used by the studio, with a sign-in page and a protected studio entry point. M1.3B adds the first features on top of them ([Roadmap](roadmap.md)): the Catalog and Journals modules gain their commands and Writing Studio queries, and the Writing Studio screens call them through Server Actions that each authorize the request first. Integrations has existed since M3.2 and M3.3, and the public pages since M3.1 ([Roadmap](roadmap.md)). Installed technologies and their versions are recorded in [Development § Toolchain](development.md#toolchain); the others remain planned.
 
 ## Shape
 
@@ -36,7 +36,7 @@ Refrain is a **modular monolith**: one deployable Next.js application, one Postg
 | Validation | Zod (installed) |
 | Database / ORM and migrations | PostgreSQL 17 and 18 (both tested; [Development § Test database](development.md#test-database)) / Drizzle ORM and Drizzle Kit, with the `pg` driver (installed) |
 | Authentication | Better Auth (installed; [ADR 0004](decisions/0004-single-author-identity.md)) |
-| Interface localization | next-intl (`en`, `pt-BR`) |
+| Interface localization | Own typed dictionaries (`en`, `pt-BR`), with no library ([ADR 0008](decisions/0008-interface-localization.md)). Approved, not implemented: the interface is English only today |
 | Unit and integration tests | Vitest (installed) |
 | End-to-end tests | Playwright |
 | Package manager | pnpm (installed) |
@@ -49,7 +49,7 @@ Before a technology is adopted, its compatibility with the chosen Next.js and Re
 
 | Module | Responsibility | Owns | Must not |
 | --- | --- | --- | --- |
-| **Public journal** (presentation) | Home, listings, album, artist, and memory pages; footer language selector | Public routes and components | Query tables directly; receive anything but public projections |
+| **Public journal** (presentation) | Home, listings, album, artist, and memory pages; footer language selector (planned, [ADR 0008](decisions/0008-interface-localization.md)) | Public routes and components | Query tables directly; receive anything but public projections |
 | **Writing Studio** (presentation) | Desk, editors, Catalog, Add music, preview, Recently deleted | Studio routes and components | Run without an authenticated session; hold business rules |
 | **Music Catalog** | Artists, albums (release groups), reference editions and track order, tracks, credits, artwork and photo provenance; archiving and hard-delete rules | Catalog tables | Delete or modify authored content |
 | **Journals and Reflections** | Album journals, track reflections, ratings and favourites, artist journals, memories, author translations, revisions, saving with conflict detection, deletion and restore | Authored tables, except visibility columns | Change visibility; call external providers |
@@ -70,13 +70,16 @@ Before a technology is adopted, its compatibility with the chosen Next.js and Re
 
 ### Source layout
 
-The layout below is the target. Today `src/app/` (the public pages behind the public-reads switch, the authentication route `api/auth/[...all]`, and `studio/` with its sign-in page, its desk, and its artists, albums, tracks, journals, and memories screens and server actions, all without locale routing yet), `src/db/`, `src/modules/catalog/`, `src/modules/journals/`, `src/modules/publication/`, `src/modules/identity/`, `src/integrations/musicbrainz/` and `src/integrations/cover-art-archive/` (M3.2, with their shared `src/integrations/provider.ts`), and `src/testing/` exist. The other directories are created by the first feature that needs them, never as empty placeholders.
+The layout below is the target. Today `src/app/` (the public pages behind the public-reads switch, the authentication route `api/auth/[...all]`, and `studio/` with its sign-in page, its desk, and its artists, albums, tracks, journals, and memories screens and server actions, all without locale routing yet), `src/db/`, `src/modules/catalog/`, `src/modules/journals/`, `src/modules/publication/`, `src/modules/identity/`, `src/integrations/musicbrainz/`, `src/integrations/cover-art-archive/`, and `src/integrations/wikimedia-commons/` (with their shared `src/integrations/provider.ts`), and `src/testing/` exist. `(en)`, `pt`, and `i18n/` below are approved and **do not exist yet** ([ADR 0008](decisions/0008-interface-localization.md)). The other directories are created by the first feature that needs them, never as empty placeholders.
 
 ```text
 src/
   app/
-    [locale]/(public)/     public journal routes
-    [locale]/studio/       Writing Studio routes
+    global-not-found.tsx   the shared, bilingual not-found view (ADR 0008 § 8)
+    (en)/                  root layout <html lang="en">, thin routes at today's addresses
+    pt/                    root layout <html lang="pt-BR">, thin routes at /pt
+    (public)/ (archives)/ (artists)/ (memories)/ studio/
+                           the shared implementations of those routes
     api/                   route handlers, where needed
   modules/
     catalog/               index.ts, queries, commands, rules, tests
@@ -89,7 +92,7 @@ src/
     wikimedia-commons/
   db/                      schema, migrations, client
   testing/                 integration-test support: safety checks, fixtures (tests only)
-  i18n/                    message catalogs (en, pt-BR)
+  i18n/                    locales, addresses, formats, dictionaries (en, pt-BR)
   ui/                      shared components, hand-drawn SVG primitives
 ```
 
@@ -122,9 +125,9 @@ Rule 7 is enforced at build time. A Client Component that reaches a module impor
 ## Writing Studio interface (M1.3B)
 
 - **Screens.** `/studio` (the desk), `/studio/artists`, `/studio/albums`, `/studio/tracks`, and `/studio/journals`, each with `new` and `[id]` routes; a journal also has `[id]/edit`. Every page is a Server Component that starts with `authorizeAuthor` inside a `Suspense` boundary, so the static shell holds only a loading line and every figure and every word of writing is streamed after authorization.
-- **Mutations are Server Actions only**, in `actions.ts` files next to each section. There are no administrative route handlers, so there is one implementation of each mutation. Each exported action starts with `await authorizeAuthor(await headers())`, then calls one domain command through `perform` ([`src/app/studio/perform.ts`](../src/app/studio/perform.ts)), which returns the deliberately small [`ActionResult`](../src/app/studio/results.ts): a fixed failure code, the names of invalid fields, and what blocks a deletion. **Publishing (M2.3, on its branch)** is two requests and the author's act: `previewPublicationAction` and `previewPublicChangeAction` (each alone in its own file) read and return a review with a confirmation token, and `publishJournalVersionAction` or `saveJournalAction` consume a token that the confirmation dialog sends from its confirm control; the Journals module's wrappers check the entry's kind and call the Publication engine. Nothing re-addresses or permanently deletes, and no file under `src/app` names a Publication command: [`no-publishing.test.ts`](../src/app/studio/no-publishing.test.ts) proves that, and also that each wrapper, the token, and each preview action stay in their own files. The studio asks Next.js to drop cached data in one place ([`revalidation.ts`](../src/app/studio/revalidation.ts)); no public page exists and nothing public is cached ([ADR 0006 § 11](decisions/0006-publication-decision-and-acknowledgement.md#11-public-reads-and-caches)).
+- **Mutations are Server Actions only**, in `actions.ts` files next to each section. There are no administrative route handlers, so there is one implementation of each mutation. Each exported action starts with `await authorizeAuthor(await headers())`, then calls one domain command through `perform` ([`src/app/studio/perform.ts`](../src/app/studio/perform.ts)), which returns the deliberately small [`ActionResult`](../src/app/studio/results.ts): a fixed failure code, the names of invalid fields, and what blocks a deletion. **Publishing (M2.3, on its branch)** is two requests and the author's act: `previewPublicationAction` and `previewPublicChangeAction` (each alone in its own file) read and return a review with a confirmation token, and `publishJournalVersionAction` or `saveJournalAction` consume a token that the confirmation dialog sends from its confirm control; the Journals module's wrappers check the entry's kind and call the Publication engine. Nothing re-addresses or permanently deletes, and no file under `src/app` names a Publication command: [`no-publishing.test.ts`](../src/app/studio/no-publishing.test.ts) proves that, and also that each wrapper, the token, and each preview action stay in their own files. The studio asks Next.js to drop cached data in one place ([`revalidation.ts`](../src/app/studio/revalidation.ts)); nothing public is cached ([ADR 0006 § 11](decisions/0006-publication-decision-and-acknowledgement.md#11-public-reads-and-caches)).
 - **Writing is plain text** in a textarea. The Journals module converts it to the accepted Tiptap document at the server boundary and back ([`body.ts`](../src/modules/journals/body.ts)); a stored document is editable only if the textarea would reproduce it exactly (`editableText`); any other is left untouched and shown as unavailable. Saves carry `entries.version`.
-- **A journal's heading is its album.** The subject title comes from the catalog (ADR 0002); the opening sentence is the author's writing, shown as such. Lists show the album title and artists, then a one-line **preview** of the reflection (at most 160 characters, derived by SQL from the stored text and never stored), the status, and the started and edited dates, which tell several journals about one album apart. Previews exist only on authorized Studio pages: they are not in page titles or metadata, and no public surface exists.
+- **A journal's heading is its album.** The subject title comes from the catalog (ADR 0002); the opening sentence is the author's writing, shown as such. Lists show the album title and artists, then a one-line **preview** of the reflection (at most 160 characters, derived by SQL from the stored text and never stored), the status, and the started and edited dates, which tell several journals about one album apart. Previews exist only on authorized Studio pages: they are not in page titles or metadata, and no public surface reads them.
 - **Deleting a journal moves it to Recently deleted, and restoring brings it back.** Deleting keeps its writing in PostgreSQL, takes it off the live lists, and makes it read-only. The private *Recently deleted* page (`/studio/journals/deleted`) lists those journals, and *Restore…* returns one with its text exactly as it was ([ADR 0005](decisions/0005-restoring-deleted-journals.md)): a version that was published returns as private, and nothing is ever published by a restore. The interface says that the writing is kept, that nothing removes it automatically, and that permanent deletion is not offered yet. It never says the writing is gone.
 - **Failed saves never lose text.** The editor keeps what was typed through a conflict, an expired session, or a network error, and warns before leaving with unsaved changes.
 
@@ -136,6 +139,17 @@ Next.js **Cache Components** is enabled (`cacheComponents: true` in `next.config
 - **The status of a public address is decided in `src/proxy.ts`**, before any page renders, because a page under Cache Components answers `200` and streams a redirect or a not-found view. The proxy maps one decision, `routeAlbumJournalRequest` (Publication), to a real `404`, `308`, `405`, or `503`, all `no-store`; the page resolves the address again itself. The sitemap and `robots.txt` are route handlers with explicit headers, because the metadata-file convention sends a cacheable header. The server-only `REFRAIN_PUBLIC_READS_ENABLED` switch gates all of them ([evidence](evidence/m3-1.md#routing-and-http-spike)).
 - Studio routes are dynamic and never cached. Pages and router payloads are `no-store`. Next.js also serves a prerendered static shell for each route (a loading line, no data), which it may let a cache keep when it answers a router prefetch; the shell is the same for a record that exists and one that does not, and the HTTP tests assert both. The router's own request without a session is answered with a 307, which Next.js sends without a cache header and which is not cacheable by default. Studio pages set fixed titles and `noindex, nofollow`; no studio metadata contains catalog or writing.
 - Preview renders the public layout inside the authenticated studio route. It never uses a public, cacheable URL.
+
+## Interface localization (approved, not implemented)
+
+The interface is English only today. [ADR 0008](decisions/0008-interface-localization.md) is the accepted design for English at today's addresses and Brazilian Portuguese at `/pt`, for the public pages and the Studio:
+
+- two root layouts with literal routes, so `<html lang>` is fixed per tree and no alias of a route can exist;
+- own typed dictionaries, whose parity the type check enforces;
+- the URL as the only language state: no cookie, no `Accept-Language`, and no language in a Server Action;
+- the interface language, an entry's original language, and each authored version are three different things ([ADR 0008 § 1](decisions/0008-interface-localization.md#1-terms)), and the first never decides what is visible.
+
+Every public `/pt` surface is bound to the publication rules by [ADR 0006 amendment A7](decisions/0006-publication-decision-and-acknowledgement.md#a7-the-pt-surfaces).
 
 ## External providers
 
@@ -152,7 +166,7 @@ Provider policies must be read and confirmed before implementation. These notes 
 - Logs are structured. They never include entry text, session tokens, or credentials.
 - Migrations are versioned, reviewed, and applied deliberately, never automatically against production.
 - Before irreplaceable writing goes into a hosted database, scheduled backups and a **tested** restore procedure must exist ([Security](security.md)).
-- The deployment target has not been decided. The application must not be publicly deployed before the privacy tests in [Security § Required tests](security.md#required-tests) exist ([Deployment gate](security.md#deployment-gate)). Authentication exists since M1.3A.
+- One private test deployment exists, behind the hosting provider's sign-in, with public reads off and synthetic data only ([Hosted Launch](hosted-launch.md)). No public release is authorized: it waits on the [public page release gates](security.md#public-page-release-gates) and the [Deployment gate](security.md#deployment-gate).
 
 ## Related
 

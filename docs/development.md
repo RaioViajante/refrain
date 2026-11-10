@@ -516,7 +516,7 @@ Versions are exact in `package.json`, and the lockfile is committed. Each was ch
 | `@types/react`, `@types/react-dom` | 19.3.0 | |
 | PostgreSQL images | `postgres:17.11-trixie`, `postgres:18.6-trixie` | The supported majors, the same images locally and in CI ([Test database](#test-database)) |
 
-Planned dependencies (Tiptap, next-intl, Rough.js) are added with the features that need them, after the same compatibility check.
+Planned dependencies (Tiptap) are added with the features that need them, after the same compatibility check.
 
 `pnpm audit` reports two moderate advisories (unchanged by M1.3C, which added Playwright with none), both in development tools and both present before M1.3A: esbuild in `drizzle-kit` (development-server CORS), and minimatch in `eslint-config-next` (pattern denial of service). Neither runs in the application or receives untrusted input.
 
@@ -626,7 +626,7 @@ Never use `drizzle-kit push`: every schema change goes through a reviewed migrat
 
 ## Documentation
 
-- All repository documentation, code comments, commit messages, issues, and PR descriptions are in English. Interface strings are maintained in English and Brazilian Portuguese.
+- All repository documentation, code comments, commit messages, issues, and PR descriptions are in English. Interface strings are in English today; English and Brazilian Portuguese are approved and not yet built ([ADR 0008](decisions/0008-interface-localization.md)).
 - When behavior changes, the relevant document changes in the same PR.
 - A significant architectural or data decision gets an ADR in [`docs/decisions/`](decisions/).
 - Write in present tense for what exists, and label planned functionality explicitly as planned.

@@ -26,16 +26,16 @@ album journals ··· a record, track by track
 
 each track can have its own reflection, rating, and favourite mark. ratings are optional. every entry starts as a draft and stays private until it is published on purpose. one author, no reader accounts.
 
-black ink on white paper; the only color comes from album art and photographs. the interface speaks english and brazilian portuguese, and writing stays in the language it was written in.
+black ink on white paper; the only color comes from album art and photographs. the interface is in english today, with english and brazilian portuguese approved and not built yet ([adr 0008](docs/decisions/0008-interface-localization.md)), and writing stays in the language it was written in.
 
 most of this is built and runs locally. the source code is public; the website is not yet. a private, sign-in-protected test deployment exists, no public page is online, and the interface is english only for now. what exists and what doesn't is under [status](#current-status). the approved design is written down in [design-system](docs/design-system.md).
 
 #### what's inside
 
 ```
-src/app/           routes · the studio, the home, one public journal page
+src/app/           routes · the studio and the public pages
 src/modules/       catalog, journals, publication, identity
-src/integrations/  musicbrainz, cover art archive
+src/integrations/  musicbrainz, cover art archive, wikimedia commons
 src/db/            database client, schema, migrations
 src/ops/           local backup and restore check
 ops/backup/        hosted-backup toolchain · not provisioned yet
@@ -85,9 +85,11 @@ also merged, local only: m3.7, public memories: a memory is published through th
 
 also merged, local only: m3.8a, public archives: `/albums`, `/artists`, and `/memories` list exactly what has a public page, and the header links all four sections; and m3.8b, the home's artists and memories sections.
 
-in progress: m4.2, the academic demonstration kit, on its own branch.
+also merged: m4.2, the academic demonstration kit. nothing in it is marked verified until the m4.3 rehearsal, which has not been done.
 
-planned: artist journals, the brazilian portuguese interface and its language selector, author translations, "delete now", and the academic release (m4).
+approved, not built yet: the interface in english and brazilian portuguese, at `/` and `/pt`, with its language selector in the footer ([adr 0008](docs/decisions/0008-interface-localization.md)).
+
+planned: artist journals, author translations, "delete now", and the rest of the academic release (m4).
 
 also merged: postgresql 18 support (the hosted database's version, tested in ci alongside 17); a fix that keeps studio responses out of shared caches; and a hosted-backup toolchain with encrypted, restore-checked bundles and an owner's restore drill ([hosted-backups.md](docs/hosted-backups.md)), not provisioned yet. its retention policy, [adr 0007](docs/decisions/0007-hosted-backups-and-retention.md), was accepted on 2026-11-07.
 
