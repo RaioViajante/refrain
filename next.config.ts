@@ -98,6 +98,11 @@ const nextConfig: NextConfig = {
       // match them.
       { source: "/studio\\.:transport(.*)", headers: privateHeaders },
       { source: "/api/auth/:path*", headers: privateHeaders },
+      // The Portuguese Studio's addresses (ADR 0006 A7, item 7). No route
+      // serves them until the Studio is localized (PR 3), and they already
+      // carry the Studio's private headers, never a public rule's.
+      { source: "/pt/studio/:path*", headers: privateHeaders },
+      { source: "/pt/studio\\.:transport(.*)", headers: privateHeaders },
     ];
   },
 };

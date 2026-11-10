@@ -137,7 +137,22 @@ function slugOf(pathname: string): string {
 }
 
 export async function proxy(request: NextRequest) {
-  // The address normalizations come first, before any public decision, and
+  // An encoded spelling of the Portuguese prefix (`/%70t/...`) is no address
+  // at all: the unknown address's answer, with the headers of the section it
+  // names, and never a redirect, not even the trailing slash's (ADR 0006 A7,
+  // item 2). It depends on the characters of the address and nothing else.
+  const requested = request.nextUrl.pathname;
+  const literalPrefix = PORTUGUESE_PREFIX.test(requested);
+  if (!literalPrefix && PORTUGUESE_PREFIX.test(decodedOrEmpty(requested))) {
+    const decoded = decodedOrEmpty(requested).replace(PORTUGUESE_PREFIX, "$1");
+    return NextResponse.rewrite(new URL(UNKNOWN_ADDRESS, request.url), {
+      headers: ARTIST_ADDRESS.test(decoded)
+        ? ARTIST_SECURITY_HEADERS
+        : PUBLIC_SECURITY_HEADERS,
+    });
+  }
+
+  // The address normalizations come next, before any public decision, and
   // for every address alike: they depend on the characters of the address
   // and on nothing else (src/address-normalization.ts).
   const target = new URL(request.url);
@@ -149,18 +164,6 @@ export async function proxy(request: NextRequest) {
     });
   }
 
-  const requested = request.nextUrl.pathname;
-  const literalPrefix = PORTUGUESE_PREFIX.test(requested);
-  if (!literalPrefix && PORTUGUESE_PREFIX.test(decodedOrEmpty(requested))) {
-    // An encoded spelling of the prefix: the unknown address's answer, with
-    // the headers of the section it names, and never a redirect.
-    const decoded = decodedOrEmpty(requested).replace(PORTUGUESE_PREFIX, "$1");
-    return NextResponse.rewrite(new URL(UNKNOWN_ADDRESS, request.url), {
-      headers: ARTIST_ADDRESS.test(decoded)
-        ? ARTIST_SECURITY_HEADERS
-        : PUBLIC_SECURITY_HEADERS,
-    });
-  }
   // Under the literal prefix, the same decision as the English address: the
   // language is never an input to it (A7, item 1); only a redirect's target
   // keeps the prefix (item 3). The Portuguese Home and its build files

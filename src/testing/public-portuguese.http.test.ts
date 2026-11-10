@@ -56,6 +56,10 @@ import {
   type SeededMemories,
 } from "@/testing/public-memories";
 import { forms, masked } from "@/testing/public-request-forms";
+import {
+  mintAuthorSession,
+  removeMintedSessions,
+} from "@/testing/http-session";
 import { publishForTest } from "@/testing/publishing";
 import { assertDisposableTestDatabase } from "@/testing/test-database";
 import {
@@ -326,6 +330,122 @@ describe("every request form of a Portuguese address (item 2)", () => {
   });
 });
 
+describe("every method and request form of every public route family (items 2 and 4)", () => {
+  /** The forms a public address takes: methods, router requests, build files. */
+  function familyForms(path: string): [string, string, RequestInit][] {
+    const file = path === "/" ? "/index" : path;
+    const query = `${path}${path.includes("?") ? "&" : "?"}_rsc=probe`;
+    return [
+      ["GET", path, {}],
+      ["HEAD", path, { method: "HEAD" }],
+      ["POST", path, { method: "POST" }],
+      ["rsc", query, { headers: { rsc: "1" } }],
+      [
+        "prefetch",
+        query,
+        { headers: { rsc: "1", "next-router-prefetch": "1" } },
+      ],
+      [".rsc", `${file}.rsc`, {}],
+      [".segments", `${file}.segments/_tree.segment.rsc`, {}],
+      ["next data", `/_next/data/${buildId}${file}.json`, {}],
+    ];
+  }
+
+  /** The Portuguese form of a form's path, the Home's build files included. */
+  const portugueseForm = (path: string) =>
+    path.startsWith("/index.") ||
+    path.startsWith(`/_next/data/${buildId}/index.`)
+      ? path.replace("/index.", "/pt.")
+      : path.startsWith("/?")
+        ? `/pt${path.slice(1)}`
+        : portuguese(path);
+
+  it("answers each Portuguese form exactly as its English form, switch on or off", async () => {
+    const families = {
+      home: "/",
+      albums: "/albums",
+      artists: "/artists",
+      memories: "/memories",
+      album: `/albums/${slug("grace")}`,
+      hiddenAlbum: `/albums/${slug("draft")}`,
+      artist: `/artists/${artistAddress}`,
+      hiddenArtist: `/artists/${slug("nobody")}`,
+      memory: `/memories/${memories.shown.slug}`,
+      hiddenMemory: `/memories/${memories.hidden[0]!.slug}`,
+    };
+    let compared = 0;
+    for (const base of [on.baseURL, offBase]) {
+      for (const [family, address] of Object.entries(families)) {
+        for (const [form, path, init] of familyForms(address)) {
+          const english = await request(base, path, init);
+          const pt = await request(base, portugueseForm(path), init);
+          const name = `${family} ${form} ${portugueseForm(path)}`;
+          expect(pt.status, name).toBe(english.status);
+          for (const header of [
+            "cache-control",
+            "content-security-policy",
+            "x-frame-options",
+            "x-content-type-options",
+            "referrer-policy",
+            "allow",
+          ]) {
+            expect(pt.headers[header], `${name}: ${header}`).toBe(
+              english.headers[header],
+            );
+          }
+          if (english.status === 404) {
+            // The not-found answer, byte for byte, in each form.
+            expect(pt.body, name).toBe(english.body);
+          }
+          compared += 1;
+        }
+      }
+    }
+    expect(compared).toBe(160);
+  });
+});
+
+describe("the Portuguese Studio's addresses (item 7)", () => {
+  it("are not served yet, and answer as an unknown English Studio address does, with its private headers, signed in or not", async () => {
+    const db = new Client({ connectionString: databaseUrl });
+    await db.connect();
+    const session = await mintAuthorSession(
+      db,
+      inject("studioCommandEnv").BETTER_AUTH_SECRET!,
+    );
+    try {
+      for (const path of [
+        "/pt/studio",
+        "/pt/studio/journals",
+        "/pt/studio/sign-in",
+        "/pt/studio.rsc",
+        "/pt/studio.segments/_tree.segment.rsc",
+      ]) {
+        // The same form of an English Studio address that no route serves.
+        const english = path.replace("/pt/studio", "/studio/no-such-page");
+        for (const headers of [
+          {} as Record<string, string>,
+          { cookie: session.cookie },
+        ]) {
+          const got = await request(offBase, path, { headers });
+          const expected = await request(offBase, english, { headers });
+          expect(got.status, path).toBe(404);
+          expect(expected.status, english).toBe(404);
+          expect(comparable(got), path).toEqual(comparable(expected));
+          expect(got.headers["cache-control"], path).toMatch(
+            /^private, .*no-store/,
+          );
+          expect(got.headers["x-frame-options"], path).toBe("DENY");
+          expect(got.headers["referrer-policy"], path).toBe("no-referrer");
+        }
+      }
+    } finally {
+      await removeMintedSessions(db);
+      await db.end();
+    }
+  });
+});
+
 describe("the encoded spellings of the prefix (item 2)", () => {
   it("are never the prefix: the unknown answer, no-store, the section's headers, and never a redirect", async () => {
     const nobody = (await request(on.baseURL, "/nope")).body;
@@ -337,6 +457,12 @@ describe("the encoded spellings of the prefix (item 2)", () => {
       [`/%70t/albums`, false],
       [`/%70t/artists/${artistAddress}`, true],
       [`/p%74/memories/${memories.shown.slug}`, false],
+      // With a trailing slash, still never the trailing slash's redirect.
+      ["/%70t/", false],
+      [`/%70t/albums/${slug("grace")}/`, false],
+      [`/%70t/albums/${slug("draft")}/`, false],
+      [`/%70t/albums/${slug("nothing")}/`, false],
+      [`/%70t/artists/${artistAddress}/`, true],
     ] as const) {
       for (const base of [on.baseURL, offBase]) {
         const got = await request(base, path);

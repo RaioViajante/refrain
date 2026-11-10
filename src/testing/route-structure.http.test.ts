@@ -30,7 +30,6 @@ const NOT_ROUTES = [
   "/en",
   "/en/albums/some-address",
   "/en/studio",
-  "/pt/studio",
   "/pt-BR",
   "/pt/pt",
   "/%70t/studio",

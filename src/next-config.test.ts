@@ -32,6 +32,7 @@ describe("next.config.ts header routes", () => {
     const privateRoutes = routes.filter(
       (route) =>
         route.source.startsWith("/studio") ||
+        route.source.startsWith("/pt/studio") ||
         route.source.startsWith("/api/auth"),
     );
     expect(privateRoutes.map((route) => route.source)).toEqual([
@@ -40,6 +41,9 @@ describe("next.config.ts header routes", () => {
       // `/studio.segments/…`.
       "/studio\\.:transport(.*)",
       "/api/auth/:path*",
+      // The Portuguese Studio's forms of the same (ADR 0006 A7, item 7).
+      "/pt/studio/:path*",
+      "/pt/studio\\.:transport(.*)",
     ]);
     for (const route of privateRoutes) {
       expect(route.cacheControl, route.source).toBe(PRIVATE_NO_STORE);
@@ -51,11 +55,24 @@ describe("next.config.ts header routes", () => {
     const publicRoutes = routes.filter(
       (route) =>
         !route.source.startsWith("/studio") &&
+        !route.source.startsWith("/pt/studio") &&
         !route.source.startsWith("/api/auth"),
     );
     expect(publicRoutes.length).toBeGreaterThan(0);
     for (const route of publicRoutes) {
       expect(route.cacheControl, route.source).toBe("no-store");
+    }
+  });
+
+  it("have no public rule broad enough to reach the Portuguese Studio (ADR 0006 A7, item 6)", async () => {
+    const routes = await headerRoutes();
+    for (const route of routes) {
+      if (route.cacheControl !== PRIVATE_NO_STORE) {
+        expect(route.source, route.source).not.toMatch(
+          /^\/pt(\/:path\*|\/:path\+|\/\(\.\*\))$/,
+        );
+        expect(route.source.startsWith("/pt/studio"), route.source).toBe(false);
+      }
     }
   });
 
