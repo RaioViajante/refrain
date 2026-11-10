@@ -365,7 +365,8 @@ describe("the marker never accompanies entry-specific content", () => {
       { "next-router-prefetch": "1", "next-router-segment-prefetch": "/_tree" },
       {
         "next-router-prefetch": "1",
-        "next-router-segment-prefetch": "/!KHB1YmxpYyk/albums/$d$slug/__PAGE__",
+        "next-router-segment-prefetch":
+          "/!KGVuKQ/!KHB1YmxpYyk/albums/$d$slug/__PAGE__",
       },
     ];
     let marked = 0;
@@ -436,7 +437,7 @@ describe("every transport form answers a hidden address as an unknown one", () =
       [
         "a segment path naming the address",
         {
-          "next-router-segment-prefetch": `/!KHB1YmxpYyk/albums/${slug}/__PAGE__`,
+          "next-router-segment-prefetch": `/!KGVuKQ/!KHB1YmxpYyk/albums/${slug}/__PAGE__`,
         },
       ],
       [

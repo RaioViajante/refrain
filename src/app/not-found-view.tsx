@@ -16,12 +16,12 @@ import {
 // bit for bit (docs/design-system.md § Assets). It is served as that file
 // (`unoptimized`: no further copy), and it is the same for every address, so
 // it tells nothing about one.
-export const metadata: Metadata = {
+export const notFoundMetadata: Metadata = {
   title: "Not found · refrain",
   description: "A personal music journal.",
 };
 
-export default function NotFound() {
+export function NotFoundView() {
   return (
     <PublicFrame>
       <main

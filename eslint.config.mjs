@@ -101,7 +101,7 @@ const eslintConfig = defineConfig([
       // its own header with its section as the current page.
       "src/app/\\(archives\\)/**",
       // The Home (M3.4): the root page, outside the route group.
-      "src/app/page.tsx",
+      "src/app/home-screen.tsx",
       "src/app/sitemap.xml/**",
       "src/app/robots.txt/**",
     ],

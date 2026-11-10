@@ -70,7 +70,7 @@ const PUBLICATION_MODULE = /(^|\/)modules\/publication(\/|$)/;
 
 // The only files under src/app that may import its reading entry point.
 const PUBLIC_READING_FILES =
-  /^src\/app\/(\(public\)\/|\(artists\)\/|\(memories\)\/|\(archives\)\/|page\.tsx$|not-found\.tsx$|sitemap\.xml\/route\.ts$|robots\.txt\/route\.ts$)/;
+  /^src\/app\/(\(public\)\/|\(artists\)\/|\(memories\)\/|\(archives\)\/|home-screen\.tsx$|not-found-view\.tsx$|sitemap\.xml\/route\.ts$|robots\.txt\/route\.ts$)/;
 
 /** The module path a node names, if it names one with a string literal. */
 function moduleNamed(node: ts.Node): string | undefined {
@@ -302,9 +302,9 @@ describe("the studio cannot publish, re-address, or permanently delete", () => {
         "src/app/(public)/layout.tsx",
         "src/app/sitemap.xml/route.ts",
         "src/app/robots.txt/route.ts",
-        "src/app/not-found.tsx",
+        "src/app/not-found-view.tsx",
         // The Home (M3.4), and only the root one.
-        "src/app/page.tsx",
+        "src/app/home-screen.tsx",
         // M3.7: the memory pages.
         "src/app/(memories)/memories/[slug]/page.tsx",
         // M3.8a: the archives.
@@ -317,6 +317,10 @@ describe("the studio cannot publish, re-address, or permanently delete", () => {
         "src/app/studio/page.tsx",
         "src/app/x/page.tsx",
         "src/app/layout.tsx",
+        "src/app/(en)/layout.tsx",
+        "src/app/(en)/page.tsx",
+        "src/app/(en)/studio/page.tsx",
+        "src/app/global-not-found.tsx",
         "src/app/api/auth/[...all]/route.ts",
         "src/app/api/export/route.ts",
         "src/app/studio/(public)/x.tsx",

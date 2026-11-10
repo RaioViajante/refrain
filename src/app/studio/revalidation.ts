@@ -36,7 +36,9 @@ export function revalidateAfter(effect: StudioEffect): void {
   if (effect === "none") {
     return;
   }
-  revalidatePath("/studio", "layout");
+  // The route's own path, with its route group: a layout's cache tag is built
+  // from the route file (`/(en)/studio/layout`), not from the address.
+  revalidatePath("/(en)/studio", "layout");
   if (effect === "visibility") {
     for (const path of PUBLIC_REVALIDATION_PATHS) {
       revalidatePath(path);

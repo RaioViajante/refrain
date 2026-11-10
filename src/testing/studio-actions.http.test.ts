@@ -68,7 +68,7 @@ function loadActions(): Record<string, ActionEntry> {
     const page = Object.keys(entry.workers).sort()[0]!;
     actions[entry.exportedName] = {
       id,
-      route: page.replace(/^app/, "").replace(/\/page$/, "") || "/",
+      route: page.replace(/^app\/\(en\)/, "").replace(/\/page$/, "") || "/",
     };
   }
   return actions;

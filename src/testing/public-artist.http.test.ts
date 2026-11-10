@@ -188,7 +188,7 @@ function buildFiles(): Map<string, string> {
     }
   };
   walk(join(root, "artists"));
-  walk(join(root, "(artists)"));
+  walk(join(root, "(en)", "(artists)"));
   walk(join(root, "_not-found.segments"));
   for (const name of ["_not-found.html", "_not-found.rsc"]) {
     found.set(join(root, name), readFileSync(join(root, name), "utf8"));

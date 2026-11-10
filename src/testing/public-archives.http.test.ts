@@ -207,7 +207,7 @@ function archiveForms(
         rsc: true,
         headers: {
           ...rsc,
-          "next-router-segment-prefetch": `/!KGFyY2hpdmVzKQ/${archive}/__PAGE__`,
+          "next-router-segment-prefetch": `/!KGVuKQ/!KGFyY2hpdmVzKQ/${archive}/__PAGE__`,
         },
       },
       unknown,
@@ -228,7 +228,7 @@ function archiveForms(
     ],
     [
       "segment file (page)",
-      `/${archive}.segments/!KGFyY2hpdmVzKQ/${archive}/__PAGE__.segment.rsc`,
+      `/${archive}.segments/!KGVuKQ/!KGFyY2hpdmVzKQ/${archive}/__PAGE__.segment.rsc`,
       {},
       unknown,
     ],

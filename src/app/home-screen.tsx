@@ -30,19 +30,12 @@ import {
 // with JavaScript off. Under Cache Components a page whose data sits behind
 // Suspense is sent as a prerendered shell, and its data streams afterwards in
 // hidden markup that only a script reveals, so a reader without JavaScript
-// saw no lists. `instant = false` (below) allows this route to block instead;
+// saw no lists. `instant = false`, on the route file, allows this route to block instead;
 // it caches nothing and prerenders nothing about a journal.
 //
 // While public reads are off, the lists are the ones for a site with nothing
 // published, so the page is what an empty journal would answer and reveals
 // nothing (ADR 0006, A4; src/testing/public-home.http.test.ts).
-
-/**
- * This route renders on the server per request and waits for its data before
- * it sends the page, instead of sending a prerendered shell first: the Home
- * must be complete without client JavaScript.
- */
-export const instant = false;
 
 // The interface is English until next-intl arrives; this selects the version
 // of each journal only (ADR 0002, D1.2).

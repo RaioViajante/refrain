@@ -161,7 +161,7 @@ function buildFiles(): Map<string, string> {
     }
   };
   walk(join(root, "memories"));
-  walk(join(root, "(memories)"));
+  walk(join(root, "(en)", "(memories)"));
   walk(join(root, "_not-found.segments"));
   for (const name of ["_not-found.html", "_not-found.rsc"]) {
     found.set(join(root, name), readFileSync(join(root, name), "utf8"));
