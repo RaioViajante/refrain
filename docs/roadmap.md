@@ -55,12 +55,12 @@ M1 is delivered in increments, each authorized separately by the author:
 
 ### Interface localization (approved, not implemented)
 
-The interface in English and Brazilian Portuguese is an **approved delivery for November 16, by the owner's decision of 2026-11-10, and none of it is built.** On `main` the interface is English only. The architecture is [ADR 0008](decisions/0008-interface-localization.md), and the public rules are [ADR 0006 amendment A7](decisions/0006-publication-decision-and-acknowledgement.md#a7-the-pt-surfaces). Each increment needs the owner's authorization, and starts only after the previous one is merged. **No deployment is authorized by any of them, and gates G1 to G8 stay open.**
+The interface in English and Brazilian Portuguese is an **approved delivery for November 16, by the owner's decision of 2026-11-10.** The Portuguese interface is not built, and the interface is English only; PR 2A prepares the English route tree. The architecture is [ADR 0008](decisions/0008-interface-localization.md), and the public rules are [ADR 0006 amendment A7](decisions/0006-publication-decision-and-acknowledgement.md#a7-the-pt-surfaces). Each increment needs the owner's authorization, and starts only after the previous one is merged. **No deployment is authorized by any of them, and gates G1 to G8 stay open.**
 
 | Increment | Scope | State |
 | --- | --- | --- |
-| **PR 1** | ADR 0008, amendment A7, and these documents. Documentation only | This pull request |
-| **PR 2A** | Move the routes under `(en)`, with no change of behaviour | Not started |
+| **PR 1** | ADR 0008, amendment A7, and these documents. Documentation only | Merged (#90) |
+| **PR 2A** | Move the routes under `(en)`, with no change of behaviour | This pull request |
 | **PR 2B** | The public interface in English and Brazilian Portuguese | Not started |
 | **PR 3** | The Writing Studio in English and Brazilian Portuguese | Not started |
 | **PR 4** | Rating accessibility: focus after Clear, Clear against V4.4, the value's size, layout at 320px | Not started |
@@ -71,6 +71,7 @@ The interface in English and Brazilian Portuguese is an **approved delivery for 
 
 - Every English address, status, header, body, and metadata value is as it was; `/pt` does not exist yet, and no user-visible text changes.
 - The English not-found view keeps its words: `global-not-found` answers an address that is not served, with the real `404` and `no-store` in every request form, and `(en)/not-found.tsx` renders the same view for a page's own `notFound()`. This is measured first on the real proxy, in every request form; if it does not hold, the work stops and is reported.
+- **Named checks of the proxy, the cache, and the alternative routes.** Before any route moves, a build with the new tree is compared with the previous `main` over raw HTTP: status, every header, the cache policy (`Cache-Control`, `no-store`, the framework's cache markers), metadata, and visible text, for each public and private address, anonymous and signed in, with public reads off and on. The request forms are `GET`, `HEAD`, `POST`, conditional and range requests, the router's `rsc`, prefetch, and segment-prefetch requests, `.rsc`, `.json`, `.segments`, and `/_next/data`. The alternative spellings are `/%70t`, `/%28en%29`, `/(en)`, `/en`, `/pt`, percent-encoded sections, trailing and repeated slashes, and dot segments. In the suite, `src/app/route-structure.test.ts` holds the route inventory and the delegation rule, and `src/testing/route-structure.http.test.ts` holds the spellings that must not be routes and the not-found answers, beside the existing request-form, cache-marker, build-output, and private-cache HTTP tests.
 - A browser test shows that a Studio page has the new data after an action, so revalidation still reaches the moved routes (`revalidation.test.ts` mocks `next/cache` and cannot show it).
 - The existing unit, integration, HTTP, and browser suites pass. A test may change only by a mechanical path update, and each such change is listed in the pull request. No assertion is weakened and no test is skipped.
 - Static scans that name paths are extended to the new paths and never narrowed. No `/pt` file or route exists yet.

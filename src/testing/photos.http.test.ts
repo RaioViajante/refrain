@@ -71,7 +71,10 @@ function actionId(name: string): { id: string; route: string } {
   for (const [id, entry] of Object.entries(manifest.node)) {
     if (entry.exportedName === name) {
       const page = Object.keys(entry.workers).sort()[0]!;
-      return { id, route: page.replace(/^app/, "").replace(/\/page$/, "") };
+      return {
+        id,
+        route: page.replace(/^app\/\(en\)/, "").replace(/\/page$/, ""),
+      };
     }
   }
   throw new Error(`No server action named ${name}.`);

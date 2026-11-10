@@ -64,8 +64,12 @@ function publicFiles(): string[] {
       file.startsWith("src/app/(memories)/") ||
       // M3.8a: the archives, in a route group of their own.
       file.startsWith("src/app/(archives)/") ||
-      file === "src/app/page.tsx" ||
-      file === "src/app/not-found.tsx" ||
+      // The thin English routes, which only delegate (route-structure.test.ts).
+      (file.startsWith("src/app/(en)/") &&
+        !file.startsWith("src/app/(en)/studio/")) ||
+      file === "src/app/home-screen.tsx" ||
+      file === "src/app/not-found-view.tsx" ||
+      file === "src/app/global-not-found.tsx" ||
       file === "src/app/public-fonts.ts" ||
       file === "src/app/sitemap.xml/route.ts" ||
       file === "src/app/robots.txt/route.ts",
@@ -123,7 +127,9 @@ const ALLOWED_IMPORTS = [
   /^next(\/.*)?$/,
   /^react(\/.*)?$/,
   /^@\/modules\/publication\/public$/,
-  /^@\/app\/(public\.css|public-fonts|not-found)$/,
+  /^@\/app\/(public\.css|globals\.css|public-fonts|not-found-view|home-screen)$/,
+  // The thin English routes name their implementation, and nothing else.
+  /^@\/app\/\((public|artists|memories|archives)\)\/([a-z-]+\/|\[slug\]\/)*(screen|section-layout)$/,
   /^@\/app\/\(public\)\/_components\/[a-z-]+$/,
   // M3.8a: the archives' shared frame, metadata, and lines.
   /^@\/app\/\(archives\)\/_components\/[a-z-]+$/,
@@ -490,20 +496,24 @@ describe("the public surface", () => {
 
   it("finds the public files, so the checks are not vacuous", () => {
     expect(files).toContain("src/proxy.ts");
-    expect(files).toContain("src/app/(public)/albums/[slug]/page.tsx");
+    expect(files).toContain("src/app/(public)/albums/[slug]/screen.tsx");
+    expect(files).toContain("src/app/(en)/(public)/albums/[slug]/page.tsx");
     expect(files).toContain("src/app/sitemap.xml/route.ts");
     expect(files).toContain("src/app/robots.txt/route.ts");
-    expect(files).toContain("src/app/not-found.tsx");
-    expect(files).toContain("src/app/page.tsx");
+    expect(files).toContain("src/app/not-found-view.tsx");
+    expect(files).toContain("src/app/global-not-found.tsx");
+    expect(files).toContain("src/app/(en)/not-found.tsx");
+    expect(files).toContain("src/app/home-screen.tsx");
+    expect(files).toContain("src/app/(en)/page.tsx");
     expect(files).toContain("src/app/(public)/_components/home-view.tsx");
-    expect(files).toContain("src/app/(artists)/artists/[slug]/page.tsx");
+    expect(files).toContain("src/app/(artists)/artists/[slug]/screen.tsx");
     expect(files).toContain("src/app/(artists)/artists/[slug]/artist-view.tsx");
-    expect(files).toContain("src/app/(memories)/memories/[slug]/page.tsx");
+    expect(files).toContain("src/app/(memories)/memories/[slug]/screen.tsx");
     expect(files).toContain(
       "src/app/(memories)/memories/[slug]/memory-view.tsx",
     );
     for (const archive of ["albums", "artists", "memories"]) {
-      expect(files).toContain(`src/app/(archives)/${archive}/page.tsx`);
+      expect(files).toContain(`src/app/(archives)/${archive}/screen.tsx`);
       expect(files).toContain(
         `src/app/(archives)/${archive}/${archive}-archive.tsx`,
       );
@@ -516,7 +526,7 @@ describe("the public surface", () => {
   });
 
   it("keeps the root layout, which wraps the Home, free of caching and route settings", () => {
-    const file = "src/app/layout.tsx";
+    const file = "src/app/(en)/layout.tsx";
     expect(configExports(parse(readFileSync(file, "utf8"), file))).toEqual([]);
     expect(
       configExports(parse("export const revalidate = 60;", file)),
@@ -525,12 +535,12 @@ describe("the public surface", () => {
 
   it("renders the Home, the artist pages, the memory pages, and the archives on the server before sending them, so they need no client JavaScript", () => {
     for (const file of [
-      "src/app/page.tsx",
-      "src/app/(artists)/artists/[slug]/page.tsx",
-      "src/app/(memories)/memories/[slug]/page.tsx",
-      "src/app/(archives)/albums/page.tsx",
-      "src/app/(archives)/artists/page.tsx",
-      "src/app/(archives)/memories/page.tsx",
+      "src/app/(en)/page.tsx",
+      "src/app/(en)/(artists)/artists/[slug]/page.tsx",
+      "src/app/(en)/(memories)/memories/[slug]/page.tsx",
+      "src/app/(en)/(archives)/albums/page.tsx",
+      "src/app/(en)/(archives)/artists/page.tsx",
+      "src/app/(en)/(archives)/memories/page.tsx",
     ]) {
       expect(readFileSync(file, "utf8"), file).toMatch(
         /^export const instant = false;$/m,
@@ -542,14 +552,14 @@ describe("the public surface", () => {
     for (const file of [
       "src/app/sitemap.xml/route.ts",
       "src/app/robots.txt/route.ts",
-      "src/app/(public)/albums/[slug]/page.tsx",
-      "src/app/(artists)/artists/[slug]/page.tsx",
-      "src/app/(memories)/memories/[slug]/page.tsx",
-      "src/app/page.tsx",
+      "src/app/(public)/albums/[slug]/screen.tsx",
+      "src/app/(artists)/artists/[slug]/screen.tsx",
+      "src/app/(memories)/memories/[slug]/screen.tsx",
+      "src/app/home-screen.tsx",
       // M3.8a: each archive's loader and its metadata.
-      "src/app/(archives)/albums/page.tsx",
-      "src/app/(archives)/artists/page.tsx",
-      "src/app/(archives)/memories/page.tsx",
+      "src/app/(archives)/albums/screen.tsx",
+      "src/app/(archives)/artists/screen.tsx",
+      "src/app/(archives)/memories/screen.tsx",
     ]) {
       expect(readFileSync(file, "utf8"), file).toMatch(
         /publicReadsEnabled\(\)/,
@@ -584,7 +594,7 @@ describe("the public surface", () => {
 
   it("classifies every route-like file under src/app, so a new public surface cannot be missed", () => {
     const routeLike =
-      /(^|\/)(page|route|layout|template|default|not-found|error|global-error|loading|opengraph-image|twitter-image|icon|apple-icon|sitemap|robots|manifest|feed)\.(m?[jt]sx?)$/;
+      /(^|\/)(page|route|layout|template|default|not-found|global-not-found|error|global-error|loading|opengraph-image|twitter-image|icon|apple-icon|sitemap|robots|manifest|feed)\.(m?[jt]sx?)$/;
     const known = [
       // The Writing Studio and the authentication endpoint: authorized.
       /^src\/app\/studio\//,
@@ -599,11 +609,16 @@ describe("the public surface", () => {
       /^src\/app\/\(archives\)\//,
       /^src\/app\/sitemap\.xml\/route\.ts$/,
       /^src\/app\/robots\.txt\/route\.ts$/,
-      /^src\/app\/not-found\.tsx$/,
+      // The not-found views: the address-level one and the English root's.
+      /^src\/app\/global-not-found\.tsx$/,
+      /^src\/app\/\(en\)\/not-found\.tsx$/,
+      // The English routes: public ones are scanned above, and each Studio
+      // route delegates to an authorized screen (route-structure.test.ts).
+      /^src\/app\/\(en\)\/(\(public\)|\(artists\)|\(memories\)|\(archives\)|studio)\//,
       // The Home (M3.4), scanned above as a public file.
-      /^src\/app\/page\.tsx$/,
-      // The root layout, which reads nothing.
-      /^src\/app\/layout\.tsx$/,
+      /^src\/app\/\(en\)\/page\.tsx$/,
+      // The English root layout, which reads nothing.
+      /^src\/app\/\(en\)\/layout\.tsx$/,
     ];
     const unclassified = walk("src/app").filter(
       (file) => routeLike.test(file) && !known.some((rule) => rule.test(file)),
@@ -611,7 +626,7 @@ describe("the public surface", () => {
     expect(unclassified).toEqual([]);
     // The root layout wraps every page, the studio's included: it imports
     // nothing from a module and calls nothing that reads the system.
-    expect(readFileSync("src/app/layout.tsx", "utf8")).not.toMatch(
+    expect(readFileSync("src/app/(en)/layout.tsx", "utf8")).not.toMatch(
       /from "@\/|import\(/,
     );
   });
@@ -1674,7 +1689,7 @@ describe("the Home's components", () => {
     isClientSource(readFileSync(file, "utf8"), file);
 
   it("are all server components, down to every component they import", () => {
-    const { files, packages } = appImports("src/app/page.tsx");
+    const { files, packages } = appImports("src/app/home-screen.tsx");
     expect([...files]).toContain("src/app/(public)/_components/home-view.tsx");
     expect([...files]).toContain("src/app/(public)/_components/arrow-icon.tsx");
     expect([...files].filter(isClient)).toEqual([]);

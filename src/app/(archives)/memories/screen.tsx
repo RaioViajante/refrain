@@ -23,13 +23,6 @@ import { MemoriesArchive, MEMORIES_LEAD } from "./memories-archive";
 // itself. Rendered per request in one pass (`instant = false`), cached
 // nowhere, `no-store` (next.config.ts).
 
-/**
- * This route renders on the server per request and waits for its data before
- * it sends the page, instead of sending a prerendered shell first: the page
- * must be complete without client JavaScript.
- */
-export const instant = false;
-
 // The interface is English until next-intl arrives; this selects the version
 // of each memory only (ADR 0002, D1.2).
 const READER_LOCALE = "en";

@@ -24,12 +24,12 @@ describe("revalidateAfter", () => {
 
   it("refreshes only the private studio after a write", () => {
     revalidateAfter("writing");
-    expect(revalidatePath.mock.calls).toEqual([["/studio", "layout"]]);
+    expect(revalidatePath.mock.calls).toEqual([["/(en)/studio", "layout"]]);
   });
 
   it("refreshes only the private studio after a visibility change, because no public path exists yet", () => {
     revalidateAfter("visibility");
-    expect(revalidatePath.mock.calls).toEqual([["/studio", "layout"]]);
+    expect(revalidatePath.mock.calls).toEqual([["/(en)/studio", "layout"]]);
   });
 
   it("has no public path yet; filling it needs the M3.1 work and its tests", () => {

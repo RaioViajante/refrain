@@ -140,6 +140,41 @@ test("the Catalog's sections are always-visible links, and the current one is ma
   }
 });
 
+// `revalidateAfter` names the route's own path (`/(en)/studio`). The unit test
+// mocks `next/cache`, so only a browser shows that the Studio's pages, once
+// visited, really have the new data after an action.
+test("a page already visited shows the new data after an action, with no reload", async ({
+  page,
+}) => {
+  const artist = named("Nav Fresh Artist");
+  await page.goto("/studio/artists");
+  await expect(heading(page, "Artists")).toBeVisible();
+  await expect(page.getByText(artist)).toHaveCount(0);
+  // Visit another section and come back, so the list is in the router's cache.
+  await catalogNav(page).getByRole("link", { name: "Albums" }).click();
+  await expect(heading(page, "Albums")).toBeVisible();
+  await catalogNav(page).getByRole("link", { name: "Artists" }).click();
+  await expect(heading(page, "Artists")).toBeVisible();
+  await page.evaluate(() => {
+    (window as unknown as { sameDocument: boolean }).sameDocument = true;
+  });
+
+  await page.getByRole("link", { name: "Add an artist" }).click();
+  await page.getByLabel("Name", { exact: true }).fill(artist);
+  await page.getByLabel("Person or band").selectOption("group");
+  await page.getByRole("button", { name: "Add artist" }).click();
+  await page.waitForURL(/\/studio\/artists\/[0-9a-f-]{36}$/);
+
+  await catalogNav(page).getByRole("link", { name: "Artists" }).click();
+  await expect(heading(page, "Artists")).toBeVisible();
+  await expect(page.getByText(artist).first()).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => (window as unknown as { sameDocument?: boolean }).sameDocument,
+    ),
+  ).toBe(true);
+});
+
 test("every section is reachable by clicking, with no menu to open", async ({
   page,
 }) => {

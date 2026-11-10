@@ -210,7 +210,7 @@ function serverAction(name: string): ActionEntry {
       const page = Object.keys(entry.workers).sort()[0]!;
       return {
         id,
-        route: page.replace(/^app/, "").replace(/\/page$/, "") || "/",
+        route: page.replace(/^app\/\(en\)/, "").replace(/\/page$/, "") || "/",
       };
     }
   }

@@ -30,7 +30,7 @@ import { describe, expect, it } from "vitest";
 const SOURCE = /\.(m?[jt]sx?)$/;
 const STUDIO = join("src", "app", "studio");
 const STUDIO_ENTRY =
-  /(^|[\\/])(page|route|default|template|opengraph-image|twitter-image|icon|apple-icon|sitemap)\.(m?[jt]sx?)$/;
+  /(^|[\\/])(page|screen|route|default|template|opengraph-image|twitter-image|icon|apple-icon|sitemap)\.(m?[jt]sx?)$/;
 const AUTHORIZATION_FUNCTIONS = new Set(["authorizeAuthor", "requireAuthor"]);
 
 function sourceFiles(directory: string): string[] {
@@ -240,7 +240,9 @@ function authorizationViolations(
 ): string[] {
   const violations: string[] = [];
   const normalized = file.split("\\").join("/");
-  const inStudio = normalized.startsWith("src/app/studio/");
+  const inStudio =
+    normalized.startsWith("src/app/studio/") ||
+    normalized.startsWith("src/app/(en)/studio/");
   const isRouteFile =
     normalized.startsWith("src/app/") &&
     /(^|\/)route\.(m?[jt]sx?)$/.test(normalized);
@@ -355,8 +357,8 @@ describe("studio entry points", () => {
   it("are found by the scan", () => {
     expect(entryPoints()).toEqual(
       expect.arrayContaining([
-        join(STUDIO, "page.tsx"),
-        join(STUDIO, "sign-in", "page.tsx"),
+        join(STUDIO, "screen.tsx"),
+        join(STUDIO, "sign-in", "screen.tsx"),
       ]),
     );
   });

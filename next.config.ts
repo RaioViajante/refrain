@@ -24,6 +24,9 @@ const nextConfig: NextConfig = {
   // is prerendered from the database by accident (docs/architecture.md).
   cacheComponents: true,
   partialPrefetching: true,
+  // The answer of an address no route serves, now that no root layout covers
+  // every address (ADR 0008 § 8).
+  experimental: { globalNotFound: true },
   // The proxy answers a trailing slash itself, with the same `308` to the same
   // address, because the framework's own redirect runs before the proxy and
   // cannot carry `Cache-Control: no-store` (ADR 0006, amendment A2; see
