@@ -6,11 +6,11 @@
 
 ## Context
 
-ADR 0002 already separates the interface language from the language of the writing (D3.3), and carries the language in the URL's locale segment with one slug for all languages (D7.1). Three facts of the application decide how that can be built:
+ADR 0002 already separates the interface language from the language of the writing (D3.3), and carries the language in the URL's locale segment with one slug for all languages (D7.1). This ADR refines D7.1 for the default language: English has no segment, and Brazilian Portuguese has `/pt`. Three facts of the application decide how that can be built:
 
 - **`<html lang>` is fixed in one root layout.** Under Cache Components (`cacheComponents: true`) a root layout cannot read `headers()` or cookies outside a Suspense boundary, and `<html>` cannot sit inside one.
 - **The status of a public address is decided in `src/proxy.ts`** before a page renders (ADR 0006 § 11). The proxy, the header rules of `next.config.ts`, and the HTTP tests know only unprefixed paths, including the transport forms (`.rsc`, `.segments`, `/_next/data`).
-- **The size of the interface.** At the time of this decision: 34 pages (7 public, 27 Studio), 30 Client Component files (1 public), about 800 interface strings by an approximate syntax-tree count (about 74 public, 720 Studio), and about 122 absolute links and redirects. The approved V4.4 screens include 233 Brazilian Portuguese strings, which are the glossary.
+- **The size of the interface.** At the time of this decision: 34 pages (7 public, 27 Studio), about 30 Client Component files (1 public), about 800 interface strings by an approximate syntax-tree count (about 74 public, 720 Studio), and about 122 absolute links and redirects. The approved V4.4 screens include 233 Brazilian Portuguese strings, which are the glossary.
 
 ### Alternatives considered
 
@@ -24,7 +24,7 @@ ADR 0002 already separates the interface language from the language of the writi
 
 ### What was measured
 
-A throwaway prototype outside this repository, on 2026-11-10, with Next.js 16.4.3, React 19.3.1, `cacheComponents`, `partialPrefetching`, `skipTrailingSlashRedirect`, and `experimental.globalNotFound`. It is evidence for the shape of the decision, not for the application: it did not use Refrain's proxy, pages, or tests.
+A throwaway prototype outside this repository, on 2026-11-10, with Next.js 16.4.3, React 19.3.1, `cacheComponents`, `partialPrefetching`, `skipTrailingSlashRedirect`, and `experimental.globalNotFound`. It is evidence for the shape of the decision, not for the application: it did not use Refrain's proxy, pages, or tests, and the transport forms of the not-found view were not measured. PR 2A must measure them first, and stop and report if they do not hold.
 
 | Question | Result |
 | --- | --- |
@@ -33,6 +33,7 @@ A throwaway prototype outside this repository, on 2026-11-10, with Next.js 16.4.
 | Do `/pt/studio` header rules work? | Yes: `private, no-store` on `/pt/studio` and `/pt/studio/sign-in` |
 | Do `/en`, `/en/albums/x`, and `/pt-BR` exist? | No: each answers the `404` |
 | Does a shared `global-not-found` give a real status? | Yes: `404`, with a body identical for `/nope`, `/albums/missing`, `/pt/nope`, and `/pt/albums/missing`, and `no-store` |
+| What does a page's own `notFound()` answer? | The not-found status is not set: in a one-pass page after `connection()` it answered `200`, as a page under Cache Components does today (M3.1) |
 | Can Portuguese have its own not-found view with a real status? | **Not found.** A proxy rewrite with `status: 404` answered `500`; `notFound()` in a catch-all answered `404` with a script-only body and no `lang`; `notFound()` on a literal prerendered route answered `404` with a script-only body and `s-maxage=31536000` |
 
 ## Decision
@@ -69,12 +70,12 @@ The routes in `(en)` and `pt` are thin files. Each passes its interface language
 - A string that takes values is a function in the dictionary, taking plain values. Plurals use `Intl.PluralRules` through a shared helper.
 - **Public pages** read a dictionary on the server, and no dictionary reaches a public client bundle beyond the strings a small island is given as props.
 - **Studio** client components receive only the Studio's dictionary through one provider, rendered inside the Studio's own layout.
-- The V4.4 strings are the glossary. Words the author wrote about themselves or the journal (the Home's introduction, the archives' first-person leads, and any other authored sentence) are not translated by an agent: a proposal goes to the owner, and is not shipped until approved.
+- The V4.4 strings are the glossary. Words the author wrote about themselves or the journal (the Home's introduction, the archives' first-person leads, and any other authored sentence) are not translated by an agent: a proposal goes to the owner, and is not shipped until approved. **Until a sentence is approved, its Portuguese dictionary value is the English sentence, rendered with `lang="en"`,** in the page and in its metadata, so parity holds and nothing unapproved ships.
 - The dictionaries hold interface copy only, never the author's writing or anything derived from a request.
 
 ### 5. Formats
 
-Every format goes through `src/i18n/format.ts`, which takes the interface language. Dates stay in UTC, as today. A rating is `4.5` in English and `4,5` in Portuguese, as the V4.4 screens have it. Country names use `Intl.DisplayNames` in the interface language. The server's own ordering (`nameOrder`) and excerpt segmentation stay as they are, so an order or an excerpt does not depend on the interface.
+Every format goes through `src/i18n/format.ts`, which takes the interface language. Dates stay in UTC, as today. A rating is `4.5` in English and `4,5` in Portuguese, as the V4.4 screens have it. Country names use `Intl.DisplayNames` in the interface language. Name ordering (`nameOrder`) and excerpt segmentation do not depend on the interface language. The version shown does (§ 1), so a bilingual entry's title, date, excerpt, and position in a list can legitimately differ between the two forms, as ADR 0002 D1.2 and ADR 0006 A4 require.
 
 ### 6. Language state and the switch
 
@@ -93,9 +94,12 @@ Every format goes through `src/i18n/format.ts`, which takes the interface langua
 
 ### 8. The not-found view: interim
 
-**Interim, by the owner's decision of 2026-11-10.** One shared view answers for every address that is not served, in both languages: the real status `404`, `no-store`, and one body whatever the address or the reason, so that no case can be told from another (INV-5). It carries both languages, with the Portuguese part marked `lang="pt-BR"`, in `global-not-found`, which is an experimental Next.js convention (`experimental.globalNotFound`).
+**Interim, by the owner's decision of 2026-11-10.** There are two paths, and they are different:
 
-**Its limitation, stated plainly:** `<html lang>` on this view is `en` for every address, including `/pt/...`. This is not a complete localization of the 404, and must not be described as one. A page-level localized view is revisited as below.
+- **An address that is not served: one that the proxy decides is not served, or that matches no route.** One shared view answers in both languages: the real status `404`, `no-store`, and the same body whatever the address or the reason, so that no case can be told from another (INV-5). It carries both languages, with the Portuguese part marked `lang="pt-BR"`, in `global-not-found`, which is an experimental Next.js convention (`experimental.globalNotFound`).
+- **A page's own `notFound()`,** of which there are 20 today (a Studio record that does not exist, and the public pages' second check after the proxy). `global-not-found` does not handle these. Each root layout has its own `not-found.tsx`, which renders the same shared view inside that root, so its `<html lang>` is the root's. Under Cache Components such a response can stream with a `200`, as it does today (M3.1): the status is not improved or changed by this ADR. The address-level status stays the proxy's.
+
+**Its limitation, stated plainly:** `<html lang>` on the shared address-level view is `en` for every address, including `/pt/...`. This is not a complete localization of the 404, and must not be described as one. A page-level localized view is revisited as below.
 
 Other failures: a sentence that a page shows when the database cannot answer is localized like any other string; the proxy's `503` and `405` have no localized body, as today.
 
@@ -104,7 +108,8 @@ Other failures: a sentence that a page shows when the database cannot answer is 
 - **The interface language comes only from the literal route.** Never from a header, cookie, query, form field, or action argument. It is not an input to any authorization, publication, or visibility decision. The one exception to "no input" is content, below.
 - **The language of new writing is content, not interface:** the `locale` an editor sends is validated with Zod against the existing enum, as today.
 - **Server Actions do not change.** They authorize first, return fixed codes, and take no interface language; the client chooses the sentence for a code. No confirmation token, fingerprint, or disclosure may depend on the interface language; a label in a review is presentation, resolved outside the fingerprint.
-- **A Portuguese Studio page is an authorized page like any other:** the shared implementation authorizes first, an unauthorized request goes to the sign-in page of the same language, and the private response headers cover `/pt/studio` and its transport forms.
+- **A Portuguese Studio page is an authorized page like any other:** the shared implementation authorizes first, an unauthorized request goes to the sign-in page of the same language, and the private response headers cover `/pt/studio` and its transport forms. After signing in, on an already signed-in visit to the sign-in page, and after signing out, the destination stays in the language of the page the author was on, taken from that route and never from a callback parameter.
+- **Revalidation takes no language.** `revalidateAfter` keeps its callers' signature and also covers `/pt/studio`; whether its path still reaches the routes once they live under `(en)` is verified when they move.
 - **Dictionary strings are static and rendered as text.** No dictionary value is treated as HTML.
 - The selector and the alternates cannot be made to name an arbitrary address: they are built from the route table and a validated slug.
 - The public rules are in [ADR 0006 amendment A7](0006-publication-decision-and-acknowledgement.md#a7-the-pt-surfaces).

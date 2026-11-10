@@ -70,9 +70,10 @@ The interface in English and Brazilian Portuguese is an **approved delivery for 
 **Acceptance of PR 2A (restructure, no functional change).**
 
 - Every English address, status, header, body, and metadata value is as it was; `/pt` does not exist yet, and no user-visible text changes.
-- The English not-found view keeps its words, now served by `global-not-found`, with the real `404` and `no-store` in every request form.
+- The English not-found view keeps its words: `global-not-found` answers an address that is not served, with the real `404` and `no-store` in every request form, and `(en)/not-found.tsx` renders the same view for a page's own `notFound()`. This is measured first on the real proxy, in every request form; if it does not hold, the work stops and is reported.
+- Revalidation still reaches the moved Studio routes.
 - The existing unit, integration, HTTP, and browser suites pass. A test may change only by a mechanical path update, and each such change is listed in the pull request. No assertion is weakened and no test is skipped.
-- Static scans that name paths are extended to the new paths and never narrowed.
+- Static scans that name paths are extended to the new paths and never narrowed. No `/pt` file or route exists yet.
 - No dependency, migration, or Studio or public feature is added.
 
 **Acceptance of PR 2B (public interface).**
@@ -82,11 +83,13 @@ The interface in English and Brazilian Portuguese is an **approved delivery for 
 - `<html lang>`, `canonical`, alternates, the sitemap, and `robots.txt` follow ADR 0008 § 7. The shared bilingual not-found view has the real `404`, `no-store`, and one body, with its Portuguese part marked `lang="pt-BR"`, and its `<html lang>` limitation documented.
 - Every rule and required test of amendment A7 holds for the public surfaces: the anonymous matrix, the switch, the transitions, and the request forms, over both forms.
 - The writing is never translated. A reader of `/pt` sees the version `versionPreference` chooses, with its own `lang`, and an unpublished translation is never served, linked, or named.
-- First-person copy ships in Portuguese only after the owner approves it. The V4.4 look is kept, and nothing scrolls sideways from 320 to 1440px in either language.
+- First-person copy ships in Portuguese only after the owner approves it; until then the Portuguese value is the English sentence, marked `lang="en"`. The V4.4 look is kept, and nothing scrolls sideways from 320 to 1440px in either language.
 
 **Acceptance of PR 3 (Studio).**
 
 - Sign-in, the Desk, the Catalog, every form, both editors, ratings, publication and its reviews, Recently deleted, confirmations, empty states, errors, and validation messages exist in both languages at `/studio/**` and `/pt/studio/**`.
+- `pt/not-found.tsx` renders the shared view for a page's own `notFound()`, tested in the Studio in each language form. After signing in, on an already signed-in sign-in page, and after signing out, the destination stays in the same language, with no callback parameter.
+- Revalidation covers `/pt/studio`; its unit test changes deliberately, and that change is listed in the pull request.
 - Authorization, the Server Actions' contracts, and the confirmation tokens and fingerprints are unchanged and do not depend on the interface language. `/pt/studio/**` and its transport forms carry the private headers, an unauthorized request reaches the sign-in page of its language, and every action's HTTP test still passes.
 - Creating, editing, publishing, deleting, and restoring are tested in browsers in both interfaces.
 - A memory can be written originally in either language, with its publication, privacy, and `lang` rules kept; any change of existing behaviour is assessed and reported before it is implemented. No migration, and no conversion of existing writing.
