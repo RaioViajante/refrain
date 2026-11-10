@@ -11,6 +11,10 @@ import { NoteIcon } from "@/app/(public)/_components/note-icon";
 import { PUBLIC_CONTENT_ID } from "@/app/(public)/_components/public-frame";
 import { RecordIcon } from "@/app/(public)/_components/record-icon";
 import { renderDocument } from "@/app/(public)/_components/rich-text";
+import { dictionaryFor } from "@/i18n/dictionaries";
+import { formatDate } from "@/i18n/format";
+import type { InterfaceLocale } from "@/i18n/locales";
+import { localizedHref } from "@/i18n/paths";
 
 // The public memory (M3.7; the approved V4.4 `Memory` screen): the notebook
 // layout, a 220px margin beside one writing column. The margin holds when it
@@ -26,24 +30,20 @@ import { renderDocument } from "@/app/(public)/_components/rich-text";
 // to that album's journal only when that journal is public, and a credited
 // artist links to the artist's page only when it already has one.
 
-const LANGUAGE_NAMES: Record<string, string> = {
-  en: "English",
-  "pt-BR": "Brazilian Portuguese",
-};
-
-const date = new Intl.DateTimeFormat("en", {
-  dateStyle: "long",
-  timeZone: "UTC",
-});
-
-function Artists({ song }: Readonly<{ song: PublicMemoryMusic }>) {
+function Artists({
+  song,
+  locale,
+}: Readonly<{ song: PublicMemoryMusic; locale: InterfaceLocale }>) {
   return (
     <>
       {song.artists.map((artist, index) => (
         <Fragment key={index}>
           {index > 0 ? ", " : null}
           {artist.address ? (
-            <Link className="pm-song-link" href={`/artists/${artist.address}`}>
+            <Link
+              className="pm-song-link"
+              href={localizedHref(locale, `/artists/${artist.address}`)}
+            >
               {artist.name}
             </Link>
           ) : (
@@ -55,7 +55,10 @@ function Artists({ song }: Readonly<{ song: PublicMemoryMusic }>) {
   );
 }
 
-function Song({ song }: Readonly<{ song: PublicMemoryMusic }>) {
+function Song({
+  song,
+  locale,
+}: Readonly<{ song: PublicMemoryMusic; locale: InterfaceLocale }>) {
   // For an album link the title is the album's own, so it is not repeated.
   const album = song.kind === "recording" ? song.album : null;
   const albumOwnJournal = song.kind === "album" ? song.album : null;
@@ -71,7 +74,10 @@ function Song({ song }: Readonly<{ song: PublicMemoryMusic }>) {
           {albumOwnJournal?.journalSlug ? (
             <Link
               className="pm-song-link"
-              href={`/albums/${albumOwnJournal.journalSlug}`}
+              href={localizedHref(
+                locale,
+                `/albums/${albumOwnJournal.journalSlug}`,
+              )}
             >
               {song.title}
             </Link>
@@ -82,13 +88,15 @@ function Song({ song }: Readonly<{ song: PublicMemoryMusic }>) {
         {song.kind === "album" ? (
           // A whole album, not one recording: said in words, as the
           // reference's quiet line names the release ("Single").
-          <span className="pm-song-line">Album</span>
+          <span className="pm-song-line">
+            {dictionaryFor(locale).memory.album}
+          </span>
         ) : null}
         {song.artists.length > 0 ? (
           <span
             className={`pm-song-line${song.artists.some((artist) => artist.address) ? " pm-song-line-links" : ""}`}
           >
-            <Artists song={song} />
+            <Artists song={song} locale={locale} />
           </span>
         ) : null}
         {album ? (
@@ -98,7 +106,7 @@ function Song({ song }: Readonly<{ song: PublicMemoryMusic }>) {
             {album.journalSlug ? (
               <Link
                 className="pm-song-link"
-                href={`/albums/${album.journalSlug}`}
+                href={localizedHref(locale, `/albums/${album.journalSlug}`)}
               >
                 {album.title}
               </Link>
@@ -112,7 +120,12 @@ function Song({ song }: Readonly<{ song: PublicMemoryMusic }>) {
   );
 }
 
-export function MemoryView({ memory }: Readonly<{ memory: PublicMemory }>) {
+export function MemoryView({
+  memory,
+  locale,
+}: Readonly<{ memory: PublicMemory; locale: InterfaceLocale }>) {
+  const dictionary = dictionaryFor(locale);
+  const t = dictionary.memory;
   const body = renderDocument(memory.body, 2);
   return (
     <main className="public-shell pm" id={PUBLIC_CONTENT_ID} tabIndex={-1}>
@@ -120,7 +133,7 @@ export function MemoryView({ memory }: Readonly<{ memory: PublicMemory }>) {
         <article className="pm-article" aria-labelledby="pm-title">
           <p className="pj-kind pm-kind">
             <NoteIcon />
-            Memory
+            {t.kind}
           </p>
           <h1 className="pm-title" id="pm-title" lang={memory.locale}>
             {memory.title}
@@ -132,7 +145,7 @@ export function MemoryView({ memory }: Readonly<{ memory: PublicMemory }>) {
           ) : null}
         </article>
 
-        <aside className="pm-margin" aria-label="About this memory">
+        <aside className="pm-margin" aria-label={t.about}>
           <p className="pm-facts">
             {memory.rememberedWhen ? (
               <span className="pm-when" lang={memory.locale}>
@@ -140,21 +153,23 @@ export function MemoryView({ memory }: Readonly<{ memory: PublicMemory }>) {
               </span>
             ) : null}
             <span>
-              Published{" "}
+              {t.published}{" "}
               <time dateTime={memory.publishedAt.toISOString()}>
-                {date.format(memory.publishedAt)}
+                {formatDate(locale, memory.publishedAt, "long")}
               </time>
             </span>
-            <span>{`Written in ${LANGUAGE_NAMES[memory.locale] ?? memory.locale}`}</span>
+            <span>
+              {dictionary.writtenIn(dictionary.writingLanguages[memory.locale])}
+            </span>
           </p>
           {memory.music.length > 0 ? (
             <section aria-labelledby="pm-music">
               <h2 className="pm-music-title" id="pm-music">
-                The music
+                {t.music}
               </h2>
               <ol className="pm-songs" role="list">
                 {memory.music.map((song) => (
-                  <Song key={song.number} song={song} />
+                  <Song key={song.number} song={song} locale={locale} />
                 ))}
               </ol>
             </section>
@@ -162,8 +177,9 @@ export function MemoryView({ memory }: Readonly<{ memory: PublicMemory }>) {
         </aside>
       </div>
       <ClosingLinks
+        locale={locale}
         archive="/memories"
-        label="All memories"
+        label={t.allMemories}
         layout="notebook"
       />
     </main>

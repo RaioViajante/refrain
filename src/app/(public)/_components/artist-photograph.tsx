@@ -1,5 +1,8 @@
 import type { PublicArtistPhoto } from "@/modules/publication/public";
 
+import { dictionaryFor } from "@/i18n/dictionaries";
+import type { InterfaceLocale } from "@/i18n/locales";
+
 import { PublicPhotoFrame } from "./public-photo-image";
 
 // An artist's photograph on the public artist page (M3.5; the V4.4 `Artist`
@@ -19,18 +22,36 @@ import { PublicPhotoFrame } from "./public-photo-image";
 export function ArtistPhotoFrame({
   name,
   photo,
-}: Readonly<{ name: string; photo: PublicArtistPhoto | null }>) {
+  locale,
+}: Readonly<{
+  name: string;
+  photo: PublicArtistPhoto | null;
+  locale: InterfaceLocale;
+}>) {
+  const t = dictionaryFor(locale).photo;
   return (
     <PublicPhotoFrame
-      name={name}
       image={photo ? { src: photo.src, srcSet: photo.srcSet } : null}
+      words={{
+        shown: t.of(name),
+        failed: t.unavailableNowOf(name),
+        none: t.noneOf(name),
+        frame: t.frame,
+        notYet: t.notYet,
+        unavailableNow: t.unavailableNow,
+        fromCommons: t.fromCommons,
+      }}
     />
   );
 }
 
 function LicenseName({
   license,
-}: Readonly<{ license: PublicArtistPhoto["license"] }>) {
+  locale,
+}: Readonly<{
+  license: PublicArtistPhoto["license"];
+  locale: InterfaceLocale;
+}>) {
   return license.url ? (
     <a
       className="public-link-inline"
@@ -40,7 +61,7 @@ function LicenseName({
       {license.name}
     </a>
   ) : (
-    <>{license.name} (as marked on Wikimedia Commons)</>
+    <>{dictionaryFor(locale).photo.licenseAsMarked(license.name)}</>
   );
 }
 
@@ -51,18 +72,33 @@ function LicenseName({
  */
 export function ArtistPhotoCredit({
   photo,
-}: Readonly<{ photo: PublicArtistPhoto }>) {
+  locale,
+}: Readonly<{ photo: PublicArtistPhoto; locale: InterfaceLocale }>) {
+  const t = dictionaryFor(locale).photo;
+  const english = dictionaryFor("en").photo;
+  // The read model writes the caption in English: the credit, after "Photo: "
+  // unless the credit already names itself a photograph. The prefix is the
+  // interface's; the credit is the file's own words, unchanged.
+  const caption =
+    photo.caption === photo.credit
+      ? photo.credit
+      : `${t.captionPrefix}${photo.credit}`;
+  // Refrain's own changes are stored as one fixed English sentence; it is
+  // interface copy, shown in the page's language. Anything else is shown as
+  // stored, marked as English.
+  const standardChanges = photo.modifications === english.standardChanges;
   return (
     <div className="pa-credit">
       <p className="pa-credit-line">
-        <span className="pa-credit-by">{photo.caption}</span>
+        <span className="pa-credit-by">{caption}</span>
         <span className="pa-credit-license">
-          <LicenseName license={photo.license} /> · via Wikimedia Commons
+          <LicenseName license={photo.license} locale={locale} />
+          {t.viaCommons}
         </span>
       </p>
       <details className="pa-credit-details">
         <summary>
-          Photo details
+          {t.details}
           <svg
             className="pj-chevron"
             width="16"
@@ -80,7 +116,7 @@ export function ArtistPhotoCredit({
           </svg>
         </summary>
         <dl>
-          <dt>Photograph</dt>
+          <dt>{t.work}</dt>
           <dd>
             <a
               className="public-link-inline"
@@ -90,22 +126,22 @@ export function ArtistPhotoCredit({
               {photo.title}
             </a>
           </dd>
-          <dt>Credit</dt>
+          <dt>{t.credit}</dt>
           <dd>{photo.credit}</dd>
           {/* The work above links to its file's page, which is the source. */}
-          <dt>Source</dt>
-          <dd>Wikimedia Commons</dd>
-          <dt>License</dt>
+          <dt>{t.source}</dt>
+          <dd>{t.commons}</dd>
+          <dt>{t.license}</dt>
           <dd>
-            <LicenseName license={photo.license} />
+            <LicenseName license={photo.license} locale={locale} />
             {photo.license.shareAlike ? (
-              <span className="pa-credit-note">
-                Adaptations must use the same license.
-              </span>
+              <span className="pa-credit-note">{t.shareAlike}</span>
             ) : null}
           </dd>
-          <dt>Changes</dt>
-          <dd>{photo.modifications}</dd>
+          <dt>{t.changes}</dt>
+          <dd lang={standardChanges || locale === "en" ? undefined : "en"}>
+            {standardChanges ? t.standardChanges : photo.modifications}
+          </dd>
         </dl>
       </details>
     </div>

@@ -17,10 +17,15 @@ import {
   songText,
 } from "@/app/(archives)/_components/archive-lines";
 import { ArrowIcon } from "@/app/(public)/_components/arrow-icon";
+import { AuthoredText } from "@/app/(public)/_components/authored-text";
 import { NoteIcon } from "@/app/(public)/_components/note-icon";
 import { PersonIcon } from "@/app/(public)/_components/person-icon";
 import { RecordIcon } from "@/app/(public)/_components/record-icon";
-import { ratingText, Stars } from "@/app/(public)/_components/stars";
+import { Stars } from "@/app/(public)/_components/stars";
+import { dictionaryFor } from "@/i18n/dictionaries";
+import { formatDate, ratingText } from "@/i18n/format";
+import type { InterfaceLocale } from "@/i18n/locales";
+import { localizedHref } from "@/i18n/paths";
 
 // The public Home (the approved V4.4 `Home` screen: M3.4, and M3.8b under
 // ADR 0006 amendment A6). It renders only what the Publication read model
@@ -35,38 +40,33 @@ import { ratingText, Stars } from "@/app/(public)/_components/stars";
 //
 // What the approved screen shows and the Home does not, by the owner's
 // decisions, is in docs/design-system.md § Public Home: the language
-// selector, artist journals, artist photographs, and the kind of an artist.
+// artist journals, artist photographs, and the kind of an artist.
 
-/**
- * The introduction under the drawing. The approved screen leaves this to the
- * author ("[Your introduction, in your own words.]"); until the author writes
- * it, this is a neutral line, not in the first person and with nothing
- * biographical (the owner's decision, M3.4). It doubles as the description.
- */
-export const HOME_INTRODUCTION =
-  "A personal music journal about albums, songs, and the memories attached to them.";
+// The introduction under the drawing and the character's alternative text
+// are in the dictionaries (src/i18n): the introduction is the owner's interim
+// line (M3.4), an authored sentence that keeps its English until a Portuguese
+// one is approved (ADR 0008 § 4), and it doubles as the description.
 
-/** The approved alternative text of the character (docs/design-system.md). */
-export const CHARACTER_ALT =
-  "Ink drawing of a person with curly hair and headphones, sitting cross-legged on the floor and writing in a notebook while looking up, next to a stack of records, a mug, a cassette and a few crumpled pages.";
-
-const date = new Intl.DateTimeFormat("en", {
-  dateStyle: "medium",
-  timeZone: "UTC",
-});
-
-function Published({ at }: Readonly<{ at: Date }>) {
-  return <time dateTime={at.toISOString()}>{date.format(at)}</time>;
+function Published({
+  at,
+  locale,
+}: Readonly<{ at: Date; locale: InterfaceLocale }>) {
+  return <time dateTime={at.toISOString()}>{formatDate(locale, at)}</time>;
 }
 
-const addressOf = (card: PublicJournalCard) => `/albums/${card.slug}`;
-const memoryAddressOf = (memory: { slug: string }) =>
-  `/memories/${memory.slug}`;
+const addressOf = (locale: InterfaceLocale, card: PublicJournalCard) =>
+  localizedHref(locale, `/albums/${card.slug}`);
+const memoryAddressOf = (locale: InterfaceLocale, memory: { slug: string }) =>
+  localizedHref(locale, `/memories/${memory.slug}`);
 const creditOf = (card: PublicJournalCard) => card.credits.join(", ");
 
 /** "Memory · Holocene — Bon Iver", or "Memory" for a memory with no music. */
-const memoryKindOf = (memory: PublicHomeMemory) =>
-  memory.firstSong ? `Memory · ${songText(memory.firstSong)}` : "Memory";
+const memoryKindOf = (locale: InterfaceLocale, memory: PublicHomeMemory) => {
+  const t = dictionaryFor(locale);
+  return memory.firstSong
+    ? t.home.memoryWith(songText(memory.firstSong))
+    : t.home.memory;
+};
 
 /**
  * The drawing and the introduction: the part of the Home that is the same for
@@ -75,7 +75,8 @@ const memoryKindOf = (memory: PublicHomeMemory) =>
  * from the original with its transparency kept bit for bit,
  * docs/design-system.md § Assets), served as that file: no further copy.
  */
-export function HomeOpening() {
+export function HomeOpening({ locale }: Readonly<{ locale: InterfaceLocale }>) {
+  const t = dictionaryFor(locale);
   return (
     <div className="ph-opening">
       <h1 id="ph-title" className="pj-visually-hidden">
@@ -89,9 +90,14 @@ export function HomeOpening() {
         unoptimized
         loading="eager"
         fetchPriority="high"
-        alt={CHARACTER_ALT}
+        alt={t.home.characterAlt}
       />
-      <p className="ph-intro">{HOME_INTRODUCTION}</p>
+      <AuthoredText
+        as="p"
+        className="ph-intro"
+        copy={t.home.introduction}
+        locale={locale}
+      />
     </div>
   );
 }
@@ -101,31 +107,35 @@ export function HomeOpening() {
  * nothing is published (or public reads are off, which answers the same),
  * one quiet line.
  */
-function MostRecent({ home }: Readonly<{ home: PublicHome }>) {
+function MostRecent({
+  home,
+  locale,
+}: Readonly<{ home: PublicHome; locale: InterfaceLocale }>) {
+  const t = dictionaryFor(locale);
   const newest = home.recent[0];
   if (!newest) {
-    return <p className="ph-since ph-since-alone">Nothing published yet.</p>;
+    return <p className="ph-since ph-since-alone">{t.home.nothingPublished}</p>;
   }
   const isMemory = newest.kind === "memory";
   return (
     <p className="ph-since">
-      <span className="ph-quiet">Most recent:</span>{" "}
+      <span className="ph-quiet">{t.home.mostRecent}</span>{" "}
       {isMemory ? (
         <Link
           className="ph-since-link"
-          href={memoryAddressOf(newest)}
+          href={memoryAddressOf(locale, newest)}
           lang={newest.locale}
         >
           {newest.title}
         </Link>
       ) : (
-        <Link className="ph-since-link" href={addressOf(newest)}>
+        <Link className="ph-since-link" href={addressOf(locale, newest)}>
           {newest.albumTitle}
         </Link>
       )}{" "}
       <span className="ph-quiet">
-        · {isMemory ? "Memory" : "Album journal"} ·{" "}
-        <Published at={newest.publishedAt} />
+        · {isMemory ? t.home.memory : t.home.albumJournal} ·{" "}
+        <Published at={newest.publishedAt} locale={locale} />
       </span>
     </p>
   );
@@ -199,17 +209,20 @@ export function Artwork({
 }
 
 /** A memory's row in "Recently written": the note mark in place of a frame. */
-function MemoryRow({ memory }: Readonly<{ memory: PublicHomeMemory }>) {
+function MemoryRow({
+  memory,
+  locale,
+}: Readonly<{ memory: PublicHomeMemory; locale: InterfaceLocale }>) {
   return (
-    <Link className="ph-row" href={memoryAddressOf(memory)}>
+    <Link className="ph-row" href={memoryAddressOf(locale, memory)}>
       <span className="ph-row-text">
         <span className="ph-row-title" lang={memory.locale}>
           {memory.title}
         </span>{" "}
-        <span className="ph-row-kind">{memoryKindOf(memory)}</span>
+        <span className="ph-row-kind">{memoryKindOf(locale, memory)}</span>
       </span>{" "}
       <span className="ph-row-date">
-        <Published at={memory.publishedAt} />
+        <Published at={memory.publishedAt} locale={locale} />
       </span>{" "}
       <span className="ph-row-mark" aria-hidden="true">
         <NoteIcon className="ph-row-mark-icon" size={22} />
@@ -220,27 +233,32 @@ function MemoryRow({ memory }: Readonly<{ memory: PublicHomeMemory }>) {
 
 function RecentlyWritten({
   entries,
-}: Readonly<{ entries: readonly PublicHomeEntry[] }>) {
+  locale,
+}: Readonly<{
+  entries: readonly PublicHomeEntry[];
+  locale: InterfaceLocale;
+}>) {
+  const t = dictionaryFor(locale);
   return (
     <section className="ph-section ph-recent" aria-labelledby="ph-recent">
-      <SectionMargin id="ph-recent" title="Recently written" />
+      <SectionMargin id="ph-recent" title={t.home.recentlyWritten} />
       <ol className="ph-rows" role="list">
         {entries.map((card) => (
           <li key={`${card.kind}:${card.slug}`} className="ph-row-item">
             {card.kind === "memory" ? (
-              <MemoryRow memory={card} />
+              <MemoryRow memory={card} locale={locale} />
             ) : (
-              <Link className="ph-row" href={addressOf(card)}>
+              <Link className="ph-row" href={addressOf(locale, card)}>
                 <span className="ph-row-text">
                   <span className="ph-row-title">{card.albumTitle}</span>{" "}
                   <span className="ph-row-kind">
                     {creditOf(card)
-                      ? `Album journal · ${creditOf(card)}`
-                      : "Album journal"}
+                      ? t.home.albumJournalBy(creditOf(card))
+                      : t.home.albumJournal}
                   </span>
                 </span>{" "}
                 <span className="ph-row-date">
-                  <Published at={card.publishedAt} />
+                  <Published at={card.publishedAt} locale={locale} />
                 </span>{" "}
                 <Artwork
                   artwork={card.artwork}
@@ -257,7 +275,11 @@ function RecentlyWritten({
   );
 }
 
-function Albums({ cards }: Readonly<{ cards: readonly PublicJournalCard[] }>) {
+function Albums({
+  cards,
+  locale,
+}: Readonly<{ cards: readonly PublicJournalCard[]; locale: InterfaceLocale }>) {
+  const t = dictionaryFor(locale);
   return (
     <section
       className="ph-section ph-albums-section"
@@ -265,8 +287,11 @@ function Albums({ cards }: Readonly<{ cards: readonly PublicJournalCard[] }>) {
     >
       <SectionMargin
         id="ph-albums"
-        title="Albums"
-        all={{ href: "/albums", label: "All album journals" }}
+        title={t.home.albums}
+        all={{
+          href: localizedHref(locale, "/albums"),
+          label: t.home.allAlbumJournals,
+        }}
       />
       <ul className="ph-albums" role="list">
         {cards.map((card) => {
@@ -276,11 +301,11 @@ function Albums({ cards }: Readonly<{ cards: readonly PublicJournalCard[] }>) {
           ].filter(Boolean);
           const rating =
             card.ratingHalfSteps !== null
-              ? ratingText(card.ratingHalfSteps)
+              ? ratingText(locale, card.ratingHalfSteps)
               : null;
           return (
             <li key={card.slug}>
-              <Link className="ph-album" href={addressOf(card)}>
+              <Link className="ph-album" href={addressOf(locale, card)}>
                 <Artwork
                   artwork={card.artwork}
                   className="ph-art ph-cover"
@@ -288,7 +313,7 @@ function Albums({ cards }: Readonly<{ cards: readonly PublicJournalCard[] }>) {
                   fallback={
                     <>
                       <RecordIcon className="ph-art-icon" size={26} />
-                      <span className="ph-art-words">no artwork yet</span>
+                      <span className="ph-art-words">{t.home.noArtwork}</span>
                     </>
                   }
                 />
@@ -301,7 +326,7 @@ function Albums({ cards }: Readonly<{ cards: readonly PublicJournalCard[] }>) {
                     <span className="ph-album-rating">
                       <Stars
                         halfSteps={card.ratingHalfSteps!}
-                        label={`My rating: ${rating} out of 5`}
+                        label={t.rating.accessible(rating)}
                         size={15}
                       />
                       <span className="ph-rating-value" aria-hidden="true">
@@ -326,7 +351,12 @@ function Albums({ cards }: Readonly<{ cards: readonly PublicJournalCard[] }>) {
  */
 function Artists({
   artists,
-}: Readonly<{ artists: readonly PublicArtistCard[] }>) {
+  locale,
+}: Readonly<{
+  artists: readonly PublicArtistCard[];
+  locale: InterfaceLocale;
+}>) {
+  const t = dictionaryFor(locale);
   return (
     <section
       className="ph-section ph-artists-section"
@@ -334,20 +364,26 @@ function Artists({
     >
       <SectionMargin
         id="ph-artists"
-        title="Artists"
-        all={{ href: "/artists", label: "All artists" }}
+        title={t.home.artists}
+        all={{
+          href: localizedHref(locale, "/artists"),
+          label: t.home.allArtists,
+        }}
       />
       <ul className="ph-artists" role="list">
         {artists.map((artist) => (
           <li key={artist.address}>
-            <Link className="ph-artist" href={`/artists/${artist.address}`}>
+            <Link
+              className="ph-artist"
+              href={localizedHref(locale, `/artists/${artist.address}`)}
+            >
               <span className="ph-portrait" aria-hidden="true">
                 <PersonIcon className="ph-portrait-icon" size={24} />
               </span>
               <span className="ph-artist-text">
                 <span className="ph-artist-name">{artist.name}</span>{" "}
                 <span className="ph-artist-meta">
-                  {artistCountLine(artist)}
+                  {artistCountLine(locale, artist)}
                 </span>
               </span>
             </Link>
@@ -365,7 +401,12 @@ function Artists({
  */
 function Memories({
   memories,
-}: Readonly<{ memories: readonly PublicMemoryCard[] }>) {
+  locale,
+}: Readonly<{
+  memories: readonly PublicMemoryCard[];
+  locale: InterfaceLocale;
+}>) {
+  const t = dictionaryFor(locale);
   return (
     <section
       className="ph-section ph-memories-section"
@@ -373,8 +414,11 @@ function Memories({
     >
       <SectionMargin
         id="ph-memories"
-        title="Memories"
-        all={{ href: "/memories", label: "All memories" }}
+        title={t.home.memories}
+        all={{
+          href: localizedHref(locale, "/memories"),
+          label: t.home.allMemories,
+        }}
       />
       <ol className="px-memories ph-memories" role="list">
         {memories.map((memory) => (
@@ -388,7 +432,7 @@ function Memories({
               <h3 className="px-memory-title" id={`ph-memory-${memory.slug}`}>
                 <Link
                   className="px-memory-link"
-                  href={memoryAddressOf(memory)}
+                  href={memoryAddressOf(locale, memory)}
                   lang={memory.locale}
                 >
                   {memory.title}
@@ -403,8 +447,8 @@ function Memories({
                 <p className="px-music">
                   <NoteIcon className="px-music-icon" size={16} />
                   <span>
-                    <span className="pj-visually-hidden">Music: </span>
-                    {musicLine(memory.music)}
+                    <span className="pj-visually-hidden">{t.lists.music}</span>
+                    {musicLine(locale, memory.music)}
                   </span>
                 </p>
               ) : null}
@@ -422,16 +466,25 @@ function Memories({
  * in it (none when nothing is published). It is rendered on the server with
  * the rest of the page, so it is in the HTML without JavaScript.
  */
-export function HomeListings({ home }: Readonly<{ home: PublicHome }>) {
+export function HomeListings({
+  home,
+  locale,
+}: Readonly<{ home: PublicHome; locale: InterfaceLocale }>) {
   return (
     <div className="ph-lists">
-      <MostRecent home={home} />
+      <MostRecent home={home} locale={locale} />
       {home.recent.length > 0 ? (
-        <RecentlyWritten entries={home.recent} />
+        <RecentlyWritten entries={home.recent} locale={locale} />
       ) : null}
-      {home.albums.length > 0 ? <Albums cards={home.albums} /> : null}
-      {home.artists.length > 0 ? <Artists artists={home.artists} /> : null}
-      {home.memories.length > 0 ? <Memories memories={home.memories} /> : null}
+      {home.albums.length > 0 ? (
+        <Albums cards={home.albums} locale={locale} />
+      ) : null}
+      {home.artists.length > 0 ? (
+        <Artists artists={home.artists} locale={locale} />
+      ) : null}
+      {home.memories.length > 0 ? (
+        <Memories memories={home.memories} locale={locale} />
+      ) : null}
     </div>
   );
 }
@@ -441,11 +494,13 @@ export function HomeListings({ home }: Readonly<{ home: PublicHome }>) {
  * in the place of the lists, so the page still reads as a page. It says
  * nothing about why, and nothing about what exists.
  */
-export function HomeUnavailable() {
+export function HomeUnavailable({
+  locale,
+}: Readonly<{ locale: InterfaceLocale }>) {
   return (
     <div className="ph-lists">
       <p className="ph-since ph-since-alone">
-        The latest writing could not be loaded just now.
+        {dictionaryFor(locale).home.unavailable}
       </p>
     </div>
   );

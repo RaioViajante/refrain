@@ -1,8 +1,13 @@
+import { AuthoredText } from "@/app/(public)/_components/authored-text";
 import {
   PUBLIC_CONTENT_ID,
   PublicFrame,
   type PublicSection,
 } from "@/app/(public)/_components/public-frame";
+import type { AuthoredCopy } from "@/i18n/authored";
+import { dictionaryFor } from "@/i18n/dictionaries";
+import { formatDate } from "@/i18n/format";
+import type { InterfaceLocale } from "@/i18n/locales";
 
 // The frame every public archive shares (M3.8a; the approved V4.4 `Albums`,
 // `Artists`, and `Memories` screens): the page's own header in the notebook
@@ -10,29 +15,29 @@ import {
 // its lead), then the archive's list in the same columns. Presentation only:
 // what it shows was read through the Publication module by the page.
 
-const date = new Intl.DateTimeFormat("en", {
-  dateStyle: "medium",
-  timeZone: "UTC",
-});
-
 /** A publication date, as the Home and the detail pages write it. */
-export function Published({ at }: Readonly<{ at: Date }>) {
-  return <time dateTime={at.toISOString()}>{date.format(at)}</time>;
+export function Published({
+  at,
+  locale,
+}: Readonly<{ at: Date; locale: InterfaceLocale }>) {
+  return <time dateTime={at.toISOString()}>{formatDate(locale, at)}</time>;
 }
 
 export function ArchiveFrame({
+  locale,
   section,
   title,
   lead,
   children,
 }: Readonly<{
+  locale: InterfaceLocale;
   section: Exclude<PublicSection, "home">;
   title: string;
-  lead: string;
+  lead: AuthoredCopy;
   children: React.ReactNode;
 }>) {
   return (
-    <PublicFrame current={section}>
+    <PublicFrame locale={locale} path={`/${section}`} current={section}>
       <main
         className="public-shell px"
         id={PUBLIC_CONTENT_ID}
@@ -45,7 +50,12 @@ export function ArchiveFrame({
             <h1 id="px-title" className="px-title">
               {title}
             </h1>
-            <p className="px-lead">{lead}</p>
+            <AuthoredText
+              as="p"
+              className="px-lead"
+              copy={lead}
+              locale={locale}
+            />
           </div>
         </header>
         <div className={`px-grid px-body px-body-${section}`}>
@@ -58,8 +68,14 @@ export function ArchiveFrame({
 }
 
 /** The archive of a journal with nothing published in it, in its own place. */
-export function ArchiveEmpty() {
-  return <p className="px-quiet">Nothing published yet.</p>;
+export function ArchiveEmpty({
+  locale,
+}: Readonly<{ locale: InterfaceLocale }>) {
+  return (
+    <p className="px-quiet">
+      {dictionaryFor(locale).archives.nothingPublished}
+    </p>
+  );
 }
 
 /**
@@ -67,6 +83,10 @@ export function ArchiveEmpty() {
  * in the place of the list, as on the Home. It says nothing about why, and
  * nothing about what exists.
  */
-export function ArchiveUnavailable() {
-  return <p className="px-quiet">This list could not be loaded just now.</p>;
+export function ArchiveUnavailable({
+  locale,
+}: Readonly<{ locale: InterfaceLocale }>) {
+  return (
+    <p className="px-quiet">{dictionaryFor(locale).archives.unavailable}</p>
+  );
 }

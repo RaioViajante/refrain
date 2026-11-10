@@ -1,5 +1,9 @@
 import Link from "next/link";
 
+import { dictionaryFor } from "@/i18n/dictionaries";
+import type { InterfaceLocale } from "@/i18n/locales";
+import { localizedHref } from "@/i18n/paths";
+
 import { ArrowIcon } from "./arrow-icon";
 import { PersonIcon } from "./person-icon";
 
@@ -15,12 +19,14 @@ export interface ClosingArtist {
 }
 
 export function ClosingLinks({
+  locale,
   archive,
   label,
   artists = [],
   layout = "journal",
 }: Readonly<{
-  /** The section's archive, for example `/albums`. */
+  locale: InterfaceLocale;
+  /** The section's archive's English path, for example `/albums`. */
   archive: string;
   /** The link's words, for example "All albums". */
   label: string;
@@ -28,25 +34,26 @@ export function ClosingLinks({
   /** The page's own columns, so the row lines up with its writing. */
   layout?: "journal" | "notebook";
 }>) {
+  const t = dictionaryFor(locale);
   return (
     <nav
       className={layout === "journal" ? "pj-grid pj-end" : "pj-end pm-end"}
-      aria-label="Keep reading"
+      aria-label={t.frame.keepReading}
     >
       <span className="pj-end-margin" aria-hidden="true" />
       <div className="pj-end-links">
-        <Link className="pj-button" href={archive}>
+        <Link className="pj-button" href={localizedHref(locale, archive)}>
           <ArrowIcon back />
           <span>{label}</span>
         </Link>
         {artists.map((artist) => (
           <Link
             className="ph-all-link pj-end-artist"
-            href={`/artists/${artist.address}`}
+            href={localizedHref(locale, `/artists/${artist.address}`)}
             key={artist.address}
           >
             <PersonIcon size={18} />
-            <span>{`More about ${artist.name}`}</span>
+            <span>{t.albumJournal.moreAbout(artist.name)}</span>
           </Link>
         ))}
       </div>

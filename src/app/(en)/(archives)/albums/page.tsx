@@ -1,4 +1,15 @@
-export { default, generateMetadata } from "@/app/(archives)/albums/screen";
+import {
+  AlbumsArchiveScreen,
+  albumsArchiveMetadata,
+} from "@/app/(archives)/albums/screen";
+
+export default function Page() {
+  return <AlbumsArchiveScreen locale="en" />;
+}
+
+export function generateMetadata() {
+  return albumsArchiveMetadata("en");
+}
 
 /**
  * This route renders on the server per request and waits for its data before

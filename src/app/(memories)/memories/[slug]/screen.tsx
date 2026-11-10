@@ -6,10 +6,18 @@ import { cache } from "react";
 import {
   getPublicMemory,
   publicReadsEnabled,
-  publicSiteOrigin,
   resolvePublicMemorySlug,
   type PublicMemory,
 } from "@/modules/publication/public";
+
+import {
+  notFoundMetadata,
+  publicPageMetadata,
+} from "@/app/(public)/_components/page-metadata";
+import { PublicFrame } from "@/app/(public)/_components/public-frame";
+import { dictionaryFor } from "@/i18n/dictionaries";
+import { OPEN_GRAPH_LOCALE, type InterfaceLocale } from "@/i18n/locales";
+import { localizedHref } from "@/i18n/paths";
 
 import { MemoryView } from "./memory-view";
 
@@ -28,9 +36,9 @@ import { MemoryView } from "./memory-view";
 // the same without client JavaScript, and the build prerenders nothing of it.
 // Nothing is cached, and every response is `no-store` (next.config.ts).
 
-// The interface is English until next-intl arrives; this selects the version
-// only (ADR 0002, D1.2).
-const READER_LOCALE = "en";
+// The interface language reaches the read only as the reader's locale, which
+// selects among versions that are already public (ADR 0002, D1.2; ADR 0006
+// A7, item 1).
 
 type Loaded =
   | { kind: "page"; memory: PublicMemory }
@@ -38,74 +46,67 @@ type Loaded =
   | { kind: "not_found" };
 
 // Deduplicated within one request, so the metadata and the page agree.
-const load = cache(async (slug: string): Promise<Loaded> => {
-  // Runtime only, never at build time.
-  await connection();
-  if (!publicReadsEnabled()) {
-    return { kind: "not_found" };
-  }
-  const resolution = await resolvePublicMemorySlug(slug);
-  if (resolution.outcome === "redirect") {
-    return { kind: "redirect", currentSlug: resolution.currentSlug };
-  }
-  if (resolution.outcome !== "found") {
-    return { kind: "not_found" };
-  }
-  const memory = await getPublicMemory(resolution.entryId, READER_LOCALE);
-  return memory ? { kind: "page", memory } : { kind: "not_found" };
-});
+const load = cache(
+  async (slug: string, locale: InterfaceLocale): Promise<Loaded> => {
+    // Runtime only, never at build time.
+    await connection();
+    if (!publicReadsEnabled()) {
+      return { kind: "not_found" };
+    }
+    const resolution = await resolvePublicMemorySlug(slug);
+    if (resolution.outcome === "redirect") {
+      return { kind: "redirect", currentSlug: resolution.currentSlug };
+    }
+    if (resolution.outcome !== "found") {
+      return { kind: "not_found" };
+    }
+    const memory = await getPublicMemory(resolution.entryId, locale);
+    return memory ? { kind: "page", memory } : { kind: "not_found" };
+  },
+);
 
-const NOT_FOUND_METADATA: Metadata = {
-  title: "Not found · refrain",
-  description: "A personal music journal.",
-};
-
-export async function generateMetadata({
-  params,
-}: Readonly<{ params: Promise<{ slug: string }> }>): Promise<Metadata> {
+export async function memoryMetadata(
+  params: Promise<{ slug: string }>,
+  locale: InterfaceLocale,
+): Promise<Metadata> {
   const { slug } = await params;
-  const loaded = await load(slug);
-  // The same metadata as the not-found view for anything that is not served,
-  // so a title or description never tells one case from another.
+  const loaded = await load(slug, locale);
+  // The not-found view's metadata for anything that is not served.
   if (loaded.kind !== "page") {
-    return NOT_FOUND_METADATA;
+    return notFoundMetadata(locale);
   }
   const { memory } = loaded;
-  const title = `${memory.title} · refrain`;
-  // What the page is, in the site's own words: nothing the author did not
-  // write, and no excerpt of the writing.
-  const description = "A memory in a personal music journal.";
-  const origin = publicSiteOrigin();
-  return {
-    title,
-    description,
-    ...(origin
-      ? {
-          metadataBase: new URL(origin),
-          alternates: { canonical: `/memories/${memory.slug}` },
-        }
-      : {}),
-    openGraph: {
-      type: "article",
-      siteName: "refrain",
-      title,
-      description,
-      locale: memory.locale === "pt-BR" ? "pt_BR" : "en_US",
-      ...(origin ? { url: `/memories/${memory.slug}` } : {}),
-    },
-  };
+  return publicPageMetadata({
+    locale,
+    path: `/memories/${memory.slug}`,
+    title: `${memory.title} · refrain`,
+    description: dictionaryFor(locale).memory.description,
+    type: "article",
+    // The writing's language, as before: the version shown.
+    openGraphLocale: OPEN_GRAPH_LOCALE[memory.locale],
+  });
 }
 
-export default async function MemoryPage({
+export async function MemoryScreen({
   params,
-}: Readonly<{ params: Promise<{ slug: string }> }>) {
+  locale,
+}: Readonly<{ params: Promise<{ slug: string }>; locale: InterfaceLocale }>) {
   const { slug } = await params;
-  const loaded = await load(slug);
+  const loaded = await load(slug, locale);
   if (loaded.kind === "redirect") {
-    permanentRedirect(`/memories/${loaded.currentSlug}`);
+    permanentRedirect(localizedHref(locale, `/memories/${loaded.currentSlug}`));
   }
   if (loaded.kind !== "page") {
     notFound();
   }
-  return <MemoryView memory={loaded.memory} />;
+  return (
+    <PublicFrame
+      locale={locale}
+      path={`/memories/${loaded.memory.slug}`}
+      current="memories"
+      inside
+    >
+      <MemoryView memory={loaded.memory} locale={locale} />
+    </PublicFrame>
+  );
 }

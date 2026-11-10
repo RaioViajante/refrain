@@ -21,6 +21,7 @@ export async function GET() {
   const lines = [
     "User-agent: *",
     "Disallow: /studio",
+    "Disallow: /pt/studio",
     "Disallow: /api/",
     ...(origin ? ["", `Sitemap: ${origin}/sitemap.xml`] : []),
     "",

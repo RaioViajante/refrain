@@ -21,12 +21,23 @@ import { PersonIcon } from "./person-icon";
 // thumbnail host: the artist page's Content-Security-Policy allows nothing
 // else.
 
+/** The frame's words, chosen on the server in the page's interface language. */
+export interface PhotoFrameWords {
+  shown: string;
+  failed: string;
+  none: string;
+  frame: string;
+  notYet: string;
+  unavailableNow: string;
+  fromCommons: string;
+}
+
 export function PublicPhotoFrame({
-  name,
   image,
+  words,
 }: Readonly<{
-  name: string;
   image: { src: string; srcSet: string } | null;
+  words: PhotoFrameWords;
 }>) {
   const element = useRef<HTMLImageElement>(null);
   const [failed, setFailed] = useState(false);
@@ -43,24 +54,18 @@ export function PublicPhotoFrame({
     <div
       className="pa-photo"
       role="img"
-      aria-label={
-        shown
-          ? `Photograph of ${name}`
-          : image
-            ? `Photograph of ${name}: not available just now`
-            : `No photograph of ${name} yet`
-      }
+      aria-label={shown ? words.shown : image ? words.failed : words.none}
     >
       <span className="pj-cover-hatch" aria-hidden="true" />
       <span className="pj-cover-text" aria-hidden="true">
         <PersonIcon size={26} />
-        <b>Artist photograph</b>
+        <b>{words.frame}</b>
         <i>
           {image === null
-            ? "not available yet"
+            ? words.notYet
             : failed
-              ? "not available just now"
-              : "from Wikimedia Commons"}
+              ? words.unavailableNow
+              : words.fromCommons}
         </i>
       </span>
       {shown ? (

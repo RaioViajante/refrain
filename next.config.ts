@@ -81,6 +81,13 @@ const nextConfig: NextConfig = {
       { source: "/artists/:path*", headers: artistHeaders },
       // M3.7: the memories, with the public policy (no image is shown).
       { source: "/memories/:path*", headers: publicHeaders },
+      // The Portuguese forms of the same pages (ADR 0006 A7, item 6), one rule
+      // per section and none broad enough to reach `/pt/studio`, which keeps
+      // the private headers of the Writing Studio when it exists.
+      { source: "/pt", headers: publicHeaders },
+      { source: "/pt/albums/:path*", headers: publicHeaders },
+      { source: "/pt/artists/:path*", headers: artistHeaders },
+      { source: "/pt/memories/:path*", headers: publicHeaders },
       // The same headers, so that these answer as every other public address
       // does when public reads are off.
       { source: "/sitemap.xml", headers: publicHeaders },

@@ -8,12 +8,12 @@ import {
   type PublicArtistCard,
 } from "@/modules/publication/public";
 
-import {
-  archiveMetadata,
-  NOT_FOUND_METADATA,
-} from "@/app/(archives)/_components/archive-metadata";
+import { archiveMetadata } from "@/app/(archives)/_components/archive-metadata";
+import { notFoundMetadata } from "@/app/(public)/_components/page-metadata";
+import { dictionaryFor } from "@/i18n/dictionaries";
+import type { InterfaceLocale } from "@/i18n/locales";
 
-import { ArtistsArchive, ARTISTS_LEAD } from "./artists-archive";
+import { ArtistsArchive } from "./artists-archive";
 
 // The public Artists archive (M3.8a; the approved V4.4 `Artists` screen),
 // anonymous, read through the Publication module's reading entry point alone.
@@ -42,20 +42,28 @@ async function load(): Promise<Loaded> {
   }
 }
 
-export async function generateMetadata(): Promise<Metadata> {
+export async function artistsArchiveMetadata(
+  locale: InterfaceLocale,
+): Promise<Metadata> {
   await connection();
   if (!publicReadsEnabled()) {
-    return NOT_FOUND_METADATA;
+    return notFoundMetadata(locale);
   }
-  return archiveMetadata("/artists", "Artists", ARTISTS_LEAD);
+  const t = dictionaryFor(locale).archives.artists;
+  return archiveMetadata(locale, "/artists", t.title, t.lead.text);
 }
 
-export default async function ArtistsArchivePage() {
+export async function ArtistsArchiveScreen({
+  locale,
+}: Readonly<{ locale: InterfaceLocale }>) {
   const loaded = await load();
   if (loaded.kind === "not_found") {
     notFound();
   }
   return (
-    <ArtistsArchive artists={loaded.kind === "list" ? loaded.artists : null} />
+    <ArtistsArchive
+      artists={loaded.kind === "list" ? loaded.artists : null}
+      locale={locale}
+    />
   );
 }

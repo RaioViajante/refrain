@@ -6,12 +6,22 @@ import { cache, Suspense } from "react";
 import {
   getPublicAlbumJournal,
   publicReadsEnabled,
-  publicSiteOrigin,
   resolvePublicAlbumJournalSlug,
   type PublicAlbumJournal,
 } from "@/modules/publication/public";
 
-import { PUBLIC_CONTENT_ID } from "@/app/(public)/_components/public-frame";
+import {
+  notFoundMetadata,
+  publicPageMetadata,
+} from "@/app/(public)/_components/page-metadata";
+import { LanguageSelector } from "@/app/(public)/_components/language-selector";
+import {
+  PUBLIC_CONTENT_ID,
+  PublicFrame,
+} from "@/app/(public)/_components/public-frame";
+import { dictionaryFor } from "@/i18n/dictionaries";
+import { OPEN_GRAPH_LOCALE, type InterfaceLocale } from "@/i18n/locales";
+import { localizedHref } from "@/i18n/paths";
 
 import { JournalView } from "./journal-view";
 
@@ -25,9 +35,9 @@ import { JournalView } from "./journal-view";
 // a Suspense boundary, so the static shell holds a loading line and no data,
 // and the response is `no-store` (docs/evidence/m3-1.md).
 
-// The interface is English until next-intl arrives; this selects the version
-// only (ADR 0002, D1.2).
-const READER_LOCALE = "en";
+// The interface language reaches the read only as the reader's locale, which
+// selects among versions that are already public (ADR 0002, D1.2; ADR 0006
+// A7, item 1).
 
 type Loaded =
   | { kind: "page"; slug: string; journal: PublicAlbumJournal }
@@ -35,78 +45,84 @@ type Loaded =
   | { kind: "not_found" };
 
 // Deduplicated within one request, so the metadata and the page agree.
-const load = cache(async (slug: string): Promise<Loaded> => {
-  // Runtime only, never at build time.
-  await connection();
-  if (!publicReadsEnabled()) {
-    return { kind: "not_found" };
-  }
-  const resolution = await resolvePublicAlbumJournalSlug(slug);
-  if (resolution.outcome === "redirect") {
-    return { kind: "redirect", currentSlug: resolution.currentSlug };
-  }
-  if (resolution.outcome !== "found") {
-    return { kind: "not_found" };
-  }
-  const journal = await getPublicAlbumJournal(
-    resolution.entryId,
-    READER_LOCALE,
-  );
-  return journal ? { kind: "page", slug, journal } : { kind: "not_found" };
-});
+const load = cache(
+  async (slug: string, locale: InterfaceLocale): Promise<Loaded> => {
+    // Runtime only, never at build time.
+    await connection();
+    if (!publicReadsEnabled()) {
+      return { kind: "not_found" };
+    }
+    const resolution = await resolvePublicAlbumJournalSlug(slug);
+    if (resolution.outcome === "redirect") {
+      return { kind: "redirect", currentSlug: resolution.currentSlug };
+    }
+    if (resolution.outcome !== "found") {
+      return { kind: "not_found" };
+    }
+    const journal = await getPublicAlbumJournal(resolution.entryId, locale);
+    return journal ? { kind: "page", slug, journal } : { kind: "not_found" };
+  },
+);
 
-const NOT_FOUND_METADATA: Metadata = {
-  title: "Not found · refrain",
-  description: "A personal music journal.",
-};
-
-export async function generateMetadata({
-  params,
-}: Readonly<{ params: Promise<{ slug: string }> }>): Promise<Metadata> {
+export async function albumJournalMetadata(
+  params: Promise<{ slug: string }>,
+  locale: InterfaceLocale,
+): Promise<Metadata> {
   const { slug } = await params;
-  const loaded = await load(slug);
+  const loaded = await load(slug, locale);
   // The same metadata as the not-found view for anything that is not served,
   // so a title or description never tells one case from another.
   if (loaded.kind !== "page") {
-    return NOT_FOUND_METADATA;
+    return notFoundMetadata(locale);
   }
   const { journal } = loaded;
   const credits = journal.credits.map((credit) => credit.name).join(", ");
   const title = credits
     ? `${journal.album.title} · ${credits} · refrain`
     : `${journal.album.title} · refrain`;
-  const description = journal.opening?.trim() || "An album journal.";
-  const origin = publicSiteOrigin();
-  return {
+  return publicPageMetadata({
+    locale,
+    path: `/albums/${loaded.slug}`,
     title,
-    description,
-    ...(origin
-      ? {
-          metadataBase: new URL(origin),
-          alternates: { canonical: `/albums/${loaded.slug}` },
-        }
-      : {}),
-    openGraph: {
-      type: "article",
-      siteName: "refrain",
-      title,
-      description,
-      locale: journal.locale === "pt-BR" ? "pt_BR" : "en_US",
-    },
-  };
+    description:
+      journal.opening?.trim() || dictionaryFor(locale).albumJournal.description,
+    type: "article",
+    // The writing's language, as before: the version shown.
+    openGraphLocale: OPEN_GRAPH_LOCALE[journal.locale],
+    openGraphUrl: false,
+  });
 }
 
-export default function AlbumJournalPage({
+export function AlbumJournalScreen({
   params,
-}: Readonly<{ params: Promise<{ slug: string }> }>) {
+  locale,
+}: Readonly<{ params: Promise<{ slug: string }>; locale: InterfaceLocale }>) {
+  // The frame is outside the Suspense boundary, as the section's layout had
+  // it, so the prerendered shell holds the frame and a loading line, and the
+  // page has one navigation. Only the language selector waits for the
+  // journal's own address, in its own boundary.
   return (
-    <Suspense fallback={<AlbumJournalLoading />}>
-      <AlbumJournal params={params} />
-    </Suspense>
+    <PublicFrame
+      locale={locale}
+      path={null}
+      selector={
+        <Suspense fallback={null}>
+          <AlbumJournalSelector params={params} locale={locale} />
+        </Suspense>
+      }
+      current="albums"
+      inside
+    >
+      <Suspense fallback={<AlbumJournalLoading locale={locale} />}>
+        <AlbumJournal params={params} locale={locale} />
+      </Suspense>
+    </PublicFrame>
   );
 }
 
-function AlbumJournalLoading() {
+function AlbumJournalLoading({
+  locale,
+}: Readonly<{ locale: InterfaceLocale }>) {
   return (
     <main
       className="public-shell public-loading"
@@ -114,21 +130,34 @@ function AlbumJournalLoading() {
       tabIndex={-1}
       aria-busy="true"
     >
-      <p>Loading…</p>
+      <p>{dictionaryFor(locale).loading}</p>
     </main>
   );
 }
 
+/** The selector, once the journal is known to be served at its address. */
+async function AlbumJournalSelector({
+  params,
+  locale,
+}: Readonly<{ params: Promise<{ slug: string }>; locale: InterfaceLocale }>) {
+  const { slug } = await params;
+  const loaded = await load(slug, locale);
+  return loaded.kind === "page" ? (
+    <LanguageSelector locale={locale} path={`/albums/${loaded.slug}`} />
+  ) : null;
+}
+
 async function AlbumJournal({
   params,
-}: Readonly<{ params: Promise<{ slug: string }> }>) {
+  locale,
+}: Readonly<{ params: Promise<{ slug: string }>; locale: InterfaceLocale }>) {
   const { slug } = await params;
-  const loaded = await load(slug);
+  const loaded = await load(slug, locale);
   if (loaded.kind === "redirect") {
-    permanentRedirect(`/albums/${loaded.currentSlug}`);
+    permanentRedirect(localizedHref(locale, `/albums/${loaded.currentSlug}`));
   }
   if (loaded.kind !== "page") {
     notFound();
   }
-  return <JournalView journal={loaded.journal} />;
+  return <JournalView journal={loaded.journal} locale={locale} />;
 }

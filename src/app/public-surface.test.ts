@@ -70,11 +70,24 @@ function publicFiles(): string[] {
       file === "src/app/home-screen.tsx" ||
       file === "src/app/not-found-view.tsx" ||
       file === "src/app/global-not-found.tsx" ||
+      // The Portuguese public routes (ADR 0008; ADR 0006 A7, item 9): public
+      // files for every scan, like their English forms. A Portuguese Studio
+      // route is not one of them.
+      (file.startsWith("src/app/pt/") &&
+        !file.startsWith("src/app/pt/studio/")) ||
       file === "src/app/public-fonts.ts" ||
       file === "src/app/sitemap.xml/route.ts" ||
       file === "src/app/robots.txt/route.ts",
   );
-  return ["src/proxy.ts", "src/address-normalization.ts", ...inApp];
+  // The interface's words and formats (src/i18n), which every public page
+  // reads: held to the same rules, so they can import nothing else.
+  const interfaceFiles = walk("src/i18n");
+  return [
+    "src/proxy.ts",
+    "src/address-normalization.ts",
+    ...inApp,
+    ...interfaceFiles,
+  ];
 }
 
 /** The strings of `export const config = { matcher: [...] }`, from the syntax tree. */
@@ -128,6 +141,9 @@ const ALLOWED_IMPORTS = [
   /^react(\/.*)?$/,
   /^@\/modules\/publication\/public$/,
   /^@\/app\/(public\.css|globals\.css|public-fonts|not-found-view|home-screen)$/,
+  // The interface's dictionaries, formats, and links (ADR 0008 § 4).
+  /^@\/i18n\/(authored|dictionaries|format|locales|paths)$/,
+  /^\.\/pt-BR$/,
   // The thin English routes name their implementation, and nothing else.
   /^@\/app\/\((public|artists|memories|archives)\)\/([a-z-]+\/|\[slug\]\/)*(screen|section-layout)$/,
   /^@\/app\/\(public\)\/_components\/[a-z-]+$/,
@@ -541,6 +557,13 @@ describe("the public surface", () => {
       "src/app/(en)/(archives)/albums/page.tsx",
       "src/app/(en)/(archives)/artists/page.tsx",
       "src/app/(en)/(archives)/memories/page.tsx",
+      // Their Portuguese forms, the same.
+      "src/app/pt/page.tsx",
+      "src/app/pt/(artists)/artists/[slug]/page.tsx",
+      "src/app/pt/(memories)/memories/[slug]/page.tsx",
+      "src/app/pt/(archives)/albums/page.tsx",
+      "src/app/pt/(archives)/artists/page.tsx",
+      "src/app/pt/(archives)/memories/page.tsx",
     ]) {
       expect(readFileSync(file, "utf8"), file).toMatch(
         /^export const instant = false;$/m,
@@ -587,6 +610,14 @@ describe("the public surface", () => {
       "/memories",
       "/sitemap.xml",
       "/robots.txt",
+      // The Portuguese Home, sections, and archives (ADR 0006 A7, item 2).
+      "/pt",
+      "/pt/albums/:slug",
+      "/pt/artists/:slug",
+      "/pt/memories/:slug",
+      "/pt/albums",
+      "/pt/artists",
+      "/pt/memories",
       // Trailing-slash addresses, for the no-store 308 (ADR 0006, A2).
       "/:path+/",
     ]);
@@ -619,6 +650,11 @@ describe("the public surface", () => {
       /^src\/app\/\(en\)\/page\.tsx$/,
       // The English root layout, which reads nothing.
       /^src\/app\/\(en\)\/layout\.tsx$/,
+      // The Portuguese public routes (ADR 0006 A7, item 9), scanned above as
+      // public files, its root layout, which reads nothing, and its
+      // not-found view. No Portuguese Studio route is classified yet.
+      /^src\/app\/pt\/(\(public\)|\(artists\)|\(memories\)|\(archives\))\//,
+      /^src\/app\/pt\/(page|layout|not-found)\.tsx$/,
     ];
     const unclassified = walk("src/app").filter(
       (file) => routeLike.test(file) && !known.some((rule) => rule.test(file)),
@@ -626,9 +662,11 @@ describe("the public surface", () => {
     expect(unclassified).toEqual([]);
     // The root layout wraps every page, the studio's included: it imports
     // nothing from a module and calls nothing that reads the system.
-    expect(readFileSync("src/app/(en)/layout.tsx", "utf8")).not.toMatch(
-      /from "@\/|import\(/,
-    );
+    for (const root of ["src/app/(en)/layout.tsx", "src/app/pt/layout.tsx"]) {
+      expect(readFileSync(root, "utf8"), root).not.toMatch(
+        /from "@\/|import\(/,
+      );
+    }
   });
 
   it("would notice an unclassified route file", () => {
@@ -1601,6 +1639,8 @@ describe("the Home's components", () => {
     "next/image",
     "next/link",
     "next/server",
+    // The language selector's keyboard island, and nothing else of React.
+    "react",
   ]);
 
   /** A local specifier as a file, or null for a package or a stylesheet. */
@@ -1655,7 +1695,12 @@ describe("the Home's components", () => {
       ) {
         const specifier = statement.moduleSpecifier.text;
         const resolved = resolveLocal(specifier, file);
-        if (resolved?.startsWith("src/app/")) {
+        if (
+          resolved?.startsWith("src/app/") ||
+          // The interface's words and formats: followed like the app's files,
+          // so a client component or a package behind them is still seen.
+          resolved?.startsWith("src/i18n/")
+        ) {
           appImports(resolved, seen, packages);
         } else if (resolved === null && !specifier.endsWith(".css")) {
           packages.add(specifier);
@@ -1692,7 +1737,23 @@ describe("the Home's components", () => {
     const { files, packages } = appImports("src/app/home-screen.tsx");
     expect([...files]).toContain("src/app/(public)/_components/home-view.tsx");
     expect([...files]).toContain("src/app/(public)/_components/arrow-icon.tsx");
-    expect([...files].filter(isClient)).toEqual([]);
+    // The language selector's keyboard island is the only client component
+    // (ADR 0008 § 6). It receives the server-rendered selector as children,
+    // and imports nothing but React, so no read model reaches the client.
+    expect([...files].filter(isClient)).toEqual([
+      "src/app/(public)/_components/language-keys.tsx",
+    ]);
+    const island = parse(
+      readFileSync("src/app/(public)/_components/language-keys.tsx", "utf8"),
+      "src/app/(public)/_components/language-keys.tsx",
+    );
+    expect(
+      island.statements
+        .filter(ts.isImportDeclaration)
+        .map(
+          (statement) => (statement.moduleSpecifier as ts.StringLiteral).text,
+        ),
+    ).toEqual(["react"]);
     expect([...packages].filter((name) => !HOME_PACKAGES.has(name))).toEqual(
       [],
     );

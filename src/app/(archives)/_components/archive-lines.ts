@@ -3,20 +3,24 @@ import type {
   PublicMemorySong,
 } from "@/modules/publication/public";
 
+import { dictionaryFor } from "@/i18n/dictionaries";
+import type { InterfaceLocale } from "@/i18n/locales";
+
 // The archives' quiet lines (M3.8a), as plain functions of what the
 // Publication read models returned, so each says exactly what the data says.
-
-const plural = (count: number, one: string, many: string) =>
-  `${count} ${count === 1 ? one : many}`;
 
 /**
  * The Artists archive's count: "1 album", or "1 album · 2 journals" when
  * there are more journals than albums, so it never reads as a discography.
  */
-export function artistCountLine(artist: PublicArtistCard): string {
-  const albums = plural(artist.albumCount, "album", "albums");
+export function artistCountLine(
+  locale: InterfaceLocale,
+  artist: PublicArtistCard,
+): string {
+  const t = dictionaryFor(locale);
+  const albums = t.lists.albums(artist.albumCount);
   return artist.journalCount > artist.albumCount
-    ? `${albums} · ${plural(artist.journalCount, "journal", "journals")}`
+    ? `${albums} · ${t.lists.journals(artist.journalCount)}`
     : albums;
 }
 
@@ -34,10 +38,13 @@ export const songText = (song: PublicMemorySong) =>
  * ("Holocene — Bon Iver · Sailor Song — Gigi Perez"); after three songs,
  * "and <n> more".
  */
-export function musicLine(music: readonly PublicMemorySong[]): string {
+export function musicLine(
+  locale: InterfaceLocale,
+  music: readonly PublicMemorySong[],
+): string {
   const named = music.slice(0, MUSIC_LINE_SONGS).map(songText);
   const rest = music.length - named.length;
   return rest > 0
-    ? `${named.join(" · ")} · and ${rest} more`
+    ? `${named.join(" · ")} · ${dictionaryFor(locale).lists.andMore(rest)}`
     : named.join(" · ");
 }

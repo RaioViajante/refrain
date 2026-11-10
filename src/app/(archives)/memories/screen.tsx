@@ -8,12 +8,12 @@ import {
   type PublicMemoryCard,
 } from "@/modules/publication/public";
 
-import {
-  archiveMetadata,
-  NOT_FOUND_METADATA,
-} from "@/app/(archives)/_components/archive-metadata";
+import { archiveMetadata } from "@/app/(archives)/_components/archive-metadata";
+import { notFoundMetadata } from "@/app/(public)/_components/page-metadata";
+import { dictionaryFor } from "@/i18n/dictionaries";
+import type { InterfaceLocale } from "@/i18n/locales";
 
-import { MemoriesArchive, MEMORIES_LEAD } from "./memories-archive";
+import { MemoriesArchive } from "./memories-archive";
 
 // The public Memories archive (M3.8a; the approved V4.4 `Memories` screen),
 // anonymous, read through the Publication module's reading entry point alone:
@@ -23,16 +23,16 @@ import { MemoriesArchive, MEMORIES_LEAD } from "./memories-archive";
 // itself. Rendered per request in one pass (`instant = false`), cached
 // nowhere, `no-store` (next.config.ts).
 
-// The interface is English until next-intl arrives; this selects the version
-// of each memory only (ADR 0002, D1.2).
-const READER_LOCALE = "en";
+// The interface language reaches the read only as the reader's locale, which
+// selects among versions that are already public (ADR 0002, D1.2; ADR 0006
+// A7, item 1). It is never an input to what is visible.
 
 type Loaded =
   | { kind: "list"; memories: PublicMemoryCard[] }
   | { kind: "unavailable" }
   | { kind: "not_found" };
 
-async function load(): Promise<Loaded> {
+async function load(locale: InterfaceLocale): Promise<Loaded> {
   // Runtime only, never at build time; outside the `try`.
   await connection();
   if (!publicReadsEnabled()) {
@@ -41,7 +41,7 @@ async function load(): Promise<Loaded> {
   try {
     return {
       kind: "list",
-      memories: await listPublicMemoryArchive(READER_LOCALE),
+      memories: await listPublicMemoryArchive(locale),
     };
   } catch {
     // Never logged: a driver message can carry connection details.
@@ -49,22 +49,28 @@ async function load(): Promise<Loaded> {
   }
 }
 
-export async function generateMetadata(): Promise<Metadata> {
+export async function memoriesArchiveMetadata(
+  locale: InterfaceLocale,
+): Promise<Metadata> {
   await connection();
   if (!publicReadsEnabled()) {
-    return NOT_FOUND_METADATA;
+    return notFoundMetadata(locale);
   }
-  return archiveMetadata("/memories", "Memories", MEMORIES_LEAD);
+  const t = dictionaryFor(locale).archives.memories;
+  return archiveMetadata(locale, "/memories", t.title, t.lead.text);
 }
 
-export default async function MemoriesArchivePage() {
-  const loaded = await load();
+export async function MemoriesArchiveScreen({
+  locale,
+}: Readonly<{ locale: InterfaceLocale }>) {
+  const loaded = await load(locale);
   if (loaded.kind === "not_found") {
     notFound();
   }
   return (
     <MemoriesArchive
       memories={loaded.kind === "list" ? loaded.memories : null}
+      locale={locale}
     />
   );
 }

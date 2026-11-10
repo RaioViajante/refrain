@@ -260,8 +260,15 @@ describe("a public memory's page, with public reads on", () => {
       /My rating|Favourite|Publish…|Unpublish|Writing studio|\bEdit\b/,
     );
     expect(page.body).not.toContain("<img");
-    // The untranslated version is never shown or mentioned (INV-3).
-    expect(text).not.toMatch(/Português|Brazilian/);
+    // The untranslated version is never shown or mentioned (INV-3). The
+    // footer's language selector names the two interface languages on every
+    // page alike (ADR 0008 § 7), so it is set aside here; the Portuguese
+    // tests show that it is the same whether or not a translation exists.
+    const selector = /<details class="public-language"[\s\S]*?<\/details>/;
+    expect(page.body).toMatch(selector);
+    expect(visibleText(page.body.replace(selector, ""))).not.toMatch(
+      /Português|Brazilian/,
+    );
   });
 
   it("links the album journal and the artist only where their pages are public, and nothing else", async () => {
@@ -278,6 +285,9 @@ describe("a public memory's page, with public reads on", () => {
         "/memories",
         `/albums/${seeded!.albumJournal.slug}`,
         "/artists/test-memory-artist",
+        // The language selector: this page, in each interface language.
+        `/memories/${seeded!.shown.slug}`,
+        `/pt/memories/${seeded!.shown.slug}`,
       ]),
     );
     // The linked pages answer.

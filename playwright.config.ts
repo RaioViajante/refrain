@@ -180,6 +180,18 @@ export default defineConfig({
       },
     },
     {
+      // The public pages in Brazilian Portuguese (ADR 0008), anonymous, from
+      // the server with public reads on; the tests themselves visit 320, 360,
+      // 390, 768, and 1440 px.
+      name: "i18n-public",
+      testMatch: /i18n-public\.spec\.ts/,
+      use: {
+        browserName: "chromium",
+        viewport: { width: 1440, height: 900 },
+        storageState: undefined,
+      },
+    },
+    {
       // The public memory pages (M3.7), anonymous, from the server with
       // public reads on: at 1440 px, and at 390 px on a touch screen; the
       // layout test also checks 320, 768, 1024, and 2560 px.
