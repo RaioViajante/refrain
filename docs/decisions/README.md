@@ -9,8 +9,9 @@ Significant architectural, data, and workflow decisions are recorded here as sho
 | [0003](0003-relational-schema-conventions.md) | Relational Schema Conventions | Accepted |
 | [0004](0004-single-author-identity.md) | Single-Author Identity and Access | Accepted |
 | [0005](0005-restoring-deleted-journals.md) | Restoring Deleted Journals | Accepted |
-| [0006](0006-publication-decision-and-acknowledgement.md) | Publication Decision and Acknowledgement | Accepted; amended 2026-11-02 (A1) |
+| [0006](0006-publication-decision-and-acknowledgement.md) | Publication Decision and Acknowledgement | Accepted; amended through 2026-11-10 (A1 to A7; A7 is not built) |
 | [0007](0007-hosted-backups-and-retention.md) | Hosted Backups, Retention, and Recovery | Accepted (2026-11-07); not provisioned yet |
+| [0008](0008-interface-localization.md) | Interface Localization (English and Brazilian Portuguese) | Accepted (2026-11-10); not implemented |
 
 ## Format
 
