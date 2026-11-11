@@ -4,6 +4,8 @@
 // should hear "4.5 out of 5" and not five shapes.
 
 import { StarInk, type StarFill } from "@/app/(public)/_components/star-ink";
+import { ratingText as formatRating } from "@/i18n/format";
+import type { InterfaceLocale } from "@/i18n/locales";
 
 function fills(halfSteps: number): StarFill[] {
   return [1, 2, 3, 4, 5].map((star) => {
@@ -13,11 +15,12 @@ function fills(halfSteps: number): StarFill[] {
   });
 }
 
-/** "4.5" for 9 half steps; a whole number has no decimal. */
-export function ratingText(halfSteps: number): string {
-  return Number.isInteger(halfSteps / 2)
-    ? String(halfSteps / 2)
-    : (halfSteps / 2).toFixed(1);
+/** "4.5" for 9 half steps ("4,5" in Portuguese); a whole number has no decimal. */
+export function ratingText(
+  halfSteps: number,
+  locale: InterfaceLocale = "en",
+): string {
+  return formatRating(locale, halfSteps);
 }
 
 export function Stars({

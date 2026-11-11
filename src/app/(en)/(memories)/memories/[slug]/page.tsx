@@ -1,7 +1,17 @@
-export {
-  default,
-  generateMetadata,
+import {
+  MemoryScreen,
+  memoryMetadata,
 } from "@/app/(memories)/memories/[slug]/screen";
+
+type Props = Readonly<{ params: Promise<{ slug: string }> }>;
+
+export default function Page({ params }: Props) {
+  return <MemoryScreen params={params} locale="en" />;
+}
+
+export function generateMetadata({ params }: Props) {
+  return memoryMetadata(params, "en");
+}
 
 /**
  * This route renders on the server per request and waits for its data before

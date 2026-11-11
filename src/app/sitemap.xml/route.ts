@@ -8,6 +8,8 @@ import {
   publicSiteOrigin,
 } from "@/modules/publication/public";
 
+import { addressPair } from "@/i18n/paths";
+
 // The sitemap lists the Home, the three archives (M3.8a), the address of
 // every publicly visible album journal, of every public artist page (M3.5),
 // and of every publicly visible memory (M3.7), and nothing else, read through
@@ -44,17 +46,25 @@ export async function GET() {
   // The memories (M3.7): exactly the addresses `resolvePublicSlug` finds for a
   // memory.
   const memories = await listPublicMemoryAddresses();
-  const entries = [
-    `${origin}/`,
+  const paths = [
+    "/",
     // The archives (M3.8a): pages of the site itself, the same in every state
     // of the journal, listed while public reads are on.
-    `${origin}/albums`,
-    `${origin}/artists`,
-    `${origin}/memories`,
-    ...addresses.map((slug) => `${origin}/albums/${slug}`),
-    ...artists.map((address) => `${origin}/artists/${address}`),
-    ...memories.map((slug) => `${origin}/memories/${slug}`),
-  ]
+    "/albums",
+    "/artists",
+    "/memories",
+    ...addresses.map((slug) => `/albums/${slug}`),
+    ...artists.map((address) => `/artists/${address}`),
+    ...memories.map((slug) => `/memories/${slug}`),
+  ];
+  // Each address in both interface languages (ADR 0008 § 7; ADR 0006 A7,
+  // item 8): a Portuguese form only of an address listed here anyway, from
+  // the same queries, under the same switch.
+  const entries = paths
+    .flatMap((path) => {
+      const pair = addressPair(path);
+      return [`${origin}${pair.en}`, `${origin}${pair["pt-BR"]}`];
+    })
     .map((address) => `  <url><loc>${escapeXml(address)}</loc></url>`)
     .join("\n");
   const xml =

@@ -6,10 +6,17 @@ import { cache } from "react";
 import {
   getPublicArtist,
   publicReadsEnabled,
-  publicSiteOrigin,
   resolvePublicArtistAddress,
   type PublicArtist,
 } from "@/modules/publication/public";
+
+import {
+  notFoundMetadata,
+  publicPageMetadata,
+} from "@/app/(public)/_components/page-metadata";
+import { PublicFrame } from "@/app/(public)/_components/public-frame";
+import { dictionaryFor } from "@/i18n/dictionaries";
+import type { InterfaceLocale } from "@/i18n/locales";
 
 import { ArtistView } from "./artist-view";
 
@@ -28,76 +35,66 @@ import { ArtistView } from "./artist-view";
 // client JavaScript, and the build prerenders nothing of it. Nothing is
 // cached, and every response is `no-store` (next.config.ts).
 
-// The interface is English until next-intl arrives; this selects the version
-// of each journal only (ADR 0002, D1.2).
-const READER_LOCALE = "en";
+// The interface language reaches the read only as the reader's locale, which
+// selects among versions that are already public (ADR 0002, D1.2; ADR 0006
+// A7, item 1).
 
 type Loaded = { kind: "page"; artist: PublicArtist } | { kind: "not_found" };
 
 // Deduplicated within one request, so the metadata and the page agree.
-const load = cache(async (slug: string): Promise<Loaded> => {
-  // Runtime only, never at build time.
-  await connection();
-  if (!publicReadsEnabled()) {
-    return { kind: "not_found" };
-  }
-  const resolution = await resolvePublicArtistAddress(slug);
-  if (resolution.outcome !== "found") {
-    return { kind: "not_found" };
-  }
-  const artist = await getPublicArtist(resolution.artistId, READER_LOCALE);
-  return artist ? { kind: "page", artist } : { kind: "not_found" };
-});
+const load = cache(
+  async (slug: string, locale: InterfaceLocale): Promise<Loaded> => {
+    // Runtime only, never at build time.
+    await connection();
+    if (!publicReadsEnabled()) {
+      return { kind: "not_found" };
+    }
+    const resolution = await resolvePublicArtistAddress(slug);
+    if (resolution.outcome !== "found") {
+      return { kind: "not_found" };
+    }
+    const artist = await getPublicArtist(resolution.artistId, locale);
+    return artist ? { kind: "page", artist } : { kind: "not_found" };
+  },
+);
 
-const NOT_FOUND_METADATA: Metadata = {
-  title: "Not found · refrain",
-  description: "A personal music journal.",
-};
-
-export async function generateMetadata({
-  params,
-}: Readonly<{ params: Promise<{ slug: string }> }>): Promise<Metadata> {
+export async function artistMetadata(
+  params: Promise<{ slug: string }>,
+  locale: InterfaceLocale,
+): Promise<Metadata> {
   const { slug } = await params;
-  const loaded = await load(slug);
-  // The same metadata as the not-found view for anything that is not served.
+  const loaded = await load(slug, locale);
+  // The not-found view's metadata for anything that is not served.
   if (loaded.kind !== "page") {
-    return NOT_FOUND_METADATA;
+    return notFoundMetadata(locale);
   }
   const { artist } = loaded;
-  const title = `${artist.name} · refrain`;
-  // Nothing biographical and nothing the author did not write: what the page
-  // is, in the site's own words.
-  const description = `Album journals about music by ${artist.name}.`;
-  const origin = publicSiteOrigin();
-  return {
-    title,
-    description,
-    ...(origin
-      ? {
-          metadataBase: new URL(origin),
-          alternates: { canonical: `/artists/${artist.address}` },
-        }
-      : {}),
-    // No image: a social preview would copy the photograph to another
-    // service's cache, outside its attribution (docs/evidence/m3-5.md).
-    openGraph: {
-      type: "website",
-      siteName: "refrain",
-      title,
-      description,
-      locale: "en_US",
-      ...(origin ? { url: `/artists/${artist.address}` } : {}),
-    },
-  };
+  return publicPageMetadata({
+    locale,
+    path: `/artists/${artist.address}`,
+    title: `${artist.name} · refrain`,
+    description: dictionaryFor(locale).artist.description(artist.name),
+    type: "website",
+  });
 }
 
-export default async function ArtistPage({
+export async function ArtistScreen({
   params,
-}: Readonly<{ params: Promise<{ slug: string }> }>) {
+  locale,
+}: Readonly<{ params: Promise<{ slug: string }>; locale: InterfaceLocale }>) {
   const { slug } = await params;
-  const loaded = await load(slug);
+  const loaded = await load(slug, locale);
   if (loaded.kind !== "page") {
     notFound();
   }
-  return <ArtistView artist={loaded.artist} />;
+  return (
+    <PublicFrame
+      locale={locale}
+      path={`/artists/${loaded.artist.address}`}
+      current="artists"
+      inside
+    >
+      <ArtistView artist={loaded.artist} locale={locale} />
+    </PublicFrame>
+  );
 }

@@ -53,6 +53,17 @@ export const config = {
     "/memories",
     "/sitemap.xml",
     "/robots.txt",
+    // The Portuguese forms (ADR 0008; ADR 0006 A7, item 2): the same
+    // sections and archives under the literal prefix, and the Portuguese
+    // Home, so that an encoded spelling of the prefix (`/%70t`, which the
+    // framework also matches decoded) reaches this proxy and is refused.
+    "/pt",
+    "/pt/albums/:slug",
+    "/pt/artists/:slug",
+    "/pt/memories/:slug",
+    "/pt/albums",
+    "/pt/artists",
+    "/pt/memories",
     // Every address that ends in a slash, anywhere on the site, except `/`:
     // the framework would answer it with a `308` that cannot carry
     // `no-store` (`skipTrailingSlashRedirect` in next.config.ts hands it to
@@ -100,6 +111,12 @@ const MEMORY_ADDRESS = /^(?:\/_next\/data\/[^/]+)?\/memories(?:[/.]|$)/;
 const ARCHIVE_ADDRESS =
   /^(?:\/_next\/data\/[^/]+)?\/(?:albums|artists|memories)(?:\.[^/]*(?:\/.*)?)?$/;
 
+// The literal Portuguese prefix, in every transport form: `/pt`, `/pt.rsc`,
+// `/pt.segments/…`, `/pt/<section>…`, `/_next/data/<build>/pt…`. Only the
+// literal spelling is the prefix; a spelling that is only `/pt` once decoded
+// is an encoded prefix, which no route serves (ADR 0006 A7, item 2).
+const PORTUGUESE_PREFIX = /^((?:\/_next\/data\/[^/]+)?)\/pt(?=[/.]|$)/;
+
 /** The path percent-decoded, or "" when it cannot be decoded. */
 function decodedOrEmpty(pathname: string): string {
   try {
@@ -120,7 +137,22 @@ function slugOf(pathname: string): string {
 }
 
 export async function proxy(request: NextRequest) {
-  // The address normalizations come first, before any public decision, and
+  // An encoded spelling of the Portuguese prefix (`/%70t/...`) is no address
+  // at all: the unknown address's answer, with the headers of the section it
+  // names, and never a redirect, not even the trailing slash's (ADR 0006 A7,
+  // item 2). It depends on the characters of the address and nothing else.
+  const requested = request.nextUrl.pathname;
+  const literalPrefix = PORTUGUESE_PREFIX.test(requested);
+  if (!literalPrefix && PORTUGUESE_PREFIX.test(decodedOrEmpty(requested))) {
+    const decoded = decodedOrEmpty(requested).replace(PORTUGUESE_PREFIX, "$1");
+    return NextResponse.rewrite(new URL(UNKNOWN_ADDRESS, request.url), {
+      headers: ARTIST_ADDRESS.test(decoded)
+        ? ARTIST_SECURITY_HEADERS
+        : PUBLIC_SECURITY_HEADERS,
+    });
+  }
+
+  // The address normalizations come next, before any public decision, and
   // for every address alike: they depend on the characters of the address
   // and on nothing else (src/address-normalization.ts).
   const target = new URL(request.url);
@@ -132,7 +164,17 @@ export async function proxy(request: NextRequest) {
     });
   }
 
-  const pathname = request.nextUrl.pathname;
+  // Under the literal prefix, the same decision as the English address: the
+  // language is never an input to it (A7, item 1); only a redirect's target
+  // keeps the prefix (item 3). The Portuguese Home and its build files
+  // (`/pt`, `/pt.rsc`, `/pt.segments/…`) are no public address once the
+  // prefix is taken away, so they go back to the framework below, as the
+  // English Home does. The sitemap and robots.txt have no `/pt` form: no
+  // matcher above sends one here.
+  const pathname = literalPrefix
+    ? requested.replace(PORTUGUESE_PREFIX, "$1")
+    : requested;
+  const prefix = literalPrefix ? "/pt" : "";
   // The trailing-slash matcher also lets through a few addresses that are not
   // public (a transport suffix after a slash, for example). Those go back to
   // the framework. The framework matches the proxy against the decoded path
@@ -198,7 +240,7 @@ export async function proxy(request: NextRequest) {
       // host is reflected.
       return NextResponse.redirect(
         new URL(
-          `/${isMemory ? "memories" : "albums"}/${decision.currentSlug}`,
+          `${prefix}/${isMemory ? "memories" : "albums"}/${decision.currentSlug}`,
           request.url,
         ),
         { status: 308, headers: { "Cache-Control": NO_STORE } },

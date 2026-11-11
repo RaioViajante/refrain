@@ -142,7 +142,9 @@ describe("what the build prerenders for the public routes", () => {
   it("has one not-found view, the same for every address, and it names none", () => {
     const html = text(join(APP, "_not-found.html"));
     expect(visibleText(html)).toMatch(
-      /^Not found · refrain Skip to content Home Albums Artists Memories Nothing here This page is not available\. Back to the start some songs take you back\.$/,
+      // ADR 0008 § 8: the same message in both interface languages, and the
+      // language selector, which leads to the start of each.
+      /^Not found · refrain Skip to content Home Albums Artists Memories Nothing here This page is not available\. Back to the start Nada aqui Esta página não está disponível\. Voltar ao início some songs take you back\. Language: English English Português \(Brasil\) Changes the interface only\. Writing stays in the language it was written in\.$/,
     );
     expect(html).toContain('<meta name="robots" content="noindex"/>');
     expect(html).toContain("<title>Not found · refrain</title>");

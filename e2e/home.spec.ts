@@ -356,6 +356,8 @@ test("is black ink on white paper, and every control is at least 44px", async ({
   });
   expect(colored).toEqual([]);
 
+  // The language selector's options are measured open (ADR 0008 § 6).
+  await page.locator("summary.public-language-button").click();
   const small = await page.evaluate(() => {
     const found: string[] = [];
     for (const element of document.querySelectorAll("a, button, summary")) {

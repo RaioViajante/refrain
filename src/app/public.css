@@ -145,6 +145,125 @@ a.public-link:hover,
   color: var(--color-ink-2);
 }
 
+/* The language selector (ADR 0008 § 6), the V4.4 `.ft4 .lb`, `.lmenu`, and
+   `.lopt`: under the closing line, centered, with no flag. It is a native
+   disclosure over real links; its menu opens upward over the button, in the
+   drawn dialog frame. */
+.public-language-keys {
+  display: flex;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+.public-language {
+  position: relative;
+  display: inline-block;
+}
+
+.public-language-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 6px;
+  font-family: var(--font-alegreya-sans), sans-serif;
+  font-size: 17px;
+  color: var(--color-ink);
+  cursor: pointer;
+  list-style: none;
+}
+
+.public-language-button::-webkit-details-marker {
+  display: none;
+}
+
+.public-language-button:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 2px;
+}
+
+.public-language-arrow {
+  transition: transform 0.25s ease;
+}
+
+.public-language[open] .public-language-arrow {
+  transform: rotate(180deg);
+}
+
+.public-language-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  z-index: 5;
+  width: 250px;
+  padding: 10px 0 12px;
+  text-align: left;
+  background: var(--color-paper) var(--stroke-dialog) 0 0 / 100% 100% no-repeat;
+  transform: translateX(-50%);
+}
+
+.public-language-options {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.public-language-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  min-height: 44px;
+  padding: 9px 22px;
+  font-family: var(--font-alegreya-sans), sans-serif;
+  font-size: 17.5px;
+  color: #444444;
+  text-decoration: none;
+}
+
+.public-language-option:hover {
+  color: var(--color-ink);
+  background: var(--color-hover);
+}
+
+.public-language-option[aria-current="page"] {
+  font-weight: 650;
+  color: var(--color-ink);
+}
+
+.public-language-option:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: -4px;
+}
+
+.public-language-tick {
+  display: inline-flex;
+}
+
+.public-language-tick[data-current="false"] {
+  opacity: 0;
+}
+
+.public-language-note {
+  margin: 6px 22px 0;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--color-ink-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .public-language-arrow {
+    transition: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .public-language-menu {
+    background-image: none;
+    border: 1px solid CanvasText;
+  }
+}
+
 .pj-visually-hidden {
   position: absolute;
   width: 1px;
@@ -186,6 +305,16 @@ a.public-link:hover,
   font-size: 52px;
   font-weight: 700;
   line-height: 1.1;
+}
+
+/* The same message in the other interface language, under the first
+   (ADR 0008 § 8): one step quieter, so the page keeps one title. */
+.public-notfound-other {
+  margin-top: 36px;
+}
+
+.public-notfound-title-other {
+  font-size: 36px;
 }
 
 /* The Home (the approved V4.4 `Home` screen, M3.4). The drawing sits between
@@ -2083,6 +2212,10 @@ article.pa-grid {
 
   .public-notfound-title {
     font-size: 42px;
+  }
+
+  .public-notfound-title-other {
+    font-size: 30px;
   }
 
   /* The Home on a phone, as the approved mobile screen composes it: a smaller

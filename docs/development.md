@@ -626,7 +626,7 @@ Never use `drizzle-kit push`: every schema change goes through a reviewed migrat
 
 ## Documentation
 
-- All repository documentation, code comments, commit messages, issues, and PR descriptions are in English. Interface strings are in English today; English and Brazilian Portuguese are approved and not yet built ([ADR 0008](decisions/0008-interface-localization.md)).
+- All repository documentation, code comments, commit messages, issues, and PR descriptions are in English. Interface strings: the public pages are in English and Brazilian Portuguese, from the dictionaries in `src/i18n/`; the Studio is in English until its localization ([ADR 0008](decisions/0008-interface-localization.md)).
 - When behavior changes, the relevant document changes in the same PR.
 - A significant architectural or data decision gets an ADR in [`docs/decisions/`](decisions/).
 - Write in present tense for what exists, and label planned functionality explicitly as planned.

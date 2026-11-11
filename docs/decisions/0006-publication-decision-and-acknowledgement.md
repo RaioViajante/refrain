@@ -668,7 +668,7 @@ Archiving an artist removes it, which is a reduction. A5 still refuses every cat
 
 ### A7. The `/pt` surfaces
 
-- **Date and approval:** 2026-11-10. Approved by the project owner with the architecture of [ADR 0008](0008-interface-localization.md), which it binds to this ADR. **It records a contract, and nothing in it is built:** on `main` no `/pt` address exists, and the interface is English only.
+- **Date and approval:** 2026-11-10. Approved by the project owner with the architecture of [ADR 0008](0008-interface-localization.md), which it binds to this ADR. **Its public surfaces are built (PR 2B)**, with the required tests below; `/pt/studio/**` is not, and comes with the Studio's localization (PR 3).
 - **Effect on the original text.** No rule of this ADR is relaxed. Every rule that names a public address, a request form, or a header now also covers its `/pt` form. D4 applies to every `/pt` public surface, and [A4](#a4-the-public-home-a-generic-page-that-lists-only-through-the-predicate) and [A6](#a6-the-public-home-also-shows-served-memories-and-public-artists) apply to `/pt`, the Portuguese Home, as to `/`.
 - **Why.** ADR 0008 gives every public and private address a second form. An address that the proxy, a header rule, or a test does not know would be a surface outside the rules. A second form is not a second visibility rule: an entry is served at `/pt/...` exactly when it is served at the English address.
 

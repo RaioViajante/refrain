@@ -1,4 +1,15 @@
-export { default, generateMetadata } from "@/app/(archives)/memories/screen";
+import {
+  MemoriesArchiveScreen,
+  memoriesArchiveMetadata,
+} from "@/app/(archives)/memories/screen";
+
+export default function Page() {
+  return <MemoriesArchiveScreen locale="en" />;
+}
+
+export function generateMetadata() {
+  return memoriesArchiveMetadata("en");
+}
 
 /**
  * This route renders on the server per request and waits for its data before

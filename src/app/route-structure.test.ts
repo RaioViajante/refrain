@@ -4,14 +4,18 @@ import { join } from "node:path";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
-// The shape of the route tree (ADR 0008 §§ 2, 3, and 8). Every address the
-// application serves is a thin file under `(en)` that names one shared
-// implementation and carries the route's literal settings. Authorization and
-// reading stay in the implementations, which the other scans check, so a route
-// file that did anything else would be outside those scans.
+// The shape of the route trees (ADR 0008 §§ 2, 3, and 8). Every address the
+// application serves is a thin file under `(en)`, or its Portuguese form under
+// `pt`, that names one shared implementation and carries the route's literal
+// settings: a Studio route re-exports its screen; a public route passes its
+// tree's interface language, as a literal, to its screen and to its
+// metadata. Authorization and reading stay in the implementations, which the
+// other scans check, so a route file that did anything else would be outside
+// those scans.
 
 const APP = "src/app";
 const ENGLISH = join(APP, "(en)");
+const PORTUGUESE = join(APP, "pt");
 
 // Every page address, written out: moving a route must not add or lose one.
 const PAGES = [
@@ -73,15 +77,18 @@ function allFiles(directory: string): string[] {
 const ROUTE_CONVENTION =
   /(^|\/)(page|layout|template|default|not-found|error|global-error|loading)\.(m?[jt]sx?)$/;
 
-const english = allFiles(ENGLISH);
-const pageFiles = english.filter((file) => /\/page\.tsx$/.test(file));
-const nestedLayouts = english.filter(
+const pagesOf = (root: string) =>
+  allFiles(root).filter((file) => /\/page\.tsx$/.test(file));
+const englishPages = pagesOf(ENGLISH);
+const portuguesePages = pagesOf(PORTUGUESE);
+const nestedLayouts = allFiles(ENGLISH).filter(
   (file) => /\/layout\.tsx$/.test(file) && file !== `${ENGLISH}/layout.tsx`,
 );
 
 /** `src/app/(en)/(public)/albums/[slug]/page.tsx` to `(public)/albums/[slug]`. */
 function directoryOf(file: string): string {
-  return file.slice(ENGLISH.length + 1).replace(/\/?(page|layout)\.tsx$/, "");
+  const root = file.startsWith(`${PORTUGUESE}/`) ? PORTUGUESE : ENGLISH;
+  return file.slice(root.length + 1).replace(/\/?(page|layout)\.tsx$/, "");
 }
 
 function addressOf(file: string): string {
@@ -92,28 +99,47 @@ function addressOf(file: string): string {
   return `/${address}`;
 }
 
+const isStudio = (file: string) => directoryOf(file).startsWith("studio");
+
 function implementationOf(file: string): string {
   const directory = directoryOf(file);
   if (/\/page\.tsx$/.test(file)) {
     return directory === "" ? "home-screen" : `${directory}/screen`;
   }
-  return directory === "studio"
-    ? "studio/studio-layout"
-    : `${directory}/section-layout`;
+  return "studio/studio-layout";
 }
 
-/** What makes a route file more than a delegation, from its syntax tree. */
-function thinViolations(code: string, implementation: string): string[] {
-  const source = ts.createSourceFile(
+const localeOf = (file: string) =>
+  file.startsWith(`${PORTUGUESE}/`) ? "pt-BR" : "en";
+
+function isInstantFalse(statement: ts.Statement): boolean {
+  return (
+    ts.isVariableStatement(statement) &&
+    statement.modifiers?.some(
+      (modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword,
+    ) === true &&
+    statement.declarationList.declarations.length === 1 &&
+    statement.declarationList.declarations[0]!.name.getText() === "instant" &&
+    statement.declarationList.declarations[0]!.initializer?.kind ===
+      ts.SyntaxKind.FalseKeyword
+  );
+}
+
+function parse(code: string): ts.SourceFile {
+  return ts.createSourceFile(
     "route.tsx",
     code,
     ts.ScriptTarget.Latest,
     true,
     ts.ScriptKind.TSX,
   );
+}
+
+/** What makes a Studio route file more than a re-export of its screen. */
+function thinViolations(code: string, implementation: string): string[] {
   const found: string[] = [];
   let delegations = 0;
-  for (const statement of source.statements) {
+  for (const statement of parse(code).statements) {
     if (
       ts.isExportDeclaration(statement) &&
       statement.moduleSpecifier &&
@@ -143,16 +169,7 @@ function thinViolations(code: string, implementation: string): string[] {
       }
       continue;
     }
-    const isInstantFalse =
-      ts.isVariableStatement(statement) &&
-      statement.modifiers?.some(
-        (modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword,
-      ) === true &&
-      statement.declarationList.declarations.length === 1 &&
-      statement.declarationList.declarations[0]!.name.getText() === "instant" &&
-      statement.declarationList.declarations[0]!.initializer?.kind ===
-        ts.SyntaxKind.FalseKeyword;
-    if (!isInstantFalse) {
+    if (!isInstantFalse(statement)) {
       found.push(`has the statement: ${statement.getText().slice(0, 60)}`);
     }
   }
@@ -162,17 +179,135 @@ function thinViolations(code: string, implementation: string): string[] {
   return found;
 }
 
-describe("the English route tree", () => {
-  it("serves exactly the addresses it served before the move", () => {
-    expect(pageFiles.map(addressOf).sort()).toEqual([...PAGES].sort());
+/**
+ * What makes a public route file more than a delegation of its interface
+ * language: one import of a screen and its metadata from the implementation,
+ * a page that renders that screen with the language as a literal (and the
+ * route's own `params`), a `generateMetadata` that calls the metadata with the
+ * same literal, a props type, and the one-pass setting. Nothing else.
+ */
+function localizedViolations(
+  code: string,
+  implementation: string,
+  locale: string,
+): string[] {
+  const found: string[] = [];
+  const imported = new Set<string>();
+  let page = false;
+  let metadata = false;
+  for (const statement of parse(code).statements) {
+    if (ts.isImportDeclaration(statement)) {
+      const from = (statement.moduleSpecifier as ts.StringLiteral).text;
+      const clause = statement.importClause;
+      if (
+        from !== `@/app/${implementation}` ||
+        !clause ||
+        clause.name ||
+        !clause.namedBindings ||
+        !ts.isNamedImports(clause.namedBindings) ||
+        imported.size > 0
+      ) {
+        found.push(`imports ${statement.getText().slice(0, 60)}`);
+        continue;
+      }
+      for (const element of clause.namedBindings.elements) {
+        if (element.propertyName) {
+          found.push(`renames ${element.getText()}`);
+        }
+        imported.add(element.name.text);
+      }
+      continue;
+    }
+    if (
+      ts.isTypeAliasDeclaration(statement) &&
+      statement.name.text === "Props"
+    ) {
+      continue;
+    }
+    if (isInstantFalse(statement)) {
+      continue;
+    }
+    if (
+      ts.isFunctionDeclaration(statement) &&
+      statement.body &&
+      statement.body.statements.length === 1 &&
+      ts.isReturnStatement(statement.body.statements[0]!)
+    ) {
+      const returned = (statement.body.statements[0] as ts.ReturnStatement)
+        .expression;
+      const modifiers = (statement.modifiers ?? []).map((m) => m.kind);
+      const exported = modifiers.includes(ts.SyntaxKind.ExportKeyword);
+      const isDefault = modifiers.includes(ts.SyntaxKind.DefaultKeyword);
+      if (
+        exported &&
+        isDefault &&
+        statement.name?.text === "Page" &&
+        returned &&
+        ts.isJsxSelfClosingElement(returned) &&
+        imported.has(returned.tagName.getText())
+      ) {
+        const attributes = returned.attributes.properties.map((property) =>
+          property.getText(),
+        );
+        const allowed = [`locale="${locale}"`, "params={params}"];
+        if (
+          !attributes.includes(`locale="${locale}"`) ||
+          attributes.some((attribute) => !allowed.includes(attribute))
+        ) {
+          found.push(`renders ${returned.getText()}`);
+        }
+        page = true;
+        continue;
+      }
+      if (
+        exported &&
+        !isDefault &&
+        statement.name?.text === "generateMetadata" &&
+        returned &&
+        ts.isCallExpression(returned) &&
+        imported.has(returned.expression.getText())
+      ) {
+        const args = returned.arguments.map((argument) => argument.getText());
+        const expected =
+          args.length === 2 ? ["params", `"${locale}"`] : [`"${locale}"`];
+        if (JSON.stringify(args) !== JSON.stringify(expected)) {
+          found.push(`calls ${returned.getText()}`);
+        }
+        metadata = true;
+        continue;
+      }
+    }
+    found.push(`has the statement: ${statement.getText().slice(0, 60)}`);
+  }
+  if (!page) {
+    found.push("renders no screen");
+  }
+  if (!metadata) {
+    found.push("has no metadata");
+  }
+  return found;
+}
+
+describe("the route trees", () => {
+  it("serves exactly the English addresses it served before, with none added", () => {
+    expect(englishPages.map(addressOf).sort()).toEqual([...PAGES].sort());
+  });
+
+  it("serves each public page, and only those, in Portuguese at the same path", () => {
+    const publicPages = englishPages.filter((file) => !isStudio(file));
+    expect(portuguesePages.map(directoryOf).sort()).toEqual(
+      publicPages.map(directoryOf).sort(),
+    );
   });
 
   it("finds the routes, so the checks below are not vacuous", () => {
-    expect(pageFiles).toHaveLength(34);
-    expect(nestedLayouts).toHaveLength(4);
+    expect(englishPages).toHaveLength(34);
+    expect(portuguesePages).toHaveLength(7);
+    // The Studio's layout; the public pages draw their own frame.
+    expect(nestedLayouts).toEqual([`${ENGLISH}/studio/layout.tsx`]);
   });
 
-  it.each([...pageFiles, ...nestedLayouts])(
+  it.each([...englishPages.filter(isStudio), ...nestedLayouts])(
     "%s only delegates to its implementation",
     (file) => {
       const implementation = implementationOf(file);
@@ -183,59 +318,96 @@ describe("the English route tree", () => {
     },
   );
 
-  it.each(pageFiles)("%s keeps its literal rendering setting", (file) => {
-    const settings = /^export const instant = false;$/m.test(
-      readFileSync(file, "utf8"),
-    );
-    expect(settings).toBe(ONE_PASS.includes(addressOf(file)));
+  it.each([
+    ...englishPages.filter((file) => !isStudio(file)),
+    ...portuguesePages,
+  ])("%s only passes its language to its implementation", (file) => {
+    const implementation = implementationOf(file);
+    expect(
+      localizedViolations(
+        readFileSync(file, "utf8"),
+        implementation,
+        localeOf(file),
+      ),
+    ).toEqual([]);
+    expect(existsSync(join(APP, `${implementation}.tsx`)), file).toBe(true);
   });
+
+  it.each(portuguesePages)(
+    "%s is its English form with the other language, and nothing else",
+    (file) => {
+      const english = join(ENGLISH, file.slice(PORTUGUESE.length + 1));
+      const neutral = (code: string, locale: string) =>
+        code.split(`"${locale}"`).join('"LOCALE"');
+      expect(neutral(readFileSync(file, "utf8"), "pt-BR")).toBe(
+        neutral(readFileSync(english, "utf8"), "en"),
+      );
+    },
+  );
+
+  it.each([...englishPages, ...portuguesePages])(
+    "%s keeps its literal rendering setting",
+    (file) => {
+      const settings = /^export const instant = false;$/m.test(
+        readFileSync(file, "utf8"),
+      );
+      expect(settings).toBe(ONE_PASS.includes(addressOf(file)));
+    },
+  );
 
   it("keeps route settings out of the implementations, where Next.js would not read them", () => {
     const implementations = allFiles(APP).filter((file) =>
-      /(^|\/)(screen|home-screen|section-layout|studio-layout)\.tsx$/.test(
-        file,
-      ),
+      /(^|\/)(screen|home-screen|studio-layout)\.tsx$/.test(file),
     );
-    expect(implementations).toHaveLength(38);
+    expect(implementations).toHaveLength(35);
     for (const file of implementations) {
       expect(readFileSync(file, "utf8"), file).not.toMatch(SEGMENT_SETTINGS);
     }
   });
 
-  it("has a route file only under (en), apart from the not-found fallback", () => {
+  it("has a route file only under (en) and pt, apart from the not-found fallback", () => {
     const outside = allFiles(APP).filter(
-      (file) => !file.startsWith(`${ENGLISH}/`) && ROUTE_CONVENTION.test(file),
+      (file) =>
+        !file.startsWith(`${ENGLISH}/`) &&
+        !file.startsWith(`${PORTUGUESE}/`) &&
+        ROUTE_CONVENTION.test(file),
     );
     expect(outside).toEqual([]);
     expect(existsSync(join(APP, "global-not-found.tsx"))).toBe(true);
   });
 
-  it("marks both English documents, and enables the not-found fallback", () => {
-    for (const file of [
-      `${ENGLISH}/layout.tsx`,
-      "src/app/global-not-found.tsx",
-    ]) {
-      expect(readFileSync(file, "utf8"), file).toContain('<html lang="en">');
+  it("fixes each document's language in its root, and enables the not-found fallback", () => {
+    for (const [file, lang] of [
+      [`${ENGLISH}/layout.tsx`, "en"],
+      [`${PORTUGUESE}/layout.tsx`, "pt-BR"],
+      ["src/app/global-not-found.tsx", "en"],
+    ] as const) {
+      expect(readFileSync(file, "utf8"), file).toContain(
+        `<html lang="${lang}">`,
+      );
     }
     expect(readFileSync("next.config.ts", "utf8")).toMatch(
       /experimental: \{ globalNotFound: true \}/,
     );
   });
 
-  it("answers a page's own notFound() with the shared view", () => {
+  it("answers a page's own notFound() with the shared view, in each root's language", () => {
     expect(readFileSync(`${ENGLISH}/not-found.tsx`, "utf8")).toContain(
-      "<NotFoundView />",
+      '<NotFoundView locale="en" />',
+    );
+    expect(readFileSync(`${PORTUGUESE}/not-found.tsx`, "utf8")).toContain(
+      '<NotFoundView locale="pt-BR" />',
     );
     expect(readFileSync("src/app/global-not-found.tsx", "utf8")).toContain(
-      "<NotFoundView />",
+      '<NotFoundView locale="en" />',
     );
   });
 
-  it("does not start the Portuguese tree in this change", () => {
-    expect(existsSync(join(APP, "pt"))).toBe(false);
+  it("has no Portuguese Studio yet (PR 3)", () => {
+    expect(existsSync(join(PORTUGUESE, "studio"))).toBe(false);
   });
 
-  describe("probes: the delegation rule catches what it is meant to", () => {
+  describe("probes: the delegation rules catch what they are meant to", () => {
     const target = "studio/journals/screen";
     const good = `export { default, metadata } from "@/app/${target}";`;
 
@@ -258,6 +430,39 @@ describe("the English route tree", () => {
       ["a call", `${good}\nconsole.log(1);`],
     ])("refuses %s", (_name, code) => {
       expect(thinViolations(code, target).length).toBeGreaterThan(0);
+    });
+
+    const screen = "(public)/albums/[slug]/screen";
+    const localized = (locale: string, extra = "", attributes = "") =>
+      `import { AlbumJournalScreen, albumJournalMetadata } from "@/app/${screen}";
+type Props = Readonly<{ params: Promise<{ slug: string }> }>;
+export default function Page({ params }: Props) {
+  return <AlbumJournalScreen params={params} locale="${locale}"${attributes} />;
+}
+export function generateMetadata({ params }: Props) {
+  return albumJournalMetadata(params, "${locale}");
+}
+${extra}`;
+
+    it("accepts a public route that passes its own language", () => {
+      expect(localizedViolations(localized("pt-BR"), screen, "pt-BR")).toEqual(
+        [],
+      );
+    });
+
+    it.each([
+      ["the other language", localized("en")],
+      ["an attribute from the request", localized("pt-BR", "", " slug={x}")],
+      [
+        "a second import",
+        `import { x } from "@/i18n/locales";\n${localized("pt-BR")}`,
+      ],
+      ["a statement", localized("pt-BR", "console.log(1);")],
+      ["another setting", localized("pt-BR", "export const dynamic = 1;")],
+    ])("refuses %s", (_name, code) => {
+      expect(localizedViolations(code, screen, "pt-BR").length).toBeGreaterThan(
+        0,
+      );
     });
   });
 });

@@ -15,8 +15,9 @@ import { assertDisposableTestDatabase } from "@/testing/test-database";
 const base = inject("studioBaseURL");
 const commandEnv = inject("studioCommandEnv");
 
-// Addresses that must not exist. `/%70t` is not the Portuguese prefix, and
-// neither form of it is served yet.
+// Addresses that must not exist. The Portuguese forms, `/pt`, its sections,
+// and the encoded spellings of its prefix (`/%70t`), are held by
+// src/testing/public-portuguese.http.test.ts (ADR 0006 A7).
 const NOT_ROUTES = [
   "/(en)",
   "/(en)/albums",
@@ -29,13 +30,8 @@ const NOT_ROUTES = [
   "/en",
   "/en/albums/some-address",
   "/en/studio",
-  "/pt",
-  "/pt/albums/some-address",
-  "/pt/studio",
   "/pt-BR",
   "/pt/pt",
-  "/%70t",
-  "/%70t/albums/some-address",
   "/%70t/studio",
 ];
 

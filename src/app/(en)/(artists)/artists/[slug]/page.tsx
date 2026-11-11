@@ -1,7 +1,17 @@
-export {
-  default,
-  generateMetadata,
+import {
+  ArtistScreen,
+  artistMetadata,
 } from "@/app/(artists)/artists/[slug]/screen";
+
+type Props = Readonly<{ params: Promise<{ slug: string }> }>;
+
+export default function Page({ params }: Props) {
+  return <ArtistScreen params={params} locale="en" />;
+}
+
+export function generateMetadata({ params }: Props) {
+  return artistMetadata(params, "en");
+}
 
 /**
  * This route renders on the server per request and waits for its data before
