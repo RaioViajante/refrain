@@ -62,7 +62,7 @@ The interface in English and Brazilian Portuguese is an **approved delivery for 
 | **PR 1** | ADR 0008, amendment A7, and these documents. Documentation only | Merged (#90) |
 | **PR 2A** | Move the routes under `(en)`, with no change of behaviour | Merged (#91) |
 | **PR 2B** | The public interface in English and Brazilian Portuguese | Merged (#92) |
-| **PR 3** | The Writing Studio in English and Brazilian Portuguese | This pull request |
+| **PR 3** | The Writing Studio in English and Brazilian Portuguese | Merged (#93) |
 | **PR 4** | Rating accessibility: focus after Clear, Clear against V4.4, the value's size, layout at 320px | Not started |
 | **PR 5** | Studio copy and the favicon | Not started |
 | **PR 6** | The public album journal in one pass (layout shift, reading without JavaScript, issue #44), with an independent security review | Not started |

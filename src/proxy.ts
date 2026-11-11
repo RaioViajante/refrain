@@ -72,6 +72,18 @@ export const config = {
     // untouched, and its pages authorize themselves.
     "/pt/studio",
     "/pt/studio/:path*",
+    // The English Studio, for the same reason: an encoded spelling of its
+    // name (`/%73tudio`, `/st%75dio/journals`, `/studio%2Fjournals`), which the
+    // framework matches decoded, reaches this proxy and gets the unknown
+    // address's answer. Without it the framework's router found the Studio's
+    // output by the decoded path, its renderer matched no route by the raw
+    // one, and the fallback `404` was the prerendered not-found page from the
+    // build's cache, with `s-maxage=31536000` and no Studio header (the
+    // `next.config.ts` rules match the raw path only). A literal `/studio…`
+    // address goes back to the framework untouched, and its pages authorize
+    // themselves.
+    "/studio",
+    "/studio/:path*",
     // Every address that ends in a slash, anywhere on the site, except `/`:
     // the framework would answer it with a `308` that cannot carry
     // `no-store` (`skipTrailingSlashRedirect` in next.config.ts hands it to
@@ -108,10 +120,11 @@ const ARTIST_SECURITY_HEADERS = {
 
 // The Studio's (next.config.ts, `privateHeaders`), without `Cache-Control`,
 // which the not-found view sets itself (`private`, `no-store`). An encoded
-// spelling of the Portuguese Studio's prefix gets these, the headers of the
-// section it names (ADR 0006 A7, item 2), with the public pages' stricter
-// image policy: the not-found view shows no photograph, and Wikimedia's host
-// stays out of every answer this proxy gives (src/security-headers.test.ts).
+// spelling of the Studio's name, or of the Portuguese Studio's prefix, gets
+// these, the headers of the section it names (ADR 0006 A7, item 2), with the
+// public pages' stricter image policy: the not-found view shows no
+// photograph, and Wikimedia's host stays out of every answer this proxy gives
+// (src/security-headers.test.ts).
 const STUDIO_SECURITY_HEADERS = {
   "X-Frame-Options": "DENY",
   "Content-Security-Policy": CONTENT_SECURITY_POLICY,
@@ -176,6 +189,27 @@ export async function proxy(request: NextRequest) {
     });
   }
 
+  // An encoded spelling of the Studio's own name, in either tree
+  // (`/%73tudio…`, `/pt/st%75dio…`, `/studio%2Fjournals`): the address is a
+  // Studio address only once decoded, so no Studio page serves it and no
+  // Studio header rule matches it. It is the unknown address, with the
+  // Studio's headers, and never a redirect, not even the trailing slash's, as
+  // for the encoded Portuguese prefix above. A literal `/studio…` address,
+  // including one with an encoded character after the name
+  // (`/studio/%6aournals`), is not this case: the framework and its header
+  // rules handle it as before. Neither the session nor any record is read.
+  const unprefixed = literalPrefix
+    ? requested.replace(PORTUGUESE_PREFIX, "$1")
+    : requested;
+  if (
+    !STUDIO_ADDRESS.test(unprefixed) &&
+    STUDIO_ADDRESS.test(decodedOrEmpty(unprefixed))
+  ) {
+    return NextResponse.rewrite(new URL(UNKNOWN_ADDRESS, request.url), {
+      headers: STUDIO_SECURITY_HEADERS,
+    });
+  }
+
   // The address normalizations come next, before any public decision, and
   // for every address alike: they depend on the characters of the address
   // and on nothing else (src/address-normalization.ts).
@@ -195,9 +229,7 @@ export async function proxy(request: NextRequest) {
   // prefix is taken away, so they go back to the framework below, as the
   // English Home does. The sitemap and robots.txt have no `/pt` form: no
   // matcher above sends one here.
-  const pathname = literalPrefix
-    ? requested.replace(PORTUGUESE_PREFIX, "$1")
-    : requested;
+  const pathname = unprefixed;
   const prefix = literalPrefix ? "/pt" : "";
   // The trailing-slash matcher also lets through a few addresses that are not
   // public (a transport suffix after a slash, for example). Those go back to

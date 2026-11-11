@@ -591,7 +591,7 @@ Public-repository risks the workflow already handles ([`.github/workflows/ci.yml
 | Dependency audit | `pnpm audit --audit-level=high` | In CI (M1.3C). High and critical advisories fail the run; the two moderate advisories listed under [Toolchain](#toolchain) are in development tools and are reviewed, not hidden. |
 | Browser tests | `pnpm exec playwright test` | In CI (M1.3C), after `playwright install --with-deps chromium`: the production build in Chromium against the same disposable service database ([Browser tests](#browser-tests)). Public flows arrive with the public pages. |
 
-The workflow has read-only `permissions` (`contents: read`), a concurrency group per pull request or branch, a 20-minute timeout, and no secrets. Its PostgreSQL credentials belong to a disposable service container and are not secrets. Actions are pinned to full commit SHAs. It does not publish artifacts or deploy.
+The workflow has read-only `permissions` (`contents: read`), a concurrency group per pull request or branch, a timeout of 30 minutes for Verify (raised from 20 after it took about 19 minutes on PR #93 and on `main`; no check was removed) and 20 for the PostgreSQL 18 job, and no secrets. Its PostgreSQL credentials belong to a disposable service container and are not secrets. Actions are pinned to full commit SHAs. It does not publish artifacts or deploy.
 
 ## Testing approach
 
