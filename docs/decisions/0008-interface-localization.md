@@ -131,7 +131,7 @@ By the owner's decision of 2026-11-10, a memory may be written originally in Eng
 - About 34 more route files, kept honest by a test rather than by the framework.
 - Every public and private address has a second form that the proxy, the header rules, and the tests must cover. A missed one is a real defect, which is why A7 makes the tests a condition.
 - `global-not-found` is experimental, and the not-found view is only partly localized (§ 8).
-- The browser and HTTP suites grow. CI's 20-minute limit may become a constraint: the timeout may be raised to 30 minutes only on demonstrated need, and coverage is never reduced to fit it.
+- The browser and HTTP suites grow. CI's 20-minute limit may become a constraint: the timeout may be raised to 30 minutes only on demonstrated need, and coverage is never reduced to fit it. *As built:* the need was shown after PR 3 (Verify took 18m50s on PR #93 and 18m49s on `main`), and the owner approved raising the Verify job alone to 30 minutes, with every check kept.
 - First-person copy waits on the owner.
 
 **Not decided here.** Interfaces for writing an author's translation, artist journals, any language other than the two, and any hosted release. Gates G1 to G8 stay open.

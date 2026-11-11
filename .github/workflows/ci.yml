@@ -17,7 +17,9 @@ jobs:
   verify:
     name: Verify
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    # Every check below runs in this one job, browser tests included; it took
+    # about 19 minutes on PR #93 and on main, so 20 left no margin.
+    timeout-minutes: 30
     env:
       NEXT_TELEMETRY_DISABLED: "1"
 
