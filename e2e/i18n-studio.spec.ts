@@ -10,6 +10,8 @@ import {
   named,
   withDatabase,
 } from "./support";
+import { FIXTURE } from "@/testing/provider-fixtures";
+import { PHOTO } from "@/testing/wikimedia-fixtures";
 
 // The Writing Studio in Brazilian Portuguese (ADR 0008; ADR 0006 A7), signed
 // in as the synthetic author, against the disposable test database: the
@@ -405,7 +407,7 @@ test("writes a memory originally in Portuguese and publishes it after the review
   );
   await expect(
     page.getByText(
-      "O idioma em que ela foi escrita. Nada é traduzido por você.",
+      "O idioma em que ela foi escrita. Nada é traduzido para você.",
     ),
   ).toBeVisible();
   await expect(page.getByRole("combobox", { name: "Escrito em" })).toHaveCount(
@@ -501,7 +503,7 @@ test("signs in and out in Portuguese, staying in Portuguese, with no callback pa
 test("every Portuguese Studio page fits 320 to 1440 px, its selector too, with no axe violation", async ({
   page,
 }) => {
-  test.setTimeout(420_000);
+  test.setTimeout(600_000);
   const pages = [
     ["desk", "/pt/studio"],
     ["catalog", "/pt/studio/catalog"],
@@ -509,9 +511,15 @@ test("every Portuguese Studio page fits 320 to 1440 px, its selector too, with n
     ["artists", "/pt/studio/artists"],
     ["artist", artistPath],
     ["artist-new", "/pt/studio/artists/new"],
+    ["artist-photo", `${artistPath}/photo`],
+    ["photo-review", `${artistPath}/photo/review?file=${PHOTO.onStage}`],
+    ["add-edition", `/pt/studio/catalog/add/album/${FIXTURE.paperMoon}`],
+    ["add-release", `/pt/studio/catalog/add/release/${FIXTURE.firstPressing}`],
+    ["add-artist", `/pt/studio/catalog/add/artist/${FIXTURE.inkQuartet}`],
     ["albums", "/pt/studio/albums"],
     ["album", albumPath],
     ["album-new", "/pt/studio/albums/new"],
+    ["album-artwork", `${albumPath}/artwork`],
     ["tracks", "/pt/studio/tracks"],
     ["track", trackPath],
     ["track-new", "/pt/studio/tracks/new"],
