@@ -504,41 +504,114 @@ test("every Portuguese Studio page fits 320 to 1440 px, its selector too, with n
   page,
 }) => {
   test.setTimeout(600_000);
-  const pages = [
-    ["desk", "/pt/studio"],
-    ["catalog", "/pt/studio/catalog"],
-    ["add-music", "/pt/studio/catalog/add"],
-    ["artists", "/pt/studio/artists"],
-    ["artist", artistPath],
-    ["artist-new", "/pt/studio/artists/new"],
-    ["artist-photo", `${artistPath}/photo`],
-    ["photo-review", `${artistPath}/photo/review?file=${PHOTO.onStage}`],
-    ["add-edition", `/pt/studio/catalog/add/album/${FIXTURE.paperMoon}`],
-    ["add-release", `/pt/studio/catalog/add/release/${FIXTURE.firstPressing}`],
-    ["add-artist", `/pt/studio/catalog/add/artist/${FIXTURE.inkQuartet}`],
-    ["albums", "/pt/studio/albums"],
-    ["album", albumPath],
-    ["album-new", "/pt/studio/albums/new"],
-    ["album-artwork", `${albumPath}/artwork`],
-    ["tracks", "/pt/studio/tracks"],
-    ["track", trackPath],
-    ["track-new", "/pt/studio/tracks/new"],
-    ["journals", "/pt/studio/journals"],
-    ["journal", journalPath],
-    ["journal-edit", `${journalPath}/edit`],
-    ["journal-new", "/pt/studio/journals/new"],
-    ["deleted", "/pt/studio/journals/deleted"],
-    ["memories", "/pt/studio/memories"],
-    ["memory", memoryPath],
-    ["memory-new", "/pt/studio/memories/new"],
-  ] as const;
+  // Each page with the heading it must show and, for a page whose data comes
+  // from a provider, a fact of the synthetic fixture: a page that only
+  // rendered its error panel, also a 200, would not pass.
+  const pages: {
+    name: string;
+    path: string;
+    heading: string;
+    fact?: string;
+  }[] = [
+    { name: "desk", path: "/pt/studio", heading: "Mesa" },
+    { name: "catalog", path: "/pt/studio/catalog", heading: "Catálogo" },
+    {
+      name: "add-music",
+      path: "/pt/studio/catalog/add",
+      heading: "Adicionar música",
+    },
+    { name: "artists", path: "/pt/studio/artists", heading: "Artistas" },
+    { name: "artist", path: artistPath, heading: names.artist },
+    {
+      name: "artist-new",
+      path: "/pt/studio/artists/new",
+      heading: "Adicionar um artista",
+    },
+    { name: "artist-photo", path: `${artistPath}/photo`, heading: "Foto" },
+    {
+      name: "photo-review",
+      path: `${artistPath}/photo/review?file=${PHOTO.onStage}`,
+      heading: "Revisar foto",
+      fact: "[Test] Photographer One",
+    },
+    {
+      name: "add-edition",
+      path: `/pt/studio/catalog/add/album/${FIXTURE.paperMoon}`,
+      heading: "[Test] Paper Moon",
+      fact: "Escolha uma edição",
+    },
+    {
+      name: "add-release",
+      path: `/pt/studio/catalog/add/release/${FIXTURE.firstPressing}`,
+      heading: "[Test] Paper Moon",
+      fact: "Esta edição",
+    },
+    {
+      name: "add-artist",
+      path: `/pt/studio/catalog/add/artist/${FIXTURE.inkQuartet}`,
+      heading: "[Test] Ink Quartet",
+      fact: "Ordenado como",
+    },
+    { name: "albums", path: "/pt/studio/albums", heading: "Álbuns" },
+    { name: "album", path: albumPath, heading: names.album },
+    {
+      name: "album-new",
+      path: "/pt/studio/albums/new",
+      heading: "Adicionar um álbum",
+    },
+    { name: "album-artwork", path: `${albumPath}/artwork`, heading: "Capa" },
+    { name: "tracks", path: "/pt/studio/tracks", heading: "Faixas" },
+    { name: "track", path: trackPath, heading: names.track },
+    {
+      name: "track-new",
+      path: "/pt/studio/tracks/new",
+      heading: "Adicionar uma faixa",
+    },
+    { name: "journals", path: "/pt/studio/journals", heading: "Diários" },
+    { name: "journal", path: journalPath, heading: names.album },
+    {
+      name: "journal-edit",
+      path: `${journalPath}/edit`,
+      heading: names.album,
+    },
+    {
+      name: "journal-new",
+      path: "/pt/studio/journals/new",
+      heading: "Escrever um diário",
+    },
+    {
+      name: "deleted",
+      path: "/pt/studio/journals/deleted",
+      heading: "Excluídos recentemente",
+    },
+    { name: "memories", path: "/pt/studio/memories", heading: "Memórias" },
+    { name: "memory", path: memoryPath, heading: "Editar uma memória" },
+    {
+      name: "memory-new",
+      path: "/pt/studio/memories/new",
+      heading: "Escrever uma memória",
+    },
+  ];
+  expect(pages).toHaveLength(26);
   for (const width of WIDTHS) {
     await page.setViewportSize({ width, height: 900 });
-    for (const [name, path] of pages) {
+    for (const { name, path, heading, fact } of pages) {
       const response = await page.goto(path);
       expect(response?.status(), path).toBe(200);
       await settled(page);
       await expect(page.locator("html")).toHaveAttribute("lang", "pt-BR");
+      // The page itself, not a panel saying a provider could not be reached.
+      await expect(
+        page.getByRole("heading", { level: 1, name: literal(heading) }),
+        path,
+      ).toBeVisible();
+      if (fact) {
+        await expect(
+          page.getByRole("main").getByText(fact, { exact: false }).first(),
+          path,
+        ).toBeVisible();
+      }
+      await expect(page.getByText(/Não deu para acessar/), path).toHaveCount(0);
       await expectNoHorizontalOverflow(page);
       // No button's words are cut off.
       const cut = await page.evaluate(() =>

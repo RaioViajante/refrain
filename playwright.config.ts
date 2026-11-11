@@ -190,7 +190,10 @@ export default defineConfig({
         viewport: { width: 1280, height: 900 },
         storageState: AUTH_FILE,
       },
-      dependencies: ["setup"],
+      // After the English Studio's own projects, whose first memory test needs
+      // a database with no memory yet: this one leaves its records until the
+      // teardown.
+      dependencies: ["setup", "desktop"],
     },
     {
       // The public pages in Brazilian Portuguese (ADR 0008), anonymous, from
