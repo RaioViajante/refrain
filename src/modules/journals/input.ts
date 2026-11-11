@@ -163,9 +163,10 @@ export const journalId = z.uuid();
 // list of recordings from the catalog. It has no rating and no favourite, and
 // it never touches an album journal or its track reflections.
 //
-// Owner decisions for M3.6: a memory is written in English (the studio's only
-// implemented writing language for memories; nothing is translated), and the
-// recording list holds catalog recordings only (`memory_music.track_id`).
+// Owner decisions for M3.6: the recording list holds catalog recordings only
+// (`memory_music.track_id`). M3.6 also limited a memory to English; by the
+// owner's decision of 2026-11-10 (ADR 0008 § 10) a memory may be written
+// originally in English or Brazilian Portuguese. Nothing is translated.
 
 export const MAX_MEMORY_TITLE_LENGTH = 200;
 export const MAX_REMEMBERED_WHEN_LENGTH = 200;
@@ -207,8 +208,10 @@ const recordingIds = z
   });
 
 export const createMemoryInput = z.object({
-  // English only in M3.6 (owner decision). Recorded as the original language.
-  locale: z.literal("en").optional().default("en"),
+  // The language the memory is written in (ADR 0008 § 10), validated against
+  // the existing enum. Recorded once as the original language and never
+  // converted. Left out, it is English, as before.
+  locale: z.enum(locales).optional().default("en"),
   title: memoryTitle,
   rememberedWhen: rememberedWhen.optional().transform((value) => value ?? null),
   body: body.optional().transform((value) => value ?? ""),
