@@ -2265,6 +2265,122 @@ describe("publishing from the studio, through real HTTP and PostgreSQL", () => {
     expect(quiet.confirmation).toBeNull();
   });
 
+  it("asks before a removal only in the interface: a direct call cannot pass a change through a removal, a token, or a stale editor (issue #54)", async () => {
+    const entryId = await written("removal");
+    ok(await publish(entryId, (await preview(entryId)).confirmation));
+    const save = (fields: Record<string, unknown>) =>
+      call(
+        "saveJournalAction",
+        [{ entryId, expectedVersion: fields.expectedVersion, ...fields }],
+        { cookie: cookie(), routeId: entryId },
+      );
+    const version = await versionOf(entryId);
+    const unflag = {
+      reflections: [{ trackId: ids.track, isPublished: false }],
+    };
+    const edit = { body: `${label} removal body, edited.` };
+    let before = await snapshot();
+
+    // A change bundled with a removal still needs its confirmation, and
+    // without one nothing of the save is written, not even the removal.
+    expect(
+      await save({
+        expectedVersion: version,
+        ...edit,
+        ...unflag,
+        albumRating: null,
+      }),
+    ).toEqual({ ok: false, code: "confirmation_required" });
+    expect(await snapshot()).toEqual(before);
+
+    // A token is bound to the exact change it was issued for: a different
+    // edit presented with it is refused.
+    const shown = ok(
+      await call(
+        "previewPublicChangeAction",
+        [{ entryId, expectedVersion: version, ...edit }],
+        { cookie: cookie(), routeId: entryId },
+      ),
+    );
+    expect(
+      await save({
+        expectedVersion: version,
+        body: `${label} another edit.`,
+        confirmation: shown.confirmation,
+      }),
+    ).toEqual({ ok: false, code: "confirmation_stale" });
+    expect(await snapshot()).toEqual(before);
+
+    // An editor that showed nothing published (another tab published it
+    // since) is refused in the save and in the preview: nothing is written,
+    // and the studio refreshes before it asks.
+    for (const stale of [[], ["en", "pt-BR"]]) {
+      expect(
+        await save({
+          expectedVersion: version,
+          ...unflag,
+          expectedPublished: stale,
+        }),
+      ).toEqual({ ok: false, code: "status_changed" });
+      expect(
+        await call(
+          "previewPublicChangeAction",
+          [
+            {
+              entryId,
+              expectedVersion: version,
+              ...unflag,
+              expectedPublished: stale,
+            },
+          ],
+          { cookie: cookie(), routeId: entryId },
+        ),
+      ).toEqual({ ok: false, code: "status_changed" });
+    }
+    expect(
+      await save({
+        expectedVersion: version,
+        ...unflag,
+        expectedPublished: "en",
+      }),
+    ).toMatchObject({ ok: false, code: "invalid_input" });
+    expect(await snapshot()).toEqual(before);
+
+    // An editor that shows it published names the removal; the author
+    // confirmed it in the interface, and the save needs no token.
+    const removed = ok(
+      await save({
+        expectedVersion: version,
+        ...unflag,
+        albumRating: null,
+        expectedPublished: ["en"],
+      }),
+    );
+    expect(removed.version).toBe(version + 1);
+    expect(
+      await scalar<boolean>(
+        "select is_published from track_reflections where album_journal_id = $1",
+        [entryId],
+      ),
+    ).toBe(false);
+    expect(
+      await scalar<number | null>(
+        "select rating_half_steps from album_journals where entry_id = $1",
+        [entryId],
+      ),
+    ).toBeNull();
+    before = await snapshot();
+    // The spent token is refused for the edit it was issued for.
+    expect(
+      await save({
+        expectedVersion: version + 1,
+        ...edit,
+        confirmation: shown.confirmation,
+      }),
+    ).toMatchObject({ ok: false });
+    expect(await snapshot()).toEqual(before);
+  });
+
   it("refuses a token made for the other operation, and previews of a journal in Recently deleted", async () => {
     // A publish token cannot save, and a change token cannot publish.
     const live2 = await written("purposes live");

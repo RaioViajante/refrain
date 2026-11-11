@@ -32,8 +32,10 @@ export type ParsedSave = z.output<typeof saveAlbumJournalInput>;
 /**
  * Validates a save against the stored rows, and returns what it would change
  * in the form the Publication module weighs. Nothing is written. Throws
- * `entry_not_found`, `unsupported_content`, `track_not_in_album`, or
- * `track_archived`, in that order of the save's own fields.
+ * `status_changed` (the editor showed other published versions than the
+ * journal has now), then `entry_not_found`, `unsupported_content`,
+ * `track_not_in_album`, or `track_archived`, in that order of the save's own
+ * fields.
  *
  * Works inside the locked save and inside the preview's read-only snapshot, so
  * the two refuse exactly the same requests.
@@ -44,6 +46,26 @@ export async function prepareChange(
   journal: { albumId: string },
 ): Promise<ProposedChange> {
   const change: ProposedChange = {};
+
+  if (data.expectedPublished !== undefined) {
+    // Only which versions are published matters here: it is what decides
+    // whether a removal takes something away from a reader. A version moving
+    // between draft and private does not refuse the save.
+    const rows = await tx
+      .select({ locale: schema.entryTexts.locale })
+      .from(schema.entryTexts)
+      .where(
+        and(
+          eq(schema.entryTexts.entryId, data.entryId),
+          eq(schema.entryTexts.status, "published"),
+        ),
+      );
+    const now = new Set(rows.map((row) => row.locale));
+    const shown = new Set(data.expectedPublished);
+    if (now.size !== shown.size || [...now].some((one) => !shown.has(one))) {
+      throw new JournalError("status_changed");
+    }
+  }
 
   if (data.opening !== undefined || data.body !== undefined) {
     const [stored] = await tx

@@ -117,6 +117,17 @@ export const saveAlbumJournalInput = z
         (list) =>
           new Set(list.map((item) => item.trackId)).size === list.length,
       ),
+    // The language versions the author's editor showed as published (issue
+    // #54). When it is given and the journal's published versions are no
+    // longer exactly these (another tab published or unpublished one), the
+    // save, and its preview, are refused as `status_changed`: a removal from
+    // a public page needs no token, and the interface must ask first (ADR
+    // 0006 § 5), which an editor that believes nothing is public cannot do.
+    // The same guard as a memory's `expectedStatus` (M3.7).
+    expectedPublished: z
+      .array(z.enum(locales))
+      .max(locales.length)
+      .refine((list) => new Set(list).size === list.length),
     // Needed only when the save changes what a reader sees of a public
     // journal. It comes from the confirmation dialog and nowhere else.
     confirmation: z
@@ -129,6 +140,7 @@ export const saveAlbumJournalInput = z
     body: true,
     albumRating: true,
     reflections: true,
+    expectedPublished: true,
     confirmation: true,
   })
   .refine(
