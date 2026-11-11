@@ -229,8 +229,13 @@ function localizedViolations(
       statement.body.statements.length === 1 &&
       ts.isReturnStatement(statement.body.statements[0]!)
     ) {
-      const returned = (statement.body.statements[0] as ts.ReturnStatement)
+      // A formatter may wrap a long element in parentheses; they change
+      // nothing.
+      let returned = (statement.body.statements[0] as ts.ReturnStatement)
         .expression;
+      while (returned && ts.isParenthesizedExpression(returned)) {
+        returned = returned.expression;
+      }
       const modifiers = (statement.modifiers ?? []).map((m) => m.kind);
       const exported = modifiers.includes(ts.SyntaxKind.ExportKeyword);
       const isDefault = modifiers.includes(ts.SyntaxKind.DefaultKeyword);
@@ -251,10 +256,7 @@ function localizedViolations(
         page = true;
         continue;
       }
-      const inner =
-        returned && ts.isParenthesizedExpression(returned)
-          ? returned.expression
-          : returned;
+      const inner = returned;
       if (
         exported &&
         isDefault &&
