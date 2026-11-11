@@ -540,6 +540,20 @@ test("a change that only takes something away asks first, names it, and Cancel w
     body_text: shown,
   });
 
+  // Text the server stores nothing for (a control character and a zero-width
+  // one) is a removal too: the editor asks the server's own question.
+  await field.fill("\u0001\u200B");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(removal.getByRole("listitem")).toHaveText([
+    `Reflection on the track · ${names.tracks[0]} · English`,
+  ]);
+  await removal.getByRole("button", { name: "Cancel" }).click();
+  await expect(removal).toBeHidden();
+  expect((await reflections())[0]).toMatchObject({
+    is_published: true,
+    body_text: shown,
+  });
+
   // Unflagging the reflection is the same removal, named once; confirming
   // saves it, without any token.
   await field.fill(shown);

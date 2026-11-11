@@ -1,18 +1,18 @@
 import type { TrackDraft } from "@/app/studio/journals/track-by-track";
 import type { TrackByTrackItem } from "@/modules/journals";
+import { isBlankText } from "@/validation";
 
 type Language = "en" | "pt-BR";
 
 const LANGUAGES: readonly Language[] = ["en", "pt-BR"];
 
 /**
- * What the server treats as no text (src/modules/journals/input.ts): only
- * white space and invisible characters. Such a text is removed, not saved.
+ * Whether the server would store text for this: the same test it applies
+ * (`isBlankText`: control characters removed, then white space and invisible
+ * characters only is blank). Such a text is removed, not saved.
  */
-const INVISIBLE_ONLY = /^[\p{White_Space}​-‍⁠﻿]*$/u;
-
 function filled(text: string): boolean {
-  return !INVISIBLE_ONLY.test(text);
+  return !isBlankText(text);
 }
 
 /** One thing a save would take away from what readers see. */

@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { locales } from "@/db";
 import { MAX_CONFIRMATION_TOKEN_LENGTH } from "@/modules/identity";
-import { cleanText } from "@/validation";
+import { cleanText, INVISIBLE_ONLY } from "@/validation";
 
 import { normalizeBodyText } from "./body";
 
@@ -54,10 +54,6 @@ export type CreateAlbumJournalInput = z.input<typeof createAlbumJournalInput>;
 // shorter than a whole-album reflection, and a blank text removes it.
 export const MAX_REFLECTION_LENGTH = 20_000;
 export const MAX_REFLECTIONS_PER_SAVE = 500;
-
-// Unicode white space only, and the zero-width characters that render as
-// nothing, is blank (ADR 0006 § 4, step 6): a text row always means text.
-const INVISIBLE_ONLY = /^[\p{White_Space}\u200B-\u200D\u2060\uFEFF]*$/u;
 
 const reflectionText = z
   .string()

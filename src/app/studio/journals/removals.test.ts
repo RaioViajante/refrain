@@ -95,7 +95,14 @@ describe("what a save takes away from a published album journal", () => {
   });
 
   it("names a cleared text, and blank or invisible text counts as cleared", () => {
-    for (const text of ["", "   \n", "​ "]) {
+    for (const text of [
+      "",
+      "   \n",
+      "\u200B\u00A0",
+      "\u0001",
+      "\u007F",
+      "\u0001\u200B",
+    ]) {
       expect(
         removals({
           sent: { albumRating: null, drafts: { [ONE]: { ...shown, text } } },
