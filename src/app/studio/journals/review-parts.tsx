@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import type { JournalRemoval } from "@/app/studio/journals/removals";
 import { useStudio } from "@/app/studio/studio-locale";
 import type { StudioDictionary } from "@/i18n/studio";
 import type { ReviewedValue, ReviewText } from "@/modules/journals";
@@ -45,6 +46,29 @@ export function changePlace(
   return key
     ? { text: t.review.places[key], lang: ui }
     : { text: label, lang: "en" };
+}
+
+/**
+ * One thing a save takes away from readers (issue #54), in the words the
+ * change review uses for the same place: the album rating, or a track's
+ * reflection with its track and language. The language's name is marked in
+ * the language it is written in: its own name in the English Studio
+ * ("Português (Brasil)"), Portuguese words in the Portuguese one. A track
+ * title's language is not known, so it is not marked.
+ */
+export function RemovalView({ removal }: { removal: JournalRemoval }) {
+  const { locale: ui, words: t } = useStudio();
+  if (removal.kind === "albumRating") {
+    return <>{t.review.places.albumRating}</>;
+  }
+  return (
+    <>
+      {t.review.places.trackText} · {removal.title} ·{" "}
+      <span lang={ui === "en" ? removal.locale : ui}>
+        {t.languageInSentence[removal.locale]}
+      </span>
+    </>
+  );
 }
 
 export function starsInWords(

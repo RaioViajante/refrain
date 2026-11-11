@@ -32,6 +32,7 @@ import {
   type TrackDraft,
 } from "@/app/studio/journals/track-by-track";
 import { ChangeDialog } from "@/app/studio/journals/change-dialog";
+import { RemovalView } from "@/app/studio/journals/review-parts";
 import {
   journalRemovals,
   type JournalRemoval,
@@ -39,7 +40,6 @@ import {
 import { problemWith } from "@/app/studio/messages";
 import { StatusMark } from "@/app/studio/status-mark";
 import { useStudio } from "@/app/studio/studio-locale";
-import type { StudioDictionary } from "@/i18n/studio";
 import type { TrackByTrackItem, VisibilityStatus } from "@/modules/journals";
 
 type Language = "en" | "pt-BR";
@@ -57,25 +57,11 @@ function wordCount(text: string): number {
   return text.trim() === "" ? 0 : text.trim().split(/\s+/).length;
 }
 
-/**
- * One removal in the words the change review uses for the same place: the
- * album rating, or a track's reflection with its track and language.
- */
-function removalWords(t: StudioDictionary, removal: JournalRemoval): string {
-  return removal.kind === "albumRating"
-    ? t.review.places.albumRating
-    : [
-        t.review.places.trackText,
-        removal.title,
-        t.languageInSentence[removal.locale],
-      ].join(" · ");
-}
-
 /** A save waiting for the author, and what it would take away from readers. */
 interface Waiting {
   payload: Record<string, unknown>;
   sent: Snapshot;
-  removals: string[];
+  removals: JournalRemoval[];
 }
 
 interface JournalEditorProps {
@@ -313,7 +299,7 @@ export function JournalEditor({
           tracks,
           base: { albumRating: base.albumRating, drafts: baseDrafts },
           sent,
-        }).map((item) => removalWords(t, item));
+        });
         clearFailure();
         setReview({ payload, sent, removals });
         return;
@@ -559,7 +545,9 @@ export function JournalEditor({
           <p>{w.removalBody}</p>
           <ul className="studio-review-list">
             {removal?.removals.map((item, index) => (
-              <li key={index}>{item}</li>
+              <li key={index}>
+                <RemovalView removal={item} />
+              </li>
             ))}
           </ul>
         </div>
