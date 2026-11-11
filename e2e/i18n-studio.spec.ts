@@ -10,6 +10,7 @@ import {
   named,
   withDatabase,
 } from "./support";
+import { removeMusicFixtureRecords } from "@/testing/music-records";
 import { FIXTURE } from "@/testing/provider-fixtures";
 import { PHOTO } from "@/testing/wikimedia-fixtures";
 
@@ -25,6 +26,23 @@ import { PHOTO } from "@/testing/wikimedia-fixtures";
 // E2E_SCREENSHOTS=1, to visual-review/i18n-studio/ (ignored by Git).
 
 test.describe.configure({ mode: "serial" });
+
+// The album added from the synthetic MusicBrainz fixtures leaves no record
+// behind, as in the English music tests.
+test.beforeAll(() => withDatabase(removeMusicFixtureRecords));
+test.afterAll(() => withDatabase(removeMusicFixtureRecords));
+
+const TEST_IMAGE = `<svg xmlns="http://www.w3.org/2000/svg" width="500" height="500"><rect width="500" height="500" fill="#2a6f4f"/></svg>`;
+
+async function serveCovers(page: Page) {
+  await page.route("https://coverartarchive.org/**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "image/svg+xml",
+      body: TEST_IMAGE,
+    }),
+  );
+}
 
 const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 const WIDTHS = [320, 360, 390, 768, 1440];
@@ -42,6 +60,7 @@ let journalPath = "";
 let memoryPath = "";
 let trackPath = "";
 let artistPath = "";
+let importedAlbumPath = "";
 
 function literal(text: string): RegExp {
   return new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
@@ -500,10 +519,28 @@ test("signs in and out in Portuguese, staying in Portuguese, with no callback pa
   await context.close();
 });
 
+test("adds an album from MusicBrainz in Portuguese, after its review", async ({
+  page,
+}) => {
+  await serveCovers(page);
+  await page.goto(`/pt/studio/catalog/add/release/${FIXTURE.firstPressing}`);
+  await expect(
+    page.getByRole("heading", { level: 1, name: "[Test] Paper Moon" }),
+  ).toBeVisible();
+  await expect(page.getByText("Revise o que será adicionado")).toBeVisible();
+  await page.getByRole("button", { name: "Adicionar ao catálogo" }).click();
+  await page.waitForURL(/\/pt\/studio\/albums\/[0-9a-f-]{36}$/);
+  importedAlbumPath = new URL(page.url()).pathname;
+  await expect(
+    page.getByRole("list", { name: "Lista de faixas" }).getByRole("listitem"),
+  ).toHaveCount(3);
+});
+
 test("every Portuguese Studio page fits 320 to 1440 px, its selector too, with no axe violation", async ({
   page,
 }) => {
   test.setTimeout(600_000);
+  await serveCovers(page);
   // Each page with the heading it must show and, for a page whose data comes
   // from a provider, a fact of the synthetic fixture: a page that only
   // rendered its error panel, also a 200, would not pass.
@@ -559,7 +596,13 @@ test("every Portuguese Studio page fits 320 to 1440 px, its selector too, with n
       path: "/pt/studio/albums/new",
       heading: "Adicionar um álbum",
     },
-    { name: "album-artwork", path: `${albumPath}/artwork`, heading: "Capa" },
+    {
+      // A linked album, so the page shows the archive's covers.
+      name: "album-artwork",
+      path: `${importedAlbumPath}/artwork`,
+      heading: "Capa",
+      fact: "Capas frontais",
+    },
     { name: "tracks", path: "/pt/studio/tracks", heading: "Faixas" },
     { name: "track", path: trackPath, heading: names.track },
     {
