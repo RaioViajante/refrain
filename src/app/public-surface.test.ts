@@ -618,6 +618,10 @@ describe("the public surface", () => {
       "/pt/albums",
       "/pt/artists",
       "/pt/memories",
+      // The Portuguese Studio, only so that its encoded prefix is refused
+      // (PR 3); a literal address goes back to the framework.
+      "/pt/studio",
+      "/pt/studio/:path*",
       // Trailing-slash addresses, for the no-store 308 (ADR 0006, A2).
       "/:path+/",
     ]);
