@@ -1,6 +1,6 @@
 # Product
 
-**Status:** the product definition is approved, and it describes the intended product. Most of it is built and runs locally; [Roadmap](roadmap.md) records what is merged. **Described here and not built:** artist journals, writing an author's translation, the Desk's search and filters, preview, "Delete now", and the Writing Studio in Portuguese. The public pages are in English and Brazilian Portuguese, at `/` and `/pt`, with the language selector in the footer; the Writing Studio is English only until its localization ([ADR 0008](decisions/0008-interface-localization.md)). Rules marked **(ADR 0002)** come from the accepted domain decisions in [ADR 0002](decisions/0002-domain-model-decisions.md).
+**Status:** the product definition is approved, and it describes the intended product. Most of it is built and runs locally; [Roadmap](roadmap.md) records what is merged. **Described here and not built:** artist journals, writing an author's translation, the Desk's search and filters, preview, and "Delete now". The public pages are in English and Brazilian Portuguese, at `/` and `/pt`, and so is the Writing Studio, at `/studio` and `/pt/studio`, each with the language selector in the footer; a memory may be written originally in either language ([ADR 0008](decisions/0008-interface-localization.md)). Rules marked **(ADR 0002)** come from the accepted domain decisions in [ADR 0002](decisions/0002-domain-model-decisions.md).
 
 ## Purpose
 
