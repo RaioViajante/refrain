@@ -86,11 +86,19 @@ export function MemoryRows({
               >
                 {t.common.edit}
               </Link>
-              <StatusMark locale={locale} status={memory.status} />
+              <StatusMark
+                locale={locale}
+                status={memory.status}
+                subject="memory"
+              />
             </span>
           ) : (
             <span className="studio-entry-end">
-              <StatusMark locale={locale} status={memory.status} />
+              <StatusMark
+                locale={locale}
+                status={memory.status}
+                subject="memory"
+              />
               <span className="studio-meta">
                 {t.journals.rowDates(
                   formatDate(locale, memory.createdAt),

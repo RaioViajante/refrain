@@ -110,6 +110,12 @@ export const studioPtBR: StudioDictionary = {
     private: "Privado",
     published: "Publicado",
   },
+  // "Memória" is feminine.
+  memoryStatus: {
+    draft: "Rascunho",
+    private: "Privada",
+    published: "Publicada",
+  },
   fields: {
     required: "Este campo é obrigatório.",
     tooLong: "Isto está longo demais.",
@@ -567,7 +573,8 @@ export const studioPtBR: StudioDictionary = {
     movedUp: (title: string) => `“${title}” foi para cima.`,
     moveDown: (title: string) => `Mover “${title}” para baixo`,
     movedDown: (title: string) => `“${title}” foi para baixo.`,
-    removeLabel: (title: string) => `Tirar “${title}” deste álbum`,
+    // Begins with the button's visible word (WCAG 2.5.3).
+    removeLabel: (title: string) => `Remover “${title}” deste álbum`,
     remove: "Remover",
     hasReflection:
       "Há uma reflexão escrita sobre esta faixa, então ela continua no álbum.",
@@ -849,7 +856,7 @@ export const studioPtBR: StudioDictionary = {
     version: (language: string, isOriginal: boolean, status: string) =>
       `${language}${isOriginal ? " (original)" : " (sua tradução)"}, ${status}`,
     noTranslation:
-      ". Você não escreveu uma tradução, e nada é traduzido por você.",
+      ". Você não escreveu uma tradução, e nada é traduzido para você.",
     deletedLabel: "Excluído: ",
     deletedYes: "sim, em Excluídos recentemente",
     deletedNo: "não",
@@ -897,7 +904,7 @@ export const studioPtBR: StudioDictionary = {
     writtenInLanguage: (language: "en" | "pt-BR") =>
       `Escrito em ${language === "en" ? "inglês" : "português (Brasil)"}`,
     languageNote:
-      "O idioma em que você escreve este diário. Ele fica registrado com o diário, e nada é traduzido por você.",
+      "O idioma em que você escreve este diário. Ele fica registrado com o diário, e nada é traduzido para você.",
     createNote:
       "Um diário novo começa como um rascunho privado. Nada aqui é publicado.",
     editNote: "Salvar nunca muda quem pode ver este diário.",
@@ -1185,9 +1192,9 @@ export const studioPtBR: StudioDictionary = {
     artists: "Artistas, a partir da música",
     noArtists: "Nenhum ainda. Eles vêm das músicas que você adicionar.",
     languageHint:
-      "O idioma em que você escreve esta memória. Ele fica registrado com a memória, e nada é traduzido por você.",
+      "O idioma em que você escreve esta memória. Ele fica registrado com a memória, e nada é traduzido para você.",
     languageFixed:
-      "O idioma em que ela foi escrita. Nada é traduzido por você.",
+      "O idioma em que ela foi escrita. Nada é traduzido para você.",
     createNote:
       "Uma memória nova começa como um rascunho privado. Nada aqui é publicado.",
     removalQuestion: "Tirar isto da memória publicada?",

@@ -129,7 +129,11 @@ async function Track({ params, locale }: Props) {
                     {memory.title}
                   </Link>
                 </span>
-                <StatusMark locale={locale} status={memory.status} />
+                <StatusMark
+                  locale={locale}
+                  status={memory.status}
+                  subject="memory"
+                />
               </li>
             ))}
           </ul>

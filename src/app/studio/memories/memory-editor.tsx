@@ -291,7 +291,7 @@ export function MemoryEditor({
           <span className="studio-crumb-current">
             {create ? w.newMemory : t.memories.kind}
           </span>
-          <StatusMark locale={ui} status={status} />
+          <StatusMark locale={ui} status={status} subject="memory" />
         </div>
         <div className="studio-editorbar-end">
           <FormStatus
@@ -375,12 +375,13 @@ export function MemoryEditor({
             </p>
           </section>
 
-          <section aria-labelledby="memory-language" className="space-y-1">
+          <section
+            aria-labelledby={create ? undefined : "memory-language"}
+            className="space-y-1"
+          >
             {create ? (
               <>
-                <h2 id="memory-language" className="studio-sr-only">
-                  {t.editor.writtenIn}
-                </h2>
+                {/* The select's own label names the choice. */}
                 <SelectField
                   label={t.editor.writtenIn}
                   value={locale}

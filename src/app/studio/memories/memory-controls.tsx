@@ -139,7 +139,7 @@ export function MemoryControls({
                 }
               }}
             >
-              {t.status.draft}
+              {t.memoryStatus.draft}
             </button>
             <button
               type="button"
@@ -153,7 +153,7 @@ export function MemoryControls({
                 }
               }}
             >
-              {t.status.private}
+              {t.memoryStatus.private}
             </button>
             <button
               type="button"

@@ -113,6 +113,12 @@ export const studioEn = {
     private: "Private",
     published: "Published",
   },
+  /** A memory's status, where the language agrees with the noun. */
+  memoryStatus: {
+    draft: "Draft",
+    private: "Private",
+    published: "Published",
+  },
   fields: {
     required: "This is required.",
     tooLong: "This is too long.",

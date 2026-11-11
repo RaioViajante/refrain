@@ -134,6 +134,39 @@ describe("an encoded spelling of the Portuguese Studio's prefix", () => {
       expect(comparable(signedIn)).toEqual(comparable(anonymous));
     },
   );
+
+  it.each([
+    ["the router's request", "/%70t/studio", { rsc: true }],
+    [
+      "a prefetch",
+      "/%70t/studio/journals",
+      {
+        rsc: true,
+        headers: { "next-router-prefetch": "1", cookie: "" },
+      },
+    ],
+    ["a transport file", "/%70t/studio.rsc", {}],
+    ["a segment file", "/%70t/studio.segments/_tree.segment.rsc", {}],
+    ["HEAD", "/%70t/studio", { method: "HEAD" }],
+    ["POST", "/p%74/studio/sign-in", { method: "POST" }],
+  ] as const)(
+    "is never a Studio page in %s either: a 404, never stored, never a redirect",
+    async (_form, path, init) => {
+      for (const extra of [{}, { cookie }]) {
+        const answer = await request(base, path, {
+          ...init,
+          headers: { ...("headers" in init ? init.headers : {}), ...extra },
+        });
+        expect(answer.status, path).toBe(404);
+        expect(answer.headers["location"], path).toBeUndefined();
+        expect(answer.headers["cache-control"], path).toMatch(/no-store/);
+        expect(answer.headers["cache-control"], path).not.toMatch(
+          /s-maxage|public/,
+        );
+        expect(answer.body, path).not.toContain("studio-header");
+      }
+    },
+  );
 });
 
 describe("a Studio record that does not exist", () => {

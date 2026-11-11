@@ -9,14 +9,18 @@ import type { VisibilityStatus } from "@/modules/journals";
 export function StatusMark({
   locale,
   status,
+  subject = "journal",
 }: {
   locale: InterfaceLocale;
   status: VisibilityStatus;
+  /** What it is the status of: the word agrees with it. */
+  subject?: "journal" | "memory";
 }) {
+  const words = studioWords(locale);
   return (
     <span className="studio-status">
       <span className="studio-status-mark" data-status={status} aria-hidden />
-      {studioWords(locale).status[status]}
+      {subject === "memory" ? words.memoryStatus[status] : words.status[status]}
     </span>
   );
 }

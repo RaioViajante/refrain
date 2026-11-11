@@ -150,7 +150,7 @@ function DeletedMemory({
         {memory.title}
       </h1>
       <p className="studio-meta">
-        <StatusMark locale={locale} status={memory.status} />
+        <StatusMark locale={locale} status={memory.status} subject="memory" />
         {w.deletedFacts(memory.wordCount, deletedOn)}
       </p>
 

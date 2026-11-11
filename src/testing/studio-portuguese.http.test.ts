@@ -23,9 +23,11 @@ import {
   removeMintedSessions,
   type MintedSession,
 } from "@/testing/http-session";
+import { FIXTURE } from "@/testing/provider-fixtures";
 import { request, visibleText } from "@/testing/public-http";
 import { fixtureDatabase } from "@/testing/public-journals";
 import { assertDisposableTestDatabase } from "@/testing/test-database";
+import { PHOTO } from "@/testing/wikimedia-fixtures";
 import { studioEn } from "@/i18n/studio/en";
 import { studioPtBR } from "@/i18n/studio/pt-BR";
 
@@ -116,6 +118,8 @@ function studioPages(): {
   path: string;
   title: keyof typeof studioEn.meta;
   marker?: string;
+  /** Where the selector leads, when it is not this page without its query. */
+  pair?: string;
 }[] {
   return [
     { path: "/studio", title: "studio", marker: MARKERS.album },
@@ -123,6 +127,26 @@ function studioPages(): {
     { path: "/studio/catalog/add", title: "addMusic" },
     { path: "/studio/artists", title: "artists", marker: MARKERS.artist },
     { path: "/studio/artists/new", title: "newArtist" },
+    { path: `/studio/artists/${ids.artistId}/photo`, title: "photo" },
+    {
+      path: `/studio/artists/${ids.artistId}/photo/review?file=${PHOTO.onStage}`,
+      title: "photoReview",
+      // A review needs its file, which the selector never copies from the
+      // query: it leads to the artist's photograph page instead.
+      pair: `/studio/artists/${ids.artistId}/photo`,
+    },
+    {
+      path: `/studio/catalog/add/album/${FIXTURE.paperMoon}`,
+      title: "chooseEdition",
+    },
+    {
+      path: `/studio/catalog/add/release/${FIXTURE.firstPressing}`,
+      title: "reviewBeforeAdding",
+    },
+    {
+      path: `/studio/catalog/add/artist/${FIXTURE.inkQuartet}`,
+      title: "reviewBeforeAdding",
+    },
     {
       path: `/studio/artists/${ids.artistId}`,
       title: "artist",
@@ -130,6 +154,7 @@ function studioPages(): {
     },
     { path: "/studio/albums", title: "albums", marker: MARKERS.album },
     { path: "/studio/albums/new", title: "newAlbum" },
+    { path: `/studio/albums/${ids.albumId}/artwork`, title: "artwork" },
     {
       path: `/studio/albums/${ids.albumId}`,
       title: "album",
@@ -176,7 +201,7 @@ function selectorLinks(body: string): string[] {
 
 describe("each Portuguese Studio page, for the author", () => {
   it("is in Portuguese, with the author's own data, its title, and the selector's pair", async () => {
-    for (const { path, title: key, marker } of studioPages()) {
+    for (const { path, title: key, marker, pair } of studioPages()) {
       const pt = await request(base, `/pt${path}`, {
         headers: { cookie: author.cookie },
       });
@@ -196,22 +221,23 @@ describe("each Portuguese Studio page, for the author", () => {
         expect(pt.body, where).toContain(marker);
       }
       // The selector links to this page in each language, and nowhere else.
+      const route = pair ?? path.split("?")[0]!;
       expect(selectorLinks(pt.body).sort(), where).toEqual(
-        [path, `/pt${path}`].sort(),
+        [route, `/pt${route}`].sort(),
       );
       // Every link inside the Studio keeps its language.
       const studioLinks = [
         ...pt.body.matchAll(/href="(\/(?:pt\/)?studio[^"]*)"/g),
       ].map((match) => match[1]!);
       const english = studioLinks.filter(
-        (href) => href.startsWith("/studio") && href !== path,
+        (href) => href.startsWith("/studio") && href !== route,
       );
       expect(english, where).toEqual([]);
     }
   }, 120_000);
 
   it("is the same data as its English form, said in English there", async () => {
-    for (const { path, title: key, marker } of studioPages()) {
+    for (const { path, title: key, marker, pair } of studioPages()) {
       const en = await request(base, path, {
         headers: { cookie: author.cookie },
       });
@@ -224,8 +250,9 @@ describe("each Portuguese Studio page, for the author", () => {
       if (marker) {
         expect(en.body, path).toContain(marker);
       }
+      const route = pair ?? path.split("?")[0]!;
       expect(selectorLinks(en.body).sort(), path).toEqual(
-        [path, `/pt${path}`].sort(),
+        [route, `/pt${route}`].sort(),
       );
     }
   }, 120_000);
@@ -368,6 +395,38 @@ describe("a Server Action called from either tree", () => {
       code: body.match(/"code":"([a-z_]+)"/)?.[1],
     };
   }
+
+  it("is the same entry for every Studio action, used by both trees alike", async () => {
+    // Every Server Action the Studio uses, from the build's manifest: each is
+    // one id, bound to the English and the Portuguese form of the same pages,
+    // so studio-actions.http.test.ts, which calls every action, holds both.
+    const manifest = JSON.parse(
+      readFileSync(".next/server/server-reference-manifest.json", "utf8"),
+    ) as {
+      node: Record<
+        string,
+        { workers: Record<string, unknown>; exportedName: string }
+      >;
+    };
+    const studio = Object.values(manifest.node).filter((entry) =>
+      Object.keys(entry.workers).some((page) =>
+        /^app\/(\(en\)\/|pt\/)studio/.test(page),
+      ),
+    );
+    expect(studio.length).toBeGreaterThan(30);
+    for (const entry of studio) {
+      const pages = Object.keys(entry.workers);
+      const english = pages
+        .filter((page) => page.startsWith("app/(en)/studio"))
+        .map((page) => page.slice("app/(en)".length))
+        .sort();
+      const portuguese = pages
+        .filter((page) => page.startsWith("app/pt/studio"))
+        .map((page) => page.slice("app/pt".length))
+        .sort();
+      expect(portuguese, entry.exportedName).toEqual(english);
+    }
+  });
 
   it("is one action: the same id, the same refusal codes, and nothing written", async () => {
     const { en, pt } = actionRoutes("createArtistAction");
