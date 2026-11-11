@@ -622,6 +622,11 @@ describe("the public surface", () => {
       // (PR 3); a literal address goes back to the framework.
       "/pt/studio",
       "/pt/studio/:path*",
+      // The English Studio, only so that an encoded spelling of its name
+      // (`/%73tudio`) is refused; a literal address goes back to the
+      // framework.
+      "/studio",
+      "/studio/:path*",
       // Trailing-slash addresses, for the no-store 308 (ADR 0006, A2).
       "/:path+/",
     ]);
