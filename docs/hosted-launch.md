@@ -140,7 +140,7 @@ From [#47](https://github.com/RaioViajante/refrain/issues/47) and [Security § P
 | Deployment gate item 6: album covers | Covers built for local use | The owner's recorded rights review (Cover Art Archive, MusicBrainz terms, attribution, removal, CSP, privacy notice), **or covers cleared** before public pages show them | — |
 | Deployment gate item 7: artist photographs | Built, with licence and attribution | The per-photograph licence review, the removal channel, the privacy notice, `img-src` against the real host, **or photographs cleared** | — |
 | #44 | — | The public album journal readable without JavaScript | — |
-| #54 (ADR 0006 § 5) | The memory editor asks first (M3.7) | The album-journal editor must ask before a save unflags a reflection, clears a reflection text, or clears a rating of a published journal. The owner rejected the current behaviour as an exception: **required before any hosted launch** ([Security](security.md#public-page-release-gates)). Issue #54 reads as closed because a documentation commit closed it automatically; the requirement is **still open** | — |
+| #54 (ADR 0006 § 5) | The memory editor asks first (M3.7); **the album-journal editor asks first on the issue's branch, until merged** | The album-journal editor must ask before a save unflags a reflection, clears a reflection text, or clears a rating of a published journal. The owner rejected the old behaviour as an exception: **required before any hosted launch** ([Security](security.md#public-page-release-gates)). The issue is closed by the owner once its pull request is merged | — |
 | #69 | — | The intermittent browser failure in `publication.spec.ts` explained (CI reliability for every launch PR) | — |
 
 **Domain preparation (S1, S2) closes no gate.** It provides the hosted configuration that G1, G2, and G5 must be tested on.
@@ -159,7 +159,7 @@ Each is its own reviewed PR, with tests, before S4. None changes production when
 3. **G8 catalog wording:** the owner's choice between a confirmation for catalog edits that change public wording, and an independently verified alternative (for example, refusing such edits while a page is public).
 4. **G3 inventory and the G4 ADR**, then whatever G4 decides, through `/refrain-db-change`.
 5. **Covers and photographs** (items 6 and 7): the owner's rights review, or clear them for the first public release.
-6. **#54** (closed automatically by a documentation commit, and still open as a requirement), the album-journal editor asks before a removal from a published journal (required before any hosted launch); **#44**, readable without JavaScript; and **#69**, the intermittent CI failure.
+6. **#54**, the album-journal editor asks before a removal from a published journal (required before any hosted launch; fixed on its branch, until merged); **#44**, readable without JavaScript; and **#69**, the intermittent CI failure.
 7. **Backups (G6)**, through #65.
 
 Deliberately **not** proposed:
