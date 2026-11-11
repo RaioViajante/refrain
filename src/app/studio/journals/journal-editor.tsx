@@ -12,6 +12,7 @@ import {
 } from "react";
 
 import {
+  ConfirmDialog,
   FormStatus,
   SelectField,
   TextAreaField,
@@ -31,9 +32,14 @@ import {
   type TrackDraft,
 } from "@/app/studio/journals/track-by-track";
 import { ChangeDialog } from "@/app/studio/journals/change-dialog";
+import {
+  journalRemovals,
+  type JournalRemoval,
+} from "@/app/studio/journals/removals";
 import { problemWith } from "@/app/studio/messages";
 import { StatusMark } from "@/app/studio/status-mark";
 import { useStudio } from "@/app/studio/studio-locale";
+import type { StudioDictionary } from "@/i18n/studio";
 import type { TrackByTrackItem, VisibilityStatus } from "@/modules/journals";
 
 type Language = "en" | "pt-BR";
@@ -51,6 +57,27 @@ function wordCount(text: string): number {
   return text.trim() === "" ? 0 : text.trim().split(/\s+/).length;
 }
 
+/**
+ * One removal in the words the change review uses for the same place: the
+ * album rating, or a track's reflection with its track and language.
+ */
+function removalWords(t: StudioDictionary, removal: JournalRemoval): string {
+  return removal.kind === "albumRating"
+    ? t.review.places.albumRating
+    : [
+        t.review.places.trackText,
+        removal.title,
+        t.languageInSentence[removal.locale],
+      ].join(" · ");
+}
+
+/** A save waiting for the author, and what it would take away from readers. */
+interface Waiting {
+  payload: Record<string, unknown>;
+  sent: Snapshot;
+  removals: string[];
+}
+
 interface JournalEditorProps {
   /** Writing a new journal about this album. */
   create?: { albumId: string };
@@ -62,10 +89,12 @@ interface JournalEditorProps {
     /** The journal's visibility, shown beside the save state. */
     status: VisibilityStatus;
     /**
-     * Whether any language version is published. A save then asks the server
-     * what would change for readers before it writes anything.
+     * The language versions that are published. When there is any, a save
+     * first asks the server what would change for readers, and asks the
+     * author before it takes anything away from them (issue #54). The save
+     * carries this list, so a stale tab is refused instead of writing.
      */
-    anyPublished: boolean;
+    published: Language[];
   };
   initial: { opening: string; body: string };
   /**
@@ -131,9 +160,10 @@ export function JournalEditor({
   const { pending, failure, run, clearFailure, report } = useSubmission();
   // A save waiting for the author's confirmation of what readers would see.
   // The change dialog owns the confirmation token; this holds only the save.
-  const [review, setReview] = useState<
-    { payload: Record<string, unknown>; sent: Snapshot } | undefined
-  >();
+  const [review, setReview] = useState<Waiting | undefined>();
+  // A save that only takes something away from a published page needs no
+  // token, but the interface asks first (ADR 0006 § 5; issue #54).
+  const [removal, setRemoval] = useState<Waiting | undefined>();
   // Stops a second save from starting before React has re-rendered.
   const saving = useRef(false);
 
@@ -192,13 +222,18 @@ export function JournalEditor({
         result.code === "confirmation_invalid")
     ) {
       clearFailure();
-      setReview({ payload, sent });
+      setReview({ payload, sent, removals: [] });
+    }
+    if (result.code === "status_changed") {
+      // Another tab published or unpublished a version: show how it stands
+      // now. The text stays in the editor, and the next save asks.
+      router.refresh();
     }
   }
 
   async function save(event?: FormEvent) {
     event?.preventDefault();
-    if (pending || created || review || saving.current) {
+    if (pending || created || review || removal || saving.current) {
       return;
     }
     saving.current = true;
@@ -217,6 +252,10 @@ export function JournalEditor({
         entryId: edit.entryId,
         expectedVersion: version,
       };
+      // Which versions this editor showed as published: if another tab
+      // changed that, the save is refused and the page refreshed, so nothing
+      // is taken away from readers without asking.
+      const shownPublished = edit.published;
       if (opening !== base.opening) {
         payload.opening = opening;
       }
@@ -257,17 +296,26 @@ export function JournalEditor({
         setSaved(true);
         return;
       }
+      payload.expectedPublished = shownPublished;
       const sent = {
         opening,
         body,
         albumRating,
         drafts: currentDrafts,
       };
-      if (edit.anyPublished) {
+      if (shownPublished.length > 0) {
         // Something is public: ask what would change for readers before
-        // anything is written. The dialog saves only if the author confirms.
+        // anything is written, and name what the save takes away from them.
+        // The dialogs save only if the author confirms.
+        const removals = journalRemovals({
+          published: shownPublished,
+          editing: edit.locale,
+          tracks,
+          base: { albumRating: base.albumRating, drafts: baseDrafts },
+          sent,
+        }).map((item) => removalWords(t, item));
         clearFailure();
-        setReview({ payload, sent });
+        setReview({ payload, sent, removals });
         return;
       }
       await commit(payload, sent);
@@ -373,7 +421,7 @@ export function JournalEditor({
           <button
             type="submit"
             className={`studio-button ${dirty ? "studio-button-primary" : ""}`}
-            disabled={pending || review !== undefined}
+            disabled={pending || review !== undefined || removal !== undefined}
           >
             {create ? w.saveDraft : w.save}
           </button>
@@ -386,7 +434,7 @@ export function JournalEditor({
         <p className="studio-panel" role="note">
           {w.published}
         </p>
-      ) : edit?.anyPublished ? (
+      ) : edit && edit.published.length > 0 ? (
         <p className="studio-panel" role="note">
           {w.otherPublished}
         </p>
@@ -462,6 +510,7 @@ export function JournalEditor({
 
       <ChangeDialog
         payload={review?.payload}
+        removals={review?.removals ?? []}
         onSaved={(next) => {
           if (review) {
             adopt(next, review.sent);
@@ -471,16 +520,50 @@ export function JournalEditor({
         onNothingToConfirm={() => {
           const waiting = review;
           setReview(undefined);
-          if (waiting) {
+          if (!waiting) {
+            return;
+          }
+          // Nothing a reader sees is added or changed. If the save takes
+          // something away, the author is asked first; otherwise it saves.
+          if (waiting.removals.length > 0) {
+            setRemoval(waiting);
+          } else {
             void commit(waiting.payload, waiting.sent, true);
           }
         }}
         onRefused={(refused) => {
           setReview(undefined);
           report(refused);
+          if (refused.code === "status_changed") {
+            router.refresh();
+          }
         }}
         onCancel={() => setReview(undefined)}
       />
+
+      <ConfirmDialog
+        open={removal !== undefined}
+        title={w.removalQuestion}
+        confirmLabel={w.removalConfirm}
+        pending={pending}
+        onConfirm={() => {
+          const waiting = removal;
+          setRemoval(undefined);
+          if (waiting) {
+            void commit(waiting.payload, waiting.sent, true);
+          }
+        }}
+        onCancel={() => setRemoval(undefined)}
+      >
+        <div className="space-y-3">
+          <p>{w.removalBody}</p>
+          <ul className="studio-review-list">
+            {removal?.removals.map((item, index) => (
+              <li key={index}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      </ConfirmDialog>
     </form>
   );
 }

@@ -123,9 +123,9 @@ async function EditJournal({ params, locale }: Props) {
           version: journal.version,
           locale: journal.locale,
           status: journal.status,
-          anyPublished: journal.versions.some(
-            (version) => version.status === "published",
-          ),
+          published: journal.versions
+            .filter((version) => version.status === "published")
+            .map((version) => version.locale),
         }}
         initial={{ opening: journal.opening ?? "", body: journal.body }}
         tracks={trackByTrack?.tracks ?? []}

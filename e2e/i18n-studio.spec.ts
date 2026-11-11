@@ -360,6 +360,85 @@ test("asks before a change to the published writing, and saves only on confirmat
   ).toBeVisible();
 });
 
+test("asks before taking something away from the published Portuguese writing, in Portuguese (issue #54)", async ({
+  page,
+}) => {
+  const state = () =>
+    withDatabase(async (client) => {
+      const result = await client.query<{
+        rating_half_steps: number | null;
+        is_published: boolean;
+      }>(
+        `select j.rating_half_steps, tr.is_published
+           from albums a
+           join album_journals j on j.album_id = a.id
+           join track_reflections tr on tr.album_journal_id = j.entry_id
+          where a.title = $1`,
+        [names.album],
+      );
+      return result.rows[0]!;
+    });
+  expect(await state()).toEqual({ rating_half_steps: 9, is_published: true });
+
+  await page.goto(`${journalPath}/edit`);
+  await expect(page.locator("form[data-editor-ready]")).toBeAttached();
+  await page
+    .getByRole("group", { name: /Sua nota para o álbum/ })
+    .getByRole("button", { name: "Limpar" })
+    .click();
+  await page.getByRole("button", { name: literal(names.track) }).click();
+  await page.getByLabel("Incluir ao publicar").uncheck();
+  await page.getByRole("button", { name: "Salvar", exact: true }).click();
+  const removal = page.getByRole("dialog", {
+    name: "Tirar isto do diário publicado?",
+  });
+  await expect(removal.getByRole("listitem")).toHaveText([
+    "Sua nota para o álbum",
+    `Reflexão sobre a faixa · ${names.track} · português (Brasil)`,
+  ]);
+  await expect(removal).toContainText("Cancelar deixa o seu texto no editor.");
+  await expect(
+    page.getByRole("dialog", { name: "Atualizar o texto publicado?" }),
+  ).toHaveCount(0);
+  // The dialog at every width the Studio is checked at, in Portuguese.
+  const viewport = page.viewportSize()!;
+  for (const width of [320, 360, 390, 768, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(removal).toBeVisible();
+    await expectTouchTarget(
+      removal.getByRole("button", { name: "Salvar e tirar" }),
+    );
+    await expectTouchTarget(removal.getByRole("button", { name: "Cancelar" }));
+    await expectNoHorizontalOverflow(page);
+    if (width === 320 || width === 1440) {
+      await scan(page, `the Portuguese removal dialog at ${width} px`);
+    }
+    await shot(page, "removal-dialog");
+  }
+  await page.setViewportSize(viewport);
+
+  // Cancelar writes nothing and keeps the edits.
+  await removal.getByRole("button", { name: "Cancelar" }).click();
+  await expect(removal).toBeHidden();
+  await expect(page.getByLabel("Incluir ao publicar")).not.toBeChecked();
+  expect(await state()).toEqual({ rating_half_steps: 9, is_published: true });
+
+  await page.getByRole("button", { name: "Salvar", exact: true }).click();
+  await removal.getByRole("button", { name: "Salvar e tirar" }).click();
+  await expect(removal).toBeHidden();
+  await expect(
+    page.getByText("Salvo agora").filter({ visible: true }),
+  ).toBeVisible();
+  expect(await state()).toEqual({
+    rating_half_steps: null,
+    is_published: false,
+  });
+  // Only the Portuguese version exists, still published.
+  expect(await versionsOf(names.album, "album")).toEqual([
+    { locale: "pt-BR", status: "published", is_original: true },
+  ]);
+});
+
 test("moves the journal to Recently deleted and restores it as private, in Portuguese", async ({
   page,
 }) => {

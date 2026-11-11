@@ -302,11 +302,16 @@ test("a published journal asks before a change to the public page, and keeps the
   await expect(text).toHaveValue("[Test] E2E A shorter text.");
   expect(await journalRow()).toEqual(before);
 
-  // A change that exposes nothing is saved: a reflection that is not set to
-  // show.
+  // A change that exposes nothing needs no token, but taking a public
+  // reflection away from readers asks first (issue #54), and then saves.
   await text.fill(reflection);
   await page.getByLabel("Include when published").uncheck();
   await save(page);
+  const removal = page.getByRole("dialog", {
+    name: "Take this away from the published journal?",
+  });
+  await expect(removal).toContainText("Reflection on the track");
+  await removal.getByRole("button", { name: "Save and take it away" }).click();
   await expect(page.getByText("Saved just now")).toBeVisible();
   expect((await stored())[0]!.is_published).toBe(false);
 });
