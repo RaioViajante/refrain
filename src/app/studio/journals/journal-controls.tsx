@@ -13,9 +13,9 @@ import {
   setJournalPrivacyAction,
 } from "@/app/studio/journals/actions";
 import { PublishDialog } from "@/app/studio/journals/publish-dialog";
-import { LANGUAGE_NAMES } from "@/app/studio/journals/review-parts";
-import { failureMessage, PUBLIC_PAGE_NOTE } from "@/app/studio/messages";
+import { failureMessage } from "@/app/studio/messages";
 import { StatusMark } from "@/app/studio/status-mark";
+import { useStudio } from "@/app/studio/studio-locale";
 import type { VisibilityStatus } from "@/modules/journals";
 
 type PrivateStatus = "draft" | "private";
@@ -43,6 +43,9 @@ export function JournalControls({
   versions: VersionState[];
 }) {
   const router = useRouter();
+  const { locale: ui, words: t, href } = useStudio();
+  const w = t.visibility;
+  const names = t.languageInSentence;
   const { pending, failure, run, clearFailure } = useSubmission();
   const [asking, setAsking] = useState<
     | { kind: "unpublish"; locale: Language }
@@ -76,9 +79,7 @@ export function JournalControls({
       router.refresh();
     }
     if (result.ok) {
-      setMessage(
-        `${LANGUAGE_NAMES[locale]}: ${next === "private" ? "now private." : "back to a draft."}`,
-      );
+      setMessage(w.statusSet(names[locale], next));
       router.refresh();
     }
   }
@@ -98,9 +99,7 @@ export function JournalControls({
       router.refresh();
     }
     if (result.ok) {
-      setMessage(
-        `The ${LANGUAGE_NAMES[locale]} version is no longer published. It is ${after === "private" ? "private" : "a draft"} now. Nothing was deleted.`,
-      );
+      setMessage(w.unpublished(names[locale], after));
       router.refresh();
     }
   }
@@ -123,9 +122,7 @@ export function JournalControls({
   function published(locale: Language | undefined) {
     setAsking(undefined);
     if (locale) {
-      setMessage(
-        `The ${LANGUAGE_NAMES[locale]} version is now published in your journal. ${PUBLIC_PAGE_NOTE}`,
-      );
+      setMessage(w.published(names[locale], t.publicPageNote));
     }
     router.refresh();
   }
@@ -134,7 +131,7 @@ export function JournalControls({
     const result = await run(() => deleteJournalAction(entryId));
     setAsking(undefined);
     if (result.ok) {
-      router.push("/studio/journals");
+      router.push(href("/studio/journals"));
     }
   }
 
@@ -144,8 +141,8 @@ export function JournalControls({
   return (
     <div className="space-y-5">
       {versions.map((version) => {
-        const name = LANGUAGE_NAMES[version.locale];
-        const heading = `Visibility · ${name}${version.isOriginal ? " (original)" : ""}`;
+        const name = names[version.locale];
+        const heading = w.heading(name, version.isOriginal);
         return (
           <section
             key={version.locale}
@@ -160,7 +157,7 @@ export function JournalControls({
               {heading}
             </p>
             <p className="studio-meta">
-              <StatusMark status={version.status} />
+              <StatusMark locale={ui} status={version.status} />
             </p>
             {version.status === "published" ? (
               <>
@@ -176,12 +173,11 @@ export function JournalControls({
                       setAsking({ kind: "unpublish", locale: version.locale });
                     }}
                   >
-                    Unpublish…
+                    {w.unpublish}
                   </button>
                 </div>
                 <p className="studio-hint" style={{ maxWidth: "52ch" }}>
-                  Published means this version is marked as published in your
-                  records. {PUBLIC_PAGE_NOTE}
+                  {w.publishedHint(t.publicPageNote)}
                 </p>
               </>
             ) : (
@@ -189,7 +185,7 @@ export function JournalControls({
                 <div
                   className="studio-actions"
                   role="group"
-                  aria-label={`Private state of the ${name} version`}
+                  aria-label={w.privateState(name)}
                 >
                   <button
                     type="button"
@@ -201,7 +197,7 @@ export function JournalControls({
                       void setStatus(version.locale, "draft");
                     }}
                   >
-                    Draft
+                    {t.status.draft}
                   </button>
                   <button
                     type="button"
@@ -213,7 +209,7 @@ export function JournalControls({
                       void setStatus(version.locale, "private");
                     }}
                   >
-                    Private
+                    {t.status.private}
                   </button>
                   <button
                     type="button"
@@ -225,13 +221,11 @@ export function JournalControls({
                       setAsking({ kind: "publish", locale: version.locale });
                     }}
                   >
-                    Publish…
+                    {w.publish}
                   </button>
                 </div>
                 <p className="studio-hint" style={{ maxWidth: "52ch" }}>
-                  A draft is still being written; private is finished for now.
-                  Both are only yours. Publish… shows you exactly what will be
-                  published before anything changes.
+                  {w.privateHint}
                 </p>
               </>
             )}
@@ -261,7 +255,7 @@ export function JournalControls({
           >
             <path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5M7 7v4M9 7v4" />
           </svg>
-          Move to Recently deleted…
+          {w.remove}
         </button>
       </div>
 
@@ -270,7 +264,7 @@ export function JournalControls({
         className={failure ? "studio-problem" : "studio-hint"}
         style={{ maxWidth: "62ch" }}
       >
-        {failure ? failureMessage(failure) : message}
+        {failure ? failureMessage(t, failure) : message}
       </p>
 
       <PublishDialog
@@ -283,27 +277,21 @@ export function JournalControls({
 
       <ConfirmDialog
         open={unpublishing !== undefined}
-        title={`Unpublish the ${unpublishing ? LANGUAGE_NAMES[unpublishing] : ""} version?`}
-        confirmLabel="Unpublish"
+        title={w.unpublishQuestion(unpublishing ? names[unpublishing] : "")}
+        confirmLabel={w.unpublishConfirm}
         pending={pending}
         onConfirm={() => unpublishing && unpublish(unpublishing)}
         onCancel={() => setAsking(undefined)}
       >
         <div className="space-y-3">
-          <p>
-            This version will no longer be marked as published. Nothing is
-            deleted: your writing, the track reflections, and the address stay
-            as they are, and other language versions are not touched. You can
-            publish it again later; that will show you what would be published
-            first.
-          </p>
+          <p>{w.unpublishBody}</p>
           <SelectField
-            label="After unpublishing, it is"
+            label={w.after}
             value={after}
             onChange={(value) => setAfter(value as PrivateStatus)}
             options={[
-              { value: "private", label: "Private (finished for now)" },
-              { value: "draft", label: "A draft (still being written)" },
+              { value: "private", label: w.afterPrivate },
+              { value: "draft", label: w.afterDraft },
             ]}
           />
         </div>
@@ -311,19 +299,13 @@ export function JournalControls({
 
       <ConfirmDialog
         open={asking?.kind === "delete"}
-        title="Move this journal to Recently deleted?"
-        confirmLabel="Move to Recently deleted"
+        title={w.removeQuestion}
+        confirmLabel={w.removeConfirm}
         pending={pending}
         onConfirm={remove}
         onCancel={() => setAsking(undefined)}
       >
-        <p>
-          This does not erase the writing. It stays in your database, and
-          nothing removes it automatically. The journal leaves your lists, and
-          it cannot be edited while it is in Recently deleted. You can restore
-          it from there; permanent deletion is not offered yet. Albums, artists
-          and tracks stay in your catalog.
-        </p>
+        <p>{w.removeBody}</p>
       </ConfirmDialog>
     </div>
   );

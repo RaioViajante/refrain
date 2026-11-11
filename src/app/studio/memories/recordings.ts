@@ -1,4 +1,5 @@
 import { formatDuration } from "@/app/studio/format";
+import type { StudioDictionary } from "@/i18n/studio";
 
 // Pure helpers for a memory's recording list (M3.6). Presentation only: the
 // facts come from the catalog as they are, and nothing is inferred.
@@ -20,19 +21,23 @@ export interface Recording {
  * length, each only when the catalog has it. Two recordings with one title are
  * told apart by these facts, never by an invented one.
  */
-export function recordingFacts(recording: Recording): string {
-  const facts = ["Song"];
+export function recordingFacts(
+  t: StudioDictionary,
+  recording: Recording,
+): string {
+  const w = t.recording;
+  const facts = [w.song];
   if (recording.artists.length > 0) {
     facts.push(recording.artists.map((artist) => artist.name).join(", "));
   }
   if (recording.albums.length > 0) {
-    facts.push(`on ${recording.albums.join(", ")}`);
+    facts.push(w.on(recording.albums.join(", ")));
   }
   if (recording.lengthMs !== null) {
     facts.push(formatDuration(recording.lengthMs));
   }
   if (recording.archived) {
-    facts.push("archived in your catalog");
+    facts.push(w.archived);
   }
   return facts.join(" · ");
 }

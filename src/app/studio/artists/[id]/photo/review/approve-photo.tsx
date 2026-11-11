@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { setArtistPhotoAction } from "@/app/studio/artists/actions";
 import { useSubmission } from "@/app/studio/form-kit";
 import { failureMessage } from "@/app/studio/messages";
+import { useStudio } from "@/app/studio/studio-locale";
 
 // The explicit choice of a reviewed photograph (M3.3). It sends the review's
 // fingerprint and the photograph on file when the review was opened; the
@@ -28,6 +29,8 @@ export function ApprovePhoto({
   cancelHref: string;
 }) {
   const router = useRouter();
+  const { words, href } = useStudio();
+  const w = words.approvePhoto;
   const { pending, failure, run, clearFailure } = useSubmission();
 
   async function approve() {
@@ -36,18 +39,14 @@ export function ApprovePhoto({
       setArtistPhotoAction({ artistId, file, review, expectedPhoto }),
     );
     if (result.ok) {
-      router.push(`/studio/artists/${artistId}`);
+      router.push(href(`/studio/artists/${artistId}`));
       router.refresh();
     }
   }
 
   return (
-    <section aria-label="Your choice" className="space-y-3">
-      {replacing ? (
-        <p className="studio-hint">
-          It replaces the photograph on file, with its credit.
-        </p>
-      ) : null}
+    <section aria-label={w.label} className="space-y-3">
+      {replacing ? <p className="studio-hint">{w.replaces}</p> : null}
       <div className="studio-actions">
         <button
           type="button"
@@ -55,10 +54,10 @@ export function ApprovePhoto({
           disabled={pending}
           onClick={() => void approve()}
         >
-          {replacing ? "Use this photograph instead" : "Use this photograph"}
+          {replacing ? w.useInstead : w.use}
         </button>
         <Link href={cancelHref} className="studio-button">
-          Cancel
+          {words.common.cancel}
         </Link>
       </div>
       <p
@@ -66,7 +65,11 @@ export function ApprovePhoto({
         className={failure ? "studio-problem" : "studio-hint"}
         style={{ maxWidth: "62ch" }}
       >
-        {pending ? "Saving…" : failure ? failureMessage(failure) : ""}
+        {pending
+          ? words.common.saving
+          : failure
+            ? failureMessage(words, failure)
+            : ""}
       </p>
     </section>
   );

@@ -1626,13 +1626,125 @@ html:has(.studio-editorbar[data-mode="edit"]) {
   background: var(--stroke-rule) 0 0 / 100% 100% no-repeat;
 }
 
-.studio-footer p {
-  padding: 30px 0 44px;
+.studio-footer > p {
+  padding: 30px 0 6px;
   text-align: center;
   font-family: var(--font-kalam), cursive;
   font-size: 21px;
   line-height: 1.4;
   color: #2a2a2a;
+}
+
+/* The language selector (ADR 0008 § 6), the V4.4 `.ft4 .lb`, `.lmenu`, and
+   `.lopt`, as on the public pages: under the closing line, centered, with no
+   flag. A native disclosure over real links; its menu opens upward over the
+   button, in the drawn dialog frame. */
+.studio-language-keys {
+  display: flex;
+  justify-content: center;
+  padding-bottom: 34px;
+}
+
+.studio-language {
+  position: relative;
+  display: inline-block;
+}
+
+.studio-language-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 6px;
+  font-family: var(--font-alegreya-sans), sans-serif;
+  font-size: 17px;
+  color: var(--color-ink);
+  cursor: pointer;
+  list-style: none;
+}
+
+.studio-language-button::-webkit-details-marker {
+  display: none;
+}
+
+.studio-language-button:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 2px;
+}
+
+.studio-language-arrow {
+  transition: transform 0.25s ease;
+}
+
+.studio-language[open] .studio-language-arrow {
+  transform: rotate(180deg);
+}
+
+.studio-language-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  z-index: 5;
+  width: 250px;
+  padding: 10px 0 12px;
+  text-align: left;
+  background: var(--color-paper) var(--stroke-dialog) 0 0 / 100% 100% no-repeat;
+  transform: translateX(-50%);
+}
+
+.studio-language-options {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.studio-language-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  min-height: 44px;
+  padding: 9px 22px;
+  font-family: var(--font-alegreya-sans), sans-serif;
+  font-size: 17.5px;
+  color: #444444;
+  text-decoration: none;
+}
+
+.studio-language-option:hover {
+  color: var(--color-ink);
+  background: var(--color-hover);
+}
+
+.studio-language-option[aria-current="page"] {
+  font-weight: 650;
+  color: var(--color-ink);
+}
+
+.studio-language-option:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: -4px;
+}
+
+.studio-language-tick {
+  display: inline-flex;
+}
+
+.studio-language-tick[data-current="false"] {
+  opacity: 0;
+}
+
+.studio-language-note {
+  margin: 6px 22px 0;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--color-ink-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studio-language-arrow {
+    transition: none;
+  }
 }
 
 /* ---------- Forced colors (Windows high contrast) ----------
@@ -1692,6 +1804,11 @@ html:has(.studio-editorbar[data-mode="edit"]) {
     background-image: none;
     border-top: 1px solid GrayText;
     height: 0;
+  }
+
+  .studio-language-menu {
+    background-image: none;
+    border: 1px solid CanvasText;
   }
 
   .studio-nav a,

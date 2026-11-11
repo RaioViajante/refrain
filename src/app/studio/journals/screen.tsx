@@ -5,11 +5,13 @@ import { Suspense } from "react";
 
 import { accessDenied } from "@/app/studio/access";
 import { AlbumThumb } from "@/app/studio/artwork-placeholder";
-import { formatDate, plural } from "@/app/studio/format";
 import { StudioFrame } from "@/app/studio/frame";
 import { Icon } from "@/app/studio/icons";
 import { StudioLoading } from "@/app/studio/studio-loading";
 import { StatusMark } from "@/app/studio/status-mark";
+import { studio, type StudioSpeech } from "@/app/studio/studio-words";
+import { formatDate } from "@/i18n/format";
+import type { InterfaceLocale } from "@/i18n/locales";
 import { listAlbumCovers, type AlbumCover } from "@/modules/catalog";
 import { authorizeAuthor } from "@/modules/identity";
 import {
@@ -20,21 +22,26 @@ import {
 } from "@/modules/journals";
 
 // A fixed title: a journal's words never reach page metadata.
-export const metadata: Metadata = { title: "Journals · refrain" };
+export function journalsMetadata(locale: InterfaceLocale): Metadata {
+  return { title: studio(locale).words.meta.journals };
+}
 
-export default function JournalsPage() {
+export function JournalsScreen({ locale }: { locale: InterfaceLocale }) {
   return (
-    <Suspense fallback={<StudioLoading />}>
-      <Journals />
+    <Suspense fallback={<StudioLoading locale={locale} />}>
+      <Journals locale={locale} />
     </Suspense>
   );
 }
 
-async function Journals() {
+async function Journals({ locale }: { locale: InterfaceLocale }) {
   const authorization = await authorizeAuthor(await headers());
   if (!authorization.ok) {
-    return accessDenied(authorization.reason);
+    return accessDenied(authorization.reason, locale);
   }
+  const speech = studio(locale);
+  const { words, href } = speech;
+  const w = words.journals;
   const { author } = authorization;
   const [journals, deleted, statistics, covers] = await Promise.all([
     listAlbumJournals(author),
@@ -44,54 +51,57 @@ async function Journals() {
   ]);
 
   return (
-    <StudioFrame current="journals">
-      <h1 className="studio-title">Journals</h1>
-      <p className="studio-lede">
-        What you write about the albums you love. An album can have as many
-        journals as you want, written over the years.
-      </p>
+    <StudioFrame locale={locale} path="/studio/journals" current="journals">
+      <h1 className="studio-title">{w.title}</h1>
+      <p className="studio-lede">{w.lead}</p>
       <p>
         <Link
-          href="/studio/journals/new"
+          href={href("/studio/journals/new")}
           className="studio-button studio-button-primary"
         >
           <Icon name="plus" />
-          Write a journal
+          {words.desk.writeJournal}
         </Link>
       </p>
 
       {journals.length === 0 && deleted.length === 0 ? (
         <div className="studio-panel">
-          <p className="studio-section-title">Nothing written yet</p>
-          <p>
-            Choose an album and start a journal. It begins as a draft that only
-            you can see, and it is saved only when you save it.
-          </p>
+          <p className="studio-section-title">{w.emptyTitle}</p>
+          <p>{w.emptyBody}</p>
         </div>
       ) : (
         <>
-          <p className="studio-meta" aria-label="Journal totals">
-            {plural(statistics.total, "journal")}: {statistics.draft}{" "}
-            {statistics.draft === 1 ? "draft" : "drafts"}, {statistics.private}{" "}
-            private, {statistics.published} published.
+          <p className="studio-meta" aria-label={w.totalsLabel}>
+            {words.desk.journalsSummary(
+              statistics.total,
+              statistics.draft,
+              statistics.private,
+              statistics.published,
+            )}
           </p>
-          <JournalList journals={journals} covers={covers} label="Journals" />
+          <JournalList
+            speech={speech}
+            journals={journals}
+            covers={covers}
+            label={w.listLabel}
+          />
         </>
       )}
 
       {deleted.length > 0 ? (
         <section aria-labelledby="recently-deleted">
           <h2 id="recently-deleted" className="studio-section-title">
-            Recently deleted ({deleted.length})
+            {words.desk.recentlyDeleted(deleted.length)}
           </h2>
           <p className="studio-hint" style={{ maxWidth: "62ch" }}>
-            Moved there, not erased: the writing stays in the database, and
-            nothing removes it automatically. You can restore a journal from
-            there; permanent deletion is not offered yet.
+            {w.deletedHint}
           </p>
           <p>
-            <Link href="/studio/journals/deleted" className="studio-button">
-              Open Recently deleted
+            <Link
+              href={href("/studio/journals/deleted")}
+              className="studio-button"
+            >
+              {w.openDeleted}
             </Link>
           </p>
         </section>
@@ -101,10 +111,12 @@ async function Journals() {
 }
 
 function JournalList({
+  speech: { locale, words, href },
   journals,
   covers,
   label,
 }: {
+  speech: StudioSpeech;
   journals: AlbumJournalSummary[];
   covers: Map<string, AlbumCover>;
   label: string;
@@ -119,7 +131,7 @@ function JournalList({
           <AlbumThumb artwork={covers.get(journal.albumId)} />
           <span className="studio-entry-body">
             <span className="studio-row-title">
-              <Link href={`/studio/journals/${journal.entryId}`}>
+              <Link href={href(`/studio/journals/${journal.entryId}`)}>
                 {journal.albumTitle}
               </Link>
             </span>
@@ -128,15 +140,17 @@ function JournalList({
               className="studio-excerpt"
               lang={journal.excerpt ? journal.locale : undefined}
             >
-              {journal.excerpt || "Nothing written yet"}
+              {journal.excerpt || words.album.nothingWritten}
             </span>
           </span>
           <span className="studio-entry-end">
-            <StatusMark status={journal.status} />
+            <StatusMark locale={locale} status={journal.status} />
             <span className="studio-meta">
-              started {formatDate(journal.createdAt)} · edited{" "}
-              {formatDate(journal.updatedAt)} ·{" "}
-              {plural(journal.wordCount, "word")}
+              {words.journals.rowDates(
+                formatDate(locale, journal.createdAt),
+                formatDate(locale, journal.updatedAt),
+                journal.wordCount,
+              )}
             </span>
           </span>
         </li>

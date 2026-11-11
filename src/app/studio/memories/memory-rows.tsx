@@ -1,17 +1,25 @@
 import Link from "next/link";
 
-import { formatDate, plural } from "@/app/studio/format";
 import { Icon } from "@/app/studio/icons";
 import { StatusMark } from "@/app/studio/status-mark";
+import { formatDate } from "@/i18n/format";
+import type { InterfaceLocale } from "@/i18n/locales";
+import { localizedHref } from "@/i18n/paths";
+import { studioWords, type StudioDictionary } from "@/i18n/studio";
 import type { MemorySummary } from "@/modules/journals";
 
 /** The songs of a memory on one line: the first few, then how many more. */
-export function songsLine(titles: readonly string[]): string {
+export function songsLine(
+  t: StudioDictionary,
+  titles: readonly string[],
+): string {
   if (titles.length === 0) {
-    return "No songs yet";
+    return t.memories.noSongs;
   }
   const shown = titles.slice(0, 3).join(", ");
-  return titles.length > 3 ? `${shown}, and ${titles.length - 3} more` : shown;
+  return titles.length > 3
+    ? t.memories.andMore(shown, titles.length - 3)
+    : shown;
 }
 
 /**
@@ -20,15 +28,19 @@ export function songsLine(titles: readonly string[]): string {
  * studio pages only.
  */
 export function MemoryRows({
+  locale,
   memories,
   label,
   compact,
 }: {
+  locale: InterfaceLocale;
   memories: MemorySummary[];
   label: string;
   /** The Desk's form: no preview, with an Edit link. */
   compact?: boolean;
 }) {
+  const t = studioWords(locale);
+  const href = (path: string) => localizedHref(locale, path);
   return (
     <ul className="studio-list" aria-label={label}>
       {memories.map((memory) => (
@@ -39,14 +51,14 @@ export function MemoryRows({
           <span className="studio-entry-body">
             <span className="studio-row-title">
               <Link
-                href={`/studio/memories/${memory.entryId}`}
+                href={href(`/studio/memories/${memory.entryId}`)}
                 lang={memory.locale}
               >
                 {memory.title}
               </Link>
             </span>
             <span className="studio-meta">
-              Memory
+              {t.memories.kind}
               {memory.rememberedWhen ? (
                 <>
                   {" · "}
@@ -54,35 +66,37 @@ export function MemoryRows({
                 </>
               ) : null}
               {" · "}
-              {songsLine(memory.recordingTitles)}
+              {songsLine(t, memory.recordingTitles)}
             </span>
             {compact ? null : (
               <span
                 className="studio-excerpt"
                 lang={memory.excerpt ? memory.locale : undefined}
               >
-                {memory.excerpt || "Nothing written yet"}
+                {memory.excerpt || t.album.nothingWritten}
               </span>
             )}
           </span>
           {compact ? (
             <span className="studio-entry-end studio-entry-end-row">
               <Link
-                href={`/studio/memories/${memory.entryId}`}
+                href={href(`/studio/memories/${memory.entryId}`)}
                 className="studio-link studio-meta studio-end-link"
-                aria-label={`Edit the memory ${memory.title}`}
+                aria-label={t.memories.editLabel(memory.title)}
               >
-                Edit
+                {t.common.edit}
               </Link>
-              <StatusMark status={memory.status} />
+              <StatusMark locale={locale} status={memory.status} />
             </span>
           ) : (
             <span className="studio-entry-end">
-              <StatusMark status={memory.status} />
+              <StatusMark locale={locale} status={memory.status} />
               <span className="studio-meta">
-                started {formatDate(memory.createdAt)} · edited{" "}
-                {formatDate(memory.updatedAt)} ·{" "}
-                {plural(memory.wordCount, "word")}
+                {t.journals.rowDates(
+                  formatDate(locale, memory.createdAt),
+                  formatDate(locale, memory.updatedAt),
+                  memory.wordCount,
+                )}
               </span>
             </span>
           )}

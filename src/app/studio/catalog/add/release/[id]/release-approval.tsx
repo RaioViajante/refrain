@@ -10,6 +10,7 @@ import {
 import { ArtworkPlaceholder } from "@/app/studio/artwork-placeholder";
 import { ConfirmDialog, useSubmission } from "@/app/studio/form-kit";
 import { failureMessage } from "@/app/studio/messages";
+import { useStudio } from "@/app/studio/studio-locale";
 
 // The author's explicit approval of a reviewed release (M3.2). Nothing is
 // written until "Add to catalog" is pressed, and what is sent is only the
@@ -36,6 +37,8 @@ export function ReleaseApproval({
   artworkUnavailable: boolean;
 }) {
   const router = useRouter();
+  const { locale, words, href } = useStudio();
+  const w = words.releaseApproval;
   const { pending, failure, run } = useSubmission();
   const [cover, setCover] = useState<string>("");
 
@@ -48,7 +51,7 @@ export function ReleaseApproval({
       }),
     );
     if (result.ok) {
-      router.push(`/studio/albums/${result.data.id}`);
+      router.push(href(`/studio/albums/${result.data.id}`));
     }
   }
 
@@ -56,26 +59,20 @@ export function ReleaseApproval({
     <>
       <section aria-labelledby="review-artwork" className="space-y-2">
         <h2 id="review-artwork" className="studio-section-title">
-          Artwork
+          {w.artwork}
         </h2>
         {artworkUnavailable ? (
           <p className="studio-hint" role="status">
-            The Cover Art Archive couldn’t be reached, so no artwork is offered
-            now. You can choose it later on the album’s page.
+            {w.artworkUnavailable}
           </p>
         ) : choices.length === 0 ? (
-          <p className="studio-hint">
-            The Cover Art Archive has no front cover for this edition. The album
-            will show “no artwork yet”.
-          </p>
+          <p className="studio-hint">{w.noFrontCover}</p>
         ) : (
           <fieldset className="studio-choice-group space-y-2">
-            <legend className="studio-hint">
-              Choose a front cover from the Cover Art Archive, or none.
-            </legend>
+            <legend className="studio-hint">{w.chooseCover}</legend>
             <ul className="studio-choices">
               <li className="studio-choice">
-                <ArtworkPlaceholder />
+                <ArtworkPlaceholder locale={locale} />
                 <label>
                   <input
                     type="radio"
@@ -84,14 +81,15 @@ export function ReleaseApproval({
                     checked={cover === ""}
                     onChange={() => setCover("")}
                   />
-                  No artwork
+                  {w.noArtwork}
                 </label>
               </li>
               {choices.map((choice, index) => (
                 <li key={choice.imageId} className="studio-choice">
                   <ArtworkPlaceholder
+                    locale={locale}
                     artwork={choice}
-                    title={`${title}, front cover ${index + 1}`}
+                    title={words.artworkPage.frontCoverOf(title, index + 1)}
                     size={220}
                   />
                   <label>
@@ -102,7 +100,7 @@ export function ReleaseApproval({
                       checked={cover === choice.imageId}
                       onChange={() => setCover(choice.imageId)}
                     />
-                    {`Front cover ${index + 1}`}
+                    {w.frontCover(index + 1)}
                   </label>
                 </li>
               ))}
@@ -119,7 +117,7 @@ export function ReleaseApproval({
             disabled={pending}
             onClick={approve}
           >
-            {pending ? "Adding…" : "Add to catalog"}
+            {pending ? w.adding : w.add}
           </button>
         </div>
         <p
@@ -127,9 +125,7 @@ export function ReleaseApproval({
           className={failure ? "studio-problem" : "studio-hint"}
           style={{ maxWidth: "62ch" }}
         >
-          {failure
-            ? failureMessage(failure)
-            : "Adds this album, its edition, its tracks, and any new artists. Nothing is published."}
+          {failure ? failureMessage(words, failure) : w.addHint}
         </p>
       </div>
     </>
@@ -149,6 +145,8 @@ export function LinkAlbumButton({
   review: string;
 }) {
   const router = useRouter();
+  const { words, href } = useStudio();
+  const w = words.releaseApproval;
   const { pending, failure, run, clearFailure } = useSubmission();
   const [asking, setAsking] = useState(false);
 
@@ -158,7 +156,7 @@ export function LinkAlbumButton({
     );
     setAsking(false);
     if (result.ok) {
-      router.push(`/studio/albums/${albumId}`);
+      router.push(href(`/studio/albums/${albumId}`));
     }
   }
 
@@ -173,27 +171,23 @@ export function LinkAlbumButton({
           setAsking(true);
         }}
       >
-        Link to this album
+        {w.link}
         <span className="studio-sr-only">{`: ${albumTitle}`}</span>
       </button>
       {failure ? (
         <p role="alert" className="studio-problem">
-          {failureMessage(failure)}
+          {failureMessage(words, failure)}
         </p>
       ) : null}
       <ConfirmDialog
         open={asking}
-        title={`Link “${albumTitle}” to MusicBrainz?`}
-        confirmLabel="Link"
+        title={w.linkQuestion(albumTitle)}
+        confirmLabel={w.linkConfirm}
         pending={pending}
         onConfirm={link}
         onCancel={() => setAsking(false)}
       >
-        <p>
-          This records which MusicBrainz album and edition it is, so artwork can
-          be chosen for it. Its title, credits, tracks, and artwork stay exactly
-          as they are, and a link that is already there is never replaced.
-        </p>
+        <p>{w.linkBody}</p>
       </ConfirmDialog>
     </>
   );

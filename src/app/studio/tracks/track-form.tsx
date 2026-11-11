@@ -13,6 +13,7 @@ import {
 } from "@/app/studio/form-kit";
 import { parseDuration } from "@/app/studio/format";
 import { problemWith } from "@/app/studio/messages";
+import { useStudio } from "@/app/studio/studio-locale";
 import {
   createTrackAction,
   updateTrackAction,
@@ -33,6 +34,8 @@ export function TrackForm({
   albumOptions?: { value: string; label: string }[];
 }) {
   const router = useRouter();
+  const { words, href } = useStudio();
+  const w = words.trackForm;
   const [values, setValues] = useState(initial);
   const [dirty, setDirty] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -56,7 +59,7 @@ export function TrackForm({
     event.preventDefault();
     const lengthMs = parseDuration(values.length);
     if (lengthMs === undefined) {
-      setLengthProblem("Write the length as minutes and seconds, like 3:42.");
+      setLengthProblem(words.tracklist.lengthProblem);
       return;
     }
     const fields = {
@@ -85,62 +88,62 @@ export function TrackForm({
     if (result.ok) {
       setDirty(false);
       setSaved(true);
-      router.push(`/studio/tracks/${result.data.id}`);
+      router.push(href(`/studio/tracks/${result.data.id}`));
     }
   }
 
   return (
     <form onSubmit={save} className="space-y-6 max-w-[620px]" noValidate>
       <TextField
-        label="Title"
+        label={w.title}
         value={values.title}
         onChange={(value) => change("title", value)}
         required
         maxLength={300}
-        problem={problemWith(failure, "title")}
+        problem={problemWith(words, failure, "title")}
       />
       <TextField
-        label="Length (optional)"
+        label={w.length}
         value={values.length}
         onChange={(value) => change("length", value)}
         maxLength={12}
         width="160px"
-        hint="Minutes and seconds, like 3:42."
-        problem={lengthProblem ?? problemWith(failure, "lengthMs")}
+        hint={w.lengthHint}
+        problem={lengthProblem ?? problemWith(words, failure, "lengthMs")}
       />
       <ArtistRows
-        legend="Credited artists (optional)"
+        legend={w.credits}
         rows={values.artists}
         onChange={(rows) => change("artists", rows)}
         options={artistOptions}
         minimum={0}
-        problem={problemWith(failure, "artistIds")}
-        emptyHint="No artist is credited. A track can stand on its own."
+        problem={problemWith(words, failure, "artistIds")}
+        emptyHint={w.noCredits}
       />
       <TextField
-        label="Credit note (optional)"
+        label={w.creditNote}
         value={values.credit}
         onChange={(value) => change("credit", value)}
         maxLength={300}
-        hint="Anything the credits say that an artist link doesn’t, like “feat. someone”."
-        problem={problemWith(failure, "credit")}
+        hint={w.creditNoteHint}
+        problem={problemWith(words, failure, "credit")}
       />
       <TextField
-        label="MusicBrainz recording ID (optional)"
+        label={w.mbRecordingId}
         value={values.mbRecordingId}
         onChange={(value) => change("mbRecordingId", value)}
         maxLength={36}
-        problem={problemWith(failure, "mbRecordingId")}
+        problem={problemWith(words, failure, "mbRecordingId")}
       />
       {albumOptions ? (
         <SelectField
-          label="Add to an album (optional)"
+          label={w.album}
           value={values.albumId}
           onChange={(value) => change("albumId", value)}
           options={albumOptions}
-          placeholder="Not on an album yet"
-          hint="It goes at the end of the album’s tracklist. A track can be on several albums; add the others from the album page."
-          problem={problemWith(failure, "albumId")}
+          placeholder={w.albumPlaceholder}
+          hint={w.albumHint}
+          problem={problemWith(words, failure, "albumId")}
         />
       ) : null}
       <div className="studio-actions">
@@ -149,7 +152,7 @@ export function TrackForm({
           className="studio-button studio-button-primary"
           disabled={pending}
         >
-          {trackId ? "Save track" : "Add track"}
+          {trackId ? w.save : w.add}
         </button>
         <FormStatus
           pending={pending}

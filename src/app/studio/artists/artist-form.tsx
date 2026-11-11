@@ -15,6 +15,7 @@ import {
   useUnsavedGuard,
 } from "@/app/studio/form-kit";
 import { problemWith } from "@/app/studio/messages";
+import { useStudio } from "@/app/studio/studio-locale";
 
 interface ArtistValues {
   name: string;
@@ -39,6 +40,8 @@ export function ArtistForm({
   initial?: ArtistValues;
 }) {
   const router = useRouter();
+  const { words, href } = useStudio();
+  const w = words.artistForm;
   const [values, setValues] = useState(initial);
   const [dirty, setDirty] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -69,45 +72,45 @@ export function ArtistForm({
     if (result.ok) {
       setDirty(false);
       setSaved(true);
-      router.push(`/studio/artists/${result.data.id}`);
+      router.push(href(`/studio/artists/${result.data.id}`));
     }
   }
 
   return (
     <form onSubmit={save} className="space-y-6 max-w-[560px]" noValidate>
       <TextField
-        label="Name"
+        label={w.name}
         value={values.name}
         onChange={(value) => change("name", value)}
         required
         maxLength={200}
-        problem={problemWith(failure, "name")}
+        problem={problemWith(words, failure, "name")}
       />
       <SelectField
-        label="Person or band"
+        label={w.kind}
         value={values.kind}
         onChange={(value) => change("kind", value as ArtistValues["kind"])}
         options={[
-          { value: "person", label: "A person" },
-          { value: "group", label: "A band or group" },
+          { value: "person", label: w.person },
+          { value: "group", label: w.group },
         ]}
-        problem={problemWith(failure, "kind")}
+        problem={problemWith(words, failure, "kind")}
       />
       <TextField
-        label="Sort name (optional)"
+        label={w.sortName}
         value={values.sortName}
         onChange={(value) => change("sortName", value)}
         maxLength={200}
-        hint="How to file the name in lists, for example “Buckley, Jeff”."
-        problem={problemWith(failure, "sortName")}
+        hint={w.sortNameHint}
+        problem={problemWith(words, failure, "sortName")}
       />
       <TextField
-        label="MusicBrainz artist ID (optional)"
+        label={w.mbArtistId}
         value={values.mbArtistId}
         onChange={(value) => change("mbArtistId", value)}
         maxLength={36}
-        hint="Filled in when you add or link this artist from Add music. Saving this form looks nothing up."
-        problem={problemWith(failure, "mbArtistId")}
+        hint={w.mbArtistIdHint}
+        problem={problemWith(words, failure, "mbArtistId")}
       />
       <div className="studio-actions">
         <button
@@ -115,7 +118,7 @@ export function ArtistForm({
           className="studio-button studio-button-primary"
           disabled={pending}
         >
-          {artistId ? "Save artist" : "Add artist"}
+          {artistId ? w.save : w.add}
         </button>
         <FormStatus
           pending={pending}

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import { studioEn } from "@/i18n/studio/en";
+import { studioPtBR } from "@/i18n/studio/pt-BR";
+
 import {
   derivedArtists,
   matchRecordings,
@@ -24,10 +27,28 @@ const singer = { id: "a1", name: "[Test] Sigur Rós" };
 const band = { id: "a2", name: "[Test] Band" };
 
 describe("recordingFacts", () => {
-  it("says only what the catalog records", () => {
-    expect(recordingFacts(recording({ trackId: "t" }))).toBe("Song");
+  it("says the facts in the page's language, and the catalog's words as they are", () => {
     expect(
       recordingFacts(
+        studioPtBR,
+        recording({
+          trackId: "t",
+          artists: [singer],
+          albums: ["[Test] One"],
+          lengthMs: 222_000,
+          archived: true,
+        }),
+      ),
+    ).toBe(
+      "Música · [Test] Sigur Rós · em [Test] One · 3:42 · arquivada no seu catálogo",
+    );
+  });
+
+  it("says only what the catalog records", () => {
+    expect(recordingFacts(studioEn, recording({ trackId: "t" }))).toBe("Song");
+    expect(
+      recordingFacts(
+        studioEn,
         recording({
           trackId: "t",
           artists: [singer, band],
@@ -54,7 +75,9 @@ describe("recordingFacts", () => {
       artists: [band],
       lengthMs: 185_000,
     });
-    expect(recordingFacts(onAlbum)).not.toBe(recordingFacts(single));
+    expect(recordingFacts(studioEn, onAlbum)).not.toBe(
+      recordingFacts(studioEn, single),
+    );
   });
 });
 

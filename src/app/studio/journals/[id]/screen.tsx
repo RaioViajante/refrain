@@ -5,43 +5,45 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { accessDenied } from "@/app/studio/access";
-import { formatDate, plural } from "@/app/studio/format";
 import { StudioFrame } from "@/app/studio/frame";
 import { ArtworkPlaceholder } from "@/app/studio/artwork-placeholder";
 import { JournalControls } from "@/app/studio/journals/journal-controls";
 import { RestoreJournalButton } from "@/app/studio/journals/restore-button";
 import { StudioLoading } from "@/app/studio/studio-loading";
 import { StatusMark } from "@/app/studio/status-mark";
+import { studio } from "@/app/studio/studio-words";
+import { formatDate } from "@/i18n/format";
+import type { InterfaceLocale } from "@/i18n/locales";
 import { getAlbumCover } from "@/modules/catalog";
 import { authorizeAuthor } from "@/modules/identity";
 import { getAlbumJournal, textToParagraphs } from "@/modules/journals";
 
 // A fixed title: the journal's own words never reach page metadata.
-export const metadata: Metadata = { title: "Journal · refrain" };
-
-const LANGUAGE_NAMES = {
-  en: "English",
-  "pt-BR": "Português (Brasil)",
-} as const;
+export function journalMetadata(locale: InterfaceLocale): Metadata {
+  return { title: studio(locale).words.meta.journal };
+}
 
 type JournalProps = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ restored?: string | string[] }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  locale: InterfaceLocale;
 };
 
-export default function JournalPage({ params, searchParams }: JournalProps) {
+export function JournalScreen({ params, searchParams, locale }: JournalProps) {
   return (
-    <Suspense fallback={<StudioLoading />}>
-      <Journal params={params} searchParams={searchParams} />
+    <Suspense fallback={<StudioLoading locale={locale} />}>
+      <Journal params={params} searchParams={searchParams} locale={locale} />
     </Suspense>
   );
 }
 
-async function Journal({ params, searchParams }: JournalProps) {
+async function Journal({ params, searchParams, locale }: JournalProps) {
   const authorization = await authorizeAuthor(await headers());
   if (!authorization.ok) {
-    return accessDenied(authorization.reason);
+    return accessDenied(authorization.reason, locale);
   }
+  const { words, href } = studio(locale);
+  const w = words.journal;
   const { id } = await params;
   const { restored } = await searchParams;
   const journal = await getAlbumJournal(authorization.author, id);
@@ -56,24 +58,29 @@ async function Journal({ params, searchParams }: JournalProps) {
   const restoredNotice = deleted
     ? null
     : restored === "private"
-      ? "Restored from Recently deleted. A language version that was published when it was deleted is now private. Restoring publishes nothing: to publish it again you will first be shown everything it would publish, including any track reflections you had set to be included when published."
+      ? w.restoredPrivate
       : restored === "1"
-        ? "Restored from Recently deleted, with its writing exactly as you left it."
+        ? w.restored
         : null;
   const paragraphs =
     journal.body === null ? null : textToParagraphs(journal.body);
 
   return (
-    <StudioFrame current="journals" layout="wide">
+    <StudioFrame
+      locale={locale}
+      path={`/studio/journals/${journal.entryId}`}
+      current="journals"
+      layout="wide"
+    >
       <p>
-        <Link href="/studio/journals" className="studio-link">
-          ← Journals
+        <Link href={href("/studio/journals")} className="studio-link">
+          {words.newJournal.back}
         </Link>
       </p>
 
       <div className="studio-journal">
         <div className="studio-journal-head">
-          <p className="studio-meta">Album journal</p>
+          <p className="studio-meta">{words.desk.albumJournal}</p>
           <h1
             className="studio-title"
             style={{ fontSize: "clamp(34px, 4.2vw, 56px)" }}
@@ -83,18 +90,20 @@ async function Journal({ params, searchParams }: JournalProps) {
           <p className="studio-meta">
             {journal.artistNames ? `${journal.artistNames} · ` : ""}
             <Link
-              href={`/studio/albums/${journal.albumId}`}
+              href={href(`/studio/albums/${journal.albumId}`)}
               className="studio-link"
             >
-              The album
+              {w.theAlbum}
             </Link>
           </p>
           <p className="studio-meta">
-            <StatusMark status={journal.status} /> · written in{" "}
-            {LANGUAGE_NAMES[journal.locale]} ·{" "}
-            {plural(journal.wordCount, "word")} · started{" "}
-            {formatDate(journal.createdAt)} · edited{" "}
-            {formatDate(journal.updatedAt)} (UTC dates)
+            <StatusMark locale={locale} status={journal.status} />
+            {w.facts(
+              words.languageInSentence[journal.locale],
+              journal.wordCount,
+              formatDate(locale, journal.createdAt),
+              formatDate(locale, journal.updatedAt),
+            )}
           </p>
         </div>
 
@@ -107,11 +116,7 @@ async function Journal({ params, searchParams }: JournalProps) {
 
           {deleted ? (
             <div className="studio-panel space-y-3">
-              <p>
-                This journal has been in Recently deleted since{" "}
-                {formatDate(journal.deletedAt!)}. Its writing is kept in the
-                database, and it cannot be changed there until you restore it.
-              </p>
+              <p>{w.inDeleted(formatDate(locale, journal.deletedAt!))}</p>
               <RestoreJournalButton
                 entryId={journal.entryId}
                 albumTitle={journal.albumTitle}
@@ -127,13 +132,12 @@ async function Journal({ params, searchParams }: JournalProps) {
               <p className="studio-opening">{journal.opening}</p>
             ) : null}
             {paragraphs === null ? (
-              <p className="studio-panel" lang="en">
-                This text has formatting that the plain editor can’t show
-                without losing it. It is untouched.
+              <p className="studio-panel" lang={locale}>
+                {w.unsupported}
               </p>
             ) : paragraphs.length === 0 ? (
-              <p className="studio-hint" lang="en">
-                Nothing written yet.
+              <p className="studio-hint" lang={locale}>
+                {words.desk.nothingWritten}
               </p>
             ) : (
               <div className="studio-reading">
@@ -154,6 +158,7 @@ async function Journal({ params, searchParams }: JournalProps) {
 
         <div className="studio-journal-side">
           <ArtworkPlaceholder
+            locale={locale}
             artwork={cover}
             title={journal.albumTitle}
             size={220}
@@ -161,37 +166,38 @@ async function Journal({ params, searchParams }: JournalProps) {
           {deleted ? null : (
             <p>
               <Link
-                href={`/studio/journals/${journal.entryId}/edit`}
+                href={href(`/studio/journals/${journal.entryId}/edit`)}
                 className="studio-button"
               >
-                Edit this journal
+                {w.edit}
               </Link>
             </p>
           )}
 
           <section aria-labelledby="journal-state" className="space-y-3">
             <h2 id="journal-state" className="studio-section-title">
-              Its state
+              {w.state}
             </h2>
             <dl className="studio-meta space-y-1">
               <div>
-                <dt className="inline font-medium">Language versions: </dt>
+                <dt className="inline font-medium">{w.versions}</dt>
                 <dd className="inline">
                   {journal.versions
-                    .map(
-                      (version) =>
-                        `${LANGUAGE_NAMES[version.locale]}${version.isOriginal ? " (original)" : " (your translation)"}, ${version.status}`,
+                    .map((version) =>
+                      w.version(
+                        words.languageInSentence[version.locale],
+                        version.isOriginal,
+                        words.statusLower[version.status],
+                      ),
                     )
                     .join("; ")}
-                  {journal.versions.length === 1
-                    ? ". You haven’t written a translation, and nothing is translated for you."
-                    : "."}
+                  {journal.versions.length === 1 ? w.noTranslation : "."}
                 </dd>
               </div>
               <div>
-                <dt className="inline font-medium">Deleted: </dt>
+                <dt className="inline font-medium">{w.deletedLabel}</dt>
                 <dd className="inline">
-                  {deleted ? "yes, in Recently deleted" : "no"}
+                  {deleted ? w.deletedYes : w.deletedNo}
                 </dd>
               </div>
             </dl>
@@ -200,7 +206,7 @@ async function Journal({ params, searchParams }: JournalProps) {
           {deleted ? null : (
             <section aria-labelledby="journal-manage" className="space-y-3">
               <h2 id="journal-manage" className="studio-section-title">
-                Manage
+                {w.manage}
               </h2>
               <JournalControls
                 entryId={journal.entryId}

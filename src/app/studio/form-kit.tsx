@@ -13,6 +13,7 @@ import {
 
 import { failureMessage, type WritingSubject } from "./messages";
 import type { ActionResult } from "./results";
+import { useStudio } from "./studio-locale";
 
 type Failure = Extract<ActionResult<unknown>, { ok: false }>;
 
@@ -26,6 +27,8 @@ type Failure = Extract<ActionResult<unknown>, { ok: false }>;
  * so a failed save never loses it.
  */
 export function useUnsavedGuard(dirty: boolean) {
+  const { words } = useStudio();
+  const question = words.common.leaveUnsaved;
   useEffect(() => {
     if (!dirty) {
       return;
@@ -54,7 +57,7 @@ export function useUnsavedGuard(dirty: boolean) {
       if (href.startsWith("#")) {
         return;
       }
-      if (!window.confirm("You have unsaved changes. Leave without saving?")) {
+      if (!window.confirm(question)) {
         event.preventDefault();
         event.stopPropagation();
       }
@@ -65,7 +68,7 @@ export function useUnsavedGuard(dirty: boolean) {
       window.removeEventListener("beforeunload", beforeUnload);
       document.removeEventListener("click", onClick, true);
     };
-  }, [dirty]);
+  }, [dirty, question]);
 }
 
 interface FieldFrameProps {
@@ -421,11 +424,12 @@ export function ConfirmDialog({
   confirmDisabled,
   hideConfirm,
   extraActions,
-  cancelLabel = "Cancel",
+  cancelLabel,
   focusKey,
   regionLabel,
   review,
 }: ConfirmDialogProps) {
+  const { words } = useStudio();
   const dialog = useRef<HTMLDialogElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const titleId = useId();
@@ -507,7 +511,7 @@ export function ConfirmDialog({
             onClick={onConfirm}
             disabled={pending || confirmDisabled}
           >
-            {pending ? "Working…" : confirmLabel}
+            {pending ? words.common.working : confirmLabel}
           </button>
         )}
         {extraActions}
@@ -517,7 +521,7 @@ export function ConfirmDialog({
           onClick={onCancel}
           disabled={pending}
         >
-          {cancelLabel}
+          {cancelLabel ?? words.common.cancel}
         </button>
       </div>
     </dialog>
@@ -579,15 +583,16 @@ export function FormStatus({
   /** What the form edits, for the words of a refusal. */
   subject?: WritingSubject;
 }) {
+  const { words } = useStudio();
   let text = "";
   if (pending) {
-    text = "Saving…";
+    text = words.common.saving;
   } else if (failure) {
-    text = failureMessage(failure, subject);
+    text = failureMessage(words, failure, subject);
   } else if (dirty) {
-    text = "Unsaved changes";
+    text = words.common.unsaved;
   } else if (saved) {
-    text = "Saved just now";
+    text = words.common.savedNow;
   }
   return (
     <p

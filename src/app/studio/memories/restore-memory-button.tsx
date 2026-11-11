@@ -6,6 +6,7 @@ import { useState } from "react";
 import { ConfirmDialog, useSubmission } from "@/app/studio/form-kit";
 import { restoreMemoryAction } from "@/app/studio/memories/actions";
 import { failureMessage } from "@/app/studio/messages";
+import { useStudio } from "@/app/studio/studio-locale";
 
 /**
  * Restores a memory from Recently deleted, after asking. The writing and its
@@ -23,6 +24,8 @@ export function RestoreMemoryButton({
   wasPublished: boolean;
 }) {
   const router = useRouter();
+  const { words, href } = useStudio();
+  const w = words.restoreMemory;
   const { pending, failure, run, clearFailure } = useSubmission();
   const [asking, setAsking] = useState(false);
 
@@ -31,7 +34,9 @@ export function RestoreMemoryButton({
     setAsking(false);
     if (result.ok) {
       router.push(
-        `/studio/memories/${entryId}?restored=${result.data.madePrivate.length > 0 ? "private" : "1"}`,
+        href(
+          `/studio/memories/${entryId}?restored=${result.data.madePrivate.length > 0 ? "private" : "1"}`,
+        ),
       );
     }
   }
@@ -42,33 +47,29 @@ export function RestoreMemoryButton({
         type="button"
         className="studio-button"
         disabled={pending}
-        aria-label={`Restore the memory “${title}”`}
+        aria-label={w.label(title)}
         onClick={() => {
           clearFailure();
           setAsking(true);
         }}
       >
-        Restore…
+        {words.restoreJournal.action}
       </button>
       {failure ? (
         <p role="alert" className="studio-problem" style={{ maxWidth: "62ch" }}>
-          {failureMessage(failure, "memory")}
+          {failureMessage(words, failure, "memory")}
         </p>
       ) : null}
       <ConfirmDialog
         open={asking}
-        title="Restore this memory?"
-        confirmLabel="Restore memory"
+        title={w.question}
+        confirmLabel={w.confirmLabel}
         pending={pending}
         onConfirm={restore}
         onCancel={() => setAsking(false)}
       >
         <p>
-          The memory returns to your memories with its writing and its songs
-          exactly as you left them.{" "}
-          {wasPublished
-            ? "It was published when it was deleted, and it comes back as private. Restoring publishes nothing."
-            : "A draft stays a draft and private stays private."}
+          {w.body} {wasPublished ? w.wasPublished : w.stays}
         </p>
       </ConfirmDialog>
     </div>

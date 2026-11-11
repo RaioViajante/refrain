@@ -1,8 +1,12 @@
 import type { ReactNode } from "react";
 
 import { Icon } from "@/app/studio/icons";
+import { StudioLanguageSelector } from "@/app/studio/language-selector";
 import { StudioNavLink } from "@/app/studio/nav-link";
 import { SignOutButton } from "@/app/studio/sign-out-button";
+import type { InterfaceLocale } from "@/i18n/locales";
+import { localizedHref } from "@/i18n/paths";
+import { studioWords, type StudioDictionary } from "@/i18n/studio";
 
 /**
  * The page a studio screen belongs to. The header has exactly two destinations,
@@ -20,9 +24,17 @@ export type StudioSection =
 
 type Primary = "desk" | "catalog";
 
-const PRIMARY: { id: Primary; label: string; href: string }[] = [
-  { id: "desk", label: "Desk", href: "/studio" },
-  { id: "catalog", label: "Catalog", href: "/studio/catalog" },
+const PRIMARY: {
+  id: Primary;
+  label: (words: StudioDictionary) => string;
+  href: string;
+}[] = [
+  { id: "desk", label: (words) => words.frame.desk, href: "/studio" },
+  {
+    id: "catalog",
+    label: (words) => words.frame.catalog,
+    href: "/studio/catalog",
+  },
 ];
 
 // Where each section sits. Writing (the desk, its journals, and its
@@ -34,11 +46,31 @@ function primaryOf(section: StudioSection): Primary {
     : "catalog";
 }
 
-const CATALOG_SECTIONS: { id: StudioSection; label: string; href: string }[] = [
-  { id: "catalog", label: "Overview", href: "/studio/catalog" },
-  { id: "artists", label: "Artists", href: "/studio/artists" },
-  { id: "albums", label: "Albums", href: "/studio/albums" },
-  { id: "tracks", label: "Tracks", href: "/studio/tracks" },
+const CATALOG_SECTIONS: {
+  id: StudioSection;
+  label: (words: StudioDictionary) => string;
+  href: string;
+}[] = [
+  {
+    id: "catalog",
+    label: (words) => words.frame.overview,
+    href: "/studio/catalog",
+  },
+  {
+    id: "artists",
+    label: (words) => words.frame.artists,
+    href: "/studio/artists",
+  },
+  {
+    id: "albums",
+    label: (words) => words.frame.albums,
+    href: "/studio/albums",
+  },
+  {
+    id: "tracks",
+    label: (words) => words.frame.tracks,
+    href: "/studio/tracks",
+  },
 ];
 
 /** The id that the skip link and every studio page's <main> share. */
@@ -50,28 +82,38 @@ export const STUDIO_CONTENT_ID = "studio-content";
  * page. Presentation only: pages render it after they have authorized the
  * request, so an anonymous response never contains the studio's furniture.
  */
-export function StudioHeader({ current }: { current?: StudioSection }) {
+export function StudioHeader({
+  locale,
+  current,
+}: {
+  locale: InterfaceLocale;
+  current?: StudioSection;
+}) {
+  const words = studioWords(locale);
   const primary = current ? primaryOf(current) : undefined;
   return (
     <header className="studio-header">
       <a href={`#${STUDIO_CONTENT_ID}`} className="studio-skip">
-        Skip to the content
+        {words.frame.skipLink}
       </a>
       <div className="studio-shell studio-header-bar">
         <p className="studio-header-label">
           <Icon name="studio" size={16} />
-          <span className="studio-header-label-text">Writing studio</span>
+          <span className="studio-header-label-text">{words.frame.studio}</span>
         </p>
         {primary ? (
           <>
-            <nav className="studio-nav" aria-label="Writing studio">
+            <nav
+              className="studio-nav"
+              aria-label={words.frame.navigationLabel}
+            >
               {PRIMARY.map((item) => (
                 <StudioNavLink
                   key={item.id}
-                  href={item.href}
+                  href={localizedHref(locale, item.href)}
                   current={item.id === primary}
                 >
-                  {item.label}
+                  {item.label(words)}
                 </StudioNavLink>
               ))}
             </nav>
@@ -91,27 +133,49 @@ export function StudioHeader({ current }: { current?: StudioSection }) {
  * notebook layout it sits in the margin column, as in the V4.4 Catalog screen;
  * on a narrow screen it is a row above the page.
  */
-export function CatalogNav({ current }: { current: StudioSection }) {
+export function CatalogNav({
+  locale,
+  current,
+}: {
+  locale: InterfaceLocale;
+  current: StudioSection;
+}) {
+  const words = studioWords(locale);
   return (
-    <nav className="studio-subnav" aria-label="Catalog sections">
+    <nav
+      className="studio-subnav"
+      aria-label={words.frame.catalogNavigationLabel}
+    >
       {CATALOG_SECTIONS.map((section) => (
         <StudioNavLink
           key={section.id}
-          href={section.href}
+          href={localizedHref(locale, section.href)}
           current={section.id === current}
         >
-          {section.label}
+          {section.label(words)}
         </StudioNavLink>
       ))}
     </nav>
   );
 }
 
-/** The closing line of every studio page: a drawn rule and one sentence. */
-export function StudioFooter() {
+/**
+ * The closing line of every studio page: a drawn rule, one sentence, and the
+ * language selector. `path` is the page's English path, built from its route
+ * and its validated id; the selector links to the same page in each language.
+ */
+export function StudioFooter({
+  locale,
+  path,
+}: {
+  locale: InterfaceLocale;
+  path: string;
+}) {
+  const words = studioWords(locale);
   return (
     <footer className="studio-shell studio-footer">
-      <p>some songs take you back.</p>
+      <p>{words.frame.closingLine}</p>
+      <StudioLanguageSelector locale={locale} path={path} />
     </footer>
   );
 }
@@ -126,17 +190,22 @@ export function StudioFooter() {
  * default) or "wide" (the whole shell, for the journal and its editor).
  */
 export function StudioFrame({
+  locale,
+  path,
   current,
   layout = "notebook",
   children,
 }: {
+  locale: InterfaceLocale;
+  /** The page's English path, for the language selector. */
+  path: string;
   current: StudioSection;
   layout?: "notebook" | "wide";
   children: ReactNode;
 }) {
   return (
     <>
-      <StudioHeader current={current} />
+      <StudioHeader locale={locale} current={current} />
       <main
         id={STUDIO_CONTENT_ID}
         tabIndex={-1}
@@ -144,11 +213,11 @@ export function StudioFrame({
         data-layout={layout}
       >
         {primaryOf(current) === "catalog" ? (
-          <CatalogNav current={current} />
+          <CatalogNav locale={locale} current={current} />
         ) : null}
         {children}
       </main>
-      <StudioFooter />
+      <StudioFooter locale={locale} path={path} />
     </>
   );
 }

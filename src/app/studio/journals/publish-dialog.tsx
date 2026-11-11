@@ -7,14 +7,14 @@ import { ConfirmDialog } from "@/app/studio/form-kit";
 import { publishJournalVersionAction } from "@/app/studio/journals/actions";
 import { previewPublicationAction } from "@/app/studio/journals/preview-publication-action";
 import {
-  LANGUAGE_NAMES,
   Notice,
   ReviewedText,
   ReviewSection,
   starsInWords,
 } from "@/app/studio/journals/review-parts";
-import { failureMessage, PUBLIC_PAGE_NOTE } from "@/app/studio/messages";
+import { failureMessage } from "@/app/studio/messages";
 import type { ActionResult } from "@/app/studio/results";
+import { useStudio } from "@/app/studio/studio-locale";
 import type { PublicationPreview } from "@/modules/journals";
 
 type Language = "en" | "pt-BR";
@@ -82,10 +82,14 @@ function OpenPublishDialog({
   onClose: () => void;
   onPublished: () => void;
 }) {
+  const { locale: ui, words: t, href } = useStudio();
+  const w = t.publish;
   const [stage, setStage] = useState<Stage>({ name: "loading" });
   // Guards against a second click before React has re-rendered.
   const busy = useRef(false);
-  const language = LANGUAGE_NAMES[locale];
+  // `locale` is the language of the version being published; `ui` is the
+  // interface's. Only labels follow `ui`: nothing sent depends on it.
+  const language = t.languageInSentence[locale];
   const loading = stage.name === "loading";
   // Only a running confirmation locks the dialog; reading can be abandoned.
   const [submitting, setSubmitting] = useState(false);
@@ -169,24 +173,24 @@ function OpenPublishDialog({
       ready.reflections.some((reflection) => reflection.text === null));
   const status =
     ready?.status === "draft"
-      ? "a draft"
+      ? w.statusDraft
       : ready?.status === "private"
-        ? "private"
-        : "already published";
+        ? w.statusPrivate
+        : w.statusPublished;
 
   return (
     <ConfirmDialog
       open
       review
-      title={`Publish the ${language} version?`}
-      confirmLabel={`Publish the ${language} version`}
+      title={w.title(language)}
+      confirmLabel={w.confirmLabel(language)}
       pending={submitting}
       focusKey={stage.name}
-      regionLabel="What will be published"
+      regionLabel={w.region}
       hideConfirm={stage.name !== "ready" || unreadable}
       onConfirm={confirm}
       onCancel={onClose}
-      cancelLabel={stage.name === "ready" ? "Cancel" : "Close"}
+      cancelLabel={stage.name === "ready" ? t.common.cancel : w.close}
       extraActions={
         stage.name === "changed" ? (
           <button
@@ -194,116 +198,97 @@ function OpenPublishDialog({
             className="studio-button studio-button-primary"
             onClick={() => void reviewAgain()}
           >
-            Review it again
+            {w.reviewAgain}
           </button>
         ) : null
       }
     >
       <div className="studio-review">
-        <div role="status">
-          {loading ? "Reading what would be published…" : null}
-        </div>
+        <div role="status">{loading ? w.reading : null}</div>
 
-        {stage.name === "changed" ? (
-          <Notice problem>
-            What would be published has changed since you looked, or this review
-            ran out. Nothing was published. Review it again to see how it stands
-            now.
-          </Notice>
-        ) : null}
+        {stage.name === "changed" ? <Notice problem>{w.changed}</Notice> : null}
 
         {stage.name === "failed" ? (
-          <Notice problem>{failureMessage(stage.failure)}</Notice>
+          <Notice problem>{failureMessage(t, stage.failure)}</Notice>
         ) : null}
 
         {ready ? (
           <>
             {unreadable ? (
-              <p className="studio-problem">
-                Some of this text has formatting the plain view can’t show, so
-                you can’t read all of it here. It can’t be published from the
-                studio until it can be.
-              </p>
+              <p className="studio-problem">{w.unreadable}</p>
             ) : null}
-            <p>
-              This is everything that will be marked as published for the{" "}
-              {language} version. Nothing is published until you press the
-              button below. Nothing you do in this review changes or deletes
-              anything: closing it leaves everything as it was.
-            </p>
+            <p>{w.everything(language)}</p>
             <p className="studio-hint">
-              This version is {status} now. Publishing marks the version as
-              published in your records. {PUBLIC_PAGE_NOTE}
+              {w.statusNow(status, t.publicPageNote)}
             </p>
 
-            <ReviewSection title="Opening sentence">
+            <ReviewSection title={w.opening}>
               {ready.opening ? (
                 <p lang={ready.locale} className="studio-opening">
                   {ready.opening}
                 </p>
               ) : (
-                <p lang="en">None.</p>
+                <p lang={ui}>{w.none}</p>
               )}
             </ReviewSection>
 
-            <ReviewSection title="Your reflection">
+            <ReviewSection title={w.reflection}>
               <ReviewedText
                 text={ready.text}
                 lang={ready.locale}
-                empty="None."
+                empty={w.none}
               />
             </ReviewSection>
 
-            <ReviewSection title="Its address">
+            <ReviewSection title={w.address}>
               <p>
                 {ready.address.slug}
-                {ready.address.wasPublic
-                  ? " (this address has been public before)"
-                  : ""}
+                {ready.address.wasPublic ? w.wasPublic : ""}
               </p>
             </ReviewSection>
 
             {ready.artistPages.length > 0 ? (
-              <ReviewSection
-                title={`Artist pages that will open (${ready.artistPages.length})`}
-              >
+              <ReviewSection title={w.artistPages(ready.artistPages.length)}>
                 <ul className="studio-review-list">
                   {ready.artistPages.map((page, index) => (
                     // Two artists can share a name and, rarely, have no
                     // address: the position keeps the key unique.
                     <li key={`${index}:${page.name}`}>
                       <p className="studio-label">{page.name}</p>
-                      <p lang="en">
+                      <p lang={ui}>
                         {page.address
                           ? `/artists/${page.address}`
-                          : "No address: another artist has the same one, so neither page is shown."}
+                          : w.noArtistAddress}
                       </p>
-                      <p className="studio-hint" lang="en">
+                      <p className="studio-hint" lang={ui}>
                         {page.photo
-                          ? `With the photograph ${page.photo.title} (${page.photo.credit}, ${page.photo.license})`
-                          : "Without a photograph"}
+                          ? w.withPhoto(
+                              page.photo.title,
+                              page.photo.credit,
+                              page.photo.license,
+                            )
+                          : w.withoutPhoto}
                       </p>
                     </li>
                   ))}
                 </ul>
-                <p className="studio-hint" lang="en">
-                  Each artist credited on this album gets a public page when
-                  this is published, if they have none yet. To leave one out,
-                  change the album’s credits first, then review again.
+                <p className="studio-hint" lang={ui}>
+                  {w.artistPagesHint}
                 </p>
               </ReviewSection>
             ) : null}
 
             {ready.artistAddressChanges.length > 0 ? (
-              <ReviewSection title="Artist pages whose address changes">
+              <ReviewSection title={w.addressChanges}>
                 <ul className="studio-review-list">
                   {ready.artistAddressChanges.map((change) => (
                     <li key={change.from}>
-                      <p lang="en">
-                        {change.name}: /artists/{change.from} becomes{" "}
-                        {change.to ? `/artists/${change.to}` : "no address"},
-                        because an artist with the same name gets a page. The
-                        old address will stop working.
+                      <p lang={ui}>
+                        {w.addressChange(
+                          change.name,
+                          `/artists/${change.from}`,
+                          change.to ? `/artists/${change.to}` : null,
+                        )}
                       </p>
                     </li>
                   ))}
@@ -312,24 +297,19 @@ function OpenPublishDialog({
             ) : null}
 
             {ready.albumRating ? (
-              <ReviewSection title="Your rating for the album">
-                <p lang="en">
-                  {starsInWords(ready.albumRating.halfSteps)}
-                  {ready.albumRating.alreadyPublic
-                    ? " (already public through another language version)"
-                    : ""}
+              <ReviewSection title={t.editor.albumRating}>
+                <p lang={ui}>
+                  {starsInWords(t, ready.albumRating.halfSteps)}
+                  {ready.albumRating.alreadyPublic ? w.alreadyPublic : ""}
                 </p>
               </ReviewSection>
             ) : null}
 
             <ReviewSection
-              title={`Track reflections that will be published in ${language} (${ready.reflections.length})`}
+              title={w.reflections(language, ready.reflections.length)}
             >
               {ready.reflections.length === 0 ? (
-                <p lang="en">
-                  No track reflection is included. Publishing never changes
-                  which tracks are included; you do that on each track.
-                </p>
+                <p lang={ui}>{w.noReflections}</p>
               ) : (
                 <ul className="studio-review-list">
                   {ready.reflections.map((reflection) => (
@@ -341,15 +321,15 @@ function OpenPublishDialog({
                         text={reflection.text}
                         lang={ready.locale}
                       />
-                      <p className="studio-hint" lang="en">
+                      <p className="studio-hint" lang={ui}>
                         {[
-                          reflection.isFavourite ? "Marked as a favourite" : "",
+                          reflection.isFavourite ? w.favourite : "",
                           reflection.ratingHalfSteps !== null
-                            ? `Rated ${starsInWords(reflection.ratingHalfSteps)}`
+                            ? w.rated(
+                                starsInWords(t, reflection.ratingHalfSteps),
+                              )
                             : "",
-                          reflection.isStillWriting
-                            ? "Labelled “still writing”"
-                            : "",
+                          reflection.isStillWriting ? w.stillWriting : "",
                         ]
                           .filter(Boolean)
                           .join(" · ")}
@@ -358,44 +338,35 @@ function OpenPublishDialog({
                   ))}
                 </ul>
               )}
-              <p className="studio-hint">
-                Nothing here changes which reflections are included. To change
-                that, close this review, change it on the track, and review
-                again.
-              </p>
+              <p className="studio-hint">{w.selectionHint}</p>
               <p>
                 <Link
-                  href={`/studio/journals/${entryId}/edit`}
+                  href={href(`/studio/journals/${entryId}/edit`)}
                   className="studio-button"
                 >
-                  Change which reflections are included, on the tracks
+                  {w.changeSelection}
                 </Link>
               </p>
             </ReviewSection>
 
-            <ReviewSection title="What stays private">
-              <p lang="en">
+            <ReviewSection title={w.staysPrivate}>
+              <p lang={ui}>
                 {ready.stayingPrivate.length === 0
-                  ? "Every track reflection you wrote in this language is included when published, or you haven’t written any."
-                  : `Track reflections you wrote in ${language} that are not included when published (${ready.stayingPrivate.length}): ${ready.stayingPrivate
-                      .map((item) => item.trackTitle)
-                      .join(", ")}. They stay private.`}
+                  ? w.allIncluded
+                  : w.notIncluded(
+                      language,
+                      ready.stayingPrivate.length,
+                      ready.stayingPrivate
+                        .map((item) => item.trackTitle)
+                        .join(", "),
+                    )}
               </p>
               {ready.flaggedWithoutText > 0 ? (
-                <p lang="en">
-                  {ready.flaggedWithoutText}{" "}
-                  {ready.flaggedWithoutText === 1
-                    ? "track is included when published but has"
-                    : "tracks are included when published but have"}{" "}
-                  no text in {language}, so nothing of{" "}
-                  {ready.flaggedWithoutText === 1 ? "it" : "them"} is public in
-                  this language.
+                <p lang={ui}>
+                  {w.flaggedWithoutText(ready.flaggedWithoutText, language)}
                 </p>
               ) : null}
-              <p lang="en">
-                Other language versions, your drafts, and everything in Recently
-                deleted stay as they are.
-              </p>
+              <p lang={ui}>{w.othersStay}</p>
             </ReviewSection>
           </>
         ) : null}

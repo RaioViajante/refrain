@@ -5,9 +5,10 @@ import { Suspense } from "react";
 
 import { accessDenied } from "@/app/studio/access";
 import { ArtistThumb } from "@/app/studio/artist-photograph";
-import { plural } from "@/app/studio/format";
 import { StudioFrame } from "@/app/studio/frame";
 import { StudioLoading } from "@/app/studio/studio-loading";
+import { studio, type StudioSpeech } from "@/app/studio/studio-words";
+import type { InterfaceLocale } from "@/i18n/locales";
 import {
   listArtistPhotos,
   listArtists,
@@ -17,21 +18,26 @@ import {
 import { authorizeAuthor } from "@/modules/identity";
 
 // A fixed title: the studio never puts catalog or writing in page metadata.
-export const metadata: Metadata = { title: "Artists · refrain" };
+export function artistsMetadata(locale: InterfaceLocale): Metadata {
+  return { title: studio(locale).words.meta.artists };
+}
 
-export default function ArtistsPage() {
+export function ArtistsScreen({ locale }: { locale: InterfaceLocale }) {
   return (
-    <Suspense fallback={<StudioLoading />}>
-      <Artists />
+    <Suspense fallback={<StudioLoading locale={locale} />}>
+      <Artists locale={locale} />
     </Suspense>
   );
 }
 
-async function Artists() {
+async function Artists({ locale }: { locale: InterfaceLocale }) {
   const authorization = await authorizeAuthor(await headers());
   if (!authorization.ok) {
-    return accessDenied(authorization.reason);
+    return accessDenied(authorization.reason, locale);
   }
+  const speech = studio(locale);
+  const { href } = speech;
+  const w = speech.words.artists;
   const [artists, photos] = await Promise.all([
     listArtists(authorization.author),
     listArtistPhotos(authorization.author),
@@ -40,42 +46,39 @@ async function Artists() {
   const archived = artists.filter((artist) => artist.archived);
 
   return (
-    <StudioFrame current="artists">
-      <h1 className="studio-title">Artists</h1>
-      <p className="studio-lede">
-        The people and bands behind the music you write about.
-      </p>
+    <StudioFrame locale={locale} path="/studio/artists" current="artists">
+      <h1 className="studio-title">{w.title}</h1>
+      <p className="studio-lede">{w.lead}</p>
       <p>
-        <Link href="/studio/artists/new" className="studio-button">
-          Add an artist
+        <Link href={href("/studio/artists/new")} className="studio-button">
+          {w.add}
         </Link>
       </p>
 
       {artists.length === 0 ? (
         <div className="studio-panel">
-          <p className="studio-section-title">No artists yet</p>
-          <p>
-            Everything starts with an artist or a band. Add one, then an album
-            that credits them, and the music you love will have somewhere to
-            live.
-          </p>
+          <p className="studio-section-title">{w.emptyTitle}</p>
+          <p>{w.emptyBody}</p>
         </div>
       ) : (
         <>
-          <ArtistList artists={active} photos={photos} label="Artists" />
+          <ArtistList
+            speech={speech}
+            artists={active}
+            photos={photos}
+            label={w.listLabel}
+          />
           {archived.length > 0 ? (
             <section aria-labelledby="archived-artists">
               <h2 id="archived-artists" className="studio-section-title">
-                Archived
+                {w.archived}
               </h2>
-              <p className="studio-hint">
-                Hidden from pickers. Their albums, tracks, and journals are
-                untouched.
-              </p>
+              <p className="studio-hint">{w.archivedHint}</p>
               <ArtistList
+                speech={speech}
                 artists={archived}
                 photos={photos}
-                label="Archived artists"
+                label={w.archivedLabel}
               />
             </section>
           ) : null}
@@ -86,10 +89,12 @@ async function Artists() {
 }
 
 function ArtistList({
+  speech: { words, href },
   artists,
   photos,
   label,
 }: {
+  speech: StudioSpeech;
   artists: ArtistSummary[];
   photos: Map<string, ArtistPhotoImage>;
   label: string;
@@ -101,13 +106,17 @@ function ArtistList({
           <ArtistThumb image={photos.get(artist.id)} />
           <span className="studio-entry-body">
             <span className="studio-row-title">
-              <Link href={`/studio/artists/${artist.id}`}>{artist.name}</Link>
+              <Link href={href(`/studio/artists/${artist.id}`)}>
+                {artist.name}
+              </Link>
             </span>
             <span className="studio-meta">
-              {artist.kind === "group" ? "Band" : "Person"} ·{" "}
-              {plural(artist.albumCount, "album")} ·{" "}
-              {plural(artist.trackCount, "track")} ·{" "}
-              {plural(artist.journalCount, "journal")}
+              {artist.kind === "group"
+                ? words.artists.band
+                : words.artists.person}{" "}
+              · {words.counts.albums(artist.albumCount)} ·{" "}
+              {words.counts.tracks(artist.trackCount)} ·{" "}
+              {words.counts.journals(artist.journalCount)}
             </span>
           </span>
         </li>

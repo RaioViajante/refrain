@@ -13,11 +13,13 @@ import { AlbumForm } from "@/app/studio/albums/album-form";
 import { TracklistEditor } from "@/app/studio/albums/tracklist-editor";
 import { accessDenied } from "@/app/studio/access";
 import { ArtworkPlaceholder } from "@/app/studio/artwork-placeholder";
-import { formatDate, plural } from "@/app/studio/format";
 import { StudioFrame } from "@/app/studio/frame";
 import { StudioLoading } from "@/app/studio/studio-loading";
 import { RecordControls } from "@/app/studio/record-controls";
 import { StatusMark } from "@/app/studio/status-mark";
+import { studio } from "@/app/studio/studio-words";
+import { formatDate } from "@/i18n/format";
+import type { InterfaceLocale } from "@/i18n/locales";
 import {
   getAlbum,
   listAlbumUsage,
@@ -27,25 +29,30 @@ import {
 import { authorizeAuthor } from "@/modules/identity";
 import { listAlbumJournals } from "@/modules/journals";
 
-export const metadata: Metadata = { title: "Album · refrain" };
+export function albumMetadata(locale: InterfaceLocale): Metadata {
+  return { title: studio(locale).words.meta.album };
+}
 
-export default function AlbumPage({
-  params,
-}: {
+interface Props {
   params: Promise<{ id: string }>;
-}) {
+  locale: InterfaceLocale;
+}
+
+export function AlbumScreen({ params, locale }: Props) {
   return (
-    <Suspense fallback={<StudioLoading />}>
-      <Album params={params} />
+    <Suspense fallback={<StudioLoading locale={locale} />}>
+      <Album params={params} locale={locale} />
     </Suspense>
   );
 }
 
-async function Album({ params }: { params: Promise<{ id: string }> }) {
+async function Album({ params, locale }: Props) {
   const authorization = await authorizeAuthor(await headers());
   if (!authorization.ok) {
-    return accessDenied(authorization.reason);
+    return accessDenied(authorization.reason, locale);
   }
+  const { words, href } = studio(locale);
+  const w = words.album;
   const { author } = authorization;
   const { id } = await params;
   const album = await getAlbum(author, id);
@@ -65,7 +72,7 @@ async function Album({ params }: { params: Promise<{ id: string }> }) {
     .filter((artist) => !artist.archived || credited.has(artist.id))
     .map((artist) => ({
       value: artist.id,
-      label: artist.archived ? `${artist.name} (archived)` : artist.name,
+      label: artist.archived ? w.archivedOption(artist.name) : artist.name,
     }));
   const onAlbum = new Set(album.tracklist.map((track) => track.trackId));
   const addable = tracks
@@ -79,14 +86,22 @@ async function Album({ params }: { params: Promise<{ id: string }> }) {
   const usedIn = usage.find((row) => row.albumId === album.id)?.usedIn ?? 0;
 
   return (
-    <StudioFrame current="albums">
+    <StudioFrame
+      locale={locale}
+      path={`/studio/albums/${album.id}`}
+      current="albums"
+    >
       <p>
-        <Link href="/studio/albums" className="studio-link">
-          ← Albums
+        <Link href={href("/studio/albums")} className="studio-link">
+          {w.back}
         </Link>
       </p>
       <div className="flex flex-wrap items-end gap-8">
-        <ArtworkPlaceholder artwork={album.artwork} title={album.title} />
+        <ArtworkPlaceholder
+          locale={locale}
+          artwork={album.artwork}
+          title={album.title}
+        />
         <div className="space-y-2">
           <h1 className="studio-title">{album.title}</h1>
           <p className="studio-meta">
@@ -94,20 +109,15 @@ async function Album({ params }: { params: Promise<{ id: string }> }) {
               .map((credit) => credit.creditedAs ?? credit.artistName)
               .join(", ")}
             {album.firstReleaseYear ? ` · ${album.firstReleaseYear}` : ""}
-            {` · ${plural(album.tracklist.length, "track")}`}
+            {` · ${words.counts.tracks(album.tracklist.length)}`}
           </p>
         </div>
       </div>
-      {album.archived ? (
-        <p className="studio-panel">
-          This album is archived: hidden from pickers, with its journals and
-          tracklist kept.
-        </p>
-      ) : null}
+      {album.archived ? <p className="studio-panel">{w.archived}</p> : null}
 
       <section aria-labelledby="album-details" className="space-y-4">
         <h2 id="album-details" className="studio-section-title">
-          Details
+          {w.details}
         </h2>
         <AlbumForm
           albumId={album.id}
@@ -129,28 +139,30 @@ async function Album({ params }: { params: Promise<{ id: string }> }) {
 
       <section aria-labelledby="album-artwork" className="space-y-3">
         <h2 id="album-artwork" className="studio-section-title">
-          Artwork and MusicBrainz
+          {w.artworkTitle}
         </h2>
         <p className="studio-hint" style={{ maxWidth: "62ch" }}>
-          {album.artwork ? "Cover: Cover Art Archive. " : "No artwork yet. "}
+          {album.artwork ? w.coverSource : w.noArtwork}
           {album.mbReleaseGroupId || album.edition?.mbReleaseId
-            ? "Linked to MusicBrainz, so a cover can be chosen from the Cover Art Archive."
-            : "Not linked to MusicBrainz. Find it in Add music and link it to choose a cover."}
+            ? w.linked
+            : w.notLinked}
         </p>
         <p>
           {album.mbReleaseGroupId || album.edition?.mbReleaseId ? (
             <Link
-              href={`/studio/albums/${album.id}/artwork`}
+              href={href(`/studio/albums/${album.id}/artwork`)}
               className="studio-button"
             >
-              {album.artwork ? "Change artwork" : "Choose artwork"}
+              {album.artwork ? w.changeArtwork : w.chooseArtwork}
             </Link>
           ) : (
             <Link
-              href={`/studio/catalog/add?${new URLSearchParams({ q: album.title })}`}
+              href={href(
+                `/studio/catalog/add?${new URLSearchParams({ q: album.title })}`,
+              )}
               className="studio-button"
             >
-              Find on MusicBrainz
+              {w.findOnMusicBrainz}
             </Link>
           )}
         </p>
@@ -158,7 +170,7 @@ async function Album({ params }: { params: Promise<{ id: string }> }) {
 
       <section aria-labelledby="album-tracklist" className="space-y-4">
         <h2 id="album-tracklist" className="studio-section-title">
-          Tracklist
+          {w.tracklist}
         </h2>
         <TracklistEditor
           albumId={album.id}
@@ -171,29 +183,29 @@ async function Album({ params }: { params: Promise<{ id: string }> }) {
 
       <section aria-labelledby="album-journals" className="space-y-4">
         <h2 id="album-journals" className="studio-section-title">
-          Journals about this album
+          {w.journalsTitle}
         </h2>
         {journals.length === 0 ? (
-          <p className="studio-hint">Nothing written about this album yet.</p>
+          <p className="studio-hint">{w.noJournals}</p>
         ) : (
           <ul className="studio-list">
             {journals.map((journal) => (
               <li key={journal.entryId} className="studio-row">
                 <span className="studio-row-title">
-                  <Link href={`/studio/journals/${journal.entryId}`}>
-                    Journal started {formatDate(journal.createdAt)}
+                  <Link href={href(`/studio/journals/${journal.entryId}`)}>
+                    {w.journalStarted(formatDate(locale, journal.createdAt))}
                   </Link>
                 </span>
-                <StatusMark status={journal.status} />
+                <StatusMark locale={locale} status={journal.status} />
                 <span className="studio-meta">
-                  edited {formatDate(journal.updatedAt)}
+                  {w.edited(formatDate(locale, journal.updatedAt))}
                 </span>
                 <span
                   className="studio-meta"
                   style={{ flexBasis: "100%" }}
                   lang={journal.excerpt ? journal.locale : undefined}
                 >
-                  {journal.excerpt || "Nothing written yet"}
+                  {journal.excerpt || w.nothingWritten}
                 </span>
               </li>
             ))}
@@ -202,10 +214,10 @@ async function Album({ params }: { params: Promise<{ id: string }> }) {
         {album.archived ? null : (
           <p>
             <Link
-              href={`/studio/journals/new?album=${album.id}`}
+              href={href(`/studio/journals/new?album=${album.id}`)}
               className="studio-button"
             >
-              Write a journal about this album
+              {w.writeJournal}
             </Link>
           </p>
         )}
@@ -213,17 +225,17 @@ async function Album({ params }: { params: Promise<{ id: string }> }) {
 
       <section aria-labelledby="album-keep" className="space-y-3">
         <h2 id="album-keep" className="studio-section-title">
-          Archive or delete
+          {words.catalogRecord.archiveOrDelete}
         </h2>
         <RecordControls
           id={album.id}
-          noun="album"
+          kind="album"
           archived={album.archived}
           archive={archiveAlbumAction}
           restore={restoreAlbumAction}
           remove={deleteAlbumAction}
-          archiveNote={`Archiving hides the album from pickers and deletes nothing. ${plural(usedIn, "entry", "entries")} written about it stay as they are, showing its title as plain text. Its tracklist and credits are kept.`}
-          afterDelete="/studio/albums"
+          archiveNote={w.archiveNote(usedIn)}
+          afterDelete={href("/studio/albums")}
         />
       </section>
     </StudioFrame>

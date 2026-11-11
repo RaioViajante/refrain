@@ -8,6 +8,8 @@ import { AlbumThumb } from "@/app/studio/artwork-placeholder";
 import { StudioFrame } from "@/app/studio/frame";
 import { Icon } from "@/app/studio/icons";
 import { StudioLoading } from "@/app/studio/studio-loading";
+import { studio, type StudioSpeech } from "@/app/studio/studio-words";
+import type { InterfaceLocale } from "@/i18n/locales";
 import {
   CatalogError,
   listAlbumCovers,
@@ -18,8 +20,12 @@ import {
 } from "@/modules/catalog";
 import { authorizeAuthor, type AuthorizedAuthor } from "@/modules/identity";
 
+import { providerTerm } from "./edition-text";
+
 // A fixed title: nothing searched for reaches page metadata.
-export const metadata: Metadata = { title: "Add music · refrain" };
+export function addMusicMetadata(locale: InterfaceLocale): Metadata {
+  return { title: studio(locale).words.meta.addMusic };
+}
 
 // Add music (the approved V4.4 `Search` screen, M3.2). The search is a plain
 // GET form, so it works without JavaScript and the address can be reloaded.
@@ -27,10 +33,7 @@ export const metadata: Metadata = { title: "Add music · refrain" };
 // result never adds it: an album leads to its editions and a review, an
 // artist to a review, and the author approves what is written.
 
-const KINDS: { id: MusicSearchKind; label: string }[] = [
-  { id: "albums", label: "Albums" },
-  { id: "artists", label: "Artists" },
-];
+const KINDS: MusicSearchKind[] = ["albums", "artists"];
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -38,53 +41,56 @@ function first(value: string | string[] | undefined): string {
   return (Array.isArray(value) ? value[0] : value) ?? "";
 }
 
-export default function AddMusicPage({
-  searchParams,
-}: {
+interface Props {
   searchParams: SearchParams;
-}) {
+  locale: InterfaceLocale;
+}
+
+export function AddMusicScreen({ searchParams, locale }: Props) {
   return (
-    <Suspense fallback={<StudioLoading />}>
-      <AddMusic searchParams={searchParams} />
+    <Suspense fallback={<StudioLoading locale={locale} />}>
+      <AddMusic searchParams={searchParams} locale={locale} />
     </Suspense>
   );
 }
 
-async function AddMusic({ searchParams }: { searchParams: SearchParams }) {
+async function AddMusic({ searchParams, locale }: Props) {
   const authorization = await authorizeAuthor(await headers());
   if (!authorization.ok) {
-    return accessDenied(authorization.reason);
+    return accessDenied(authorization.reason, locale);
   }
+  const speech = studio(locale);
+  const { words, href } = speech;
+  const w = words.addMusic;
   const params = await searchParams;
   const query = first(params.q).trim();
   const kind: MusicSearchKind =
     first(params.kind) === "artists" ? "artists" : "albums";
   const kindHref = (id: MusicSearchKind) =>
-    `/studio/catalog/add?${new URLSearchParams({ kind: id, ...(query ? { q: query } : {}) })}`;
+    href(
+      `/studio/catalog/add?${new URLSearchParams({ kind: id, ...(query ? { q: query } : {}) })}`,
+    );
 
   return (
-    <StudioFrame current="catalog">
+    <StudioFrame locale={locale} path="/studio/catalog/add" current="catalog">
       <p>
-        <Link href="/studio/catalog" className="studio-link">
-          ← Back to the catalog
+        <Link href={href("/studio/catalog")} className="studio-link">
+          {w.back}
         </Link>
       </p>
-      <h1 className="studio-title">Add music</h1>
-      <p className="studio-lede">
-        Search MusicBrainz for albums and artists, and add them to your catalog.
-        Nothing is published by adding it.
-      </p>
+      <h1 className="studio-title">{w.title}</h1>
+      <p className="studio-lede">{w.lead}</p>
 
       <div className="studio-search">
         <form
-          action="/studio/catalog/add"
+          action={href("/studio/catalog/add")}
           method="get"
           role="search"
           className="studio-search-field"
         >
           <input type="hidden" name="kind" value={kind} />
           <label htmlFor="music-search" className="studio-sr-only">
-            Search MusicBrainz
+            {w.search}
           </label>
           <Icon name="search" size={18} />
           <input
@@ -94,19 +100,19 @@ async function AddMusic({ searchParams }: { searchParams: SearchParams }) {
             className="studio-field"
             defaultValue={query}
             maxLength={200}
-            placeholder="Search MusicBrainz"
+            placeholder={w.search}
             enterKeyHint="search"
             autoComplete="off"
           />
         </form>
-        <nav className="studio-search-kinds" aria-label="Search for">
+        <nav className="studio-search-kinds" aria-label={w.searchFor}>
           {KINDS.map((item) => (
             <Link
-              key={item.id}
-              href={kindHref(item.id)}
-              aria-current={item.id === kind ? "page" : undefined}
+              key={item}
+              href={kindHref(item)}
+              aria-current={item === kind ? "page" : undefined}
             >
-              {item.label}
+              {w.kinds[item]}
             </Link>
           ))}
         </nav>
@@ -118,7 +124,7 @@ async function AddMusic({ searchParams }: { searchParams: SearchParams }) {
           fallback={
             <div>
               <p role="status" className="studio-hint">
-                <Icon name="search" size={16} /> Searching MusicBrainz…
+                <Icon name="search" size={16} /> {w.searching}
               </p>
               <div className="studio-skeleton" aria-hidden="true">
                 <span />
@@ -129,6 +135,7 @@ async function AddMusic({ searchParams }: { searchParams: SearchParams }) {
           }
         >
           <Results
+            speech={speech}
             author={authorization.author}
             kind={kind}
             query={query}
@@ -141,16 +148,19 @@ async function AddMusic({ searchParams }: { searchParams: SearchParams }) {
 }
 
 async function Results({
+  speech,
   author,
   kind,
   query,
   retry,
 }: {
+  speech: StudioSpeech;
   author: AuthorizedAuthor;
   kind: MusicSearchKind;
   query: string;
   retry: string;
 }) {
+  const w = speech.words.addMusic;
   let found: MusicSearch;
   try {
     found = await searchMusic(author, { kind, query });
@@ -159,19 +169,17 @@ async function Results({
       if (error.failure === "invalid_input") {
         return (
           <div className="studio-panel" role="status">
-            <p className="studio-section-title">Use 1 to 200 characters.</p>
+            <p className="studio-section-title">{w.length}</p>
           </div>
         );
       }
       return (
         <div className="studio-panel" role="alert">
-          <p className="studio-section-title">Couldn’t reach MusicBrainz.</p>
-          <p>
-            Your catalog and your writing still work. Try again in a moment.
-          </p>
+          <p className="studio-section-title">{w.unreachableTitle}</p>
+          <p>{w.unreachableBody}</p>
           <p>
             <Link href={retry} className="studio-button">
-              Try again
+              {speech.words.photoPage.tryAgain}
             </Link>
           </p>
         </div>
@@ -180,19 +188,16 @@ async function Results({
     throw error;
   }
 
-  const source = (
-    <p className="studio-hint">
-      Data from MusicBrainz. Artwork from Cover Art Archive, added only if you
-      choose it.
-    </p>
-  );
+  const source = <p className="studio-hint">{w.source}</p>;
 
   if (found.results.length === 0 && found.local.length === 0) {
     return (
       <>
         <div className="studio-panel" role="status">
-          <p className="studio-section-title">Nothing found for “{query}”.</p>
-          <p>Check the spelling, or try fewer words.</p>
+          <p className="studio-section-title">
+            {speech.words.photoPage.nothingFound(query)}
+          </p>
+          <p>{speech.words.photoPage.nothingFoundHint}</p>
         </div>
         {source}
       </>
@@ -202,39 +207,47 @@ async function Results({
   return (
     <>
       <p role="status" className="studio-sr-only">
-        {`${found.results.length} ${found.results.length === 1 ? "result" : "results"} from MusicBrainz.`}
+        {w.resultCount(found.results.length)}
       </p>
       {found.kind === "albums" ? (
-        <AlbumResults found={found} covers={await listAlbumCovers(author)} />
+        <AlbumResults
+          speech={speech}
+          found={found}
+          covers={await listAlbumCovers(author)}
+        />
       ) : (
-        <ArtistResults found={found} />
+        <ArtistResults speech={speech} found={found} />
       )}
       {source}
     </>
   );
 }
 
-function InCatalog({ href }: { href: string }) {
+function InCatalog({ speech, path }: { speech: StudioSpeech; path: string }) {
   return (
-    <Link href={href} className="studio-in-catalog">
-      In catalog
+    <Link href={speech.href(path)} className="studio-in-catalog">
+      {speech.words.addMusic.inCatalog}
     </Link>
   );
 }
 
 function AlbumResults({
+  speech,
   found,
   covers,
 }: {
+  speech: StudioSpeech;
   found: Extract<MusicSearch, { kind: "albums" }>;
   covers: Map<string, AlbumCover>;
 }) {
+  const { locale, words, href } = speech;
+  const w = words.addMusic;
   return (
     <>
       {found.local.length > 0 ? (
         <section aria-labelledby="in-catalog" className="space-y-2">
           <h2 id="in-catalog" className="studio-section-title">
-            Already in your catalog
+            {w.alreadyInCatalog}
           </h2>
           <ul className="studio-list" aria-labelledby="in-catalog">
             {found.local.map((album) => (
@@ -242,13 +255,13 @@ function AlbumResults({
                 <AlbumThumb artwork={covers.get(album.id)} />
                 <span className="studio-entry-body">
                   <span className="studio-row-title">
-                    <Link href={`/studio/albums/${album.id}`}>
+                    <Link href={href(`/studio/albums/${album.id}`)}>
                       {album.title}
                     </Link>
                   </span>
                   <span className="studio-meta">
                     {[
-                      "Albums",
+                      words.frame.albums,
                       album.credit,
                       album.firstReleaseYear
                         ? String(album.firstReleaseYear)
@@ -260,7 +273,10 @@ function AlbumResults({
                   </span>
                 </span>
                 <span className="studio-entry-end">
-                  <InCatalog href={`/studio/albums/${album.id}`} />
+                  <InCatalog
+                    speech={speech}
+                    path={`/studio/albums/${album.id}`}
+                  />
                 </span>
               </li>
             ))}
@@ -270,10 +286,10 @@ function AlbumResults({
 
       <section aria-labelledby="from-musicbrainz" className="space-y-2">
         <h2 id="from-musicbrainz" className="studio-section-title">
-          From MusicBrainz
+          {w.fromMusicBrainz}
         </h2>
         {found.results.length === 0 ? (
-          <p className="studio-hint">Nothing new found on MusicBrainz.</p>
+          <p className="studio-hint">{w.nothingNew}</p>
         ) : (
           <ul className="studio-list" aria-labelledby="from-musicbrainz">
             {found.results.map((group) => (
@@ -285,10 +301,14 @@ function AlbumResults({
                   <span className="studio-row-title">{group.title}</span>
                   <span className="studio-meta">
                     {[
-                      group.primaryType ?? "Release",
+                      group.primaryType
+                        ? providerTerm(locale, group.primaryType)
+                        : w.release,
                       group.credit,
                       group.firstReleaseDate?.slice(0, 4) ?? "",
-                      ...group.secondaryTypes,
+                      ...group.secondaryTypes.map((type) =>
+                        providerTerm(locale, type),
+                      ),
                       group.disambiguation,
                     ]
                       .filter(Boolean)
@@ -298,15 +318,18 @@ function AlbumResults({
                 <span className="studio-entry-end">
                   {group.catalogAlbumId ? (
                     <InCatalog
-                      href={`/studio/albums/${group.catalogAlbumId}`}
+                      speech={speech}
+                      path={`/studio/albums/${group.catalogAlbumId}`}
                     />
                   ) : (
                     <Link
-                      href={`/studio/catalog/add/album/${group.id}`}
+                      href={href(`/studio/catalog/add/album/${group.id}`)}
                       className="studio-button"
                     >
-                      Add
-                      <span className="studio-sr-only">{` ${group.title}${group.credit ? ` by ${group.credit}` : ""}`}</span>
+                      {w.add}
+                      <span className="studio-sr-only">
+                        {w.addAlbumLabel(group.title, group.credit)}
+                      </span>
                     </Link>
                   )}
                 </span>
@@ -320,16 +343,20 @@ function AlbumResults({
 }
 
 function ArtistResults({
+  speech,
   found,
 }: {
+  speech: StudioSpeech;
   found: Extract<MusicSearch, { kind: "artists" }>;
 }) {
+  const { locale, words, href } = speech;
+  const w = words.addMusic;
   return (
     <>
       {found.local.length > 0 ? (
         <section aria-labelledby="in-catalog" className="space-y-2">
           <h2 id="in-catalog" className="studio-section-title">
-            Already in your catalog
+            {w.alreadyInCatalog}
           </h2>
           <ul className="studio-list" aria-labelledby="in-catalog">
             {found.local.map((artist) => (
@@ -339,16 +366,21 @@ function ArtistResults({
                 </span>
                 <span className="studio-entry-body">
                   <span className="studio-row-title">
-                    <Link href={`/studio/artists/${artist.id}`}>
+                    <Link href={href(`/studio/artists/${artist.id}`)}>
                       {artist.name}
                     </Link>
                   </span>
                   <span className="studio-meta">
-                    {artist.kind === "group" ? "Band" : "Person"}
+                    {artist.kind === "group"
+                      ? words.artists.band
+                      : words.artists.person}
                   </span>
                 </span>
                 <span className="studio-entry-end">
-                  <InCatalog href={`/studio/artists/${artist.id}`} />
+                  <InCatalog
+                    speech={speech}
+                    path={`/studio/artists/${artist.id}`}
+                  />
                 </span>
               </li>
             ))}
@@ -358,10 +390,10 @@ function ArtistResults({
 
       <section aria-labelledby="from-musicbrainz" className="space-y-2">
         <h2 id="from-musicbrainz" className="studio-section-title">
-          From MusicBrainz
+          {w.fromMusicBrainz}
         </h2>
         {found.results.length === 0 ? (
-          <p className="studio-hint">Nothing new found on MusicBrainz.</p>
+          <p className="studio-hint">{w.nothingNew}</p>
         ) : (
           <ul className="studio-list" aria-labelledby="from-musicbrainz">
             {found.results.map((artist) => (
@@ -373,7 +405,9 @@ function ArtistResults({
                   <span className="studio-row-title">{artist.name}</span>
                   <span className="studio-meta">
                     {[
-                      artist.type ?? "Artist",
+                      artist.type
+                        ? providerTerm(locale, artist.type)
+                        : w.artist,
                       artist.country ?? "",
                       artist.begin
                         ? `${artist.begin.slice(0, 4)}${artist.end ? `–${artist.end.slice(0, 4)}` : ""}`
@@ -387,14 +421,15 @@ function ArtistResults({
                 <span className="studio-entry-end">
                   {artist.catalogArtistId ? (
                     <InCatalog
-                      href={`/studio/artists/${artist.catalogArtistId}`}
+                      speech={speech}
+                      path={`/studio/artists/${artist.catalogArtistId}`}
                     />
                   ) : (
                     <Link
-                      href={`/studio/catalog/add/artist/${artist.id}`}
+                      href={href(`/studio/catalog/add/artist/${artist.id}`)}
                       className="studio-button"
                     >
-                      Add
+                      {w.add}
                       <span className="studio-sr-only">{` ${artist.name}`}</span>
                     </Link>
                   )}

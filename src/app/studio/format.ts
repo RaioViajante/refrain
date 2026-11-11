@@ -1,4 +1,5 @@
-// Small presentation helpers for the studio. Pure functions.
+// Small presentation helpers for the studio. Pure functions. Dates, ratings,
+// and counts are the interface's (src/i18n/format.ts, src/i18n/studio).
 
 /** `222000` becomes `3:42`. */
 export function formatDuration(lengthMs: number | null): string {
@@ -35,22 +36,4 @@ export function parseDuration(text: string): number | null | undefined {
       ? Number(match[4])
       : Number(match[1] ?? 0) * 3600 + Number(match[2]) * 60 + Number(match[3]);
   return seconds > 0 ? seconds * 1000 : undefined;
-}
-
-const dateFormat = new Intl.DateTimeFormat("en", {
-  dateStyle: "medium",
-  timeZone: "UTC",
-});
-
-/** A date in UTC, for example "Oct 31, 2026". Dates are not local-time. */
-export function formatDate(date: Date): string {
-  return dateFormat.format(date);
-}
-
-export function plural(
-  count: number,
-  singular: string,
-  plural = `${singular}s`,
-) {
-  return `${count} ${count === 1 ? singular : plural}`;
 }

@@ -652,9 +652,12 @@ describe("the public surface", () => {
       /^src\/app\/\(en\)\/layout\.tsx$/,
       // The Portuguese public routes (ADR 0006 A7, item 9), scanned above as
       // public files, its root layout, which reads nothing, and its
-      // not-found view. No Portuguese Studio route is classified yet.
+      // not-found view.
       /^src\/app\/pt\/(\(public\)|\(artists\)|\(memories\)|\(archives\))\//,
       /^src\/app\/pt\/(page|layout|not-found)\.tsx$/,
+      // The Portuguese Studio's routes (PR 3): each delegates to an authorized
+      // screen (route-structure.test.ts), as the English ones do.
+      /^src\/app\/pt\/studio\//,
     ];
     const unclassified = walk("src/app").filter(
       (file) => routeLike.test(file) && !known.some((rule) => rule.test(file)),

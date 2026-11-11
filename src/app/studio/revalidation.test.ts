@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import ts from "typescript";
@@ -8,7 +8,7 @@ vi.mock("server-only", () => ({}));
 const revalidatePath = vi.fn();
 vi.mock("next/cache", () => ({ revalidatePath }));
 
-const { PUBLIC_REVALIDATION_PATHS, revalidateAfter } =
+const { PUBLIC_REVALIDATION_PATHS, STUDIO_ROUTE_PATHS, revalidateAfter } =
   await import("./revalidation");
 
 // ADR 0006 § 11: nothing is cached publicly, so there is nothing public to
@@ -22,14 +22,29 @@ describe("revalidateAfter", () => {
     expect(revalidatePath).not.toHaveBeenCalled();
   });
 
-  it("refreshes only the private studio after a write", () => {
+  // PR 3 (ADR 0008 § 9): both Studio trees, each by its own route path, after
+  // every write, whichever language the action was called from.
+  it("refreshes only the private studio, in both languages, after a write", () => {
     revalidateAfter("writing");
-    expect(revalidatePath.mock.calls).toEqual([["/(en)/studio", "layout"]]);
+    expect(revalidatePath.mock.calls).toEqual([
+      ["/(en)/studio", "layout"],
+      ["/pt/studio", "layout"],
+    ]);
   });
 
-  it("refreshes only the private studio after a visibility change, because no public path exists yet", () => {
+  it("refreshes only the private studio, in both languages, after a visibility change, because no public path exists yet", () => {
     revalidateAfter("visibility");
-    expect(revalidatePath.mock.calls).toEqual([["/(en)/studio", "layout"]]);
+    expect(revalidatePath.mock.calls).toEqual([
+      ["/(en)/studio", "layout"],
+      ["/pt/studio", "layout"],
+    ]);
+  });
+
+  it("names each tree by its route file, which exists", () => {
+    expect(STUDIO_ROUTE_PATHS).toEqual(["/(en)/studio", "/pt/studio"]);
+    for (const path of STUDIO_ROUTE_PATHS) {
+      expect(existsSync(join("src/app", path, "layout.tsx")), path).toBe(true);
+    }
   });
 
   it("has no public path yet; filling it needs the M3.1 work and its tests", () => {

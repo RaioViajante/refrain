@@ -7,6 +7,8 @@ import { Suspense } from "react";
 import { accessDenied } from "@/app/studio/access";
 import { StudioFrame } from "@/app/studio/frame";
 import { StudioLoading } from "@/app/studio/studio-loading";
+import { studio } from "@/app/studio/studio-words";
+import type { InterfaceLocale } from "@/i18n/locales";
 import {
   CatalogError,
   reviewMusicArtist,
@@ -16,27 +18,32 @@ import { authorizeAuthor } from "@/modules/identity";
 
 import { ArtistApproval, LinkArtistButton } from "./artist-approval";
 
-export const metadata: Metadata = { title: "Review before adding · refrain" };
+export function addArtistMetadata(locale: InterfaceLocale): Metadata {
+  return { title: studio(locale).words.meta.reviewBeforeAdding };
+}
 
 // The review of one MusicBrainz artist before anything is written (M3.2).
 
-export default function ArtistReviewPage({
-  params,
-}: {
+interface Props {
   params: Promise<{ id: string }>;
-}) {
+  locale: InterfaceLocale;
+}
+
+export function AddArtistScreen({ params, locale }: Props) {
   return (
-    <Suspense fallback={<StudioLoading />}>
-      <Review params={params} />
+    <Suspense fallback={<StudioLoading locale={locale} />}>
+      <Review params={params} locale={locale} />
     </Suspense>
   );
 }
 
-async function Review({ params }: { params: Promise<{ id: string }> }) {
+async function Review({ params, locale }: Props) {
   const authorization = await authorizeAuthor(await headers());
   if (!authorization.ok) {
-    return accessDenied(authorization.reason);
+    return accessDenied(authorization.reason, locale);
   }
+  const { words, href } = studio(locale);
+  const w = words.artistReview;
   const { id } = await params;
   let review: ArtistReview;
   try {
@@ -50,18 +57,22 @@ async function Review({ params }: { params: Promise<{ id: string }> }) {
         notFound();
       }
       return (
-        <StudioFrame current="catalog">
+        <StudioFrame
+          locale={locale}
+          path="/studio/catalog/add"
+          current="catalog"
+        >
           <div className="studio-panel" role="alert">
-            <p className="studio-section-title">Couldn’t reach MusicBrainz.</p>
-            <p>
-              Your catalog and your writing still work. Try again in a moment.
+            <p className="studio-section-title">
+              {words.addMusic.unreachableTitle}
             </p>
+            <p>{words.addMusic.unreachableBody}</p>
             <p>
               <Link
-                href={`/studio/catalog/add/artist/${id}`}
+                href={href(`/studio/catalog/add/artist/${id}`)}
                 className="studio-button"
               >
-                Try again
+                {words.photoPage.tryAgain}
               </Link>
             </p>
           </div>
@@ -73,39 +84,41 @@ async function Review({ params }: { params: Promise<{ id: string }> }) {
 
   const { artist, plan, existing } = review;
   return (
-    <StudioFrame current="catalog">
+    <StudioFrame
+      locale={locale}
+      path={`/studio/catalog/add/artist/${artist.id}`}
+      current="catalog"
+    >
       <p>
-        <Link href="/studio/catalog/add?kind=artists" className="studio-link">
-          ← Add music
+        <Link
+          href={href("/studio/catalog/add?kind=artists")}
+          className="studio-link"
+        >
+          {words.editions.back}
         </Link>
       </p>
       <h1 className="studio-title">{artist.name}</h1>
-      <p className="studio-lede">
-        Review what will be added to your catalog. Nothing is published by
-        adding it.
-      </p>
+      <p className="studio-lede">{w.lead}</p>
 
       <dl className="studio-facts">
-        <dt>Name</dt>
+        <dt>{w.name}</dt>
         <dd>{artist.name}</dd>
-        <dt>Sorted as</dt>
-        <dd>{artist.sortName ?? "not given"}</dd>
-        <dt>Added as</dt>
+        <dt>{w.sortedAs}</dt>
+        <dd>{artist.sortName ?? words.release.notGiven}</dd>
+        <dt>{w.addedAs}</dt>
         <dd>
-          {plan.kind === "group" ? "a band" : "a person"}
-          {plan.kindFromProvider
-            ? ""
-            : " (MusicBrainz doesn’t say; you can change it in the catalog)"}
+          {plan.kind === "group" ? w.band : w.person}
+          {plan.kindFromProvider ? "" : words.release.kindUnknown}
         </dd>
         {artist.country ? (
           <>
-            <dt>Country</dt>
+            <dt>{words.release.country}</dt>
             <dd>{artist.country}</dd>
           </>
         ) : null}
         {artist.disambiguation ? (
           <>
-            <dt>Note</dt>
+            <dt>{words.release.note}</dt>
             <dd>{artist.disambiguation}</dd>
           </>
         ) : null}
@@ -113,21 +126,23 @@ async function Review({ params }: { params: Promise<{ id: string }> }) {
 
       {existing ? (
         <div className="studio-panel" role="status">
-          <p className="studio-section-title">Already in your catalog</p>
+          <p className="studio-section-title">
+            {words.addMusic.alreadyInCatalog}
+          </p>
           <p>
-            This artist is{" "}
+            {w.alreadyStart}
             <Link
-              href={`/studio/artists/${existing.id}`}
+              href={href(`/studio/artists/${existing.id}`)}
               className="studio-link"
             >
               {existing.name}
-            </Link>{" "}
-            in your catalog, so it isn’t added again.
+            </Link>
+            {words.release.alreadyAlbumEnd}
           </p>
         </div>
       ) : review.review === null ? (
         <div className="studio-panel" role="status">
-          <p>This name is longer than the catalog holds. Add it by hand.</p>
+          <p>{w.tooLong}</p>
         </div>
       ) : (
         <ArtistApproval mbArtistId={artist.id} review={review.review} />
@@ -136,20 +151,23 @@ async function Review({ params }: { params: Promise<{ id: string }> }) {
       {!existing && review.review !== null && review.sameName.length > 0 ? (
         <section aria-labelledby="review-link" className="space-y-2">
           <h2 id="review-link" className="studio-section-title">
-            Or link an artist you already have
+            {w.linkTitle}
           </h2>
           <p className="studio-hint" style={{ maxWidth: "62ch" }}>
-            Linking records only which MusicBrainz artist it is. The name and
-            the rest stay exactly as they are.
+            {w.linkHint}
           </p>
           <ul className="studio-list" aria-labelledby="review-link">
             {review.sameName.map((match) => (
               <li key={match.id} className="studio-row">
                 <span className="studio-row-title">
-                  <Link href={`/studio/artists/${match.id}`}>{match.name}</Link>
+                  <Link href={href(`/studio/artists/${match.id}`)}>
+                    {match.name}
+                  </Link>
                 </span>
                 <span className="studio-meta">
-                  {match.kind === "group" ? "Band" : "Person"}
+                  {match.kind === "group"
+                    ? words.artists.band
+                    : words.artists.person}
                 </span>
                 <LinkArtistButton
                   artistId={match.id}
@@ -163,7 +181,7 @@ async function Review({ params }: { params: Promise<{ id: string }> }) {
         </section>
       ) : null}
 
-      <p className="studio-hint">Data from MusicBrainz.</p>
+      <p className="studio-hint">{words.editions.source}</p>
     </StudioFrame>
   );
 }

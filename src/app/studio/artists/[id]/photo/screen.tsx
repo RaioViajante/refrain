@@ -11,10 +11,11 @@ import {
   PhotoAttribution,
   PhotoFrame,
 } from "@/app/studio/artist-photograph";
-import { plural } from "@/app/studio/format";
 import { StudioFrame } from "@/app/studio/frame";
 import { Icon } from "@/app/studio/icons";
 import { StudioLoading } from "@/app/studio/studio-loading";
+import { studio, type StudioSpeech } from "@/app/studio/studio-words";
+import type { InterfaceLocale } from "@/i18n/locales";
 import {
   getArtist,
   listArtistPhotoChoices,
@@ -27,7 +28,9 @@ import { authorizeAuthor, type AuthorizedAuthor } from "@/modules/identity";
 import { RemovePhoto } from "./remove-photo";
 
 // A fixed title: nothing searched for reaches page metadata.
-export const metadata: Metadata = { title: "Photograph · refrain" };
+export function artistPhotoMetadata(locale: InterfaceLocale): Metadata {
+  return { title: studio(locale).words.meta.photo };
+}
 
 // An artist's photograph (M3.3), in the manner of M3.2's Add music and
 // Artwork screens. The search is a plain GET form, so it works without
@@ -42,31 +45,28 @@ function first(value: string | string[] | undefined): string {
   return (Array.isArray(value) ? value[0] : value) ?? "";
 }
 
-export default function PhotoPage({
-  params,
-  searchParams,
-}: {
+interface Props {
   params: Promise<{ id: string }>;
   searchParams: SearchParams;
-}) {
+  locale: InterfaceLocale;
+}
+
+export function ArtistPhotoScreen({ params, searchParams, locale }: Props) {
   return (
-    <Suspense fallback={<StudioLoading />}>
-      <Photo params={params} searchParams={searchParams} />
+    <Suspense fallback={<StudioLoading locale={locale} />}>
+      <Photo params={params} searchParams={searchParams} locale={locale} />
     </Suspense>
   );
 }
 
-async function Photo({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ id: string }>;
-  searchParams: SearchParams;
-}) {
+async function Photo({ params, searchParams, locale }: Props) {
   const authorization = await authorizeAuthor(await headers());
   if (!authorization.ok) {
-    return accessDenied(authorization.reason);
+    return accessDenied(authorization.reason, locale);
   }
+  const speech = studio(locale);
+  const { words, href } = speech;
+  const w = words.photoPage;
   const { id } = await params;
   const artist = await getArtist(authorization.author, id);
   if (!artist) {
@@ -76,49 +76,48 @@ async function Photo({
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 200);
-  const here = `/studio/artists/${id}/photo${query ? `?${new URLSearchParams({ q: query })}` : ""}`;
+  const here = href(
+    `/studio/artists/${id}/photo${query ? `?${new URLSearchParams({ q: query })}` : ""}`,
+  );
 
   return (
-    <StudioFrame current="artists">
+    <StudioFrame
+      locale={locale}
+      path={`/studio/artists/${artist.id}/photo`}
+      current="artists"
+    >
       <p>
-        <Link href={`/studio/artists/${id}`} className="studio-link">
+        <Link href={href(`/studio/artists/${id}`)} className="studio-link">
           ← {artist.name}
         </Link>
       </p>
-      <h1 className="studio-title">Photograph</h1>
-      <p className="studio-lede">
-        Choose a freely licensed photograph from Wikimedia Commons, or none.
-        Only photographs with a license Refrain accepts and a named creator are
-        offered, and nothing changes until you choose one.
-      </p>
+      <h1 className="studio-title">{w.title}</h1>
+      <p className="studio-lede">{w.lead}</p>
 
       <section aria-labelledby="photo-current" className="space-y-3">
         <h2 id="photo-current" className="studio-section-title" tabIndex={-1}>
-          On file
+          {w.onFile}
         </h2>
         <figure className="studio-photo-figure">
           <PhotoFrame
+            locale={locale}
             image={artist.photo.photo}
             name={artist.name}
             size={220}
           />
           {artist.photo.photo ? (
             <figcaption>
-              <PhotoAttribution photo={artist.photo.photo} />
+              <PhotoAttribution locale={locale} photo={artist.photo.photo} />
             </figcaption>
           ) : null}
         </figure>
         {artist.photo.unreadable ? (
           <div className="studio-panel" role="status">
-            <p className="studio-section-title">Not shown</p>
-            <p>
-              The photograph on file isn’t in the form Refrain writes (it may
-              have been changed outside the studio), so it isn’t shown. Remove
-              it, then choose again.
-            </p>
+            <p className="studio-section-title">{w.notShownTitle}</p>
+            <p>{w.notShownBody}</p>
           </div>
         ) : artist.photo.photo ? null : (
-          <p className="studio-hint">No photo. The page works without one.</p>
+          <p className="studio-hint">{words.artist.noPhoto}</p>
         )}
         <RemovePhoto
           artistId={id}
@@ -130,22 +129,19 @@ async function Photo({
 
       {artist.archived ? (
         <div className="studio-panel" role="status">
-          <p>
-            This artist is archived. Restore it to choose a photograph; the
-            photograph on file can still be removed.
-          </p>
+          <p>{w.archived}</p>
         </div>
       ) : (
         <>
           <div className="studio-search">
             <form
-              action={`/studio/artists/${id}/photo`}
+              action={href(`/studio/artists/${id}/photo`)}
               method="get"
               role="search"
               className="studio-search-field"
             >
               <label htmlFor="photo-search" className="studio-sr-only">
-                Search Wikimedia Commons
+                {w.search}
               </label>
               <Icon name="search" size={18} />
               <input
@@ -155,7 +151,7 @@ async function Photo({
                 className="studio-field"
                 defaultValue={query || artist.name}
                 maxLength={200}
-                placeholder="Search Wikimedia Commons"
+                placeholder={w.search}
                 enterKeyHint="search"
                 autoComplete="off"
               />
@@ -167,7 +163,7 @@ async function Photo({
             fallback={
               <div>
                 <p role="status" className="studio-hint">
-                  <Icon name="search" size={16} /> Looking on Wikimedia Commons…
+                  <Icon name="search" size={16} /> {w.looking}
                 </p>
                 <div className="studio-skeleton" aria-hidden="true">
                   <span />
@@ -178,6 +174,7 @@ async function Photo({
             }
           >
             <Choices
+              speech={speech}
               author={authorization.author}
               artistId={id}
               query={query}
@@ -187,33 +184,20 @@ async function Photo({
         </>
       )}
       <p className="studio-hint" style={{ maxWidth: "62ch" }}>
-        Photographs from Wikimedia Commons, each under its own license and
-        credited as it asks. A free license covers the photograph, not the
-        people in it.
+        {w.source}
       </p>
     </StudioFrame>
   );
 }
 
-const CHECK: Record<Exclude<CurrentPhotoCheck, "unchanged">, string> = {
-  new_version:
-    "A new version of this file was uploaded to Wikimedia Commons after you chose it, and the frame now shows that version. Review it again, or remove it.",
-  details_changed:
-    "Its credit or license on Wikimedia Commons changed after you chose it. Review it again to keep the attribution right, or remove it.",
-  missing:
-    "Wikimedia Commons no longer has this file; it may have been deleted. Remove it, or choose another.",
-  not_usable:
-    "On Wikimedia Commons, this file no longer meets Refrain’s license and credit rules. Remove it, or choose another.",
-  unavailable:
-    "Couldn’t check this file on Wikimedia Commons just now. The photograph on file is unchanged.",
-};
-
 async function Choices({
+  speech,
   author,
   artistId,
   query,
   retry,
 }: {
+  speech: StudioSpeech;
   author: AuthorizedAuthor;
   artistId: string;
   query: string;
@@ -223,24 +207,26 @@ async function Choices({
   if (!found) {
     notFound();
   }
+  const { href } = speech;
+  const w = speech.words.photoPage;
+  const check: Record<
+    Exclude<CurrentPhotoCheck, "unchanged">,
+    string
+  > = w.check;
   const reviewHref = (fileName: string) =>
-    `/studio/artists/${artistId}/photo/review?${new URLSearchParams({
-      file: fileName,
-      ...(query ? { q: query } : {}),
-    })}`;
+    href(
+      `/studio/artists/${artistId}/photo/review?${new URLSearchParams({
+        file: fileName,
+        ...(query ? { q: query } : {}),
+      })}`,
+    );
 
   return (
     <>
       {found.artist.onPublicPage ? (
         <div className="studio-panel" role="status">
-          <p className="studio-section-title">Shown on a public page</p>
-          <p>
-            A published journal puts this artist on a public page, so its
-            photograph can’t be replaced: a new one would reach readers without
-            a confirmation, and that confirmation isn’t built yet. You can still
-            remove it above. To choose another, unpublish the journals that show
-            this artist first.
-          </p>
+          <p className="studio-section-title">{w.onPublicPageTitle}</p>
+          <p>{w.onPublicPageBody}</p>
         </div>
       ) : null}
       {found.currentCheck && found.currentCheck !== "unchanged" ? (
@@ -248,8 +234,8 @@ async function Choices({
           className="studio-panel"
           role={found.currentCheck === "unavailable" ? "status" : "alert"}
         >
-          <p className="studio-section-title">The photograph on file</p>
-          <p>{CHECK[found.currentCheck]}</p>
+          <p className="studio-section-title">{w.checkTitle}</p>
+          <p>{check[found.currentCheck]}</p>
           {found.current.photo &&
           (found.currentCheck === "new_version" ||
             found.currentCheck === "details_changed") ? (
@@ -258,65 +244,56 @@ async function Choices({
                 href={reviewHref(found.current.photo.fileName)}
                 className="studio-button"
               >
-                Review it again
+                {w.reviewAgain}
               </Link>
             </p>
           ) : null}
         </div>
       ) : null}
 
-      <Suggestions found={found} reviewHref={reviewHref} />
+      <Suggestions speech={speech} found={found} reviewHref={reviewHref} />
 
       {found.results === null ? (
-        <p className="studio-hint">
-          Search Wikimedia Commons for a photograph of {found.artist.name}.
-        </p>
+        <p className="studio-hint">{w.searchFor(found.artist.name)}</p>
       ) : found.searchUnavailable ? (
         <div className="studio-panel" role="alert">
-          <p className="studio-section-title">
-            Couldn’t reach Wikimedia Commons.
-          </p>
-          <p>
-            Your catalog and your writing still work, and the photograph on file
-            is unchanged. Try again in a moment.
-          </p>
+          <p className="studio-section-title">{w.unreachableTitle}</p>
+          <p>{w.unreachableBody}</p>
           <p>
             <Link href={retry} className="studio-button">
-              Try again
+              {w.tryAgain}
             </Link>
           </p>
         </div>
       ) : found.results.length === 0 && found.refused === 0 ? (
         <div className="studio-panel" role="status">
-          <p className="studio-section-title">
-            Nothing found for “{found.query}”.
-          </p>
-          <p>Check the spelling, or try fewer words.</p>
+          <p className="studio-section-title">{w.nothingFound(found.query)}</p>
+          <p>{w.nothingFoundHint}</p>
         </div>
       ) : (
         <section aria-labelledby="photo-results" className="space-y-3">
           <h2 id="photo-results" className="studio-section-title">
-            From Wikimedia Commons
+            {w.fromCommons}
           </h2>
           <p role="status" className="studio-sr-only">
-            {`${plural(found.results.length, "photograph")} can be chosen.`}
+            {w.canBeChosen(found.results.length)}
           </p>
           {found.results.length > 0 ? (
             <>
               <p className="studio-hint" style={{ maxWidth: "62ch" }}>
-                A search finds words, not people. Look closely before you
-                choose.
+                {w.lookClosely}
               </p>
               <ChoiceGrid
+                speech={speech}
                 choices={found.results}
                 name={found.artist.name}
                 reviewHref={reviewHref}
               />
             </>
           ) : (
-            <p className="studio-hint">Nothing found here can be offered.</p>
+            <p className="studio-hint">{w.nothingOffered}</p>
           )}
-          <Refused count={found.refused} />
+          <Refused speech={speech} count={found.refused} />
         </section>
       )}
     </>
@@ -324,50 +301,48 @@ async function Choices({
 }
 
 function Suggestions({
+  speech,
   found,
   reviewHref,
 }: {
+  speech: StudioSpeech;
   found: ArtistPhotoChoices;
   reviewHref: (fileName: string) => string;
 }) {
+  const w = speech.words.photoPage;
   if (found.suggestionState === "not_linked") {
     return null;
   }
   return (
     <section aria-labelledby="photo-suggestions" className="space-y-3">
       <h2 id="photo-suggestions" className="studio-section-title">
-        Suggested through Wikidata
+        {w.suggestedTitle}
       </h2>
       {found.suggestionState === "unavailable" ? (
         <p className="studio-hint" role="status">
-          Couldn’t reach Wikidata or Wikimedia Commons for suggestions. Search
-          below instead.
+          {w.suggestionsUnavailable}
         </p>
       ) : found.suggestionState === "no_item" ? (
-        <p className="studio-hint">
-          Wikidata has no single entry for this artist’s MusicBrainz link, so
-          there are no suggestions. Search below instead.
-        </p>
+        <p className="studio-hint">{w.suggestionsNoItem}</p>
       ) : found.suggestions.length === 0 ? (
         <p className="studio-hint">
-          Wikidata’s entry for this artist has no photograph Refrain can offer.
+          {w.suggestionsNone}
           {found.suggestionsRefused > 0
-            ? ` ${plural(found.suggestionsRefused, "file")} didn’t meet the license and credit rules.`
+            ? w.suggestionsRefused(found.suggestionsRefused)
             : ""}
         </p>
       ) : (
         <>
           <p className="studio-hint" style={{ maxWidth: "62ch" }}>
-            Wikidata links {found.artist.name}’s MusicBrainz entry to these
-            files. That is a lead, not proof: check that each photograph really
-            shows them before you choose it.
+            {w.suggestionsLead(found.artist.name)}
           </p>
           <ChoiceGrid
+            speech={speech}
             choices={found.suggestions}
             name={found.artist.name}
             reviewHref={reviewHref}
           />
-          <Refused count={found.suggestionsRefused} />
+          <Refused speech={speech} count={found.suggestionsRefused} />
         </>
       )}
     </section>
@@ -375,10 +350,12 @@ function Suggestions({
 }
 
 function ChoiceGrid({
+  speech: { locale, words },
   choices,
   name,
   reviewHref,
 }: {
+  speech: StudioSpeech;
   choices: PhotoChoice[];
   name: string;
   reviewHref: (fileName: string) => string;
@@ -388,20 +365,21 @@ function ChoiceGrid({
       {choices.map((choice) => (
         <li key={choice.fileName} className="studio-choice studio-photo-choice">
           <PhotoFrame
+            locale={locale}
             image={choice.image}
             name={name}
-            label={`Candidate: ${choice.title}`}
+            label={words.photoPage.candidate(choice.title)}
             size={220}
             fluid
           />
           <p className="studio-photo-credit">
             {choice.title}
             <br />
-            {creditCaption(choice.credit)} ·{" "}
-            <LicenseName license={choice.license} />
+            {creditCaption(locale, choice.credit)} ·{" "}
+            <LicenseName locale={locale} license={choice.license} />
           </p>
           <Link href={reviewHref(choice.fileName)} className="studio-button">
-            Review
+            {words.photoPage.review}
             <span className="studio-sr-only">{` ${choice.title}`}</span>
           </Link>
         </li>
@@ -410,12 +388,10 @@ function ChoiceGrid({
   );
 }
 
-function Refused({ count }: { count: number }) {
+function Refused({ speech, count }: { speech: StudioSpeech; count: number }) {
   return count > 0 ? (
     <p className="studio-hint" style={{ maxWidth: "62ch" }}>
-      {count === 1
-        ? "1 more file can’t be offered: its license, credit, format, or size doesn’t meet Refrain’s rules."
-        : `${count} more files can’t be offered: their license, credit, format, or size doesn’t meet Refrain’s rules.`}
+      {speech.words.photoPage.refused(count)}
     </p>
   ) : null;
 }

@@ -4,15 +4,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ConfirmDialog } from "@/app/studio/form-kit";
 import {
-  LANGUAGE_NAMES,
   Notice,
   ReviewedText,
   ReviewSection,
 } from "@/app/studio/journals/review-parts";
 import { publishMemoryVersionAction } from "@/app/studio/memories/actions";
 import { previewMemoryPublicationAction } from "@/app/studio/memories/preview-publication-action";
-import { failureMessage, PUBLIC_PAGE_NOTE } from "@/app/studio/messages";
+import { failureMessage } from "@/app/studio/messages";
 import type { ActionResult } from "@/app/studio/results";
+import { useStudio } from "@/app/studio/studio-locale";
+import type { StudioDictionary } from "@/i18n/studio";
 import type {
   MemoryPublicationPreview,
   ReviewedMemoryMusic,
@@ -62,15 +63,16 @@ export function MemoryPublishDialog({
 }
 
 /** A song's line in the review: its artists and album, and where they link. */
-function songFacts(song: ReviewedMemoryMusic): string {
+function songFacts(t: StudioDictionary, song: ReviewedMemoryMusic): string {
+  const w = t.memoryPublish;
   const artists = song.artists.map((artist) =>
-    artist.address ? `${artist.name} (links to their page)` : artist.name,
+    artist.address ? w.linksToArtist(artist.name) : artist.name,
   );
   const album =
     song.kind === "recording" && song.album
-      ? `on ${song.album.title}${song.album.journalSlug ? " (links to its album journal)" : ""}`
+      ? w.onAlbum(song.album.title, Boolean(song.album.journalSlug))
       : song.kind === "album" && song.album?.journalSlug
-        ? "links to its album journal"
+        ? w.linksToJournal
         : null;
   return [artists.join(", "), album].filter(Boolean).join(" · ");
 }
@@ -97,10 +99,14 @@ function OpenMemoryPublishDialog({
   onClose: () => void;
   onPublished: () => void;
 }) {
+  const { locale: ui, words: t } = useStudio();
+  const w = t.memoryPublish;
   const [stage, setStage] = useState<Stage>({ name: "loading" });
   // Guards against a second click before React has re-rendered.
   const busy = useRef(false);
-  const language = LANGUAGE_NAMES[locale];
+  // `locale` is the memory's language; `ui` is the interface's. Only labels
+  // follow `ui`: nothing sent depends on it.
+  const language = t.languageInSentence[locale];
   const loading = stage.name === "loading";
   // Only a running confirmation locks the dialog; reading can be abandoned.
   const [submitting, setSubmitting] = useState(false);
@@ -181,24 +187,24 @@ function OpenMemoryPublishDialog({
   const unreadable = ready !== undefined && ready.text === null;
   const status =
     ready?.status === "draft"
-      ? "a draft"
+      ? t.publish.statusDraft
       : ready?.status === "private"
-        ? "private"
-        : "already published";
+        ? t.publish.statusPrivate
+        : t.publish.statusPublished;
 
   return (
     <ConfirmDialog
       open
       review
-      title="Publish this memory?"
-      confirmLabel="Publish this memory"
+      title={w.title}
+      confirmLabel={w.confirmLabel}
       pending={submitting}
       focusKey={stage.name}
-      regionLabel="What will be published"
+      regionLabel={t.publish.region}
       hideConfirm={stage.name !== "ready" || unreadable}
       onConfirm={confirm}
       onCancel={onClose}
-      cancelLabel={stage.name === "ready" ? "Cancel" : "Close"}
+      cancelLabel={stage.name === "ready" ? t.common.cancel : t.publish.close}
       extraActions={
         stage.name === "changed" ? (
           <button
@@ -207,108 +213,84 @@ function OpenMemoryPublishDialog({
             disabled={submitting}
             onClick={() => void reviewAgain()}
           >
-            Review it again
+            {t.publish.reviewAgain}
           </button>
         ) : null
       }
     >
       <div className="studio-review">
-        <div role="status">
-          {loading ? "Reading what would be published…" : null}
-        </div>
+        <div role="status">{loading ? t.publish.reading : null}</div>
 
         {stage.name === "changed" ? (
-          <Notice problem>
-            What would be published has changed since you looked, or this review
-            ran out. Nothing was published. Review it again to see how it stands
-            now.
-          </Notice>
+          <Notice problem>{t.publish.changed}</Notice>
         ) : null}
 
         {stage.name === "failed" ? (
-          <Notice problem>{failureMessage(stage.failure, "memory")}</Notice>
+          <Notice problem>{failureMessage(t, stage.failure, "memory")}</Notice>
         ) : null}
 
         {ready ? (
           <>
             {unreadable ? (
-              <p className="studio-problem">
-                Some of this text has formatting the plain view can’t show, so
-                you can’t read all of it here. It can’t be published from the
-                studio until it can be.
-              </p>
+              <p className="studio-problem">{t.publish.unreadable}</p>
             ) : null}
-            <p>
-              This is everything that will be published for this memory, in{" "}
-              {language}. Nothing is published until you press the button below.
-              Nothing you do in this review changes or deletes anything: closing
-              it leaves everything as it was.
-            </p>
+            <p>{w.everything(language)}</p>
             <p className="studio-hint">
-              This memory is {status} now. Publishing marks it as published in
-              your records. {PUBLIC_PAGE_NOTE}
+              {w.statusNow(status, t.publicPageNote)}
             </p>
 
-            <ReviewSection title="Title">
+            <ReviewSection title={t.memoryEditor.title}>
               <p lang={ready.locale} className="studio-row-title">
                 {ready.title}
               </p>
             </ReviewSection>
 
-            <ReviewSection title="When">
+            <ReviewSection title={t.memoryEditor.when}>
               {ready.rememberedWhen ? (
                 <p lang={ready.locale}>{ready.rememberedWhen}</p>
               ) : (
-                <p lang="en">None. The page shows no date for it.</p>
+                <p lang={ui}>{w.noWhen}</p>
               )}
             </ReviewSection>
 
-            <ReviewSection title="The memory">
+            <ReviewSection title={t.memoryEditor.body}>
               <ReviewedText text={ready.text} lang={ready.locale} />
             </ReviewSection>
 
-            <ReviewSection title={`The music (${ready.music.length})`}>
+            <ReviewSection title={w.music(ready.music.length)}>
               {ready.music.length === 0 ? (
-                <p lang="en">No songs. The page shows none.</p>
+                <p lang={ui}>{w.noSongs}</p>
               ) : (
                 <ol className="studio-review-list">
                   {ready.music.map((song) => (
                     <li key={song.number}>
                       <p className="studio-label">
-                        {song.kind === "album" ? "Album: " : ""}
+                        {song.kind === "album" ? w.albumPrefix : ""}
                         {song.title}
                       </p>
-                      {songFacts(song) ? (
-                        <p className="studio-hint" lang="en">
-                          {songFacts(song)}
+                      {songFacts(t, song) ? (
+                        <p className="studio-hint" lang={ui}>
+                          {songFacts(t, song)}
                         </p>
                       ) : null}
                     </li>
                   ))}
                 </ol>
               )}
-              <p className="studio-hint" lang="en">
-                Song titles, artists, and albums are shown as your catalog names
-                them. Publishing a memory opens no artist page: an artist or an
-                album journal is linked only when its page is already public.
+              <p className="studio-hint" lang={ui}>
+                {w.musicHint}
               </p>
             </ReviewSection>
 
-            <ReviewSection title="Its address">
+            <ReviewSection title={t.publish.address}>
               <p>
                 /memories/{ready.address.slug}
-                {ready.address.wasPublic
-                  ? " (this address has been public before)"
-                  : ""}
+                {ready.address.wasPublic ? t.publish.wasPublic : ""}
               </p>
             </ReviewSection>
 
-            <ReviewSection title="What stays private">
-              <p lang="en">
-                Your other memories, your drafts, your album journals and their
-                track reflections, and everything in Recently deleted stay as
-                they are.
-              </p>
+            <ReviewSection title={t.publish.staysPrivate}>
+              <p lang={ui}>{w.othersStay}</p>
             </ReviewSection>
           </>
         ) : null}

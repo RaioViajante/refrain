@@ -33,14 +33,12 @@ import {
 import { ChangeDialog } from "@/app/studio/journals/change-dialog";
 import { problemWith } from "@/app/studio/messages";
 import { StatusMark } from "@/app/studio/status-mark";
+import { useStudio } from "@/app/studio/studio-locale";
 import type { TrackByTrackItem, VisibilityStatus } from "@/modules/journals";
 
-const LANGUAGES = [
-  { value: "en", label: "English" },
-  { value: "pt-BR", label: "Português (Brasil)" },
-];
-
 type Language = "en" | "pt-BR";
+
+const LANGUAGES: Language[] = ["en", "pt-BR"];
 
 interface Snapshot {
   opening: string;
@@ -49,7 +47,7 @@ interface Snapshot {
   drafts: Record<string, TrackDraft>;
 }
 
-function words(text: string): number {
+function wordCount(text: string): number {
   return text.trim() === "" ? 0 : text.trim().split(/\s+/).length;
 }
 
@@ -100,10 +98,16 @@ export function JournalEditor({
   catalog,
 }: JournalEditorProps) {
   const router = useRouter();
+  // `locale` below is the language of the writing, which is content; the
+  // interface's own language is `ui`, from the page's route.
+  const { locale: ui, words: t, href } = useStudio();
+  const w = t.editor;
   const languageNote = useId();
   const [opening, setOpening] = useState(initial.opening);
   const [body, setBody] = useState(initial.body);
-  const [locale, setLocale] = useState<Language>(edit?.locale ?? "en");
+  // A new journal starts in the page's language; the author can choose the
+  // other one before the first save. It is recorded as the original.
+  const [locale, setLocale] = useState<Language>(edit?.locale ?? ui);
   const [version, setVersion] = useState(edit?.version ?? 1);
   const [albumRating, setAlbumRating] = useState<number | null>(
     initialAlbumRating,
@@ -281,7 +285,7 @@ export function JournalEditor({
       setCreated(true);
       setFlagDirty(false);
       setSaved(true);
-      router.push(`/studio/journals/${result.data.entryId}`);
+      router.push(href(`/studio/journals/${result.data.entryId}`));
     }
   }
 
@@ -329,7 +333,7 @@ export function JournalEditor({
   const reflectionProblem = Object.keys(failure?.fields ?? {}).some((field) =>
     field.startsWith("reflections"),
   )
-    ? "A reflection is too long or isn’t valid, so nothing was saved. Your text is still here."
+    ? w.reflectionProblem
     : undefined;
 
   return (
@@ -346,13 +350,16 @@ export function JournalEditor({
           </Link>
           {create ? (
             <SelectField
-              label="Written in"
+              label={w.writtenIn}
               variant="inline"
               value={locale}
               onChange={(value) => edited(() => setLocale(value as Language))}
-              options={LANGUAGES}
+              options={LANGUAGES.map((value) => ({
+                value,
+                label: t.languageNames[value],
+              }))}
               describedById={languageNote}
-              problem={problemWith(failure, "locale")}
+              problem={problemWith(t, failure, "locale")}
             />
           ) : null}
         </div>
@@ -368,7 +375,7 @@ export function JournalEditor({
             className={`studio-button ${dirty ? "studio-button-primary" : ""}`}
             disabled={pending || review !== undefined}
           >
-            {create ? "Save as draft" : "Save"}
+            {create ? w.saveDraft : w.save}
           </button>
         </div>
       </div>
@@ -377,53 +384,50 @@ export function JournalEditor({
 
       {edit?.status === "published" ? (
         <p className="studio-panel" role="note">
-          This version is published. Saving changes the published writing.
-          Before a change to the published writing is saved, you will see
-          exactly what changes and confirm it. Nothing is saved without that.
+          {w.published}
         </p>
       ) : edit?.anyPublished ? (
         <p className="studio-panel" role="note">
-          Another language version of this journal is published. A change to the
-          published writing will show you what changes and ask you first.
+          {w.otherPublished}
         </p>
       ) : null}
 
       <div className="studio-columns">
         <div className="studio-writing-column">
           <TextField
-            label="Opening sentence (optional)"
+            label={w.opening}
             value={opening}
             onChange={(value) => edited(() => setOpening(value))}
             maxLength={300}
             lang={locale}
             variant="opening"
-            hint="One line that opens the journal, in your words."
-            problem={problemWith(failure, "opening")}
+            hint={w.openingHint}
+            problem={problemWith(t, failure, "opening")}
           />
           <div className="grid gap-2">
             <TextAreaField
-              label="Your reflection"
+              label={w.reflection}
               value={body}
               onChange={(value) => edited(() => setBody(value))}
               rows={18}
               lang={locale}
-              hint="A blank line starts a new paragraph. Your writing is kept as plain text."
-              problem={problemWith(failure, "body")}
+              hint={w.reflectionHint}
+              problem={problemWith(t, failure, "body")}
             />
             <p className="studio-count" aria-live="off">
-              {words(body)} {words(body) === 1 ? "word" : "words"}
+              {t.counts.words(wordCount(body))}
             </p>
           </div>
           {edit ? (
             <>
               <RatingField
-                label="Your rating for the album"
+                label={w.albumRating}
                 value={albumRating}
                 onChange={(value) => {
                   setAlbumRating(value);
                   setSaved(false);
                 }}
-                hint="Set on its own. It is never calculated from the track ratings."
+                hint={w.albumRatingHint}
               />
               <TrackByTrack
                 tracks={tracks}
@@ -442,23 +446,16 @@ export function JournalEditor({
           {edit ? (
             <>
               <p className="studio-meta studio-editor-state">
-                <StatusMark status={edit.status} />
+                <StatusMark locale={ui} status={edit.status} />
               </p>
-              <p className="studio-meta">
-                Written in {LANGUAGES.find((l) => l.value === locale)?.label}
-              </p>
+              <p className="studio-meta">{w.writtenInLanguage(locale)}</p>
             </>
           ) : (
             <p className="studio-hint" id={languageNote}>
-              The language you write this journal in. It is recorded with the
-              journal, and nothing is translated for you.
+              {w.languageNote}
             </p>
           )}
-          <p className="studio-hint">
-            {create
-              ? "A new journal starts as a private draft. Nothing here is published."
-              : "Saving never changes who can see this journal."}
-          </p>
+          <p className="studio-hint">{create ? w.createNote : w.editNote}</p>
           {catalog}
         </div>
       </div>

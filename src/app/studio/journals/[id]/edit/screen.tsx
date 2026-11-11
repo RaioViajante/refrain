@@ -10,29 +10,36 @@ import { StudioFrame } from "@/app/studio/frame";
 import { JournalCatalogMargin } from "@/app/studio/journals/journal-catalog-margin";
 import { JournalEditor } from "@/app/studio/journals/journal-editor";
 import { StudioLoading } from "@/app/studio/studio-loading";
+import { studio } from "@/app/studio/studio-words";
+import type { InterfaceLocale } from "@/i18n/locales";
 import { getAlbumCover } from "@/modules/catalog";
 import { authorizeAuthor } from "@/modules/identity";
 import { getAlbumJournal, getTrackByTrack } from "@/modules/journals";
 
-export const metadata: Metadata = { title: "Edit a journal · refrain" };
+export function editJournalMetadata(locale: InterfaceLocale): Metadata {
+  return { title: studio(locale).words.meta.editJournal };
+}
 
-export default function EditJournalPage({
-  params,
-}: {
+interface Props {
   params: Promise<{ id: string }>;
-}) {
+  locale: InterfaceLocale;
+}
+
+export function EditJournalScreen({ params, locale }: Props) {
   return (
-    <Suspense fallback={<StudioLoading />}>
-      <EditJournal params={params} />
+    <Suspense fallback={<StudioLoading locale={locale} />}>
+      <EditJournal params={params} locale={locale} />
     </Suspense>
   );
 }
 
-async function EditJournal({ params }: { params: Promise<{ id: string }> }) {
+async function EditJournal({ params, locale }: Props) {
   const authorization = await authorizeAuthor(await headers());
   if (!authorization.ok) {
-    return accessDenied(authorization.reason);
+    return accessDenied(authorization.reason, locale);
   }
+  const { words, href } = studio(locale);
+  const w = words.editJournal;
   const { id } = await params;
   const journal = await getAlbumJournal(authorization.author, id);
   if (!journal) {
@@ -42,35 +49,30 @@ async function EditJournal({ params }: { params: Promise<{ id: string }> }) {
   const back = (
     <p>
       <Link
-        href={`/studio/journals/${journal.entryId}`}
+        href={href(`/studio/journals/${journal.entryId}`)}
         className="studio-link"
       >
-        ← The journal
+        {w.back}
       </Link>
     </p>
   );
+  const path = `/studio/journals/${journal.entryId}/edit`;
 
   if (journal.deletedAt !== null) {
     return (
-      <StudioFrame current="journals">
+      <StudioFrame locale={locale} path={path} current="journals">
         {back}
-        <h1 className="studio-title">Edit a journal</h1>
-        <p className="studio-panel">
-          This journal is in Recently deleted, so it can’t be edited. Its
-          writing is kept.
-        </p>
+        <h1 className="studio-title">{w.title}</h1>
+        <p className="studio-panel">{w.deleted}</p>
       </StudioFrame>
     );
   }
   if (journal.body === null) {
     return (
-      <StudioFrame current="journals">
+      <StudioFrame locale={locale} path={path} current="journals">
         {back}
-        <h1 className="studio-title">Edit a journal</h1>
-        <p className="studio-panel">
-          This text has formatting that the plain editor can’t show without
-          losing it, so it can’t be edited here. It is untouched.
-        </p>
+        <h1 className="studio-title">{w.title}</h1>
+        <p className="studio-panel">{w.unsupported}</p>
       </StudioFrame>
     );
   }
@@ -81,23 +83,24 @@ async function EditJournal({ params }: { params: Promise<{ id: string }> }) {
   ]);
 
   return (
-    <StudioFrame current="journals" layout="wide">
+    <StudioFrame locale={locale} path={path} current="journals" layout="wide">
       <JournalEditor
         back={{
-          href: `/studio/journals/${journal.entryId}`,
-          label: "The journal",
+          href: href(`/studio/journals/${journal.entryId}`),
+          label: w.theJournal,
         }}
         heading={
           <div className="studio-editor-head studio-editor-head-album">
             <ArtworkPlaceholder
+              locale={locale}
               artwork={cover}
               title={journal.albumTitle}
               size={120}
             />
             <div>
-              <p className="studio-meta">Editing your album journal</p>
+              <p className="studio-meta">{w.editing}</p>
               <h1 className="studio-title studio-title-editor">
-                <span className="studio-sr-only">Editing: </span>
+                <span className="studio-sr-only">{w.editingLabel}</span>
                 {journal.albumTitle}
               </h1>
               {journal.artistNames ? (
@@ -108,6 +111,7 @@ async function EditJournal({ params }: { params: Promise<{ id: string }> }) {
         }
         catalog={
           <JournalCatalogMargin
+            locale={locale}
             albumId={journal.albumId}
             albumTitle={journal.albumTitle}
             artistNames={journal.artistNames}

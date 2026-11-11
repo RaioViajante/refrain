@@ -9,6 +9,7 @@ import {
 } from "@/app/studio/catalog/add/actions";
 import { ConfirmDialog, useSubmission } from "@/app/studio/form-kit";
 import { failureMessage } from "@/app/studio/messages";
+import { useStudio } from "@/app/studio/studio-locale";
 
 // The author's explicit approval of a reviewed MusicBrainz artist (M3.2).
 
@@ -20,6 +21,7 @@ export function ArtistApproval({
   review: string;
 }) {
   const router = useRouter();
+  const { words, href } = useStudio();
   const { pending, failure, run } = useSubmission();
 
   async function approve() {
@@ -27,7 +29,7 @@ export function ArtistApproval({
       importMusicArtistAction({ mbArtistId, review }),
     );
     if (result.ok) {
-      router.push(`/studio/artists/${result.data.id}`);
+      router.push(href(`/studio/artists/${result.data.id}`));
     }
   }
 
@@ -40,7 +42,7 @@ export function ArtistApproval({
           disabled={pending}
           onClick={approve}
         >
-          {pending ? "Adding…" : "Add artist"}
+          {pending ? words.releaseApproval.adding : words.artistForm.add}
         </button>
       </div>
       <p
@@ -48,7 +50,9 @@ export function ArtistApproval({
         className={failure ? "studio-problem" : "studio-hint"}
         style={{ maxWidth: "62ch" }}
       >
-        {failure ? failureMessage(failure) : "Nothing is published."}
+        {failure
+          ? failureMessage(words, failure)
+          : words.artistReview.nothingPublished}
       </p>
     </div>
   );
@@ -66,6 +70,8 @@ export function LinkArtistButton({
   review: string;
 }) {
   const router = useRouter();
+  const { words, href } = useStudio();
+  const w = words.artistReview;
   const { pending, failure, run, clearFailure } = useSubmission();
   const [asking, setAsking] = useState(false);
 
@@ -75,7 +81,7 @@ export function LinkArtistButton({
     );
     setAsking(false);
     if (result.ok) {
-      router.push(`/studio/artists/${artistId}`);
+      router.push(href(`/studio/artists/${artistId}`));
     }
   }
 
@@ -90,27 +96,23 @@ export function LinkArtistButton({
           setAsking(true);
         }}
       >
-        Link to this artist
+        {w.link}
         <span className="studio-sr-only">{`: ${artistName}`}</span>
       </button>
       {failure ? (
         <p role="alert" className="studio-problem">
-          {failureMessage(failure)}
+          {failureMessage(words, failure)}
         </p>
       ) : null}
       <ConfirmDialog
         open={asking}
-        title={`Link “${artistName}” to MusicBrainz?`}
-        confirmLabel="Link"
+        title={words.releaseApproval.linkQuestion(artistName)}
+        confirmLabel={words.releaseApproval.linkConfirm}
         pending={pending}
         onConfirm={link}
         onCancel={() => setAsking(false)}
       >
-        <p>
-          This records which MusicBrainz artist it is. The name, sort name, and
-          kind stay exactly as they are, and a link that is already there is
-          never replaced.
-        </p>
+        <p>{w.linkBody}</p>
       </ConfirmDialog>
     </>
   );

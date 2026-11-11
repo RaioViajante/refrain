@@ -1,5 +1,7 @@
 "use client";
 
+import { useStudio } from "./studio-locale";
+
 export interface CreditRow {
   artistId: string;
   creditedAs: string;
@@ -34,6 +36,7 @@ export function ArtistRows({
   problem,
   emptyHint,
 }: ArtistRowsProps) {
+  const w = useStudio().words.artistRows;
   function update(index: number, patch: Partial<CreditRow>) {
     onChange(rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
   }
@@ -57,13 +60,13 @@ export function ArtistRows({
         <div key={index} className="studio-credit-row">
           <select
             className="studio-field"
-            aria-label={`${legend}: artist ${index + 1}`}
+            aria-label={w.artist(legend, index + 1)}
             value={row.artistId}
             onChange={(event) =>
               update(index, { artistId: event.target.value })
             }
           >
-            <option value="">Choose an artist</option>
+            <option value="">{w.choose}</option>
             {options.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -73,8 +76,8 @@ export function ArtistRows({
           {withCreditedAs ? (
             <input
               className="studio-field"
-              aria-label={`${legend}: credited as, artist ${index + 1}`}
-              placeholder="Credited as (optional)"
+              aria-label={w.creditedAs(legend, index + 1)}
+              placeholder={w.creditedAsPlaceholder}
               maxLength={200}
               autoComplete="off"
               value={row.creditedAs}
@@ -91,7 +94,7 @@ export function ArtistRows({
               className="studio-button-quiet"
               onClick={() => move(index, -1)}
               disabled={index === 0}
-              aria-label={`Move artist ${index + 1} up`}
+              aria-label={w.moveUp(index + 1)}
             >
               ↑
             </button>
@@ -100,7 +103,7 @@ export function ArtistRows({
               className="studio-button-quiet"
               onClick={() => move(index, 1)}
               disabled={index === rows.length - 1}
-              aria-label={`Move artist ${index + 1} down`}
+              aria-label={w.moveDown(index + 1)}
             >
               ↓
             </button>
@@ -109,9 +112,9 @@ export function ArtistRows({
               className="studio-button-quiet"
               onClick={() => onChange(rows.filter((_, i) => i !== index))}
               disabled={rows.length <= minimum}
-              aria-label={`Remove artist ${index + 1}`}
+              aria-label={w.remove(index + 1)}
             >
-              Remove
+              {w.removeShort}
             </button>
           </div>
         </div>
@@ -126,7 +129,7 @@ export function ArtistRows({
         className="studio-button"
         onClick={() => onChange([...rows, { artistId: "", creditedAs: "" }])}
       >
-        Add {rows.length === 0 ? "an" : "another"} artist
+        {rows.length === 0 ? w.addFirst : w.addAnother}
       </button>
     </fieldset>
   );

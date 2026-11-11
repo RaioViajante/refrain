@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { formatDuration, parseDuration, plural } from "./format";
+import { studioEn } from "@/i18n/studio/en";
+import { studioPtBR } from "@/i18n/studio/pt-BR";
+
+import { formatDuration, parseDuration } from "./format";
 
 describe("formatDuration", () => {
   it.each([
@@ -48,10 +51,18 @@ describe("parseDuration", () => {
   });
 });
 
-describe("plural", () => {
+// Counting moved to the Studio's dictionaries (src/i18n/studio), through the
+// shared `counted` (src/i18n/format.ts): the same counts, in each language.
+describe("counts", () => {
   it("counts", () => {
-    expect(plural(1, "album")).toBe("1 album");
-    expect(plural(0, "album")).toBe("0 albums");
-    expect(plural(2, "entry", "entries")).toBe("2 entries");
+    expect(studioEn.counts.albums(1)).toBe("1 album");
+    expect(studioEn.counts.albums(0)).toBe("0 albums");
+    expect(studioEn.albums.usedIn(2)).toBe("used in 2 entries");
+  });
+
+  it("counts in Portuguese, zero with the plural", () => {
+    expect(studioPtBR.counts.albums(1)).toBe("1 álbum");
+    expect(studioPtBR.counts.albums(0)).toBe("0 álbuns");
+    expect(studioPtBR.albums.usedIn(2)).toBe("usado em 2 entradas");
   });
 });
