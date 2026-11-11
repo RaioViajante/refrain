@@ -406,7 +406,10 @@ describe("every method and request form of every public route family (items 2 an
 });
 
 describe("the Portuguese Studio's addresses (item 7)", () => {
-  it("are not served yet, and answer as an unknown English Studio address does, with its private headers, signed in or not", async () => {
+  // The Portuguese Studio is served since PR 3; its pages are held by
+  // studio-private-cache.http.test.ts and studio-portuguese.http.test.ts. An
+  // address it does not serve answers exactly as the English one does.
+  it("answer an unknown Portuguese Studio address as the English one, with the private headers, signed in or not", async () => {
     const db = new Client({ connectionString: databaseUrl });
     await db.connect();
     const session = await mintAuthorSession(
@@ -415,14 +418,13 @@ describe("the Portuguese Studio's addresses (item 7)", () => {
     );
     try {
       for (const path of [
-        "/pt/studio",
-        "/pt/studio/journals",
-        "/pt/studio/sign-in",
-        "/pt/studio.rsc",
-        "/pt/studio.segments/_tree.segment.rsc",
+        "/pt/studio/no-such-page",
+        "/pt/studio/journals/new/no-such-page",
+        "/pt/studio/no-such-page.rsc",
+        "/pt/studio/no-such-page.segments/_tree.segment.rsc",
       ]) {
-        // The same form of an English Studio address that no route serves.
-        const english = path.replace("/pt/studio", "/studio/no-such-page");
+        // The same form of the English Studio address.
+        const english = path.replace("/pt/studio", "/studio");
         for (const headers of [
           {} as Record<string, string>,
           { cookie: session.cookie },

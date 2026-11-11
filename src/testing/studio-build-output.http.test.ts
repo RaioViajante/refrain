@@ -32,11 +32,12 @@ function walk(directory: string): string[] {
 // `studio.html` → `/studio`, `studio/artists.segments/_tree.segment.rsc` →
 // itself. `.meta` files hold the build's own response metadata, not a body.
 function studioArtifacts(): Artifact[] {
-  const files = [
-    ...walk(join(APP, "studio")),
-    join(APP, "studio.html"),
-    ...walk(join(APP, "studio.segments")),
-  ];
+  // Both Studio trees (ADR 0008 § 2): `/studio` and `/pt/studio`.
+  const files = ["", "pt"].flatMap((root) => [
+    ...walk(join(APP, root, "studio")),
+    join(APP, root, "studio.html"),
+    ...walk(join(APP, root, "studio.segments")),
+  ]);
   return files
     .filter((file) => /\.(?:html|rsc)$/.test(file))
     .map((file) => {
@@ -75,6 +76,12 @@ describe("the studio's prerendered files", () => {
     expect(addresses).toContain("/studio.segments/_tree.segment.rsc");
     expect(addresses).toContain("/studio/artists");
     expect(addresses).toContain("/studio/artists.segments/_tree.segment.rsc");
+    expect(addresses).toContain("/pt/studio");
+    expect(addresses).toContain("/pt/studio.segments/_tree.segment.rsc");
+    expect(addresses).toContain("/pt/studio/artists");
+    expect(addresses).toContain(
+      "/pt/studio/artists.segments/_tree.segment.rsc",
+    );
   });
 
   it("are each served under a private, no-store header route", () => {
@@ -92,6 +99,10 @@ describe("the studio's prerendered files", () => {
       "/albums",
       "/studiox",
       "/studio-x",
+      "/pt",
+      "/pt/albums",
+      "/pt/studiox",
+      "/pt/studio-x",
       "/_next/static/chunks/a.js",
     ]) {
       expect(
@@ -113,6 +124,7 @@ describe("the studio's prerendered files", () => {
       expect(body, address).not.toMatch(/[\w.+-]+@[\w-]+\.[a-z]{2,}/i);
       // The studio's data appears only behind its `Suspense` boundaries.
       expect(body, address).not.toContain("Everything you are writing");
+      expect(body, address).not.toContain("Tudo o que você está escrevendo");
     }
   });
 });

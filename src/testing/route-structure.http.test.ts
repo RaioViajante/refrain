@@ -9,6 +9,7 @@ import {
   mintAuthorSession,
   removeMintedSessions,
 } from "@/testing/http-session";
+import { CONTENT_SECURITY_POLICY } from "@/security-headers";
 import { comparable, request, visibleText } from "@/testing/public-http";
 import { assertDisposableTestDatabase } from "@/testing/test-database";
 
@@ -32,7 +33,25 @@ const NOT_ROUTES = [
   "/en/studio",
   "/pt-BR",
   "/pt/pt",
+  // The Portuguese Studio has the literal prefix only (ADR 0008 § 2). Its
+  // encoded spellings (`/%70t/studio`) are held below.
+  "/pt/pt/studio",
+  "/pt/en/studio",
+  "/pt-BR/studio",
+  "/pt/(en)/studio",
+];
+
+// An encoded spelling of the prefix before the Studio (ADR 0006 A7, item 2).
+// Before PR 3 no route matched it, and it answered as `/no-such-address`
+// (this list was in NOT_ROUTES). Now the framework would match it, decoded, to
+// the Portuguese Studio, so the proxy answers it: the unknown address's body
+// and status, never stored, with the Studio's headers, the headers of the
+// section it names (the public image policy, which is stricter).
+const ENCODED_STUDIO = [
   "/%70t/studio",
+  "/%70t/studio/journals",
+  "/p%74/studio/sign-in",
+  "/%70%74/studio/artists/new",
 ];
 
 let db: Client;
@@ -91,7 +110,49 @@ describe("an address that no route serves", () => {
   });
 });
 
+describe("an encoded spelling of the Portuguese Studio's prefix", () => {
+  it.each(ENCODED_STUDIO)(
+    "%s is the unknown address, never stored, with the Studio's headers, and the same for the author",
+    async (path) => {
+      const unknown = await request(base, "/no-such-address");
+      const anonymous = await request(base, path);
+      const signedIn = await request(base, path, { headers: { cookie } });
+      for (const answer of [anonymous, signedIn]) {
+        expect(answer.status, path).toBe(404);
+        expect(answer.body, path).toBe(unknown.body);
+        expect(answer.headers["location"], path).toBeUndefined();
+        expect(answer.headers["cache-control"], path).toMatch(
+          /^private, .*no-store/,
+        );
+        expect(answer.headers["x-frame-options"], path).toBe("DENY");
+        expect(answer.headers["referrer-policy"], path).toBe("no-referrer");
+        // The public policy, which is stricter: no photograph host.
+        expect(answer.headers["content-security-policy"], path).toBe(
+          CONTENT_SECURITY_POLICY,
+        );
+      }
+      expect(comparable(signedIn)).toEqual(comparable(anonymous));
+    },
+  );
+});
+
 describe("a Studio record that does not exist", () => {
+  it("renders the shared view inside the Portuguese document from /pt, with the private headers", async () => {
+    const answer = await request(
+      base,
+      "/pt/studio/artists/00000000-0000-4000-8000-000000000000",
+      { headers: { cookie } },
+    );
+    expect(answer.headers["cache-control"]).toBe(
+      "private, no-store, max-age=0, must-revalidate",
+    );
+    expect(answer.body).toMatch(/<html[^>]*\blang="pt-BR"/);
+    // The shared view, in both languages, Portuguese first (ADR 0008 § 8).
+    expect(answer.body).toContain("Nada aqui");
+    expect(answer.body).toContain("Nothing here");
+    expect(answer.body).not.toContain("00000000-0000-4000-8000-000000000000</");
+  });
+
   it("renders the shared view inside the English document, with the private headers", async () => {
     const answer = await request(
       base,
