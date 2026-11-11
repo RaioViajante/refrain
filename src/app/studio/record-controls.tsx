@@ -3,16 +3,19 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import type { RecordKind } from "@/i18n/studio/en";
+
 import { ConfirmDialog, useSubmission } from "./form-kit";
 import { failureMessage } from "./messages";
 import type { ActionResult } from "./results";
+import { useStudio } from "./studio-locale";
 
 type RecordAction = (id: string) => Promise<ActionResult>;
 
 interface RecordControlsProps {
   id: string;
-  /** "artist", "album", or "track". */
-  noun: string;
+  /** What the record is, for the words about it. */
+  kind: RecordKind;
   archived: boolean;
   archive: RecordAction;
   restore: RecordAction;
@@ -31,7 +34,7 @@ interface RecordControlsProps {
  */
 export function RecordControls({
   id,
-  noun,
+  kind,
   archived,
   archive,
   restore,
@@ -40,6 +43,8 @@ export function RecordControls({
   afterDelete,
 }: RecordControlsProps) {
   const router = useRouter();
+  const { words } = useStudio();
+  const w = words.records;
   const { pending, failure, run, clearFailure } = useSubmission();
   const [asking, setAsking] = useState<"archive" | "delete" | undefined>();
 
@@ -64,7 +69,7 @@ export function RecordControls({
             disabled={pending}
             onClick={() => perform(restore, () => router.refresh())}
           >
-            Restore {noun}
+            {w.restore[kind]}
           </button>
         ) : (
           <button
@@ -76,7 +81,7 @@ export function RecordControls({
               setAsking("archive");
             }}
           >
-            Archive {noun}…
+            {w.archive[kind]}
           </button>
         )}
         <button
@@ -100,18 +105,18 @@ export function RecordControls({
           >
             <path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5M7 7v4M9 7v4" />
           </svg>
-          Delete {noun}…
+          {w.remove[kind]}
         </button>
       </div>
 
       <p role="status" className={failure ? "studio-problem" : "studio-hint"}>
-        {failure ? failureMessage(failure) : ""}
+        {failure ? failureMessage(words, failure) : ""}
       </p>
 
       <ConfirmDialog
         open={asking === "archive"}
-        title={`Archive this ${noun}?`}
-        confirmLabel="Archive"
+        title={w.archiveQuestion[kind]}
+        confirmLabel={w.archiveConfirm}
         pending={pending}
         onConfirm={() => perform(archive, () => router.refresh())}
         onCancel={() => setAsking(undefined)}
@@ -121,17 +126,13 @@ export function RecordControls({
 
       <ConfirmDialog
         open={asking === "delete"}
-        title={`Delete this ${noun}?`}
-        confirmLabel="Delete"
+        title={w.removeQuestion[kind]}
+        confirmLabel={w.removeConfirm}
         pending={pending}
         onConfirm={() => perform(remove, () => router.push(afterDelete))}
         onCancel={() => setAsking(undefined)}
       >
-        <p>
-          This removes the {noun} from your catalog for good. It only works when
-          nothing refers to it: if anything does, nothing is deleted, and you
-          can archive it instead. Your writing is never deleted by this.
-        </p>
+        <p>{w.removeBody[kind]}</p>
       </ConfirmDialog>
     </div>
   );

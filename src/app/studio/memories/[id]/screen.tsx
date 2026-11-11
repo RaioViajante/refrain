@@ -5,38 +5,45 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { accessDenied } from "@/app/studio/access";
-import { formatDate, plural } from "@/app/studio/format";
 import { StudioFrame } from "@/app/studio/frame";
 import { MemoryEditor } from "@/app/studio/memories/memory-editor";
 import { recordingFacts } from "@/app/studio/memories/recordings";
 import { RestoreMemoryButton } from "@/app/studio/memories/restore-memory-button";
 import { StatusMark } from "@/app/studio/status-mark";
 import { StudioLoading } from "@/app/studio/studio-loading";
+import { studio, type StudioSpeech } from "@/app/studio/studio-words";
+import { formatDate } from "@/i18n/format";
+import type { InterfaceLocale } from "@/i18n/locales";
 import { listRecordingChoices } from "@/modules/catalog";
 import { authorizeAuthor } from "@/modules/identity";
 import { getMemory, textToParagraphs } from "@/modules/journals";
 
 // A fixed title: the memory's own words never reach page metadata.
-export const metadata: Metadata = { title: "Memory · refrain" };
+export function memoryMetadata(locale: InterfaceLocale): Metadata {
+  return { title: studio(locale).words.meta.memory };
+}
 
 type MemoryProps = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ restored?: string | string[] }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  locale: InterfaceLocale;
 };
 
-export default function MemoryPage({ params, searchParams }: MemoryProps) {
+export function MemoryScreen({ params, searchParams, locale }: MemoryProps) {
   return (
-    <Suspense fallback={<StudioLoading />}>
-      <Memory params={params} searchParams={searchParams} />
+    <Suspense fallback={<StudioLoading locale={locale} />}>
+      <Memory params={params} searchParams={searchParams} locale={locale} />
     </Suspense>
   );
 }
 
-async function Memory({ params, searchParams }: MemoryProps) {
+async function Memory({ params, searchParams, locale }: MemoryProps) {
   const authorization = await authorizeAuthor(await headers());
   if (!authorization.ok) {
-    return accessDenied(authorization.reason);
+    return accessDenied(authorization.reason, locale);
   }
+  const speech = studio(locale);
+  const w = speech.words.memory;
   const { author } = authorization;
   const { id } = await params;
   const [memory, choices] = await Promise.all([
@@ -49,31 +56,37 @@ async function Memory({ params, searchParams }: MemoryProps) {
   const { restored } = await searchParams;
 
   if (memory.deletedAt !== null) {
-    return <DeletedMemory memory={memory} />;
+    return <DeletedMemory speech={speech} memory={memory} />;
   }
 
   // Only a fixed word picks the notice; the query string is never shown.
   const restoredNotice =
     restored === "private"
-      ? "Restored from Recently deleted. It was published when it was deleted, and it is private now. Restoring publishes nothing."
+      ? w.restoredPrivate
       : restored === "1"
-        ? "Restored from Recently deleted, with its writing and its songs exactly as you left them."
+        ? w.restored
         : null;
 
   return (
-    <StudioFrame current="memories" layout="wide">
+    <StudioFrame
+      locale={locale}
+      path={`/studio/memories/${memory.entryId}`}
+      current="memories"
+      layout="wide"
+    >
       {restoredNotice ? (
         <p role="status" className="studio-panel" style={{ marginBottom: 24 }}>
           {restoredNotice}
         </p>
       ) : null}
       {memory.body === null ? (
-        <UnsupportedMemory />
+        <UnsupportedMemory speech={speech} />
       ) : (
         <MemoryEditor
           edit={{
             entryId: memory.entryId,
             version: memory.version,
+            locale: memory.locale,
             status: memory.status,
             albumLinks: memory.albumLinks,
           }}
@@ -92,54 +105,60 @@ async function Memory({ params, searchParams }: MemoryProps) {
 
 // Writing with formatting the plain editor cannot show without loss is never
 // put in a textarea, so a save can never flatten it.
-function UnsupportedMemory() {
+function UnsupportedMemory({
+  speech: { words, href },
+}: {
+  speech: StudioSpeech;
+}) {
   return (
     <div className="studio-panel space-y-3">
       <p>
-        <Link href="/studio/memories" className="studio-link">
-          ← Memories
+        <Link href={href("/studio/memories")} className="studio-link">
+          {words.memory.back}
         </Link>
       </p>
-      <h1 className="studio-section-title">This memory can’t be edited here</h1>
-      <p>
-        Its writing has formatting that the plain editor can’t show without
-        losing it, so it is left untouched.
-      </p>
+      <h1 className="studio-section-title">{words.memory.unsupportedTitle}</h1>
+      <p>{words.memory.unsupportedBody}</p>
     </div>
   );
 }
 
 function DeletedMemory({
+  speech: { locale, words, href },
   memory,
 }: {
+  speech: StudioSpeech;
   memory: NonNullable<Awaited<ReturnType<typeof getMemory>>>;
 }) {
+  const w = words.memory;
   const paragraphs =
     memory.body === null ? null : textToParagraphs(memory.body);
+  const deletedOn = formatDate(locale, memory.deletedAt!);
   return (
-    <StudioFrame current="memories">
+    <StudioFrame
+      locale={locale}
+      path={`/studio/memories/${memory.entryId}`}
+      current="memories"
+    >
       <p>
-        <Link href="/studio/journals/deleted" className="studio-link">
-          ← Recently deleted
+        <Link href={href("/studio/journals/deleted")} className="studio-link">
+          {w.backToDeleted}
         </Link>
       </p>
-      <p className="studio-meta">Memory, in Recently deleted</p>
+      <p className="studio-meta">{w.inDeletedKind}</p>
       <h1 className="studio-title" lang={memory.locale}>
         {memory.title}
       </h1>
       <p className="studio-meta">
-        <StatusMark status={memory.status} /> ·{" "}
-        {plural(memory.wordCount, "word")} · deleted{" "}
-        {formatDate(memory.deletedAt!)} (UTC)
+        <StatusMark locale={locale} status={memory.status} subject="memory" />
+        {w.deletedFacts(memory.wordCount, deletedOn)}
       </p>
 
       <div className="studio-panel space-y-3">
         <p>
-          This memory has been in Recently deleted since{" "}
-          {formatDate(memory.deletedAt!)}. Its writing and its songs are kept,
-          and it can’t be changed there until you restore it.
+          {w.inDeleted(deletedOn)}
           {memory.versions.some((version) => version.status === "published")
-            ? " It was published, and it returns as private."
+            ? w.wasPublished
             : ""}
         </p>
         <RestoreMemoryButton
@@ -156,13 +175,12 @@ function DeletedMemory({
           <p className="studio-meta">{memory.rememberedWhen}</p>
         ) : null}
         {paragraphs === null ? (
-          <p className="studio-panel" lang="en">
-            This text has formatting that the plain editor can’t show without
-            losing it. It is untouched.
+          <p className="studio-panel" lang={locale}>
+            {words.journal.unsupported}
           </p>
         ) : paragraphs.length === 0 ? (
-          <p className="studio-hint" lang="en">
-            Nothing written yet.
+          <p className="studio-hint" lang={locale}>
+            {words.desk.nothingWritten}
           </p>
         ) : (
           <div className="studio-reading">
@@ -182,16 +200,18 @@ function DeletedMemory({
 
       <section aria-labelledby="deleted-music" className="space-y-3">
         <h2 id="deleted-music" className="studio-section-title">
-          The music
+          {w.music}
         </h2>
         {memory.recordings.length === 0 ? (
-          <p className="studio-hint">No songs.</p>
+          <p className="studio-hint">{words.review.noSongs}</p>
         ) : (
           <ol className="studio-list">
             {memory.recordings.map((recording) => (
               <li key={recording.trackId} className="studio-row">
                 <span className="studio-row-title">{recording.title}</span>
-                <span className="studio-meta">{recordingFacts(recording)}</span>
+                <span className="studio-meta">
+                  {recordingFacts(words, recording)}
+                </span>
               </li>
             ))}
           </ol>

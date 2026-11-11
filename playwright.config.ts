@@ -180,6 +180,22 @@ export default defineConfig({
       },
     },
     {
+      // The Writing Studio in Brazilian Portuguese (ADR 0008, PR 3), signed
+      // in as the synthetic author: its flows, and every page at 320, 360,
+      // 390, 768, and 1440 px, which the tests set themselves.
+      name: "i18n-studio",
+      testMatch: /i18n-studio\.spec\.ts/,
+      use: {
+        browserName: "chromium",
+        viewport: { width: 1280, height: 900 },
+        storageState: AUTH_FILE,
+      },
+      // After the English Studio's own projects, whose first memory test needs
+      // a database with no memory yet: this one leaves its records until the
+      // teardown.
+      dependencies: ["setup", "desktop"],
+    },
+    {
       // The public pages in Brazilian Portuguese (ADR 0008), anonymous, from
       // the server with public reads on; the tests themselves visit 320, 360,
       // 390, 768, and 1440 px.

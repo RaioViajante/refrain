@@ -240,9 +240,12 @@ function authorizationViolations(
 ): string[] {
   const violations: string[] = [];
   const normalized = file.split("\\").join("/");
+  // The Studio's implementation, and its route files in both trees (ADR 0008
+  // § 2): the Portuguese Studio is held to every rule the English one is.
   const inStudio =
     normalized.startsWith("src/app/studio/") ||
-    normalized.startsWith("src/app/(en)/studio/");
+    normalized.startsWith("src/app/(en)/studio/") ||
+    normalized.startsWith("src/app/pt/studio/");
   const isRouteFile =
     normalized.startsWith("src/app/") &&
     /(^|\/)route\.(m?[jt]sx?)$/.test(normalized);

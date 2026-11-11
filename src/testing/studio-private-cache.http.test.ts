@@ -85,8 +85,13 @@ const FORMS: Record<string, Record<string, string>> = {
   },
 };
 
+/** Each Studio address in both trees (ADR 0008 § 2; ADR 0006 A7, item 7). */
+function bothLanguages(paths: string[]): string[] {
+  return paths.flatMap((path) => [path, `/pt${path}`]);
+}
+
 function pages(): string[] {
-  return [
+  return bothLanguages([
     "/studio",
     "/studio/artists",
     `/studio/artists/${ids.artistId}`,
@@ -99,7 +104,7 @@ function pages(): string[] {
     // Not found, below the studio.
     "/studio/no-such-page",
     `/studio/artists/00000000-0000-4000-8000-000000000000`,
-  ];
+  ]);
 }
 
 // The desk's transport files, which sit beside `/studio`, not under it.
@@ -107,12 +112,12 @@ function pages(): string[] {
 // asks with headers instead); Vercel serves the build's files at them, so
 // studio-build-output.http.test.ts checks every generated one against the
 // compiled header routes.
-const TRANSPORT_FILES = [
+const TRANSPORT_FILES = bothLanguages([
   "/studio.rsc",
   "/studio.prefetch.rsc",
   "/studio.segments/_tree.segment.rsc",
   "/studio/artists.segments/_tree.segment.rsc",
-];
+]);
 
 interface Answer {
   status: number;
@@ -289,6 +294,25 @@ describe("the visitors are who the tests say they are", () => {
       );
     }
   });
+
+  it("does the same in Portuguese: the author's data, and sign-in in Portuguese for the others", async () => {
+    const own = await ask("author", "/pt/studio/artists");
+    expect(own.status).toBe(200);
+    expect(own.body).toContain(MARKERS.artist);
+    const desk = await ask("author", "/pt/studio");
+    expect(desk.body).toContain(MARKERS.album);
+
+    for (const visitor of ["anonymous", "wrong-author"] as const) {
+      const other = await ask(visitor, "/pt/studio/artists");
+      expectNoMarker(other.body, visitor);
+      expect(other.body).toContain(
+        "NEXT_REDIRECT;replace;/pt/studio/sign-in;307;",
+      );
+      expect(other.body).not.toContain(
+        "NEXT_REDIRECT;replace;/studio/sign-in;",
+      );
+    }
+  });
 });
 
 describe("every studio response is kept by no cache (F-01)", () => {
@@ -392,11 +416,11 @@ describe("no session can receive another session's response (F-01)", () => {
       "wrong-author",
       "author",
     ];
-    for (const path of [
+    for (const path of bothLanguages([
       "/studio",
       "/studio/artists",
       `/studio/albums/${ids.albumId}`,
-    ]) {
+    ])) {
       for (const [form, headers] of Object.entries(FORMS)) {
         for (const visitor of order) {
           const answer = await ask(visitor, path, headers);
@@ -406,7 +430,9 @@ describe("no session can receive another session's response (F-01)", () => {
           // data, so its absence from the others' answers means something.
           if (visitor === "author" && (form === "document" || form === "rsc")) {
             expect(answer.body, where).toContain(
-              path === "/studio" ? MARKERS.album : MARKERS.artist,
+              path === "/studio" || path === "/pt/studio"
+                ? MARKERS.album
+                : MARKERS.artist,
             );
           }
           if (visitor !== "author") {
@@ -420,11 +446,11 @@ describe("no session can receive another session's response (F-01)", () => {
   it("serves the router's prefetches as the same generic shell to everyone", async () => {
     // A prefetch is the only response that the framework builds without the
     // request's session. It must hold nothing that depends on who asked.
-    for (const path of [
+    for (const path of bothLanguages([
       "/studio",
       "/studio/artists",
       `/studio/albums/${ids.albumId}`,
-    ]) {
+    ])) {
       const answers = await Promise.all(
         VISITORS.map((visitor) =>
           ask(visitor, path, FORMS["segment prefetch"]),
@@ -480,18 +506,21 @@ describe("no session can receive another session's response (F-01)", () => {
     }
   });
 
-  it("serves the desk's segment prefetch byte for byte from its build file", async () => {
-    // The response every visitor gets is the generic file `next build`
-    // wrote, which studio-build-output.http.test.ts scans for private data.
-    const file = readFileSync(
-      ".next/server/app/studio.segments/_tree.segment.rsc",
-      "utf8",
-    );
-    for (const visitor of VISITORS) {
-      const answer = await ask(visitor, "/studio", FORMS["segment prefetch"]);
-      expect(answer.body, visitor).toBe(file);
-    }
-  });
+  it.each([
+    ["/studio", ".next/server/app/studio.segments/_tree.segment.rsc"],
+    ["/pt/studio", ".next/server/app/pt/studio.segments/_tree.segment.rsc"],
+  ])(
+    "serves the desk's segment prefetch, %s, byte for byte from its build file",
+    async (path, built) => {
+      // The response every visitor gets is the generic file `next build`
+      // wrote, which studio-build-output.http.test.ts scans for private data.
+      const file = readFileSync(built, "utf8");
+      for (const visitor of VISITORS) {
+        const answer = await ask(visitor, path, FORMS["segment prefetch"]);
+        expect(answer.body, visitor).toBe(file);
+      }
+    },
+  );
 });
 
 describe("the policy is the studio's only", () => {

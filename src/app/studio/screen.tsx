@@ -1,15 +1,17 @@
+import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { Suspense } from "react";
 
 import { accessDenied } from "@/app/studio/access";
 import { AlbumThumb } from "@/app/studio/artwork-placeholder";
-import { plural } from "@/app/studio/format";
 import { StudioFrame } from "@/app/studio/frame";
 import { Icon } from "@/app/studio/icons";
 import { MemoryRows } from "@/app/studio/memories/memory-rows";
 import { StatusMark } from "@/app/studio/status-mark";
 import { StudioLoading } from "@/app/studio/studio-loading";
+import { studio } from "@/app/studio/studio-words";
+import type { InterfaceLocale } from "@/i18n/locales";
 import { getCatalogStatistics, listAlbumCovers } from "@/modules/catalog";
 import { authorizeAuthor } from "@/modules/identity";
 import {
@@ -23,10 +25,14 @@ import {
 // The Writing Studio's desk: the author's journals first, then a way to write
 // another. Every figure on it is a SQL aggregate computed by PostgreSQL on this
 // request: nothing is counted in JavaScript or cached.
-export default function StudioPage() {
+export function deskMetadata(locale: InterfaceLocale): Metadata {
+  return { title: studio(locale).words.meta.studio };
+}
+
+export function DeskScreen({ locale }: { locale: InterfaceLocale }) {
   return (
-    <Suspense fallback={<StudioLoading />}>
-      <Desk />
+    <Suspense fallback={<StudioLoading locale={locale} />}>
+      <Desk locale={locale} />
     </Suspense>
   );
 }
@@ -36,13 +42,15 @@ const DESK_LIMIT = 12;
 // How many memories the desk lists (M3.6).
 const DESK_MEMORY_LIMIT = 6;
 
-async function Desk() {
+async function Desk({ locale }: { locale: InterfaceLocale }) {
   // The authorization boundary: a valid database session of the configured
   // author, checked on every request. Nothing below renders otherwise.
   const authorization = await authorizeAuthor(await headers());
   if (!authorization.ok) {
-    return accessDenied(authorization.reason);
+    return accessDenied(authorization.reason, locale);
   }
+  const { words, href } = studio(locale);
+  const w = words.desk;
   const { author } = authorization;
   const [
     catalog,
@@ -69,63 +77,73 @@ async function Desk() {
   const nothingWritten = journals.length === 0 && memories.length === 0;
 
   return (
-    <StudioFrame current="desk">
-      <h1 className="studio-title">Desk</h1>
-      <p className="studio-lede">
-        Everything you are writing. Everything here is private.
-      </p>
+    <StudioFrame locale={locale} path="/studio" current="desk">
+      <h1 className="studio-title">{w.title}</h1>
+      <p className="studio-lede">{w.lead}</p>
 
       {nothingWritten ? (
         <div className="studio-panel studio-empty">
-          <p className="studio-section-title">Nothing written yet.</p>
+          <p className="studio-section-title">{w.nothingWritten}</p>
           {catalogEmpty ? (
             <>
               <ol className="list-decimal pl-6 space-y-1">
                 <li>
-                  <Link href="/studio/artists/new" className="studio-link">
-                    Add an artist
+                  <Link
+                    href={href("/studio/artists/new")}
+                    className="studio-link"
+                  >
+                    {w.firstSteps.addArtist}
                   </Link>
-                  , or a band.
+                  {w.firstSteps.addArtistRest}
                 </li>
                 <li>
-                  <Link href="/studio/albums/new" className="studio-link">
-                    Add an album
-                  </Link>{" "}
-                  that credits them.
+                  <Link
+                    href={href("/studio/albums/new")}
+                    className="studio-link"
+                  >
+                    {w.firstSteps.addAlbum}
+                  </Link>
+                  {w.firstSteps.addAlbumRest}
                 </li>
-                <li>Build its tracklist from the album’s page.</li>
+                <li>{w.firstSteps.tracklist}</li>
                 <li>
-                  <Link href="/studio/journals/new" className="studio-link">
-                    Write a journal
-                  </Link>{" "}
-                  about it. It begins as a draft that only you can see.
+                  <Link
+                    href={href("/studio/journals/new")}
+                    className="studio-link"
+                  >
+                    {w.firstSteps.writeJournal}
+                  </Link>
+                  {w.firstSteps.writeJournalRest}
                 </li>
               </ol>
               <p>
-                Or{" "}
-                <Link href="/studio/memories/new" className="studio-link">
-                  write a memory
-                </Link>{" "}
-                now, and add its songs once they are in your catalog.
+                {w.firstSteps.orBefore}
+                <Link
+                  href={href("/studio/memories/new")}
+                  className="studio-link"
+                >
+                  {w.firstSteps.writeMemory}
+                </Link>
+                {w.firstSteps.orAfter}
               </p>
             </>
           ) : (
             <>
-              <p>
-                Start with an album you love, or a moment a song takes you back
-                to. Everything begins as a draft that only you can see.
-              </p>
+              <p>{w.startWith}</p>
               <div className="studio-actions">
                 <Link
-                  href="/studio/journals/new"
+                  href={href("/studio/journals/new")}
                   className="studio-button studio-button-primary"
                 >
                   <Icon name="plus" />
-                  Write a journal
+                  {w.writeJournal}
                 </Link>
-                <Link href="/studio/memories/new" className="studio-button">
+                <Link
+                  href={href("/studio/memories/new")}
+                  className="studio-button"
+                >
                   <Icon name="plus" />
-                  Write a memory
+                  {w.writeMemory}
                 </Link>
               </div>
             </>
@@ -134,15 +152,15 @@ async function Desk() {
       ) : (
         <div className="studio-actions" style={{ marginTop: 26 }}>
           <Link
-            href="/studio/journals/new"
+            href={href("/studio/journals/new")}
             className="studio-button studio-button-primary"
           >
             <Icon name="plus" />
-            Write a journal
+            {w.writeJournal}
           </Link>
-          <Link href="/studio/memories/new" className="studio-button">
+          <Link href={href("/studio/memories/new")} className="studio-button">
             <Icon name="plus" />
-            Write a memory
+            {w.writeMemory}
           </Link>
         </div>
       )}
@@ -150,14 +168,17 @@ async function Desk() {
       {journals.length > 0 ? (
         <section aria-labelledby="desk-journals" className="studio-desk-list">
           <h2 id="desk-journals" className="studio-sr-only">
-            Your journals
+            {w.yourJournals}
           </h2>
           <p className="studio-meta">
-            {plural(statistics.total, "journal")}: {statistics.draft}{" "}
-            {statistics.draft === 1 ? "draft" : "drafts"}, {statistics.private}{" "}
-            private, {statistics.published} published.
+            {w.journalsSummary(
+              statistics.total,
+              statistics.draft,
+              statistics.private,
+              statistics.published,
+            )}
           </p>
-          <ul className="studio-list" aria-label="Journals">
+          <ul className="studio-list" aria-label={w.journalsLabel}>
             {listed.map((journal) => {
               const written = tracksWritten.get(journal.entryId);
               return (
@@ -165,37 +186,37 @@ async function Desk() {
                   <AlbumThumb artwork={covers.get(journal.albumId)} />
                   <span className="studio-entry-body">
                     <span className="studio-row-title">
-                      <Link href={`/studio/journals/${journal.entryId}`}>
+                      <Link href={href(`/studio/journals/${journal.entryId}`)}>
                         {journal.albumTitle}
                       </Link>
                     </span>
                     <span className="studio-meta">
-                      Album journal
+                      {w.albumJournal}
                       {journal.artistNames ? ` · ${journal.artistNames}` : ""}
                       {written
-                        ? ` · ${written.tracksWritten} of ${plural(written.trackCount, "track")} written`
+                        ? ` · ${w.tracksWritten(written.tracksWritten, written.trackCount)}`
                         : ""}
                     </span>
                   </span>
                   <span className="studio-entry-end studio-entry-end-row">
                     <Link
-                      href={`/studio/journals/${journal.entryId}/edit`}
+                      href={href(`/studio/journals/${journal.entryId}/edit`)}
                       className="studio-link studio-meta studio-end-link"
-                      aria-label={`Edit the journal about ${journal.albumTitle}`}
+                      aria-label={w.editJournalAbout(journal.albumTitle)}
                     >
-                      Edit
+                      {words.common.edit}
                     </Link>
-                    <StatusMark status={journal.status} />
+                    <StatusMark locale={locale} status={journal.status} />
                   </span>
                 </li>
               );
             })}
           </ul>
           <p className="studio-meta">
-            <Link href="/studio/journals" className="studio-link">
+            <Link href={href("/studio/journals")} className="studio-link">
               {journals.length > DESK_LIMIT
-                ? `All ${journals.length} journals`
-                : "All journals"}
+                ? w.allJournalsCount(journals.length)
+                : w.allJournals}
             </Link>
           </p>
         </section>
@@ -204,67 +225,66 @@ async function Desk() {
       {memories.length > 0 ? (
         <section aria-labelledby="desk-memories" className="studio-desk-list">
           <h2 id="desk-memories" className="studio-sr-only">
-            Your memories
+            {w.yourMemories}
           </h2>
           <p className="studio-meta">
-            {plural(memoryStatistics.total, "memory", "memories")}:{" "}
-            {memoryStatistics.draft}{" "}
-            {memoryStatistics.draft === 1 ? "draft" : "drafts"},{" "}
-            {memoryStatistics.private} private
-            {memoryStatistics.published > 0
-              ? `, ${memoryStatistics.published} published`
-              : ""}
-            .
+            {w.memoriesSummary(
+              memoryStatistics.total,
+              memoryStatistics.draft,
+              memoryStatistics.private,
+              memoryStatistics.published,
+            )}
           </p>
           <MemoryRows
+            locale={locale}
             memories={memories.slice(0, DESK_MEMORY_LIMIT)}
-            label="Memories"
+            label={w.memoriesLabel}
             compact
           />
           <p className="studio-meta">
-            <Link href="/studio/memories" className="studio-link">
+            <Link href={href("/studio/memories")} className="studio-link">
               {memories.length > DESK_MEMORY_LIMIT
-                ? `All ${memories.length} memories`
-                : "All memories"}
+                ? w.allMemoriesCount(memories.length)
+                : w.allMemories}
             </Link>
           </p>
         </section>
       ) : (
         <p className="studio-meta">
-          <Link href="/studio/memories" className="studio-link">
-            Memories
+          <Link href={href("/studio/memories")} className="studio-link">
+            {w.memories}
           </Link>
         </p>
       )}
 
       <p className="studio-meta">
         <Link
-          href="/studio/journals/deleted"
+          href={href("/studio/journals/deleted")}
           className="studio-link inline-flex items-center gap-2"
         >
           <Icon name="trash" size={16} />
-          Recently deleted ({statistics.deleted + memoryStatistics.deleted})
+          {w.recentlyDeleted(statistics.deleted + memoryStatistics.deleted)}
         </Link>
       </p>
 
       <p className="studio-hint studio-desk-catalog">
-        Your catalog:{" "}
-        <Link href="/studio/artists" className="studio-link">
-          {plural(catalog.artists, "artist")}
+        {w.yourCatalog}
+        <Link href={href("/studio/artists")} className="studio-link">
+          {words.counts.artists(catalog.artists)}
         </Link>
-        ,{" "}
-        <Link href="/studio/albums" className="studio-link">
-          {plural(catalog.albums, "album")}
+        {w.catalogComma}
+        <Link href={href("/studio/albums")} className="studio-link">
+          {words.counts.albums(catalog.albums)}
         </Link>
-        , and{" "}
-        <Link href="/studio/tracks" className="studio-link">
-          {plural(catalog.tracks, "track")}
+        {w.catalogAnd}
+        <Link href={href("/studio/tracks")} className="studio-link">
+          {words.counts.tracks(catalog.tracks)}
         </Link>
-        .{" "}
-        <Link href="/studio/catalog" className="studio-link">
-          Open the catalog
+        {w.catalogEnd}
+        <Link href={href("/studio/catalog")} className="studio-link">
+          {w.openCatalog}
         </Link>
-        .
+        {w.catalogClose}
       </p>
     </StudioFrame>
   );

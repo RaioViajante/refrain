@@ -5,9 +5,10 @@ import { Suspense } from "react";
 
 import { accessDenied } from "@/app/studio/access";
 import { AlbumThumb } from "@/app/studio/artwork-placeholder";
-import { plural } from "@/app/studio/format";
 import { StudioFrame } from "@/app/studio/frame";
 import { StudioLoading } from "@/app/studio/studio-loading";
+import { studio } from "@/app/studio/studio-words";
+import type { InterfaceLocale } from "@/i18n/locales";
 import {
   listAlbumCovers,
   listAlbumsWithArtists,
@@ -16,21 +17,25 @@ import {
 } from "@/modules/catalog";
 import { authorizeAuthor } from "@/modules/identity";
 
-export const metadata: Metadata = { title: "Albums · refrain" };
+export function albumsMetadata(locale: InterfaceLocale): Metadata {
+  return { title: studio(locale).words.meta.albums };
+}
 
-export default function AlbumsPage() {
+export function AlbumsScreen({ locale }: { locale: InterfaceLocale }) {
   return (
-    <Suspense fallback={<StudioLoading />}>
-      <Albums />
+    <Suspense fallback={<StudioLoading locale={locale} />}>
+      <Albums locale={locale} />
     </Suspense>
   );
 }
 
-async function Albums() {
+async function Albums({ locale }: { locale: InterfaceLocale }) {
   const authorization = await authorizeAuthor(await headers());
   if (!authorization.ok) {
-    return accessDenied(authorization.reason);
+    return accessDenied(authorization.reason, locale);
   }
+  const { words, href } = studio(locale);
+  const w = words.albums;
   const { author } = authorization;
   // Three SQL queries, each one the evidence for an academic requirement:
   // the albums with their credited artists (a JOIN, AC-04), the tracks on each
@@ -59,17 +64,16 @@ async function Albums() {
       <AlbumThumb artwork={covers.get(album.albumId)} />
       <span className="studio-entry-body">
         <span className="studio-row-title">
-          <Link href={`/studio/albums/${album.albumId}`}>{album.title}</Link>
+          <Link href={href(`/studio/albums/${album.albumId}`)}>
+            {album.title}
+          </Link>
         </span>
         <span className="studio-meta">
           {[
-            artistsByAlbum.get(album.albumId)?.join(", ") ??
-              "no credited artist",
+            artistsByAlbum.get(album.albumId)?.join(", ") ?? w.noArtist,
             album.firstReleaseYear ? String(album.firstReleaseYear) : "",
-            plural(album.trackCount, "track"),
-            album.archived
-              ? ""
-              : `used in ${plural(usedIn.get(album.albumId) ?? 0, "entry", "entries")}`,
+            words.counts.tracks(album.trackCount),
+            album.archived ? "" : w.usedIn(usedIn.get(album.albumId) ?? 0),
           ]
             .filter(Boolean)
             .join(" · ")}
@@ -79,40 +83,32 @@ async function Albums() {
   );
 
   return (
-    <StudioFrame current="albums">
-      <h1 className="studio-title">Albums</h1>
-      <p className="studio-lede">
-        Each album is the work itself, with the release that sets its track
-        order. Journals are written about albums.
-      </p>
+    <StudioFrame locale={locale} path="/studio/albums" current="albums">
+      <h1 className="studio-title">{w.title}</h1>
+      <p className="studio-lede">{w.lead}</p>
       <p>
-        <Link href="/studio/albums/new" className="studio-button">
-          Add an album
+        <Link href={href("/studio/albums/new")} className="studio-button">
+          {w.add}
         </Link>
       </p>
 
       {counts.length === 0 ? (
         <div className="studio-panel">
-          <p className="studio-section-title">No albums yet</p>
-          <p>
-            Add an album, credit it to an artist, and build its tracklist. Then
-            you can write a journal about it.
-          </p>
+          <p className="studio-section-title">{w.emptyTitle}</p>
+          <p>{w.emptyBody}</p>
         </div>
       ) : (
         <>
-          <ul className="studio-list" aria-label="Albums">
+          <ul className="studio-list" aria-label={w.listLabel}>
             {active.map(row)}
           </ul>
           {archived.length > 0 ? (
             <section aria-labelledby="archived-albums">
               <h2 id="archived-albums" className="studio-section-title">
-                Archived
+                {w.archived}
               </h2>
-              <p className="studio-hint">
-                Hidden from pickers. Their journals are untouched.
-              </p>
-              <ul className="studio-list" aria-label="Archived albums">
+              <p className="studio-hint">{w.archivedHint}</p>
+              <ul className="studio-list" aria-label={w.archivedLabel}>
                 {archived.map(row)}
               </ul>
             </section>

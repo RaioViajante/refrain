@@ -13,6 +13,7 @@ import { ConfirmDialog, useSubmission } from "@/app/studio/form-kit";
 import { formatDuration, parseDuration } from "@/app/studio/format";
 import { failureMessage } from "@/app/studio/messages";
 import type { ActionResult } from "@/app/studio/results";
+import { useStudio } from "@/app/studio/studio-locale";
 import { createTrackAction } from "@/app/studio/tracks/actions";
 
 export interface TracklistRow {
@@ -49,6 +50,8 @@ export function TracklistEditor({
   readOnly,
 }: TracklistEditorProps) {
   const router = useRouter();
+  const { words, href } = useStudio();
+  const w = words.tracklist;
   const { pending, failure, run, clearFailure } = useSubmission();
   const [message, setMessage] = useState("");
   const [existing, setExisting] = useState("");
@@ -76,12 +79,7 @@ export function TracklistEditor({
     if (existing === "") {
       return;
     }
-    if (
-      await change(
-        () => addTrackToAlbumAction(albumId, existing),
-        "Added to the end of the tracklist.",
-      )
-    ) {
+    if (await change(() => addTrackToAlbumAction(albumId, existing), w.added)) {
       setExisting("");
     }
   }
@@ -90,7 +88,7 @@ export function TracklistEditor({
     event.preventDefault();
     const lengthMs = parseDuration(length);
     if (lengthMs === undefined) {
-      setLengthProblem("Write the length as minutes and seconds, like 3:42.");
+      setLengthProblem(w.lengthProblem);
       return;
     }
     setLengthProblem(undefined);
@@ -103,7 +101,7 @@ export function TracklistEditor({
             artistIds: creditAlbumArtists ? albumArtistIds : [],
             albumId,
           }),
-        "Track created and added to the end of the tracklist.",
+        w.created,
       )
     ) {
       setTitle("");
@@ -114,12 +112,9 @@ export function TracklistEditor({
   return (
     <div className="space-y-8">
       {tracklist.length === 0 ? (
-        <p className="studio-hint">
-          No tracks yet. Add ones you already have, or create the first one
-          below.
-        </p>
+        <p className="studio-hint">{w.empty}</p>
       ) : (
-        <ol className="studio-list" aria-label="Tracklist">
+        <ol className="studio-list" aria-label={w.label}>
           {tracklist.map((track, index) => (
             <li key={track.trackId} className="studio-row">
               <span
@@ -129,7 +124,7 @@ export function TracklistEditor({
                 {index + 1}.
               </span>
               <span className="studio-row-title" style={{ flex: "1 1 200px" }}>
-                <Link href={`/studio/tracks/${track.trackId}`}>
+                <Link href={href(`/studio/tracks/${track.trackId}`)}>
                   {track.title}
                 </Link>
               </span>
@@ -137,7 +132,7 @@ export function TracklistEditor({
                 {[
                   track.artistNames,
                   formatDuration(track.lengthMs),
-                  track.archived ? "archived" : "",
+                  track.archived ? w.archived : "",
                 ]
                   .filter(Boolean)
                   .join(" · ")}
@@ -148,12 +143,12 @@ export function TracklistEditor({
                     type="button"
                     className="studio-button-quiet"
                     disabled={pending || index === 0}
-                    aria-label={`Move “${track.title}” up`}
+                    aria-label={w.moveUp(track.title)}
                     onClick={() =>
                       change(
                         () =>
                           moveTrackInAlbumAction(albumId, track.trackId, "up"),
-                        `Moved “${track.title}” up.`,
+                        w.movedUp(track.title),
                       )
                     }
                   >
@@ -163,7 +158,7 @@ export function TracklistEditor({
                     type="button"
                     className="studio-button-quiet"
                     disabled={pending || index === tracklist.length - 1}
-                    aria-label={`Move “${track.title}” down`}
+                    aria-label={w.moveDown(track.title)}
                     onClick={() =>
                       change(
                         () =>
@@ -172,7 +167,7 @@ export function TracklistEditor({
                             track.trackId,
                             "down",
                           ),
-                        `Moved “${track.title}” down.`,
+                        w.movedDown(track.title),
                       )
                     }
                   >
@@ -182,20 +177,19 @@ export function TracklistEditor({
                     type="button"
                     className="studio-button-quiet"
                     disabled={pending || track.hasReflection}
-                    aria-label={`Remove “${track.title}” from this album`}
+                    aria-label={w.removeLabel(track.title)}
                     onClick={() => {
                       clearFailure();
                       setRemoving(track);
                     }}
                   >
-                    Remove
+                    {w.remove}
                   </button>
                 </span>
               )}
               {track.hasReflection ? (
                 <span className="studio-hint" style={{ flexBasis: "100%" }}>
-                  A reflection is written about this track, so it stays on the
-                  album.
+                  {w.hasReflection}
                 </span>
               ) : null}
             </li>
@@ -208,7 +202,7 @@ export function TracklistEditor({
         className={failure ? "studio-problem" : "studio-hint"}
         style={{ maxWidth: "62ch" }}
       >
-        {failure ? failureMessage(failure) : message}
+        {failure ? failureMessage(words, failure) : message}
       </p>
 
       {readOnly ? null : (
@@ -216,7 +210,7 @@ export function TracklistEditor({
           {addable.length > 0 ? (
             <form onSubmit={addExisting} className="space-y-3 max-w-[620px]">
               <label htmlFor="add-existing-track" className="studio-label">
-                Add a track you already have
+                {w.addExisting}
               </label>
               <div className="studio-actions">
                 <select
@@ -233,7 +227,7 @@ export function TracklistEditor({
                   value={existing}
                   onChange={(event) => setExisting(event.target.value)}
                 >
-                  <option value="">Choose a track</option>
+                  <option value="">{w.chooseTrack}</option>
                   {addable.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
@@ -245,7 +239,7 @@ export function TracklistEditor({
                   className="studio-button"
                   disabled={pending || existing === ""}
                 >
-                  Add to album
+                  {w.addToAlbum}
                 </button>
               </div>
             </form>
@@ -256,11 +250,11 @@ export function TracklistEditor({
             className="space-y-4 max-w-[620px]"
             noValidate
           >
-            <p className="studio-label">Create a new track on this album</p>
+            <p className="studio-label">{w.createTitle}</p>
             <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_140px]">
               <div className="studio-field-group">
                 <label htmlFor="new-track-title" className="studio-hint">
-                  Title
+                  {w.title}
                 </label>
                 <input
                   id="new-track-title"
@@ -273,7 +267,7 @@ export function TracklistEditor({
               </div>
               <div className="studio-field-group">
                 <label htmlFor="new-track-length" className="studio-hint">
-                  Length (3:42)
+                  {w.length}
                 </label>
                 <input
                   id="new-track-length"
@@ -306,14 +300,14 @@ export function TracklistEditor({
                 }
                 style={{ width: 20, height: 20 }}
               />
-              <span>Credit the album’s artists on this track</span>
+              <span>{w.creditAlbumArtists}</span>
             </label>
             <button
               type="submit"
               className="studio-button"
               disabled={pending || title.trim() === ""}
             >
-              Create and add
+              {w.createAndAdd}
             </button>
           </form>
         </div>
@@ -321,8 +315,8 @@ export function TracklistEditor({
 
       <ConfirmDialog
         open={removing !== undefined}
-        title="Remove this track from the album?"
-        confirmLabel="Remove from album"
+        title={w.removeQuestion}
+        confirmLabel={w.removeConfirm}
         pending={pending}
         onConfirm={async () => {
           const track = removing;
@@ -331,16 +325,13 @@ export function TracklistEditor({
           }
           await change(
             () => removeTrackFromAlbumAction(albumId, track.trackId),
-            `Removed “${track.title}” from this album.`,
+            w.removed(track.title),
           );
           setRemoving(undefined);
         }}
         onCancel={() => setRemoving(undefined)}
       >
-        <p>
-          “{removing?.title}” stays in your catalog and on any other album. Only
-          its place on this tracklist goes.
-        </p>
+        <p>{w.removeBody(removing?.title ?? "")}</p>
       </ConfirmDialog>
     </div>
   );

@@ -6,27 +6,32 @@ import { accessDenied } from "@/app/studio/access";
 import { StudioFrame } from "@/app/studio/frame";
 import { MemoryEditor } from "@/app/studio/memories/memory-editor";
 import { StudioLoading } from "@/app/studio/studio-loading";
+import { studio } from "@/app/studio/studio-words";
+import type { InterfaceLocale } from "@/i18n/locales";
 import { listRecordingChoices } from "@/modules/catalog";
 import { authorizeAuthor } from "@/modules/identity";
 
-export const metadata: Metadata = { title: "Write a memory · refrain" };
+export function newMemoryMetadata(locale: InterfaceLocale): Metadata {
+  return { title: studio(locale).words.meta.newMemory };
+}
 
 type NewMemoryProps = {
-  searchParams: Promise<{ track?: string | string[] }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  locale: InterfaceLocale;
 };
 
-export default function NewMemoryPage({ searchParams }: NewMemoryProps) {
+export function NewMemoryScreen({ searchParams, locale }: NewMemoryProps) {
   return (
-    <Suspense fallback={<StudioLoading />}>
-      <NewMemory searchParams={searchParams} />
+    <Suspense fallback={<StudioLoading locale={locale} />}>
+      <NewMemory searchParams={searchParams} locale={locale} />
     </Suspense>
   );
 }
 
-async function NewMemory({ searchParams }: NewMemoryProps) {
+async function NewMemory({ searchParams, locale }: NewMemoryProps) {
   const authorization = await authorizeAuthor(await headers());
   if (!authorization.ok) {
-    return accessDenied(authorization.reason);
+    return accessDenied(authorization.reason, locale);
   }
   const choices = await listRecordingChoices(authorization.author);
   // "Write a memory about this song" arrives with the recording. Only a
@@ -36,7 +41,16 @@ async function NewMemory({ searchParams }: NewMemoryProps) {
   const preselected = choices.filter((choice) => choice.trackId === track);
 
   return (
-    <StudioFrame current="memories" layout="wide">
+    <StudioFrame
+      locale={locale}
+      path={
+        preselected.length > 0
+          ? `/studio/memories/new?track=${preselected[0]!.trackId}`
+          : "/studio/memories/new"
+      }
+      current="memories"
+      layout="wide"
+    >
       <MemoryEditor
         create
         initial={{

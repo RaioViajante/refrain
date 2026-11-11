@@ -6,6 +6,7 @@ import { useState } from "react";
 import { ConfirmDialog, useSubmission } from "@/app/studio/form-kit";
 import { restoreJournalAction } from "@/app/studio/journals/actions";
 import { failureMessage } from "@/app/studio/messages";
+import { useStudio } from "@/app/studio/studio-locale";
 
 /**
  * Restores a journal from Recently deleted, after asking. It says what the
@@ -25,6 +26,8 @@ export function RestoreJournalButton({
   wasPublished: boolean;
 }) {
   const router = useRouter();
+  const { words, href } = useStudio();
+  const w = words.restoreJournal;
   const { pending, failure, run, clearFailure } = useSubmission();
   const [asking, setAsking] = useState(false);
 
@@ -33,7 +36,9 @@ export function RestoreJournalButton({
     setAsking(false);
     if (result.ok) {
       router.push(
-        `/studio/journals/${entryId}?restored=${result.data.madePrivate.length > 0 ? "private" : "1"}`,
+        href(
+          `/studio/journals/${entryId}?restored=${result.data.madePrivate.length > 0 ? "private" : "1"}`,
+        ),
       );
     }
     // A refusal (already restored somewhere else, or gone) is said in words
@@ -47,33 +52,29 @@ export function RestoreJournalButton({
         type="button"
         className="studio-button"
         disabled={pending}
-        aria-label={`Restore the journal about ${albumTitle}`}
+        aria-label={w.label(albumTitle)}
         onClick={() => {
           clearFailure();
           setAsking(true);
         }}
       >
-        Restore…
+        {w.action}
       </button>
       {failure ? (
         <p role="alert" className="studio-problem" style={{ maxWidth: "62ch" }}>
-          {failureMessage(failure)}
+          {failureMessage(words, failure)}
         </p>
       ) : null}
       <ConfirmDialog
         open={asking}
-        title="Restore this journal?"
-        confirmLabel="Restore journal"
+        title={w.question}
+        confirmLabel={w.confirmLabel}
         pending={pending}
         onConfirm={restore}
         onCancel={() => setAsking(false)}
       >
         <p>
-          The journal returns to your journals with its writing exactly as you
-          left it.{" "}
-          {wasPublished
-            ? "A language version that was published when it was deleted comes back as private. Restoring publishes nothing. To publish it again you will first be shown everything it would publish, including any track reflections you had set to be included when published."
-            : "Drafts stay drafts and private stays private."}
+          {w.body} {wasPublished ? w.wasPublished : w.stays}
         </p>
       </ConfirmDialog>
     </div>

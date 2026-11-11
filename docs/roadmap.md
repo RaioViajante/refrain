@@ -55,14 +55,14 @@ M1 is delivered in increments, each authorized separately by the author:
 
 ### Interface localization (approved, not implemented)
 
-The interface in English and Brazilian Portuguese is an **approved delivery for November 16, by the owner's decision of 2026-11-10.** The public pages are built in both languages (PR 2B); the Writing Studio is English only until PR 3. The architecture is [ADR 0008](decisions/0008-interface-localization.md), and the public rules are [ADR 0006 amendment A7](decisions/0006-publication-decision-and-acknowledgement.md#a7-the-pt-surfaces). Each increment needs the owner's authorization, and starts only after the previous one is merged. **No deployment is authorized by any of them, and gates G1 to G8 stay open.**
+The interface in English and Brazilian Portuguese is an **approved delivery for November 16, by the owner's decision of 2026-11-10.** The public pages are built in both languages (PR 2B), and so is the Writing Studio (PR 3). The architecture is [ADR 0008](decisions/0008-interface-localization.md), and the public rules are [ADR 0006 amendment A7](decisions/0006-publication-decision-and-acknowledgement.md#a7-the-pt-surfaces). Each increment needs the owner's authorization, and starts only after the previous one is merged. **No deployment is authorized by any of them, and gates G1 to G8 stay open.**
 
 | Increment | Scope | State |
 | --- | --- | --- |
 | **PR 1** | ADR 0008, amendment A7, and these documents. Documentation only | Merged (#90) |
 | **PR 2A** | Move the routes under `(en)`, with no change of behaviour | Merged (#91) |
-| **PR 2B** | The public interface in English and Brazilian Portuguese | This pull request |
-| **PR 3** | The Writing Studio in English and Brazilian Portuguese | Not started |
+| **PR 2B** | The public interface in English and Brazilian Portuguese | Merged (#92) |
+| **PR 3** | The Writing Studio in English and Brazilian Portuguese | This pull request |
 | **PR 4** | Rating accessibility: focus after Clear, Clear against V4.4, the value's size, layout at 320px | Not started |
 | **PR 5** | Studio copy and the favicon | Not started |
 | **PR 6** | The public album journal in one pass (layout shift, reading without JavaScript, issue #44), with an independent security review | Not started |

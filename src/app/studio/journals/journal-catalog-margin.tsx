@@ -1,52 +1,57 @@
 import Link from "next/link";
 
+import type { InterfaceLocale } from "@/i18n/locales";
+import { localizedHref } from "@/i18n/paths";
+import { studioWords } from "@/i18n/studio";
+
 // The settings margin's catalog blocks, from the approved AlbumEditor screen:
 // the album's facts with the way to its catalog record, and its artwork with
 // the way to change it. The same on a new journal and on an existing one.
 
 export function JournalCatalogMargin({
+  locale,
   albumId,
   albumTitle,
   artistNames,
   hasCover,
 }: {
+  locale: InterfaceLocale;
   albumId: string;
   albumTitle: string;
   artistNames: string;
   hasCover: boolean;
 }) {
+  const w = studioWords(locale).journalMargin;
   return (
     <>
       <section aria-labelledby="editor-catalog" className="space-y-1">
         <h2 id="editor-catalog" className="studio-margin-title">
-          From your catalog
+          {w.fromCatalog}
         </h2>
         <p className="studio-meta">
           {[artistNames, albumTitle].filter(Boolean).join(" · ")}
         </p>
         <p>
           <Link
-            href={`/studio/albums/${albumId}`}
+            href={localizedHref(locale, `/studio/albums/${albumId}`)}
             className="studio-link studio-meta"
           >
-            Edit in catalog
+            {w.editInCatalog}
           </Link>
         </p>
       </section>
       <section aria-labelledby="editor-artwork" className="space-y-1">
         <h2 id="editor-artwork" className="studio-margin-title">
-          Artwork
+          {w.artwork}
         </h2>
-        <p className="studio-meta">
-          {hasCover ? "Cover Art Archive" : "No artwork yet"}
-        </p>
+        <p className="studio-meta">{hasCover ? w.coverSource : w.noArtwork}</p>
         <p>
           <Link
-            href={`/studio/albums/${albumId}/artwork`}
+            href={localizedHref(locale, `/studio/albums/${albumId}/artwork`)}
             className="studio-link studio-meta"
           >
-            Change…
-            <span className="studio-sr-only"> the album’s artwork</span>
+            {w.change}
+            <span className="studio-sr-only">{w.changeLabel}</span>
           </Link>
         </p>
       </section>

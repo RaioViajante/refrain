@@ -3,6 +3,8 @@
 import { useId } from "react";
 
 import { StarInk } from "@/app/studio/journals/star-ink";
+import { useStudio } from "@/app/studio/studio-locale";
+import type { StudioDictionary } from "@/i18n/studio";
 
 // A half-step rating: five hand-drawn stars, each in two halves (docs/design-system.md
 // § Components, Rating). Optional, with "No rating" by default, and it is
@@ -10,12 +12,8 @@ import { StarInk } from "@/app/studio/journals/star-ink";
 // move through the half steps, and the row is 44px tall. The ten halves and
 // "No rating" are real radio inputs, so the value is announced in words.
 
-function words(halfSteps: number | null): string {
-  if (halfSteps === null) {
-    return "No rating";
-  }
-  const stars = halfSteps / 2;
-  return `${stars} ${stars === 1 ? "star" : "stars"}`;
+function words(t: StudioDictionary, halfSteps: number | null): string {
+  return halfSteps === null ? t.rating.none : t.rating.stars(halfSteps);
 }
 
 interface RatingFieldProps {
@@ -37,6 +35,7 @@ export function RatingField({
   compact,
   disabled,
 }: RatingFieldProps) {
+  const { words: t } = useStudio();
   const name = useId();
   const noteId = `${name}-note`;
   return (
@@ -47,7 +46,7 @@ export function RatingField({
       aria-describedby={hint ? noteId : undefined}
     >
       <legend className="studio-label">
-        {label} <span className="studio-optional">(optional)</span>
+        {label} <span className="studio-optional">({t.common.optional})</span>
       </legend>
       <div className="studio-rating-row">
         <div className="studio-stars">
@@ -68,7 +67,7 @@ export function RatingField({
                     onChange={() => onChange(half)}
                   />
                   <label htmlFor={`${name}-${half}`}>
-                    <span className="studio-sr-only">{words(half)}</span>
+                    <span className="studio-sr-only">{words(t, half)}</span>
                     <svg
                       viewBox={half % 2 === 1 ? "0 0 12 24" : "12 0 12 24"}
                       width="14"
@@ -97,12 +96,12 @@ export function RatingField({
           onChange={() => onChange(null)}
         />
         <label htmlFor={`${name}-none`} className="studio-sr-only">
-          No rating
+          {t.rating.none}
         </label>
         {/* The value in words, for the eye. The radios carry it for assistive
             technology, so this is not read twice. */}
         <span className="studio-rating-words" aria-hidden="true">
-          {words(value)}
+          {words(t, value)}
         </span>
         {/* Always in the row, so that choosing a first rating moves nothing.
             Without a rating it is invisible and out of the tab order. */}
@@ -112,7 +111,7 @@ export function RatingField({
           data-unset={value === null ? "" : undefined}
           onClick={() => onChange(null)}
         >
-          Clear
+          {t.rating.clear}
         </button>
       </div>
       {hint ? (

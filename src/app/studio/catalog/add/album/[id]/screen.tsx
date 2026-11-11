@@ -9,9 +9,12 @@ import { AlbumThumb } from "@/app/studio/artwork-placeholder";
 import {
   editionDate,
   editionPlace,
+  providerTerm,
 } from "@/app/studio/catalog/add/edition-text";
 import { StudioFrame } from "@/app/studio/frame";
 import { StudioLoading } from "@/app/studio/studio-loading";
+import { studio } from "@/app/studio/studio-words";
+import type { InterfaceLocale } from "@/i18n/locales";
 import {
   CatalogError,
   listMusicEditions,
@@ -19,29 +22,34 @@ import {
 } from "@/modules/catalog";
 import { authorizeAuthor } from "@/modules/identity";
 
-export const metadata: Metadata = { title: "Choose an edition · refrain" };
+export function addAlbumMetadata(locale: InterfaceLocale): Metadata {
+  return { title: studio(locale).words.meta.chooseEdition };
+}
 
 // A MusicBrainz release group (the album as a work) and its releases (the
 // editions). The author picks the edition whose tracks, label, and date the
 // album will have; nothing is chosen for them (M3.2).
 
-export default function EditionsPage({
-  params,
-}: {
+interface Props {
   params: Promise<{ id: string }>;
-}) {
+  locale: InterfaceLocale;
+}
+
+export function AddAlbumScreen({ params, locale }: Props) {
   return (
-    <Suspense fallback={<StudioLoading />}>
-      <Editions params={params} />
+    <Suspense fallback={<StudioLoading locale={locale} />}>
+      <Editions params={params} locale={locale} />
     </Suspense>
   );
 }
 
-async function Editions({ params }: { params: Promise<{ id: string }> }) {
+async function Editions({ params, locale }: Props) {
   const authorization = await authorizeAuthor(await headers());
   if (!authorization.ok) {
-    return accessDenied(authorization.reason);
+    return accessDenied(authorization.reason, locale);
   }
+  const { words, href } = studio(locale);
+  const w = words.editions;
   const { id } = await params;
   let editions: MusicEditions;
   try {
@@ -55,23 +63,27 @@ async function Editions({ params }: { params: Promise<{ id: string }> }) {
         notFound();
       }
       return (
-        <StudioFrame current="catalog">
+        <StudioFrame
+          locale={locale}
+          path="/studio/catalog/add"
+          current="catalog"
+        >
           <p>
-            <Link href="/studio/catalog/add" className="studio-link">
-              ← Add music
+            <Link href={href("/studio/catalog/add")} className="studio-link">
+              {w.back}
             </Link>
           </p>
           <div className="studio-panel" role="alert">
-            <p className="studio-section-title">Couldn’t reach MusicBrainz.</p>
-            <p>
-              Your catalog and your writing still work. Try again in a moment.
+            <p className="studio-section-title">
+              {words.addMusic.unreachableTitle}
             </p>
+            <p>{words.addMusic.unreachableBody}</p>
             <p>
               <Link
-                href={`/studio/catalog/add/album/${id}`}
+                href={href(`/studio/catalog/add/album/${id}`)}
                 className="studio-button"
               >
-                Try again
+                {words.photoPage.tryAgain}
               </Link>
             </p>
           </div>
@@ -83,21 +95,27 @@ async function Editions({ params }: { params: Promise<{ id: string }> }) {
 
   const { group, releases, total, catalogAlbum } = editions;
   return (
-    <StudioFrame current="catalog">
+    <StudioFrame
+      locale={locale}
+      path={`/studio/catalog/add/album/${group.id}`}
+      current="catalog"
+    >
       <p>
-        <Link href="/studio/catalog/add" className="studio-link">
-          ← Add music
+        <Link href={href("/studio/catalog/add")} className="studio-link">
+          {w.back}
         </Link>
       </p>
       <h1 className="studio-title">{group.title}</h1>
       <p className="studio-lede">
         {[
-          group.primaryType ?? "Release",
+          group.primaryType
+            ? providerTerm(locale, group.primaryType)
+            : words.addMusic.release,
           group.credit,
           group.firstReleaseDate
-            ? `first released ${group.firstReleaseDate.slice(0, 4)}`
+            ? w.firstReleased(group.firstReleaseDate.slice(0, 4))
             : "",
-          ...group.secondaryTypes,
+          ...group.secondaryTypes.map((type) => providerTerm(locale, type)),
           group.disambiguation,
         ]
           .filter(Boolean)
@@ -106,32 +124,31 @@ async function Editions({ params }: { params: Promise<{ id: string }> }) {
 
       {catalogAlbum ? (
         <div className="studio-panel" role="status">
-          <p className="studio-section-title">Already in your catalog</p>
+          <p className="studio-section-title">
+            {words.addMusic.alreadyInCatalog}
+          </p>
           <p>
-            This album is{" "}
+            {w.alreadyStart}
             <Link
-              href={`/studio/albums/${catalogAlbum.id}`}
+              href={href(`/studio/albums/${catalogAlbum.id}`)}
               className="studio-link"
             >
               {catalogAlbum.title}
-            </Link>{" "}
-            in your catalog, so it can’t be added again. Its artwork can be
-            chosen on its page.
+            </Link>
+            {w.alreadyEnd}
           </p>
         </div>
       ) : null}
 
       <section aria-labelledby="editions" className="space-y-2">
         <h2 id="editions" className="studio-section-title">
-          Choose an edition
+          {w.choose}
         </h2>
         <p className="studio-hint" style={{ maxWidth: "62ch" }}>
-          The album is the work. An edition is one release of it, with its own
-          tracks, label, and date. The edition you choose sets the album’s
-          tracklist; you review everything before it is added.
+          {w.explain}
         </p>
         {releases.length === 0 ? (
-          <p className="studio-hint">MusicBrainz lists no editions.</p>
+          <p className="studio-hint">{w.none}</p>
         ) : (
           <ul className="studio-list" aria-labelledby="editions">
             {releases.map((release) => (
@@ -148,14 +165,16 @@ async function Editions({ params }: { params: Promise<{ id: string }> }) {
                     {[
                       release.date !== null &&
                       release.date === group.firstReleaseDate
-                        ? "original release"
+                        ? w.original
                         : "",
-                      editionDate(release.date) ?? "no date",
-                      editionPlace(release.country) ?? "",
+                      editionDate(locale, release.date) ?? w.noDate,
+                      editionPlace(locale, release.country) ?? "",
                       release.labels.join(", "),
                       release.formats.join(" + "),
-                      `${release.trackCount} ${release.trackCount === 1 ? "track" : "tracks"}`,
-                      release.status ?? "",
+                      words.counts.tracks(release.trackCount),
+                      release.status
+                        ? providerTerm(locale, release.status)
+                        : "",
                     ]
                       .filter(Boolean)
                       .join(" · ")}
@@ -164,18 +183,23 @@ async function Editions({ params }: { params: Promise<{ id: string }> }) {
                 <span className="studio-entry-end">
                   {release.catalogAlbumId ? (
                     <Link
-                      href={`/studio/albums/${release.catalogAlbumId}`}
+                      href={href(`/studio/albums/${release.catalogAlbumId}`)}
                       className="studio-in-catalog"
                     >
-                      In catalog
+                      {words.addMusic.inCatalog}
                     </Link>
                   ) : catalogAlbum ? null : (
                     <Link
-                      href={`/studio/catalog/add/release/${release.id}`}
+                      href={href(`/studio/catalog/add/release/${release.id}`)}
                       className="studio-button"
                     >
-                      Review
-                      <span className="studio-sr-only">{` the ${editionDate(release.date) ?? "undated"} ${editionPlace(release.country) ?? ""} edition`}</span>
+                      {w.review}
+                      <span className="studio-sr-only">
+                        {w.reviewLabel(
+                          editionDate(locale, release.date),
+                          editionPlace(locale, release.country),
+                        )}
+                      </span>
                     </Link>
                   )}
                 </span>
@@ -184,12 +208,10 @@ async function Editions({ params }: { params: Promise<{ id: string }> }) {
           </ul>
         )}
         {total > releases.length ? (
-          <p className="studio-hint">
-            Showing the first {releases.length} of {total} editions.
-          </p>
+          <p className="studio-hint">{w.showing(releases.length, total)}</p>
         ) : null}
       </section>
-      <p className="studio-hint">Data from MusicBrainz.</p>
+      <p className="studio-hint">{w.source}</p>
     </StudioFrame>
   );
 }

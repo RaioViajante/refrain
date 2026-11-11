@@ -8,10 +8,13 @@ import { accessDenied } from "@/app/studio/access";
 import {
   editionDate,
   editionPlace,
+  providerTerm,
 } from "@/app/studio/catalog/add/edition-text";
 import { formatDuration } from "@/app/studio/format";
 import { StudioFrame } from "@/app/studio/frame";
 import { StudioLoading } from "@/app/studio/studio-loading";
+import { studio } from "@/app/studio/studio-words";
+import type { InterfaceLocale } from "@/i18n/locales";
 import {
   CatalogError,
   reviewMusicRelease,
@@ -22,7 +25,9 @@ import { authorizeAuthor } from "@/modules/identity";
 
 import { LinkAlbumButton, ReleaseApproval } from "./release-approval";
 
-export const metadata: Metadata = { title: "Review before adding · refrain" };
+export function addReleaseMetadata(locale: InterfaceLocale): Metadata {
+  return { title: studio(locale).words.meta.reviewBeforeAdding };
+}
 
 // The review of one MusicBrainz release before anything is written (M3.2).
 // It shows exactly what the import would add, what is already in the catalog
@@ -31,35 +36,27 @@ export const metadata: Metadata = { title: "Review before adding · refrain" };
 // fingerprint of this review, and the chosen image; the server fetches the
 // release again and refuses if it no longer matches.
 
-const UNSUPPORTED: Record<UnsupportedReason, string> = {
-  no_tracks: "MusicBrainz lists no tracks for this edition.",
-  too_many_tracks:
-    "This edition has more tracks or discs than an album in the catalog can hold.",
-  repeated_recording:
-    "This edition lists the same recording twice, and an album holds each recording once.",
-  no_credits: "MusicBrainz credits no artist on this edition.",
-  too_many_credits: "This edition credits more artists than the catalog holds.",
-  text_too_long:
-    "A title or name on this edition is longer than the catalog holds.",
-};
-
-export default function ReleaseReviewPage({
-  params,
-}: {
+interface Props {
   params: Promise<{ id: string }>;
-}) {
+  locale: InterfaceLocale;
+}
+
+export function AddReleaseScreen({ params, locale }: Props) {
   return (
-    <Suspense fallback={<StudioLoading />}>
-      <Review params={params} />
+    <Suspense fallback={<StudioLoading locale={locale} />}>
+      <Review params={params} locale={locale} />
     </Suspense>
   );
 }
 
-async function Review({ params }: { params: Promise<{ id: string }> }) {
+async function Review({ params, locale }: Props) {
   const authorization = await authorizeAuthor(await headers());
   if (!authorization.ok) {
-    return accessDenied(authorization.reason);
+    return accessDenied(authorization.reason, locale);
   }
+  const { words, href } = studio(locale);
+  const w = words.release;
+  const unsupported: Record<UnsupportedReason, string> = w.unsupported;
   const { id } = await params;
   let review: ReleaseReview;
   try {
@@ -73,18 +70,22 @@ async function Review({ params }: { params: Promise<{ id: string }> }) {
         notFound();
       }
       return (
-        <StudioFrame current="catalog">
+        <StudioFrame
+          locale={locale}
+          path="/studio/catalog/add"
+          current="catalog"
+        >
           <div className="studio-panel" role="alert">
-            <p className="studio-section-title">Couldn’t reach MusicBrainz.</p>
-            <p>
-              Your catalog and your writing still work. Try again in a moment.
+            <p className="studio-section-title">
+              {words.addMusic.unreachableTitle}
             </p>
+            <p>{words.addMusic.unreachableBody}</p>
             <p>
               <Link
-                href={`/studio/catalog/add/release/${id}`}
+                href={href(`/studio/catalog/add/release/${id}`)}
                 className="studio-button"
               >
-                Try again
+                {words.photoPage.tryAgain}
               </Link>
             </p>
           </div>
@@ -105,42 +106,47 @@ async function Review({ params }: { params: Promise<{ id: string }> }) {
     !review.existingEdition;
 
   return (
-    <StudioFrame current="catalog">
+    <StudioFrame
+      locale={locale}
+      path={`/studio/catalog/add/release/${release.id}`}
+      current="catalog"
+    >
       <p>
         <Link
-          href={`/studio/catalog/add/album/${release.releaseGroup.id}`}
+          href={href(`/studio/catalog/add/album/${release.releaseGroup.id}`)}
           className="studio-link"
         >
-          ← Other editions
+          {w.back}
         </Link>
       </p>
       <h1 className="studio-title">{release.releaseGroup.title}</h1>
-      <p className="studio-lede">
-        Review what will be added to your catalog. Nothing is published by
-        adding it, and nothing already in your catalog is changed.
-      </p>
+      <p className="studio-lede">{w.lead}</p>
 
       {review.existingAlbum ? (
         <div className="studio-panel" role="status">
-          <p className="studio-section-title">Already in your catalog</p>
+          <p className="studio-section-title">
+            {words.addMusic.alreadyInCatalog}
+          </p>
           <p>
-            This album is{" "}
+            {words.editions.alreadyStart}
             <Link
-              href={`/studio/albums/${review.existingAlbum.id}`}
+              href={href(`/studio/albums/${review.existingAlbum.id}`)}
               className="studio-link"
             >
               {review.existingAlbum.title}
-            </Link>{" "}
-            in your catalog, so it isn’t added again.
+            </Link>
+            {w.alreadyAlbumEnd}
           </p>
         </div>
       ) : review.existingEdition ? (
         <div className="studio-panel" role="status">
-          <p className="studio-section-title">Already in your catalog</p>
+          <p className="studio-section-title">
+            {words.addMusic.alreadyInCatalog}
+          </p>
           <p>
-            This edition belongs to{" "}
+            {w.editionBelongs}
             <Link
-              href={`/studio/albums/${review.existingEdition.albumId}`}
+              href={href(`/studio/albums/${review.existingEdition.albumId}`)}
               className="studio-link"
             >
               {review.existingEdition.title}
@@ -152,33 +158,32 @@ async function Review({ params }: { params: Promise<{ id: string }> }) {
 
       {review.unsupported ? (
         <div className="studio-panel" role="status">
-          <p className="studio-section-title">
-            This edition can’t be added as one album
-          </p>
-          <p>{UNSUPPORTED[review.unsupported]}</p>
-          <p>
-            Choose another edition, add the album by hand, or link an album you
-            already have.
-          </p>
+          <p className="studio-section-title">{w.unsupportedTitle}</p>
+          <p>{unsupported[review.unsupported]}</p>
+          <p>{w.unsupportedHint}</p>
         </div>
       ) : null}
 
       <section aria-labelledby="review-album" className="space-y-2">
         <h2 id="review-album" className="studio-section-title">
-          The album
+          {w.album}
         </h2>
         <dl className="studio-facts">
-          <dt>Title</dt>
+          <dt>{w.title}</dt>
           <dd>{release.releaseGroup.title}</dd>
-          <dt>Credited to</dt>
-          <dd>{release.credit || "no artist credited"}</dd>
-          <dt>First released</dt>
-          <dd>{plan?.firstReleaseYear ?? "not known"}</dd>
-          <dt>Kind</dt>
+          <dt>{w.creditedTo}</dt>
+          <dd>{release.credit || w.noArtist}</dd>
+          <dt>{w.firstReleased}</dt>
+          <dd>{plan?.firstReleaseYear ?? w.notKnown}</dd>
+          <dt>{w.kind}</dt>
           <dd>
             {[
-              release.releaseGroup.primaryType ?? "not given",
-              ...release.releaseGroup.secondaryTypes,
+              release.releaseGroup.primaryType
+                ? providerTerm(locale, release.releaseGroup.primaryType)
+                : w.notGiven,
+              ...release.releaseGroup.secondaryTypes.map((type) =>
+                providerTerm(locale, type),
+              ),
             ].join(" · ")}
           </dd>
         </dl>
@@ -186,40 +191,37 @@ async function Review({ params }: { params: Promise<{ id: string }> }) {
 
       <section aria-labelledby="review-edition" className="space-y-2">
         <h2 id="review-edition" className="studio-section-title">
-          This edition
+          {w.edition}
         </h2>
         <dl className="studio-facts">
-          <dt>Released</dt>
+          <dt>{w.released}</dt>
           <dd>
-            {editionDate(release.date) ?? "no date"}
-            {partialDate
-              ? " (only the year is kept: the catalog stores full dates)"
-              : ""}
+            {editionDate(locale, release.date) ?? words.editions.noDate}
+            {partialDate ? w.partialDate : ""}
           </dd>
-          <dt>Country</dt>
-          <dd>{editionPlace(release.country) ?? "not given"}</dd>
-          <dt>Label</dt>
-          <dd>{plan?.edition.label ?? release.labels[0] ?? "not given"}</dd>
+          <dt>{w.country}</dt>
+          <dd>{editionPlace(locale, release.country) ?? w.notGiven}</dd>
+          <dt>{w.label}</dt>
+          <dd>{plan?.edition.label ?? release.labels[0] ?? w.notGiven}</dd>
           {release.disambiguation ? (
             <>
-              <dt>Note</dt>
+              <dt>{w.note}</dt>
               <dd>{release.disambiguation}</dd>
             </>
           ) : null}
-          <dt>Status</dt>
-          <dd>{release.status ?? "not given"}</dd>
+          <dt>{w.status}</dt>
+          <dd>
+            {release.status ? providerTerm(locale, release.status) : w.notGiven}
+          </dd>
         </dl>
       </section>
 
       {plan ? (
         <section aria-labelledby="review-tracks" className="space-y-2">
           <h2 id="review-tracks" className="studio-section-title">
-            Tracks
+            {w.tracks}
           </h2>
-          <p className="studio-hint">
-            {`${plan.tracks.length} ${plan.tracks.length === 1 ? "track" : "tracks"}, in this edition’s order.`}{" "}
-            A track already in your catalog keeps its own title and details.
-          </p>
+          <p className="studio-hint">{w.tracksHint(plan.tracks.length)}</p>
           <ol className="studio-tracks-review">
             {plan.tracks.map((track) => {
               const existing = review.existingTracks[track.mbRecordingId];
@@ -237,9 +239,7 @@ async function Review({ params }: { params: Promise<{ id: string }> }) {
                     ) : null}
                     {existing ? (
                       <span className="studio-meta">
-                        {existing.archived
-                          ? " · in your catalog, archived: restore it first"
-                          : " · already in your catalog"}
+                        {existing.archived ? w.archivedInCatalog : w.inCatalog}
                       </span>
                     ) : null}
                   </span>
@@ -256,7 +256,7 @@ async function Review({ params }: { params: Promise<{ id: string }> }) {
       {review.artists.length > 0 ? (
         <section aria-labelledby="review-artists" className="space-y-2">
           <h2 id="review-artists" className="studio-section-title">
-            Artists
+            {w.artists}
           </h2>
           <ul className="studio-facts-list">
             {review.artists.map((artist) => (
@@ -264,25 +264,23 @@ async function Review({ params }: { params: Promise<{ id: string }> }) {
                 {artist.existing ? (
                   <>
                     <Link
-                      href={`/studio/artists/${artist.existing.id}`}
+                      href={href(`/studio/artists/${artist.existing.id}`)}
                       className="studio-link"
                     >
                       {artist.existing.name}
                     </Link>
                     <span className="studio-meta">
                       {artist.existing.archived
-                        ? " · in your catalog, archived: restore it first"
-                        : " · already in your catalog, kept as it is"}
+                        ? w.archivedInCatalog
+                        : w.keptAsItIs}
                     </span>
                   </>
                 ) : (
                   <>
                     {artist.name}
                     <span className="studio-meta">
-                      {` · new, as a ${artist.kind === "group" ? "band" : "person"}`}
-                      {artist.kindFromProvider
-                        ? ""
-                        : " (MusicBrainz doesn’t say; you can change it in the catalog)"}
+                      {artist.kind === "group" ? w.newBand : w.newPerson}
+                      {artist.kindFromProvider ? "" : w.kindUnknown}
                     </span>
                   </>
                 )}
@@ -309,12 +307,10 @@ async function Review({ params }: { params: Promise<{ id: string }> }) {
       {!review.existingAlbum && review.sameTitle.length > 0 ? (
         <section aria-labelledby="review-link" className="space-y-2">
           <h2 id="review-link" className="studio-section-title">
-            Or link an album you already have
+            {w.linkTitle}
           </h2>
           <p className="studio-hint" style={{ maxWidth: "62ch" }}>
-            Linking records only that your album is this MusicBrainz album and
-            edition. Its title, credits, tracks, and artwork stay exactly as
-            they are.
+            {w.linkHint}
           </p>
           <ul className="studio-list" aria-labelledby="review-link">
             {review.sameTitle.map((album) => (
@@ -324,13 +320,13 @@ async function Review({ params }: { params: Promise<{ id: string }> }) {
                   style={{ gridColumn: "1 / 3" }}
                 >
                   <span className="studio-row-title">
-                    <Link href={`/studio/albums/${album.id}`}>
+                    <Link href={href(`/studio/albums/${album.id}`)}>
                       {album.title}
                     </Link>
                   </span>
                   <span className="studio-meta">
                     {[
-                      album.credit || "no credited artist",
+                      album.credit || words.albums.noArtist,
                       album.firstReleaseYear
                         ? String(album.firstReleaseYear)
                         : "",
@@ -354,10 +350,7 @@ async function Review({ params }: { params: Promise<{ id: string }> }) {
         </section>
       ) : null}
 
-      <p className="studio-hint">
-        Data from MusicBrainz. Artwork from Cover Art Archive, added only if you
-        choose it.
-      </p>
+      <p className="studio-hint">{words.addMusic.source}</p>
     </StudioFrame>
   );
 }

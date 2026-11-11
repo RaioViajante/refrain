@@ -17,6 +17,7 @@ import {
   useUnsavedGuard,
 } from "@/app/studio/form-kit";
 import { problemWith } from "@/app/studio/messages";
+import { useStudio } from "@/app/studio/studio-locale";
 
 export function AlbumForm({
   albumId,
@@ -29,6 +30,8 @@ export function AlbumForm({
   artistOptions: { value: string; label: string }[];
 }) {
   const router = useRouter();
+  const { words, href } = useStudio();
+  const w = words.albumForm;
   const [values, setValues] = useState(initial);
   const [dirty, setDirty] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -52,7 +55,7 @@ export function AlbumForm({
     event.preventDefault();
     const year = values.year.trim();
     if (year !== "" && !/^\d{4}$/.test(year)) {
-      setYearProblem("Write the year with four digits, like 1994.");
+      setYearProblem(w.yearProblem);
       return;
     }
     const payload = {
@@ -83,18 +86,18 @@ export function AlbumForm({
     if (result.ok) {
       setDirty(false);
       setSaved(true);
-      router.push(`/studio/albums/${result.data.id}`);
+      router.push(href(`/studio/albums/${result.data.id}`));
     }
   }
 
   if (artistOptions.length === 0 && values.credits.every((c) => !c.artistId)) {
     return (
       <div className="studio-panel">
-        <p className="studio-section-title">Add an artist first</p>
-        <p>An album is credited to at least one artist or band.</p>
+        <p className="studio-section-title">{w.artistFirst}</p>
+        <p>{w.artistFirstBody}</p>
         <p>
-          <Link href="/studio/artists/new" className="studio-button">
-            Add an artist
+          <Link href={href("/studio/artists/new")} className="studio-button">
+            {words.artists.add}
           </Link>
         </p>
       </div>
@@ -104,75 +107,72 @@ export function AlbumForm({
   return (
     <form onSubmit={save} className="space-y-6 max-w-[700px]" noValidate>
       <TextField
-        label="Title"
+        label={w.title}
         value={values.title}
         onChange={(value) => change("title", value)}
         required
         maxLength={300}
-        hint="Titles don’t have to be unique: two albums can share a name."
-        problem={problemWith(failure, "title")}
+        hint={w.titleHint}
+        problem={problemWith(words, failure, "title")}
       />
       <ArtistRows
-        legend="Credited artists"
+        legend={w.credits}
         rows={values.credits}
         onChange={(rows) => change("credits", rows)}
         options={artistOptions}
         minimum={1}
         withCreditedAs
         problem={
-          problemWith(failure, "credits") ??
+          problemWith(words, failure, "credits") ??
           Object.keys(failure?.fields ?? {})
             .filter((field) => field.startsWith("credits."))
-            .map(() => "Choose an artist for each row, and no artist twice.")[0]
+            .map(() => w.creditsProblem)[0]
         }
       />
       <TextField
-        label="First released (optional)"
+        label={w.year}
         value={values.year}
         onChange={(value) => change("year", value)}
         inputMode="numeric"
         maxLength={4}
         width="140px"
-        problem={yearProblem ?? problemWith(failure, "firstReleaseYear")}
+        problem={yearProblem ?? problemWith(words, failure, "firstReleaseYear")}
       />
       <fieldset className="space-y-6 border-0 p-0 mx-0 mt-0 min-w-0">
-        <legend className="studio-label mb-1">Reference edition</legend>
-        <p className="studio-hint">
-          The release that sets the order of the tracks. Everything here is
-          optional.
-        </p>
+        <legend className="studio-label mb-1">{w.edition}</legend>
+        <p className="studio-hint">{w.editionHint}</p>
         <TextField
-          label="Label"
+          label={w.label}
           value={values.label}
           onChange={(value) => change("label", value)}
           maxLength={200}
-          problem={problemWith(failure, "edition.label")}
+          problem={problemWith(words, failure, "edition.label")}
         />
         <div className="grid gap-6 sm:grid-cols-2">
           <TextField
-            label="Release date"
+            label={w.releaseDate}
             type="date"
             value={values.releaseDate}
             onChange={(value) => change("releaseDate", value)}
-            problem={problemWith(failure, "edition.releaseDate")}
+            problem={problemWith(words, failure, "edition.releaseDate")}
           />
           <TextField
-            label="Country (two letters)"
+            label={w.country}
             value={values.country}
             onChange={(value) => change("country", value.toUpperCase())}
             maxLength={2}
             width="120px"
-            problem={problemWith(failure, "edition.country")}
+            problem={problemWith(words, failure, "edition.country")}
           />
         </div>
       </fieldset>
       <TextField
-        label="MusicBrainz release group ID (optional)"
+        label={w.mbReleaseGroupId}
         value={values.mbReleaseGroupId}
         onChange={(value) => change("mbReleaseGroupId", value)}
         maxLength={36}
-        hint="Filled in when you add or link this album from Add music. Saving this form looks nothing up."
-        problem={problemWith(failure, "mbReleaseGroupId")}
+        hint={w.mbReleaseGroupIdHint}
+        problem={problemWith(words, failure, "mbReleaseGroupId")}
       />
       <div className="studio-actions">
         <button
@@ -180,7 +180,7 @@ export function AlbumForm({
           className="studio-button studio-button-primary"
           disabled={pending}
         >
-          {albumId ? "Save album" : "Add album"}
+          {albumId ? w.save : w.add}
         </button>
         <FormStatus
           pending={pending}

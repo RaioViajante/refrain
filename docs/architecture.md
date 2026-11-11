@@ -36,7 +36,7 @@ Refrain is a **modular monolith**: one deployable Next.js application, one Postg
 | Validation | Zod (installed) |
 | Database / ORM and migrations | PostgreSQL 17 and 18 (both tested; [Development § Test database](development.md#test-database)) / Drizzle ORM and Drizzle Kit, with the `pg` driver (installed) |
 | Authentication | Better Auth (installed; [ADR 0004](decisions/0004-single-author-identity.md)) |
-| Interface localization | Own typed dictionaries (`en`, `pt-BR`), with no library ([ADR 0008](decisions/0008-interface-localization.md)). Built for the public pages (`src/i18n/`); the Studio is English only until its localization |
+| Interface localization | Own typed dictionaries (`en`, `pt-BR`), with no library ([ADR 0008](decisions/0008-interface-localization.md)). Built for the public pages (`src/i18n/`, PR 2B) and the Studio (`src/i18n/studio/`, PR 3) |
 | Unit and integration tests | Vitest (installed) |
 | End-to-end tests | Playwright |
 | Package manager | pnpm (installed) |
@@ -142,7 +142,7 @@ Next.js **Cache Components** is enabled (`cacheComponents: true` in `next.config
 
 ## Interface localization (approved, not implemented)
 
-The public pages are built in both languages (PR 2B): thin routes under `src/app/(en)/` and `src/app/pt/`, each passing its language to a shared implementation, the dictionaries and formats in `src/i18n/`, the footer selector, the alternates, and the bilingual `src/app/global-not-found.tsx`. The Writing Studio is English only until PR 3. [ADR 0008](decisions/0008-interface-localization.md) is the accepted design for English at today's addresses and Brazilian Portuguese at `/pt`, for the public pages and the Studio:
+The public pages are built in both languages (PR 2B): thin routes under `src/app/(en)/` and `src/app/pt/`, each passing its language to a shared implementation, the dictionaries and formats in `src/i18n/`, the footer selector, the alternates, and the bilingual `src/app/global-not-found.tsx`. The Writing Studio is built in both languages too (PR 3): thin routes under `src/app/(en)/studio/` and `src/app/pt/studio/`, its own dictionaries in `src/i18n/studio/`, given to its client components by one provider in the Studio layout (`src/app/studio/studio-locale.tsx`), and revalidation of both trees by their route files. [ADR 0008](decisions/0008-interface-localization.md) is the accepted design for English at today's addresses and Brazilian Portuguese at `/pt`, for the public pages and the Studio:
 
 - two root layouts with literal routes, so `<html lang>` is fixed per tree and no alias of a route can exist;
 - own typed dictionaries, whose parity the type check enforces;

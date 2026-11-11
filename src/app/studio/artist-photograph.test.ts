@@ -4,12 +4,21 @@ import { creditCaption } from "./artist-photograph";
 
 describe("a photograph's credit as a caption", () => {
   it("prefixes a plain credit", () => {
-    expect(creditCaption("[Test] Photographer One")).toBe(
+    expect(creditCaption("en", "[Test] Photographer One")).toBe(
       "Photo: [Test] Photographer One",
     );
     // A name that merely starts with the word is still prefixed.
-    expect(creditCaption("Photon Studio")).toBe("Photo: Photon Studio");
-    expect(creditCaption("Photobyte Studio")).toBe("Photo: Photobyte Studio");
+    expect(creditCaption("en", "Photon Studio")).toBe("Photo: Photon Studio");
+    expect(creditCaption("en", "Photobyte Studio")).toBe(
+      "Photo: Photobyte Studio",
+    );
+  });
+
+  it("prefixes it in the page's language, and leaves the credit as it is", () => {
+    expect(creditCaption("pt-BR", "[Test] Photographer One")).toBe(
+      "Foto: [Test] Photographer One",
+    );
+    expect(creditCaption("pt-BR", "Photon Studio")).toBe("Foto: Photon Studio");
   });
 
   it("never doubles a prefix the file's attribution already has", () => {
@@ -23,7 +32,9 @@ describe("a photograph's credit as a caption", () => {
       "Photo by [Test] Someone",
       "Photograph by [Test] Someone",
     ]) {
-      expect(creditCaption(credit)).toBe(credit);
+      for (const locale of ["en", "pt-BR"] as const) {
+        expect(creditCaption(locale, credit)).toBe(credit);
+      }
     }
   });
 });

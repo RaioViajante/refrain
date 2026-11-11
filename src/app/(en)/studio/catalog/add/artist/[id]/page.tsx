@@ -1,1 +1,12 @@
-export { default, metadata } from "@/app/studio/catalog/add/artist/[id]/screen";
+import {
+  AddArtistScreen,
+  addArtistMetadata,
+} from "@/app/studio/catalog/add/artist/[id]/screen";
+
+type Props = Readonly<{ params: Promise<{ id: string }> }>;
+
+export default function Page({ params }: Props) {
+  return <AddArtistScreen params={params} locale="en" />;
+}
+
+export const metadata = addArtistMetadata("en");

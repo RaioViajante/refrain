@@ -3,8 +3,10 @@
 import { useState } from "react";
 
 import { authClient } from "./auth-client";
+import { useStudio } from "./studio-locale";
 
 export function SignOutButton() {
+  const { words, href } = useStudio();
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState(false);
 
@@ -19,9 +21,9 @@ export function SignOutButton() {
     }
     // A full navigation, so the next page is rendered without the session.
     // It also discards the client router cache, so no page rendered under
-    // the previous authentication state can be shown again.
-    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-    window.location.assign("/studio/sign-in");
+    // the previous authentication state can be shown again. The sign-in
+    // page is the one of this page's language (ADR 0008 § 9).
+    window.location.assign(href("/studio/sign-in"));
   }
 
   return (
@@ -30,7 +32,7 @@ export function SignOutButton() {
         role="status"
         className={`text-[15.5px] text-ink-3 ${failed ? "mr-4" : ""}`}
       >
-        {failed ? "Couldn’t sign out. Try again." : ""}
+        {failed ? words.signOut.failed : ""}
       </p>
       <button
         type="button"
@@ -38,7 +40,7 @@ export function SignOutButton() {
         disabled={pending}
         className="studio-button-quiet studio-header-action"
       >
-        {pending ? "Signing out…" : "Sign out"}
+        {pending ? words.signOut.pending : words.signOut.action}
       </button>
     </div>
   );

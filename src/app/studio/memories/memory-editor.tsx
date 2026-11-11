@@ -7,6 +7,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   ConfirmDialog,
   FormStatus,
+  SelectField,
   TextAreaField,
   TextField,
   TitleField,
@@ -26,14 +27,20 @@ import {
 } from "@/app/studio/memories/recordings";
 import { problemWith } from "@/app/studio/messages";
 import { StatusMark } from "@/app/studio/status-mark";
+import { useStudio } from "@/app/studio/studio-locale";
+import type { StudioDictionary } from "@/i18n/studio";
 import type { VisibilityStatus } from "@/modules/journals";
+
+type Language = "en" | "pt-BR";
+
+const LANGUAGES: Language[] = ["en", "pt-BR"];
 
 // The limits the server enforces (src/modules/journals/input.ts), so the
 // fields stop where the command would refuse.
 const MAX_TITLE = 200;
 const MAX_WHEN = 200;
 
-function words(text: string): number {
+function wordCount(text: string): number {
   return text.trim() === "" ? 0 : text.trim().split(/\s+/).length;
 }
 
@@ -50,14 +57,14 @@ interface Draft {
  * from the editor's saved state, never from the server's change, which lists
  * additions and edits only (ADR 0006 § 5).
  */
-function removalsOf(base: Draft, sent: Draft): string[] {
+function removalsOf(t: StudioDictionary, base: Draft, sent: Draft): string[] {
   const kept = new Set(sent.recordings.map((recording) => recording.trackId));
   const songs = base.recordings
     .filter((recording) => !kept.has(recording.trackId))
     .map((recording) => recording.title);
   const when =
     base.rememberedWhen.trim() !== "" && sent.rememberedWhen.trim() === "";
-  return [...(when ? ["The “when”"] : []), ...songs];
+  return [...(when ? [t.memoryEditor.whenRemoved] : []), ...songs];
 }
 
 function sameOrder(a: readonly Recording[], b: readonly Recording[]) {
@@ -88,6 +95,8 @@ export function MemoryEditor({
   edit?: {
     entryId: string;
     version: number;
+    /** The language the memory was written in: its original, never changed. */
+    locale: Language;
     status: VisibilityStatus;
     /** Album links the editor cannot change (written outside the studio). */
     albumLinks: string[];
@@ -97,6 +106,12 @@ export function MemoryEditor({
   choices: Recording[];
 }) {
   const router = useRouter();
+  // `locale` is the language of the writing, which is content (ADR 0008 §§ 1
+  // and 9): chosen once, when the memory is created, and recorded as its
+  // original. The interface's own language is `ui`, from the page's route.
+  const { locale: ui, words: t, href } = useStudio();
+  const w = t.memoryEditor;
+  const [locale, setLocale] = useState<Language>(edit?.locale ?? ui);
   const [draft, setDraft] = useState<Draft>(initial);
   const [base, setBase] = useState<Draft>(initial);
   const [version, setVersion] = useState(edit?.version ?? 1);
@@ -188,6 +203,7 @@ export function MemoryEditor({
     if (!edit) {
       const result = await run(() =>
         createMemoryAction({
+          locale,
           title: sent.title,
           rememberedWhen: sent.rememberedWhen,
           body: sent.body,
@@ -197,7 +213,7 @@ export function MemoryEditor({
       if (result.ok) {
         setCreated(true);
         setSaved(true);
-        router.push(`/studio/memories/${result.data.entryId}`);
+        router.push(href(`/studio/memories/${result.data.entryId}`));
       }
       return;
     }
@@ -256,9 +272,7 @@ export function MemoryEditor({
 
   const artists = derivedArtists(draft.recordings);
   const status = edit?.status ?? "draft";
-  const musicProblem = failure?.fields?.trackIds
-    ? "A song appears twice, or there are too many songs, so nothing was saved."
-    : undefined;
+  const musicProblem = failure?.fields?.trackIds ? w.musicProblem : undefined;
 
   return (
     <form onSubmit={save} className="studio-editor" noValidate>
@@ -268,16 +282,16 @@ export function MemoryEditor({
         data-subject="memory"
       >
         <div className="studio-editorbar-start">
-          <Link href="/studio/memories" className="studio-crumb">
-            ← Memories
+          <Link href={href("/studio/memories")} className="studio-crumb">
+            {t.memory.back}
           </Link>
           <span className="studio-crumb-sep" aria-hidden="true">
             /
           </span>
           <span className="studio-crumb-current">
-            {create ? "New memory" : "Memory"}
+            {create ? w.newMemory : t.memories.kind}
           </span>
-          <StatusMark status={status} />
+          <StatusMark locale={ui} status={status} subject="memory" />
         </div>
         <div className="studio-editorbar-end">
           <FormStatus
@@ -292,56 +306,53 @@ export function MemoryEditor({
             className={`studio-button ${dirty ? "studio-button-primary" : ""}`}
             disabled={pending || created}
           >
-            {create ? "Save as draft" : "Save"}
+            {create ? t.editor.saveDraft : t.editor.save}
           </button>
         </div>
       </div>
 
-      <h1 className="studio-sr-only">
-        {create ? "Write a memory" : "Edit a memory"}
-      </h1>
+      <h1 className="studio-sr-only">{create ? w.writeTitle : w.editTitle}</h1>
 
       {status === "published" ? (
         <p className="studio-panel" role="note">
-          This memory is published. Saving changes what readers see: before a
-          change is saved, you will see exactly what changes and be asked first.
+          {w.published}
         </p>
       ) : null}
 
       <div className="studio-columns">
         <div className="studio-writing-column">
           <TitleField
-            label="Title"
-            placeholder="A title for this memory"
+            label={w.title}
+            placeholder={w.titlePlaceholder}
             value={draft.title}
             onChange={(value) => edited({ title: value })}
             maxLength={MAX_TITLE}
-            lang="en"
-            problem={problemWith(failure, "title")}
+            lang={locale}
+            problem={problemWith(t, failure, "title")}
           />
           <TextField
-            label="When"
-            placeholder="a date, a season, a year"
+            label={w.when}
+            placeholder={w.whenPlaceholder}
             value={draft.rememberedWhen}
             onChange={(value) => edited({ rememberedWhen: value })}
             maxLength={MAX_WHEN}
-            lang="en"
+            lang={locale}
             width="480px"
-            hint="However you remember it. It doesn’t need to be exact."
-            problem={problemWith(failure, "rememberedWhen")}
+            hint={w.whenHint}
+            problem={problemWith(t, failure, "rememberedWhen")}
           />
           <div className="grid gap-2">
             <TextAreaField
-              label="The memory"
-              placeholder="Write what you remember…"
+              label={w.body}
+              placeholder={w.bodyPlaceholder}
               value={draft.body}
               onChange={(value) => edited({ body: value })}
               rows={18}
-              lang="en"
-              problem={problemWith(failure, "body")}
+              lang={locale}
+              problem={problemWith(t, failure, "body")}
             />
             <p className="studio-count" aria-live="off">
-              {words(draft.body)} {words(draft.body) === 1 ? "word" : "words"}
+              {t.counts.words(wordCount(draft.body))}
             </p>
           </div>
         </div>
@@ -357,44 +368,63 @@ export function MemoryEditor({
 
           <section aria-labelledby="memory-artists" className="space-y-1">
             <h2 id="memory-artists" className="studio-label">
-              Artists, from the music
+              {w.artists}
             </h2>
             <p className="studio-meta">
-              {artists.length > 0
-                ? artists.join(", ")
-                : "None yet. They come from the songs you add."}
+              {artists.length > 0 ? artists.join(", ") : w.noArtists}
             </p>
           </section>
 
-          <section aria-labelledby="memory-language" className="space-y-1">
-            <h2 id="memory-language" className="studio-label">
-              Written in
-            </h2>
-            <p className="studio-meta">English</p>
-            <p className="studio-hint">
-              Memories are written in English for now. Nothing is translated for
-              you.
-            </p>
+          <section
+            aria-labelledby={create ? undefined : "memory-language"}
+            className="space-y-1"
+          >
+            {create ? (
+              <>
+                {/* The select's own label names the choice. */}
+                <SelectField
+                  label={t.editor.writtenIn}
+                  value={locale}
+                  onChange={(value) => {
+                    setLocale(value as Language);
+                    setSaved(false);
+                  }}
+                  options={LANGUAGES.map((value) => ({
+                    value,
+                    label: t.languageNames[value],
+                  }))}
+                  hint={w.languageHint}
+                  problem={problemWith(t, failure, "locale")}
+                />
+              </>
+            ) : (
+              <>
+                <h2 id="memory-language" className="studio-label">
+                  {t.editor.writtenIn}
+                </h2>
+                <p className="studio-meta">{t.languageNames[locale]}</p>
+                <p className="studio-hint">{w.languageFixed}</p>
+              </>
+            )}
           </section>
 
           {edit ? (
             <MemoryControls
               entryId={edit.entryId}
+              locale={edit.locale}
               title={base.title}
               status={edit.status}
               dirty={dirty}
             />
           ) : (
-            <p className="studio-hint">
-              A new memory starts as a private draft. Nothing here is published.
-            </p>
+            <p className="studio-hint">{w.createNote}</p>
           )}
         </div>
       </div>
 
       <MemoryChangeDialog
         payload={review?.payload}
-        removals={review ? removalsOf(base, review.sent) : []}
+        removals={review ? removalsOf(t, base, review.sent) : []}
         onSaved={(next) => {
           if (review) {
             adopt(next, review.sent);
@@ -407,7 +437,7 @@ export function MemoryEditor({
           if (!waiting) {
             return;
           }
-          const items = removalsOf(base, waiting.sent);
+          const items = removalsOf(t, base, waiting.sent);
           if (items.length > 0) {
             setRemoval({ ...waiting, items });
           } else {
@@ -426,8 +456,8 @@ export function MemoryEditor({
 
       <ConfirmDialog
         open={removal !== undefined}
-        title="Take this away from the published memory?"
-        confirmLabel="Save and take it away"
+        title={w.removalQuestion}
+        confirmLabel={w.removalConfirm}
         pending={pending}
         onConfirm={() => {
           const waiting = removal;
@@ -439,11 +469,7 @@ export function MemoryEditor({
         onCancel={() => setRemoval(undefined)}
       >
         <div className="space-y-3">
-          <p>
-            This memory is published. Saving takes this away from what readers
-            see; nothing else changes, and nothing is deleted from your catalog.
-            Cancelling leaves your text in the editor.
-          </p>
+          <p>{w.removalBody}</p>
           <ul className="studio-review-list">
             {removal?.items.map((item, index) => (
               <li key={index}>{item}</li>

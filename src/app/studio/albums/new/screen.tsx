@@ -8,32 +8,34 @@ import { emptyAlbum } from "@/app/studio/albums/album-values";
 import { accessDenied } from "@/app/studio/access";
 import { StudioFrame } from "@/app/studio/frame";
 import { StudioLoading } from "@/app/studio/studio-loading";
+import { studio } from "@/app/studio/studio-words";
+import type { InterfaceLocale } from "@/i18n/locales";
 import { listArtists } from "@/modules/catalog";
 import { authorizeAuthor } from "@/modules/identity";
 
-export const metadata: Metadata = { title: "Add an album · refrain" };
+export function newAlbumMetadata(locale: InterfaceLocale): Metadata {
+  return { title: studio(locale).words.meta.newAlbum };
+}
 
-export default function NewAlbumPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ artist?: string }>;
-}) {
+interface Props {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  locale: InterfaceLocale;
+}
+
+export function NewAlbumScreen({ searchParams, locale }: Props) {
   return (
-    <Suspense fallback={<StudioLoading />}>
-      <NewAlbum searchParams={searchParams} />
+    <Suspense fallback={<StudioLoading locale={locale} />}>
+      <NewAlbum searchParams={searchParams} locale={locale} />
     </Suspense>
   );
 }
 
-async function NewAlbum({
-  searchParams,
-}: {
-  searchParams: Promise<{ artist?: string }>;
-}) {
+async function NewAlbum({ searchParams, locale }: Props) {
   const authorization = await authorizeAuthor(await headers());
   if (!authorization.ok) {
-    return accessDenied(authorization.reason);
+    return accessDenied(authorization.reason, locale);
   }
+  const { words, href } = studio(locale);
   const artists = (await listArtists(authorization.author)).filter(
     (artist) => !artist.archived,
   );
@@ -43,13 +45,13 @@ async function NewAlbum({
   const preselected = artists.find((candidate) => candidate.id === artist);
 
   return (
-    <StudioFrame current="albums">
+    <StudioFrame locale={locale} path="/studio/albums/new" current="albums">
       <p>
-        <Link href="/studio/albums" className="studio-link">
-          ← Albums
+        <Link href={href("/studio/albums")} className="studio-link">
+          {words.album.back}
         </Link>
       </p>
-      <h1 className="studio-title">Add an album</h1>
+      <h1 className="studio-title">{words.albums.add}</h1>
       <AlbumForm
         initial={{
           ...emptyAlbum,

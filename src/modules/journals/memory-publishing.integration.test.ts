@@ -1396,3 +1396,124 @@ describe("the public memory page's read model", () => {
     });
   });
 });
+
+describe("a memory written originally in Brazilian Portuguese (ADR 0008 § 10)", () => {
+  it("is created, saved, reviewed, published, read, and unpublished in Portuguese, and is never converted", async () => {
+    await inScratchTransaction(async (tx) => {
+      const music = await setUp(tx);
+      const created = await createMemory(tx, author, {
+        locale: "pt-BR",
+        title: "[Test] Uma tarde de verão",
+        rememberedWhen: "[Test] Num agosto qualquer",
+        body: "[Test] Primeiro parágrafo, com acentos: ação, coração.",
+        trackIds: [music.a],
+      });
+      const memory = (await getMemory(tx, author, created.entryId))!;
+      expect(memory.locale).toBe("pt-BR");
+      expect(memory.versions).toEqual([
+        { locale: "pt-BR", isOriginal: true, status: "draft" },
+      ]);
+      // The address is made from the title, accents folded.
+      expect(memory.slug).toBe("test-uma-tarde-de-verao");
+
+      // A save edits the original, in its own language; no other version
+      // appears.
+      const saved = await saveMemory(tx, author, {
+        entryId: created.entryId,
+        expectedVersion: 1,
+        expectedStatus: "draft",
+        body: "[Test] Primeiro parágrafo, reescrito.",
+      });
+      expect(saved.version).toBe(2);
+      const afterSave = (await getMemory(tx, author, created.entryId))!;
+      expect(afterSave.versions).toEqual([
+        { locale: "pt-BR", isOriginal: true, status: "draft" },
+      ]);
+
+      // The review is of the Portuguese version, and only it; the English
+      // version does not exist, so it cannot be reviewed or published.
+      expect(
+        await failure(tx, (db) =>
+          previewMemoryPublication(db, author, {
+            entryId: created.entryId,
+            locale: "en",
+          }),
+        ),
+      ).toBe("entry_not_found");
+      const { review, confirmation } = await previewMemoryPublication(
+        tx,
+        author,
+        { entryId: created.entryId, locale: "pt-BR" },
+      );
+      expect(review.locale).toBe("pt-BR");
+      expect(review.title).toBe("[Test] Uma tarde de verão");
+      expect(await getPublicMemory(tx, created.entryId, "pt-BR")).toBeNull();
+      await expect(
+        publishMemoryVersion(tx, author, {
+          entryId: created.entryId,
+          locale: "pt-BR",
+          expectedVersion: 2,
+          confirmation,
+        }),
+      ).resolves.toEqual({ changed: true });
+
+      // Both interfaces read the one published version, in Portuguese: the
+      // interface language only chooses among published versions.
+      for (const readerLocale of ["en", "pt-BR"] as const) {
+        const page = (await getPublicMemory(
+          tx,
+          created.entryId,
+          readerLocale,
+        ))!;
+        expect(page.locale, readerLocale).toBe("pt-BR");
+        expect(page.isOriginal, readerLocale).toBe(true);
+        expect(page.title, readerLocale).toBe("[Test] Uma tarde de verão");
+        expect(page.rememberedWhen, readerLocale).toBe(
+          "[Test] Num agosto qualquer",
+        );
+      }
+      expect(await listPublicMemoryAddresses(tx)).toContain(
+        "test-uma-tarde-de-verao",
+      );
+
+      // Unpublishing the Portuguese version takes the page away in both
+      // interfaces, and leaves the writing as it was.
+      await setMemoryPrivacy(tx, author, {
+        entryId: created.entryId,
+        locale: "pt-BR",
+        status: "private",
+        expectedStatus: "published",
+      });
+      for (const readerLocale of ["en", "pt-BR"] as const) {
+        expect(
+          await getPublicMemory(tx, created.entryId, readerLocale),
+        ).toBeNull();
+      }
+      const kept = (await getMemory(tx, author, created.entryId))!;
+      expect(kept.body).toBe("[Test] Primeiro parágrafo, reescrito.");
+      expect(kept.versions).toEqual([
+        { locale: "pt-BR", isOriginal: true, status: "private" },
+      ]);
+      // An English privacy change cannot reach it: there is no such version.
+      expect(
+        await failure(tx, (db) =>
+          setMemoryPrivacy(db, author, {
+            entryId: created.entryId,
+            locale: "en",
+            status: "draft",
+            expectedStatus: "private",
+          }),
+        ),
+      ).toBe("entry_not_found");
+    });
+  });
+
+  it("keeps an English memory English, as before, when no language is given", async () => {
+    await inScratchTransaction(async (tx) => {
+      const created = await createMemory(tx, author, {
+        title: "[Test] Without a language",
+      });
+      expect((await getMemory(tx, author, created.entryId))!.locale).toBe("en");
+    });
+  });
+});

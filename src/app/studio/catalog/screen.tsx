@@ -4,33 +4,38 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { accessDenied } from "@/app/studio/access";
-import { plural } from "@/app/studio/format";
 import { StudioFrame } from "@/app/studio/frame";
 import { Icon, type IconName } from "@/app/studio/icons";
 import { StudioLoading } from "@/app/studio/studio-loading";
+import { studio } from "@/app/studio/studio-words";
+import type { InterfaceLocale } from "@/i18n/locales";
 import { getCatalogStatistics } from "@/modules/catalog";
 import { authorizeAuthor } from "@/modules/identity";
 
 // A fixed title: nothing from the catalog reaches page metadata.
-export const metadata: Metadata = { title: "Catalog · refrain" };
+export function catalogMetadata(locale: InterfaceLocale): Metadata {
+  return { title: studio(locale).words.meta.catalog };
+}
 
 // The Catalog overview: the way into artists, albums and tracks. Every figure
 // is a SQL aggregate computed by PostgreSQL on this request.
-export default function CatalogPage() {
+export function CatalogScreen({ locale }: { locale: InterfaceLocale }) {
   return (
-    <Suspense fallback={<StudioLoading />}>
-      <Catalog />
+    <Suspense fallback={<StudioLoading locale={locale} />}>
+      <Catalog locale={locale} />
     </Suspense>
   );
 }
 
-async function Catalog() {
+async function Catalog({ locale }: { locale: InterfaceLocale }) {
   // The authorization boundary: checked on every request, before anything
   // below renders.
   const authorization = await authorizeAuthor(await headers());
   if (!authorization.ok) {
-    return accessDenied(authorization.reason);
+    return accessDenied(authorization.reason, locale);
   }
+  const { words, href } = studio(locale);
+  const w = words.catalog;
   const statistics = await getCatalogStatistics(authorization.author);
   const empty = statistics.artists === 0 && statistics.albums === 0;
 
@@ -42,64 +47,66 @@ async function Catalog() {
     add: { href: string; label: string };
   }[] = [
     {
-      name: "Artists",
+      name: words.frame.artists,
       icon: "artist",
-      href: "/studio/artists",
-      summary: plural(statistics.artists, "artist"),
-      add: { href: "/studio/artists/new", label: "Add an artist" },
+      href: href("/studio/artists"),
+      summary: words.counts.artists(statistics.artists),
+      add: { href: href("/studio/artists/new"), label: w.addArtist },
     },
     {
-      name: "Albums",
+      name: words.frame.albums,
       icon: "album",
-      href: "/studio/albums",
-      summary: `${plural(statistics.albums, "album")} · ${plural(statistics.albumsWithoutTracks, "album")} without tracks`,
-      add: { href: "/studio/albums/new", label: "Add an album" },
+      href: href("/studio/albums"),
+      summary: w.albumsSummary(
+        statistics.albums,
+        statistics.albumsWithoutTracks,
+      ),
+      add: { href: href("/studio/albums/new"), label: w.addAlbum },
     },
     {
-      name: "Tracks",
+      name: words.frame.tracks,
       icon: "note",
-      href: "/studio/tracks",
-      summary: `${plural(statistics.tracks, "track")} · ${plural(statistics.tracksWithoutAlbum, "track")} on no album`,
-      add: { href: "/studio/tracks/new", label: "Add a track" },
+      href: href("/studio/tracks"),
+      summary: w.tracksSummary(
+        statistics.tracks,
+        statistics.tracksWithoutAlbum,
+      ),
+      add: { href: href("/studio/tracks/new"), label: w.addTrack },
     },
   ];
 
   return (
-    <StudioFrame current="catalog">
-      <h1 className="studio-title">Catalog</h1>
-      <p className="studio-lede">
-        The artists, albums and tracks your writing points to. Nothing here
-        deletes writing.
-      </p>
+    <StudioFrame locale={locale} path="/studio/catalog" current="catalog">
+      <h1 className="studio-title">{w.title}</h1>
+      <p className="studio-lede">{w.lead}</p>
 
       <p>
-        <Link href="/studio/catalog/add" className="studio-button">
+        <Link href={href("/studio/catalog/add")} className="studio-button">
           <Icon name="search" size={17} />
-          Add music
+          {w.addMusic}
         </Link>
       </p>
 
       {empty ? (
         <div className="studio-panel">
-          <p className="studio-section-title">Nothing in the catalog yet</p>
+          <p className="studio-section-title">{w.emptyTitle}</p>
           <p>
-            Everything starts with an artist or a band.{" "}
-            <Link href="/studio/catalog/add" className="studio-link">
-              Find one on MusicBrainz
-            </Link>{" "}
-            or{" "}
-            <Link href="/studio/artists/new" className="studio-link">
-              add one by hand
+            {w.emptyStart}
+            <Link href={href("/studio/catalog/add")} className="studio-link">
+              {w.emptyFind}
             </Link>
-            , then an album that credits them, and the music you love will have
-            somewhere to live.
+            {w.emptyOr}
+            <Link href={href("/studio/artists/new")} className="studio-link">
+              {w.emptyByHand}
+            </Link>
+            {w.emptyEnd}
           </p>
         </div>
       ) : null}
 
-      <ul className="studio-list" aria-label="Catalog areas">
+      <ul className="studio-list" aria-label={w.areasLabel}>
         {sections.map((section) => (
-          <li key={section.name} className="studio-row studio-entry">
+          <li key={section.href} className="studio-row studio-entry">
             <span className="studio-thumb" data-bare aria-hidden="true">
               <Icon name={section.icon} size={26} />
             </span>
@@ -119,9 +126,7 @@ async function Catalog() {
       </ul>
 
       <p className="studio-hint">
-        {plural(statistics.archivedRecords, "archived record")}. Archived
-        records are hidden from pickers and stay attached to the writing that
-        uses them.
+        {w.archivedNote(statistics.archivedRecords)}
       </p>
     </StudioFrame>
   );

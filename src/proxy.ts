@@ -64,6 +64,14 @@ export const config = {
     "/pt/albums",
     "/pt/artists",
     "/pt/memories",
+    // The Portuguese Studio (PR 3), only so that an encoded spelling of the
+    // prefix (`/%70t/studio`, which the framework matches decoded) reaches
+    // this proxy and gets the unknown address's answer, as before the
+    // Portuguese Studio existed. A literal `/pt/studio…` address is no public
+    // address once the prefix is taken away, so it goes back to the framework
+    // untouched, and its pages authorize themselves.
+    "/pt/studio",
+    "/pt/studio/:path*",
     // Every address that ends in a slash, anywhere on the site, except `/`:
     // the framework would answer it with a `308` that cannot carry
     // `no-store` (`skipTrailingSlashRedirect` in next.config.ts hands it to
@@ -98,6 +106,19 @@ const ARTIST_SECURITY_HEADERS = {
   "Content-Security-Policy": ARTIST_CONTENT_SECURITY_POLICY,
 } as const;
 
+// The Studio's (next.config.ts, `privateHeaders`), without `Cache-Control`,
+// which the not-found view sets itself (`private`, `no-store`). An encoded
+// spelling of the Portuguese Studio's prefix gets these, the headers of the
+// section it names (ADR 0006 A7, item 2), with the public pages' stricter
+// image policy: the not-found view shows no photograph, and Wikimedia's host
+// stays out of every answer this proxy gives (src/security-headers.test.ts).
+const STUDIO_SECURITY_HEADERS = {
+  "X-Frame-Options": "DENY",
+  "Content-Security-Policy": CONTENT_SECURITY_POLICY,
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "no-referrer",
+} as const;
+
 // What the public matchers above can let through, in any of the framework's
 // transport forms: an album, artist, or memory address, an archive, the
 // sitemap, `robots.txt`.
@@ -105,6 +126,7 @@ const PUBLIC_ADDRESS =
   /^(?:\/_next\/data\/[^/]+)?\/(?:(?:albums|artists|memories)(?:[/.]|$)|sitemap\.xml|robots\.txt)/;
 const ARTIST_ADDRESS = /^(?:\/_next\/data\/[^/]+)?\/artists(?:[/.]|$)/;
 const MEMORY_ADDRESS = /^(?:\/_next\/data\/[^/]+)?\/memories(?:[/.]|$)/;
+const STUDIO_ADDRESS = /^(?:\/_next\/data\/[^/]+)?\/studio(?:[/.]|$)/;
 // An archive (M3.8a), in any transport form: `/albums`, `/albums.rsc`,
 // `/albums.segments/…`, `/_next/data/<build>/albums.json`. Not an address
 // inside the section: `/albums/<slug>` has a slash after the section's name.
@@ -146,9 +168,11 @@ export async function proxy(request: NextRequest) {
   if (!literalPrefix && PORTUGUESE_PREFIX.test(decodedOrEmpty(requested))) {
     const decoded = decodedOrEmpty(requested).replace(PORTUGUESE_PREFIX, "$1");
     return NextResponse.rewrite(new URL(UNKNOWN_ADDRESS, request.url), {
-      headers: ARTIST_ADDRESS.test(decoded)
-        ? ARTIST_SECURITY_HEADERS
-        : PUBLIC_SECURITY_HEADERS,
+      headers: STUDIO_ADDRESS.test(decoded)
+        ? STUDIO_SECURITY_HEADERS
+        : ARTIST_ADDRESS.test(decoded)
+          ? ARTIST_SECURITY_HEADERS
+          : PUBLIC_SECURITY_HEADERS,
     });
   }
 

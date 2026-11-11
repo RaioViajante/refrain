@@ -1,3 +1,6 @@
+import type { InterfaceLocale } from "@/i18n/locales";
+import { studioWords } from "@/i18n/studio";
+
 import { Icon } from "./icons";
 import { PhotoImage } from "./photo-image";
 
@@ -11,10 +14,12 @@ import { PhotoImage } from "./photo-image";
  * (src/integrations/cover-art-archive), without a referrer.
  */
 export function ArtworkPlaceholder({
+  locale,
   artwork,
   title,
   size,
 }: {
+  locale: InterfaceLocale;
   artwork?: { src: string; srcSet: string } | null;
   title?: string;
   /**
@@ -23,15 +28,16 @@ export function ArtworkPlaceholder({
    */
   size?: number;
 }) {
+  const w = studioWords(locale).artwork;
   if (!artwork) {
     return (
       <div
         className="studio-artwork"
         role="img"
-        aria-label="No album artwork yet"
+        aria-label={w.noneLabel}
         style={size ? { width: `min(100%, ${size}px)` } : undefined}
       >
-        <span aria-hidden>no artwork yet</span>
+        <span aria-hidden>{w.none}</span>
       </div>
     );
   }
@@ -39,10 +45,10 @@ export function ArtworkPlaceholder({
     <div
       className="studio-artwork studio-cover"
       role="img"
-      aria-label={title ? `Album artwork for ${title}` : "Album artwork"}
+      aria-label={title ? w.labelFor(title) : w.label}
       style={{ width: `min(100%, ${size ?? 160}px)` }}
     >
-      <span aria-hidden>artwork not shown</span>
+      <span aria-hidden>{w.notShown}</span>
       <PhotoImage
         key={artwork.src}
         src={artwork.src}

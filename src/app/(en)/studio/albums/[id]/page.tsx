@@ -1,1 +1,9 @@
-export { default, metadata } from "@/app/studio/albums/[id]/screen";
+import { AlbumScreen, albumMetadata } from "@/app/studio/albums/[id]/screen";
+
+type Props = Readonly<{ params: Promise<{ id: string }> }>;
+
+export default function Page({ params }: Props) {
+  return <AlbumScreen params={params} locale="en" />;
+}
+
+export const metadata = albumMetadata("en");

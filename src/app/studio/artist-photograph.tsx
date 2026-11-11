@@ -1,4 +1,7 @@
+import type { InterfaceLocale } from "@/i18n/locales";
+import { studioWords } from "@/i18n/studio";
 import {
+  PHOTO_MODIFICATIONS,
   photoCreditCaption,
   type ArtistPhoto,
   type PhotoLicense,
@@ -21,12 +24,14 @@ import { PhotoImage } from "./photo-image";
 // an image that fails is removed (./photo-image.tsx).
 
 export function PhotoFrame({
+  locale,
   image,
   name,
   label,
   size = 150,
   fluid = false,
 }: {
+  locale: InterfaceLocale;
   image?: { src: string; srcSet: string } | null;
   /** The artist's name, for the frame's label. */
   name: string;
@@ -40,21 +45,17 @@ export function PhotoFrame({
   /** Fill the containing column instead (a grid sets the width). */
   fluid?: boolean;
 }) {
+  const w = studioWords(locale).photograph;
   return (
     <div
       className="studio-photo"
       role="img"
-      aria-label={
-        label ??
-        (image ? `Photograph of ${name}` : `No photograph of ${name} yet`)
-      }
+      aria-label={label ?? (image ? w.of(name) : w.noneOf(name))}
       style={fluid ? undefined : { width: `min(100%, ${size}px)` }}
     >
       {/* Under an image, the fallback says only that it is not shown: there
           is a photograph, and it did not load. */}
-      <span aria-hidden>
-        {image || label ? "photograph not shown" : "no photograph yet"}
-      </span>
+      <span aria-hidden>{image || label ? w.notShown : w.noneYet}</span>
       {image ? (
         <PhotoImage
           key={image.src}
@@ -99,19 +100,31 @@ export function ArtistThumb({
 }
 
 /**
- * The credit as a caption (shared with the public artist page since M3.5,
- * `photoCreditCaption`).
+ * The credit as a caption: the credit, after "Photo: " in the page's
+ * language unless the credit already names itself a photograph (the rule of
+ * `photoCreditCaption`, shared with the public artist page since M3.5). The
+ * credit is the file's own words, unchanged.
  */
-export const creditCaption = photoCreditCaption;
+export function creditCaption(locale: InterfaceLocale, credit: string): string {
+  return photoCreditCaption(credit) === credit
+    ? credit
+    : `${studioWords(locale).photograph.captionPrefix}${credit}`;
+}
 
 /** The license's name, linked to its deed when it has one. */
-export function LicenseName({ license }: { license: PhotoLicense }) {
+export function LicenseName({
+  locale,
+  license,
+}: {
+  locale: InterfaceLocale;
+  license: PhotoLicense;
+}) {
   return license.url ? (
     <a href={license.url} className="studio-link" rel="noreferrer license">
       {license.name}
     </a>
   ) : (
-    <>{license.name} (as marked on Wikimedia Commons)</>
+    <>{studioWords(locale).photograph.licenseAsMarked(license.name)}</>
   );
 }
 
@@ -120,40 +133,52 @@ export function LicenseName({ license }: { license: PhotoLicense }) {
  * attribution needs: the work, its creator, its source, its license, and the
  * changes Refrain makes.
  */
-export function PhotoAttribution({ photo }: { photo: ArtistPhoto }) {
+export function PhotoAttribution({
+  locale,
+  photo,
+}: {
+  locale: InterfaceLocale;
+  photo: ArtistPhoto;
+}) {
+  const w = studioWords(locale).photograph;
+  // Refrain's own changes are one fixed English sentence: interface copy,
+  // said in the page's language. Anything else is shown as stored, in
+  // English.
+  const standardChanges = photo.modifications === PHOTO_MODIFICATIONS;
   return (
     <div className="studio-photo-attribution">
       <p className="studio-photo-credit">
-        {creditCaption(photo.credit)} · <LicenseName license={photo.license} />{" "}
-        · via Wikimedia Commons
+        {creditCaption(locale, photo.credit)} ·{" "}
+        <LicenseName locale={locale} license={photo.license} />
+        {w.viaCommons}
       </p>
       <details className="studio-photo-details">
-        <summary>Photo details</summary>
+        <summary>{w.details}</summary>
         <dl className="studio-facts">
-          <dt>Photograph</dt>
+          <dt>{w.work}</dt>
           <dd>
             <a href={photo.sourceUrl} className="studio-link" rel="noreferrer">
               {photo.title}
             </a>
           </dd>
-          <dt>Credit</dt>
+          <dt>{w.credit}</dt>
           <dd>{photo.credit}</dd>
-          <dt>Source</dt>
+          <dt>{w.source}</dt>
           <dd>
-            Wikimedia Commons,{" "}
+            {w.sourceCommons}
             <a href={photo.sourceUrl} className="studio-link" rel="noreferrer">
-              the file’s page
+              {w.filePage}
             </a>
           </dd>
-          <dt>License</dt>
+          <dt>{w.license}</dt>
           <dd>
-            <LicenseName license={photo.license} />
-            {photo.license.shareAlike
-              ? ". Adaptations must use the same license."
-              : null}
+            <LicenseName locale={locale} license={photo.license} />
+            {photo.license.shareAlike ? w.shareAlike : null}
           </dd>
-          <dt>Changes</dt>
-          <dd>{photo.modifications}</dd>
+          <dt>{w.changes}</dt>
+          <dd lang={standardChanges ? undefined : "en"}>
+            {standardChanges ? w.standardChanges : photo.modifications}
+          </dd>
         </dl>
       </details>
     </div>

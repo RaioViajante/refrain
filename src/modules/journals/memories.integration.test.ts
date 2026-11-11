@@ -245,13 +245,18 @@ describe("creating a memory", () => {
         failure: "invalid_input",
         fields: { title: "required" },
       });
-      expect(
-        (
-          await failure(tx, (db) =>
-            createMemory(db, author, { title: "[Test] x", locale: "pt-BR" }),
-          )
-        ).fields,
-      ).toEqual({ locale: "invalid" });
+      // A memory may be written in English or Brazilian Portuguese (ADR 0008
+      // § 10); any other value, the bare prefix included, is refused.
+      for (const locale of ["es", "pt", "PT-BR", ""]) {
+        expect(
+          (
+            await failure(tx, (db) =>
+              createMemory(db, author, { title: "[Test] x", locale }),
+            )
+          ).fields,
+          locale,
+        ).toEqual({ locale: "invalid" });
+      }
       expect(
         (
           await failure(tx, (db) =>

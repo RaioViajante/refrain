@@ -6,9 +6,12 @@ import { Suspense } from "react";
 
 import { accessDenied } from "@/app/studio/access";
 import { LicenseName, PhotoFrame } from "@/app/studio/artist-photograph";
-import { formatDate } from "@/app/studio/format";
 import { StudioFrame } from "@/app/studio/frame";
 import { StudioLoading } from "@/app/studio/studio-loading";
+import { studio, type StudioSpeech } from "@/app/studio/studio-words";
+import { formatDate } from "@/i18n/format";
+import type { InterfaceLocale } from "@/i18n/locales";
+import { PHOTO_MODIFICATIONS } from "@/integrations/wikimedia-commons";
 import {
   CatalogError,
   reviewArtistPhoto,
@@ -20,7 +23,9 @@ import { authorizeAuthor } from "@/modules/identity";
 import { ApprovePhoto } from "./approve-photo";
 
 // A fixed title: nothing about the file reaches page metadata.
-export const metadata: Metadata = { title: "Review photograph · refrain" };
+export function photoReviewMetadata(locale: InterfaceLocale): Metadata {
+  return { title: studio(locale).words.meta.photoReview };
+}
 
 // The review of one Wikimedia Commons file for an artist (M3.3). Opening it
 // writes nothing. It shows what would be stored and everything the author
@@ -34,60 +39,46 @@ function first(value: string | string[] | undefined): string {
   return (Array.isArray(value) ? value[0] : value) ?? "";
 }
 
-export default function ReviewPhotoPage({
-  params,
-  searchParams,
-}: {
+interface Props {
   params: Promise<{ id: string }>;
   searchParams: SearchParams;
-}) {
+  locale: InterfaceLocale;
+}
+
+export function PhotoReviewScreen({ params, searchParams, locale }: Props) {
   return (
-    <Suspense fallback={<StudioLoading />}>
-      <ReviewPhoto params={params} searchParams={searchParams} />
+    <Suspense fallback={<StudioLoading locale={locale} />}>
+      <ReviewPhoto
+        params={params}
+        searchParams={searchParams}
+        locale={locale}
+      />
     </Suspense>
   );
 }
-
-const REFUSAL: Record<PhotoRefusal, string> = {
-  unsupported_license:
-    "Its license isn’t one Refrain accepts (CC0, public domain, or CC BY or CC BY-SA 2.0 to 4.0, unported or international).",
-  license_mismatch:
-    "Its license details on Wikimedia Commons disagree with each other, so which license applies isn’t clear.",
-  non_free: "Wikimedia Commons marks it as not freely licensed.",
-  no_creator: "It doesn’t name the photographer or creator to credit.",
-  credit_not_plain:
-    "Its credit is formatted in a way Refrain can’t show as plain text.",
-  credit_too_long: "Its credit is too long to show under a photograph.",
-  deletion_requested:
-    "It has been nominated for deletion on Wikimedia Commons.",
-  unsupported_format: "It isn’t a JPEG or PNG photograph.",
-  too_small: "It’s smaller than 600 × 400 pixels.",
-  unexpected_address:
-    "Its addresses on Wikimedia Commons aren’t in the form Refrain can show reliably.",
-};
 
 const FORMAT: Record<string, string> = {
   "image/jpeg": "JPEG",
   "image/png": "PNG",
 };
 
-async function ReviewPhoto({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ id: string }>;
-  searchParams: SearchParams;
-}) {
+async function ReviewPhoto({ params, searchParams, locale }: Props) {
   const authorization = await authorizeAuthor(await headers());
   if (!authorization.ok) {
-    return accessDenied(authorization.reason);
+    return accessDenied(authorization.reason, locale);
   }
+  const speech = studio(locale);
+  const { words, href } = speech;
+  const w = words.photoReview;
+  const refusalText: Record<PhotoRefusal, string> = w.refusals;
   const { id } = await params;
   const query = await searchParams;
   const file = first(query.file);
-  const back = `/studio/artists/${id}/photo${
-    first(query.q) ? `?${new URLSearchParams({ q: first(query.q) })}` : ""
-  }`;
+  const back = href(
+    `/studio/artists/${id}/photo${
+      first(query.q) ? `?${new URLSearchParams({ q: first(query.q) })}` : ""
+    }`,
+  );
 
   let review: ArtistPhotoReview | null;
   try {
@@ -105,27 +96,30 @@ async function ReviewPhoto({
         error.failure === "provider_not_found")
     ) {
       return (
-        <StudioFrame current="artists">
+        <StudioFrame
+          locale={locale}
+          path={`/studio/artists/${id}/photo`}
+          current="artists"
+        >
           <p>
             <Link href={back} className="studio-link">
-              ← Photograph
+              {w.back}
             </Link>
           </p>
-          <h1 className="studio-title">Review photograph</h1>
+          <h1 className="studio-title">{w.title}</h1>
           <div className="studio-panel" role="alert">
             <p className="studio-section-title">
-              Couldn’t reach Wikimedia Commons.
+              {words.photoPage.unreachableTitle}
             </p>
-            <p>
-              Nothing was changed. Your catalog and your writing still work. Try
-              again in a moment.
-            </p>
+            <p>{w.unreachableBody}</p>
             <p>
               <Link
-                href={`/studio/artists/${id}/photo/review?${new URLSearchParams({ file, ...(first(query.q) ? { q: first(query.q) } : {}) })}`}
+                href={href(
+                  `/studio/artists/${id}/photo/review?${new URLSearchParams({ file, ...(first(query.q) ? { q: first(query.q) } : {}) })}`,
+                )}
                 className="studio-button"
               >
-                Try again
+                {words.photoPage.tryAgain}
               </Link>
             </p>
           </div>
@@ -140,24 +134,26 @@ async function ReviewPhoto({
   const { artist, assessment } = review;
 
   return (
-    <StudioFrame current="artists">
+    <StudioFrame
+      locale={locale}
+      path={`/studio/artists/${artist.id}/photo`}
+      current="artists"
+    >
       <p>
         <Link href={back} className="studio-link">
-          ← Photograph
+          {w.back}
         </Link>
       </p>
-      <h1 className="studio-title">Review photograph</h1>
-      <p className="studio-lede">For {artist.name}.</p>
+      <h1 className="studio-title">{w.title}</h1>
+      <p className="studio-lede">{w.forArtist(artist.name)}</p>
 
       {!assessment ? (
         <div className="studio-panel" role="status">
-          <p className="studio-section-title">
-            Wikimedia Commons has no such file.
-          </p>
-          <p>It may have been deleted or renamed. Nothing was changed.</p>
+          <p className="studio-section-title">{w.noSuchFile}</p>
+          <p>{w.noSuchFileBody}</p>
           <p>
             <Link href={back} className="studio-button">
-              Back to the photograph
+              {w.backToPhoto}
             </Link>
           </p>
         </div>
@@ -165,17 +161,18 @@ async function ReviewPhoto({
         <>
           <div className="studio-review-photo">
             <PhotoFrame
+              locale={locale}
               image={assessment.image}
               name={artist.name}
               label={
                 assessment.image
-                  ? `Candidate: ${assessment.title}`
-                  : `${assessment.title} isn’t shown`
+                  ? words.photoPage.candidate(assessment.title)
+                  : w.notShown(assessment.title)
               }
               size={260}
             />
             <dl className="studio-facts">
-              <dt>Photograph</dt>
+              <dt>{words.photograph.work}</dt>
               <dd>
                 <a
                   href={assessment.sourceUrl}
@@ -185,42 +182,43 @@ async function ReviewPhoto({
                   {assessment.title}
                 </a>
               </dd>
-              <dt>Credit shown</dt>
-              <dd>{assessment.credit ?? "None that can be shown"}</dd>
+              <dt>{w.creditShown}</dt>
+              <dd>{assessment.credit ?? w.noCredit}</dd>
               {assessment.creditFromAttribution ? (
                 <>
-                  <dt>Creator</dt>
+                  <dt>{w.creator}</dt>
                   <dd>
                     {assessment.creator ? (
                       <bdi>{assessment.creator}</bdi>
                     ) : (
-                      "Not named"
+                      w.notNamed
                     )}
                   </dd>
                 </>
               ) : null}
-              <dt>Source</dt>
+              <dt>{words.photograph.source}</dt>
               <dd>
-                Wikimedia Commons,{" "}
+                {words.photograph.sourceCommons}
                 <a
                   href={assessment.sourceUrl}
                   className="studio-link"
                   rel="noreferrer"
                 >
-                  the file’s page
+                  {words.photograph.filePage}
                 </a>
                 {assessment.sourceCredit ? (
                   <>
-                    . Its source note: <bdi>{assessment.sourceCredit}</bdi>
+                    {w.sourceNote}
+                    <bdi>{assessment.sourceCredit}</bdi>
                   </>
                 ) : null}
               </dd>
-              <dt>License</dt>
+              <dt>{words.photograph.license}</dt>
               <dd>
                 {assessment.license ? (
-                  <LicenseName license={assessment.license} />
+                  <LicenseName locale={locale} license={assessment.license} />
                 ) : (
-                  "Not one Refrain accepts"
+                  w.licenseNotAccepted
                 )}
                 {assessment.usageTerms ? (
                   <>
@@ -229,34 +227,36 @@ async function ReviewPhoto({
                   </>
                 ) : null}
               </dd>
-              <dt>Size</dt>
+              <dt>{w.size}</dt>
               <dd>
                 {assessment.width} × {assessment.height} px,{" "}
-                {FORMAT[assessment.mime] ?? "another format"}
+                {FORMAT[assessment.mime] ?? w.anotherFormat}
               </dd>
-              <dt>Version</dt>
+              <dt>{w.version}</dt>
               <dd>
-                Uploaded {formatDate(new Date(assessment.timestamp))} · SHA-1{" "}
-                {assessment.sha1.slice(0, 12)}
+                {w.uploaded(formatDate(locale, new Date(assessment.timestamp)))}{" "}
+                · SHA-1 {assessment.sha1.slice(0, 12)}
               </dd>
-              <dt>Changes</dt>
-              <dd>{assessment.modifications}</dd>
+              <dt>{words.photograph.changes}</dt>
+              {assessment.modifications === PHOTO_MODIFICATIONS ? (
+                <dd>{words.photograph.standardChanges}</dd>
+              ) : (
+                <dd lang="en">{assessment.modifications}</dd>
+              )}
             </dl>
           </div>
 
           {assessment.refusals.length > 0 || !review.review ? (
             <div className="studio-panel" role="status">
-              <p className="studio-section-title">
-                This photograph can’t be used.
-              </p>
+              <p className="studio-section-title">{w.cantBeUsed}</p>
               <ul className="studio-facts-list">
                 {assessment.refusals.map((refusal) => (
-                  <li key={refusal}>{REFUSAL[refusal]}</li>
+                  <li key={refusal}>{refusalText[refusal]}</li>
                 ))}
               </ul>
               <p>
                 <Link href={back} className="studio-button">
-                  Choose another
+                  {w.chooseAnother}
                 </Link>
               </p>
             </div>
@@ -264,48 +264,39 @@ async function ReviewPhoto({
             <>
               {assessment.restrictions.includes("personality") ? (
                 <div className="studio-panel" role="note">
-                  <p className="studio-section-title">Personality rights</p>
-                  <p>
-                    Wikimedia Commons warns that the people shown may have
-                    rights that restrict some uses of their image, whatever the
-                    license.
-                  </p>
+                  <p className="studio-section-title">{w.personalityTitle}</p>
+                  <p>{w.personalityBody}</p>
                 </div>
               ) : null}
               {assessment.restrictions.some(
                 (word) => word !== "personality",
               ) ? (
                 <p className="studio-hint">
-                  Other restrictions noted on Wikimedia Commons:{" "}
-                  {assessment.restrictions
-                    .filter((word) => word !== "personality")
-                    .join(", ")}
+                  {w.otherRestrictions}
+                  <span lang="en">
+                    {assessment.restrictions
+                      .filter((word) => word !== "personality")
+                      .join(", ")}
+                  </span>
                   .
                 </p>
               ) : null}
               <p className="studio-hint" style={{ maxWidth: "62ch" }}>
-                A free license covers the photograph itself, not the people in
-                it. If the file’s page lists more than one license, check that
-                they are alternatives, not conditions that all apply. Before a
-                photograph appears on a public page, it needs the rights review
-                in Refrain’s hosted-release checklist.
+                {w.freeLicenseNote}
               </p>
 
               {artist.archived ? (
                 <div className="studio-panel" role="status">
-                  <p>
-                    This artist is archived. Restore it to change its
-                    photograph.
-                  </p>
+                  <p>{w.archived}</p>
                 </div>
               ) : artist.onPublicPage ? (
-                <PublicPageNotice back={back} />
+                <PublicPageNotice speech={speech} back={back} />
               ) : review.isCurrent ? (
                 <div className="studio-panel" role="status">
-                  <p>This is the photograph on file, in this version.</p>
+                  <p>{w.isCurrent}</p>
                   <p>
                     <Link href={back} className="studio-button">
-                      Back to the photograph
+                      {w.backToPhoto}
                     </Link>
                   </p>
                 </div>
@@ -332,20 +323,23 @@ async function ReviewPhoto({
  * and a new photograph would reach readers without a confirmation, which is
  * not built (gate G8). Removing stays possible on the photograph page.
  */
-function PublicPageNotice({ back }: { back: string }) {
+function PublicPageNotice({
+  speech,
+  back,
+}: {
+  speech: StudioSpeech;
+  back: string;
+}) {
+  const w = speech.words.photoReview;
   return (
     <div className="studio-panel" role="status">
-      <p className="studio-section-title">Shown on a public page</p>
-      <p>
-        A published journal puts this artist on a public page, so its photograph
-        can’t be replaced here: a new one would reach readers without a
-        confirmation, and that confirmation isn’t built yet. You can still
-        remove the photograph, and the page then shows its empty frame. To
-        choose another, unpublish the journals that show this artist first.
+      <p className="studio-section-title">
+        {speech.words.photoPage.onPublicPageTitle}
       </p>
+      <p>{w.onPublicPageBody}</p>
       <p>
         <Link href={back} className="studio-button">
-          Back to the photograph
+          {w.backToPhoto}
         </Link>
       </p>
     </div>

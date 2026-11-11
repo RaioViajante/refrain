@@ -4,8 +4,9 @@ import { useId, useState } from "react";
 
 import { Icon } from "@/app/studio/icons";
 import { RatingField } from "@/app/studio/journals/rating-field";
-import { PUBLIC_PAGE_NOTE } from "@/app/studio/messages";
-import type { TrackByTrackItem } from "@/modules/journals";
+import { useStudio } from "@/app/studio/studio-locale";
+import type { StudioDictionary } from "@/i18n/studio";
+import type { TrackByTrackItem, VisibilityStatus } from "@/modules/journals";
 
 // Track by track (docs/design-system.md, AlbumEditor): each track of the
 // album, in the reference edition's order, opens to a reflection, a rating,
@@ -26,11 +27,6 @@ export interface TrackDraft {
 }
 
 type Language = "en" | "pt-BR";
-
-const LANGUAGE_NAMES: Record<Language, string> = {
-  en: "English",
-  "pt-BR": "Português (Brasil)",
-};
 
 export function draftOf(item: TrackByTrackItem, locale: Language): TrackDraft {
   const saved = item.reflection;
@@ -68,7 +64,10 @@ function writingState(
 
 // What is true of this reflection now, as saved: public, included when
 // published but not public yet, or private. The mark alone is never described as enough.
-function visibilityWord(item: TrackByTrackItem, locale: Language) {
+function visibilityWord(
+  item: TrackByTrackItem,
+  locale: Language,
+): "public" | "included" | "private" | null {
   const saved = item.reflection;
   if (!saved) {
     return null;
@@ -77,7 +76,7 @@ function visibilityWord(item: TrackByTrackItem, locale: Language) {
     return "public";
   }
   if (saved.isPublished && saved.texts[locale] !== undefined) {
-    return "included when published";
+    return "included";
   }
   return "private";
 }
@@ -87,49 +86,31 @@ function visibilityWord(item: TrackByTrackItem, locale: Language) {
 // public; the draft only says what saving will do. The mark alone is never
 // described as enough.
 function visibilitySentence(
+  t: StudioDictionary,
   item: TrackByTrackItem,
   draft: TrackDraft,
   locale: Language,
-  status: string,
+  status: VisibilityStatus,
 ): { lead: string; rest: string } {
   const saved = item.reflection;
-  const language = LANGUAGE_NAMES[locale];
+  const w = t.trackByTrack.sentence;
+  const language = t.languageInSentence[locale];
   if (!draft.isPublished) {
     if (!saved) {
-      return {
-        lead: "Nothing saved yet",
-        rest: ". Once you save it, it stays private: only you can see it.",
-      };
+      return w.nothingSaved;
     }
-    return {
-      lead: "Private",
-      rest: saved.isPublished
-        ? ". Saving stops it being included when published. Only you can see it."
-        : ". It is not included when published. Only you can see it.",
-    };
+    return saved.isPublished ? w.privateOnSave : w.private;
   }
   if (!saved?.isPublished) {
-    return {
-      lead: "Included when published, once you save",
-      rest: `. That publishes nothing by itself: the ${language} version of the journal has to be published too.`,
-    };
+    return w.includedOnSave(language);
   }
   if (saved.publicIn.includes(locale)) {
-    return {
-      lead: "Public",
-      rest: `. It is part of the ${language} version that is marked as published in your records. ${PUBLIC_PAGE_NOTE}`,
-    };
+    return w.public(language, t.publicPageNote);
   }
   if (draft.text.trim() === "" || saved.texts[locale] === undefined) {
-    return {
-      lead: "Included when published",
-      rest: `, but there is no text in ${language} yet, so there is nothing to publish.`,
-    };
+    return w.noText(language);
   }
-  return {
-    lead: "Included when published, not published yet",
-    rest: `: the ${language} version of this journal is not published (it is ${status === "draft" ? "a draft" : status}). It is published only with that version.`,
-  };
+  return w.notPublished(language, t.statusInSentence[status]);
 }
 
 interface TrackByTrackProps {
@@ -140,7 +121,7 @@ interface TrackByTrackProps {
   /** The language the journal is written in: the language edited here. */
   locale: Language;
   /** The status of that language version, for the sentence about visibility. */
-  status: string;
+  status: VisibilityStatus;
   /** The saved album rating is edited in the page, above; shown, not edited. */
   problem?: string;
 }
@@ -154,6 +135,8 @@ export function TrackByTrack({
   status,
   problem,
 }: TrackByTrackProps) {
+  const { words: t } = useStudio();
+  const w = t.trackByTrack;
   const [open, setOpen] = useState<Set<string>>(() => new Set());
   const heading = useId();
 
@@ -170,22 +153,16 @@ export function TrackByTrack({
   return (
     <section aria-labelledby={heading} className="studio-tracks">
       <h2 id={heading} className="studio-section-title">
-        Track by track
+        {w.title}
       </h2>
-      <p className="studio-hint">
-        Write about the tracks you want to. Empty tracks show as “not written
-        yet”.
-      </p>
+      <p className="studio-hint">{w.hint}</p>
       {problem ? (
         <p className="studio-problem" role="alert">
           {problem}
         </p>
       ) : null}
       {tracks.length === 0 ? (
-        <p className="studio-hint">
-          This album has no tracks yet. Add them in the catalog, and they appear
-          here.
-        </p>
+        <p className="studio-hint">{w.empty}</p>
       ) : (
         <ol className="studio-list studio-tracklist">
           {tracks.map((item) => {
@@ -210,26 +187,24 @@ export function TrackByTrack({
                   </span>
                   <span className="studio-track-title" data-state={state}>
                     <span className="studio-sr-only">
-                      Track {item.number}:{" "}
+                      {w.trackLabel(item.number)}
                     </span>
                     {item.title}
                     {item.archived ? (
-                      <span className="studio-track-note">
-                        {" "}
-                        · archived in the catalog
-                      </span>
+                      <span className="studio-track-note">{w.archived}</span>
                     ) : null}
                     {item.inReferenceEdition ? null : (
                       <span className="studio-track-note">
-                        {" "}
-                        · not on the reference edition
+                        {w.notInEdition}
                       </span>
                     )}
                   </span>
                   <span className="studio-track-state">
-                    {state}
-                    {state !== "empty" && visibility ? ` · ${visibility}` : ""}
-                    {edited ? " · edited" : ""}
+                    {w.states[state]}
+                    {state !== "empty" && visibility
+                      ? ` · ${w.visibility[visibility]}`
+                      : ""}
+                    {edited ? w.edited : ""}
                   </span>
                   <span
                     className="studio-track-chevron"
@@ -271,26 +246,27 @@ function TrackPanel({
   item: TrackByTrackItem;
   draft: TrackDraft;
   locale: Language;
-  status: string;
+  status: VisibilityStatus;
   unreadable: boolean;
   onEdit: (patch: Partial<TrackDraft>) => void;
 }) {
+  const { locale: ui, words: t } = useStudio();
+  const w = t.trackByTrack;
   const id = useId();
-  const sentence = visibilitySentence(item, draft, locale, status);
+  const sentence = visibilitySentence(t, item, draft, locale, status);
   const otherLocales = (
     Object.keys(item.reflection?.texts ?? {}) as Language[]
   ).filter((other) => other !== locale);
   return (
     <div className="studio-track-fields">
       {unreadable ? (
-        <p className="studio-panel" lang="en">
-          This reflection has formatting that the plain editor can’t show
-          without losing it, so it can’t be edited here. It is untouched.
+        <p className="studio-panel" lang={ui}>
+          {w.unreadable}
         </p>
       ) : (
         <div className="studio-field-group">
           <label htmlFor={`${id}-text`} className="studio-sr-only">
-            Your reflection on {item.title}, in {LANGUAGE_NAMES[locale]}
+            {w.textLabel(item.title, t.languageInSentence[locale])}
           </label>
           <textarea
             id={`${id}-text`}
@@ -299,22 +275,21 @@ function TrackPanel({
             lang={locale}
             spellCheck
             value={draft.text}
-            placeholder="What you noticed in this track…"
+            placeholder={w.placeholder}
             onChange={(event) => onEdit({ text: event.target.value })}
           />
         </div>
       )}
       {otherLocales.length > 0 ? (
         <p className="studio-hint">
-          Also written in{" "}
-          {otherLocales.map((other) => LANGUAGE_NAMES[other]).join(", ")}. It is
-          kept as it is, and stays private unless it is included when published
-          and that version is published.
+          {w.alsoWritten(
+            otherLocales.map((other) => t.languageInSentence[other]).join(", "),
+          )}
         </p>
       ) : null}
 
       <RatingField
-        label="Rating for this track"
+        label={w.rating}
         compact
         value={draft.rating}
         onChange={(rating) => onEdit({ rating })}
@@ -322,20 +297,20 @@ function TrackPanel({
 
       <div className="studio-checks">
         <Check
-          label="Mark as favourite"
-          hint="Shown as a small circle once published."
+          label={w.favourite}
+          hint={w.favouriteHint}
           checked={draft.isFavourite}
           onChange={(isFavourite) => onEdit({ isFavourite })}
         />
         <Check
-          label="Still writing"
-          hint="Shown as “still writing” until you clear it."
+          label={w.stillWriting}
+          hint={w.stillWritingHint}
           checked={draft.isStillWriting}
           onChange={(isStillWriting) => onEdit({ isStillWriting })}
         />
         <Check
-          label="Include when published"
-          hint="Publishes nothing by itself: it counts once this language version is published."
+          label={w.include}
+          hint={w.includeHint}
           checked={draft.isPublished}
           onChange={(isPublished) => onEdit({ isPublished })}
         />

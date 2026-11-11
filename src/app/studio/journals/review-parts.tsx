@@ -1,44 +1,75 @@
 import type { ReactNode } from "react";
 
+import { useStudio } from "@/app/studio/studio-locale";
+import type { StudioDictionary } from "@/i18n/studio";
 import type { ReviewedValue, ReviewText } from "@/modules/journals";
 
 // Pieces shared by the two dialogs that show the author what readers would
 // see (publishing, and a change to a page that is public). Display only: no
-// state, no actions, and nothing here sends a token.
+// state, no actions, and nothing here sends a token. The words around the
+// writing are the interface's, in the page's language; they are presentation
+// and never part of what the server fingerprints (ADR 0008 § 9). The writing
+// itself keeps its own `lang`.
 
-export const LANGUAGE_NAMES = {
-  en: "English",
-  "pt-BR": "Português (Brasil)",
-} as const;
+/**
+ * The fixed English names the Journals module gives each place a change can
+ * be in (src/modules/journals: `toChangeReview`, `toMemoryChangeReview`). They
+ * are presentation, never part of what is confirmed; the dialog says them in
+ * the page's language. A name this table does not know is shown as sent, in
+ * English (`review-parts.test.ts` keeps the table complete).
+ */
+export const CHANGE_PLACES = {
+  Title: "title",
+  "Opening sentence": "opening",
+  "Margin note": "marginNote",
+  "Your reflection": "body",
+  "The memory": "memory",
+  "Your rating for the album": "albumRating",
+  "Reflection on the track": "trackText",
+  "Rating of the track": "trackRating",
+  "Marked as a favourite": "favourite",
+  "Labelled “still writing”": "stillWriting",
+  When: "when",
+  "The music": "music",
+} as const satisfies Record<string, keyof StudioDictionary["review"]["places"]>;
 
-export function starsInWords(halfSteps: number | null): string {
-  if (halfSteps === null) {
-    return "no rating";
-  }
-  const stars = halfSteps / 2;
-  return `${stars} ${stars === 1 ? "star" : "stars"}`;
+/** A change's place in the page's language, and the language it is said in. */
+export function changePlace(
+  t: StudioDictionary,
+  ui: string,
+  label: string,
+): { text: string; lang: string } {
+  const key = Object.hasOwn(CHANGE_PLACES, label)
+    ? CHANGE_PLACES[label as keyof typeof CHANGE_PLACES]
+    : undefined;
+  return key
+    ? { text: t.review.places[key], lang: ui }
+    : { text: label, lang: "en" };
+}
+
+export function starsInWords(
+  t: StudioDictionary,
+  halfSteps: number | null,
+): string {
+  return halfSteps === null ? t.review.noRating : t.rating.stars(halfSteps);
 }
 
 /** A text as the reader would read it, in its own language. */
 export function ReviewedText({
   text,
   lang,
-  empty = "Nothing.",
+  empty,
 }: {
   text: ReviewText;
   lang: string;
   empty?: string;
 }) {
+  const { locale: ui, words: t } = useStudio();
   if (text === null) {
-    return (
-      <p lang="en">
-        This text has formatting the plain view can’t show. It is public exactly
-        as it is stored.
-      </p>
-    );
+    return <p lang={ui}>{t.review.unsupported}</p>;
   }
   if (text.length === 0) {
-    return <p lang="en">{empty}</p>;
+    return <p lang={ui}>{empty ?? t.review.nothing}</p>;
   }
   return (
     <div lang={lang} className="studio-review-text">
@@ -66,24 +97,25 @@ export function ReviewedValueView({
   /** "before" is what is published now: an empty text there was never written. */
   side?: "before" | "after";
 }) {
+  const { locale: ui, words: t } = useStudio();
   switch (value.type) {
     case "text":
       return (
         <ReviewedText
           text={value.text}
           lang={lang}
-          empty={
-            side === "before" ? "Nothing yet." : "Nothing: this is cleared."
-          }
+          empty={side === "before" ? t.review.nothingYet : t.review.cleared}
         />
       );
     case "rating":
-      return <p lang="en">{starsInWords(value.halfSteps)}</p>;
+      return <p lang={ui}>{starsInWords(t, value.halfSteps)}</p>;
     case "flag":
-      return <p lang="en">{value.value ? "Yes" : "No"}</p>;
+      return <p lang={ui}>{value.value ? t.review.yes : t.review.no}</p>;
     case "list":
       return value.items.length === 0 ? (
-        <p lang="en">{side === "before" ? "No songs yet." : "No songs."}</p>
+        <p lang={ui}>
+          {side === "before" ? t.review.noSongsYet : t.review.noSongs}
+        </p>
       ) : (
         <ol className="studio-review-songs">
           {value.items.map((item, index) => (

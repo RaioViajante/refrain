@@ -9,6 +9,8 @@ import { StudioFrame } from "@/app/studio/frame";
 import { JournalCatalogMargin } from "@/app/studio/journals/journal-catalog-margin";
 import { JournalEditor } from "@/app/studio/journals/journal-editor";
 import { StudioLoading } from "@/app/studio/studio-loading";
+import { studio } from "@/app/studio/studio-words";
+import type { InterfaceLocale } from "@/i18n/locales";
 import {
   listAlbumCovers,
   listAlbumsWithArtists,
@@ -16,29 +18,30 @@ import {
 } from "@/modules/catalog";
 import { authorizeAuthor } from "@/modules/identity";
 
-export const metadata: Metadata = { title: "Write a journal · refrain" };
+export function newJournalMetadata(locale: InterfaceLocale): Metadata {
+  return { title: studio(locale).words.meta.newJournal };
+}
 
-export default function NewJournalPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ album?: string }>;
-}) {
+interface Props {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  locale: InterfaceLocale;
+}
+
+export function NewJournalScreen({ searchParams, locale }: Props) {
   return (
-    <Suspense fallback={<StudioLoading />}>
-      <NewJournal searchParams={searchParams} />
+    <Suspense fallback={<StudioLoading locale={locale} />}>
+      <NewJournal searchParams={searchParams} locale={locale} />
     </Suspense>
   );
 }
 
-async function NewJournal({
-  searchParams,
-}: {
-  searchParams: Promise<{ album?: string }>;
-}) {
+async function NewJournal({ searchParams, locale }: Props) {
   const authorization = await authorizeAuthor(await headers());
   if (!authorization.ok) {
-    return accessDenied(authorization.reason);
+    return accessDenied(authorization.reason, locale);
   }
+  const { words, href } = studio(locale);
+  const w = words.newJournal;
   const { author } = authorization;
   const [albums, credits, covers] = await Promise.all([
     listAlbumTrackCounts(author),
@@ -56,20 +59,30 @@ async function NewJournal({
     .join(", ");
 
   return (
-    <StudioFrame current="journals" layout={album ? "wide" : "notebook"}>
+    <StudioFrame
+      locale={locale}
+      path={
+        album
+          ? `/studio/journals/new?album=${album.albumId}`
+          : "/studio/journals/new"
+      }
+      current="journals"
+      layout={album ? "wide" : "notebook"}
+    >
       {album ? (
         <JournalEditor
-          back={{ href: "/studio/journals", label: "Journals" }}
+          back={{ href: href("/studio/journals"), label: w.journals }}
           heading={
             <div className="studio-editor-head studio-editor-head-album">
               <ArtworkPlaceholder
+                locale={locale}
                 artwork={covers.get(album.albumId)}
                 title={album.title}
                 size={120}
               />
               <div>
                 <h1 className="studio-title studio-title-editor">
-                  Write about {album.title}
+                  {w.writeAbout(album.title)}
                 </h1>
                 {artists ? <p className="studio-meta">{artists}</p> : null}
               </div>
@@ -77,6 +90,7 @@ async function NewJournal({
           }
           catalog={
             <JournalCatalogMargin
+              locale={locale}
               albumId={album.albumId}
               albumTitle={album.title}
               artistNames={artists}
@@ -89,30 +103,35 @@ async function NewJournal({
       ) : (
         <>
           <p>
-            <Link href="/studio/journals" className="studio-link">
-              ← Journals
+            <Link href={href("/studio/journals")} className="studio-link">
+              {w.back}
             </Link>
           </p>
-          <h1 className="studio-title">Write a journal</h1>
+          <h1 className="studio-title">{words.desk.writeJournal}</h1>
           {choices.length === 0 ? (
             <div className="studio-panel">
-              <p className="studio-section-title">Add an album first</p>
-              <p>A journal is written about an album in your catalog.</p>
+              <p className="studio-section-title">{w.albumFirst}</p>
+              <p>{w.albumFirstBody}</p>
               <p>
-                <Link href="/studio/albums/new" className="studio-button">
-                  Add an album
+                <Link
+                  href={href("/studio/albums/new")}
+                  className="studio-button"
+                >
+                  {words.albums.add}
                 </Link>
               </p>
             </div>
           ) : (
             <>
-              <p className="studio-lede">Which album is it about?</p>
-              <ul className="studio-list" aria-label="Albums">
+              <p className="studio-lede">{w.which}</p>
+              <ul className="studio-list" aria-label={words.frame.albums}>
                 {choices.map((choice) => (
                   <li key={choice.albumId} className="studio-row">
                     <span className="studio-row-title">
                       <Link
-                        href={`/studio/journals/new?album=${choice.albumId}`}
+                        href={href(
+                          `/studio/journals/new?album=${choice.albumId}`,
+                        )}
                       >
                         {choice.title}
                       </Link>

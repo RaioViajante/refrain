@@ -10,6 +10,7 @@ import {
 import { ArtworkPlaceholder } from "@/app/studio/artwork-placeholder";
 import { ConfirmDialog, useSubmission } from "@/app/studio/form-kit";
 import { failureMessage } from "@/app/studio/messages";
+import { useStudio } from "@/app/studio/studio-locale";
 
 // Choosing an album's cover (M3.2). Each action sends the artwork the author
 // is looking at (`expectedCoverUrl`), so a change made elsewhere meanwhile is
@@ -39,6 +40,8 @@ export function ArtworkChooser({
   choices: Choice[];
 }) {
   const router = useRouter();
+  const { locale, words } = useStudio();
+  const w = words.artworkPage;
   const { pending, failure, run, clearFailure } = useSubmission();
   const [removing, setRemoving] = useState(false);
 
@@ -69,18 +72,15 @@ export function ArtworkChooser({
   return (
     <section aria-labelledby="artwork-choices" className="space-y-3">
       <h2 id="artwork-choices" className="studio-section-title">
-        Front covers
+        {w.frontCovers}
       </h2>
       {choices.length === 0 ? (
-        <p className="studio-hint">
-          The Cover Art Archive has no front cover for this album’s edition.
-        </p>
+        <p className="studio-hint">{w.noFrontCover}</p>
       ) : (
         <>
           {fromReleaseGroup ? (
             <p className="studio-hint" style={{ maxWidth: "62ch" }}>
-              The album has no MusicBrainz edition yet, so these are the covers
-              the archive shows for the album as a whole.
+              {w.fromReleaseGroup}
             </p>
           ) : null}
           <ul className="studio-choices">
@@ -90,12 +90,13 @@ export function ArtworkChooser({
                 className="studio-choice"
               >
                 <ArtworkPlaceholder
+                  locale={locale}
                   artwork={choice}
-                  title={`${title}, front cover ${index + 1}`}
+                  title={w.frontCoverOf(title, index + 1)}
                   size={220}
                 />
                 {choice.current ? (
-                  <p className="studio-in-catalog">Current cover</p>
+                  <p className="studio-in-catalog">{w.current}</p>
                 ) : (
                   <button
                     type="button"
@@ -106,8 +107,10 @@ export function ArtworkChooser({
                       void choose(choice);
                     }}
                   >
-                    {hasArtwork ? "Use this cover instead" : "Use this cover"}
-                    <span className="studio-sr-only">{` (front cover ${index + 1})`}</span>
+                    {hasArtwork ? w.useInstead : w.use}
+                    <span className="studio-sr-only">
+                      {w.frontCoverNumber(index + 1)}
+                    </span>
                   </button>
                 )}
               </li>
@@ -127,7 +130,7 @@ export function ArtworkChooser({
               setRemoving(true);
             }}
           >
-            Remove artwork…
+            {w.remove}
           </button>
         </div>
       ) : null}
@@ -137,21 +140,22 @@ export function ArtworkChooser({
         className={failure ? "studio-problem" : "studio-hint"}
         style={{ maxWidth: "62ch" }}
       >
-        {pending ? "Saving…" : failure ? failureMessage(failure) : ""}
+        {pending
+          ? words.common.saving
+          : failure
+            ? failureMessage(words, failure)
+            : ""}
       </p>
 
       <ConfirmDialog
         open={removing}
-        title="Remove this album’s artwork?"
-        confirmLabel="Remove"
+        title={w.removeQuestion}
+        confirmLabel={w.removeConfirm}
         pending={pending}
         onConfirm={remove}
         onCancel={() => setRemoving(false)}
       >
-        <p>
-          The album shows the “no artwork yet” frame again. You can choose a
-          cover again at any time.
-        </p>
+        <p>{w.removeBody}</p>
       </ConfirmDialog>
     </section>
   );

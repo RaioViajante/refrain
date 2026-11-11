@@ -29,6 +29,9 @@ import { revalidatePath } from "next/cache";
 
 export type StudioEffect = "none" | "writing" | "visibility";
 
+/** The Studio's route trees, English and Brazilian Portuguese (ADR 0008 § 2). */
+export const STUDIO_ROUTE_PATHS = ["/(en)/studio", "/pt/studio"] as const;
+
 /** Public paths to revalidate after a visibility change. Empty: see above. */
 export const PUBLIC_REVALIDATION_PATHS: readonly string[] = [];
 
@@ -36,9 +39,14 @@ export function revalidateAfter(effect: StudioEffect): void {
   if (effect === "none") {
     return;
   }
-  // The route's own path, with its route group: a layout's cache tag is built
-  // from the route file (`/(en)/studio/layout`), not from the address.
-  revalidatePath("/(en)/studio", "layout");
+  // Each tree's own route path: a layout's cache tag is built from the route
+  // file (`/(en)/studio/layout`, `/pt/studio/layout`), not from the address
+  // (ADR 0008 § 9). The language takes no part in what is refreshed: both
+  // Studios show the same data, so a change made in one is current in the
+  // other.
+  for (const path of STUDIO_ROUTE_PATHS) {
+    revalidatePath(path, "layout");
+  }
   if (effect === "visibility") {
     for (const path of PUBLIC_REVALIDATION_PATHS) {
       revalidatePath(path);

@@ -11,6 +11,7 @@ import {
   recordingFacts,
   type Recording,
 } from "@/app/studio/memories/recordings";
+import { useStudio } from "@/app/studio/studio-locale";
 
 type Focus =
   | { trackId: string; control: "up" | "down" | "remove" }
@@ -41,6 +42,8 @@ export function MemoryMusic({
   albumLinks?: string[];
   problem?: string;
 }) {
+  const { words: t, href } = useStudio();
+  const w = t.memoryMusic;
   const headingId = useId();
   const searchId = useId();
   const resultsId = useId();
@@ -95,7 +98,7 @@ export function MemoryMusic({
     onChange(moveRecording(recordings, index, direction));
     const place = direction === "up" ? index : index + 2;
     setAnnouncement(
-      `${recording.title} moved ${direction}, to ${place} of ${recordings.length}.`,
+      w.moved(recording.title, direction, place, recordings.length),
     );
     pendingFocus.current = { trackId: recording.trackId, control: direction };
   }
@@ -103,32 +106,27 @@ export function MemoryMusic({
   function remove(index: number) {
     const recording = recordings[index]!;
     onChange(recordings.filter((_, at) => at !== index));
-    setAnnouncement(
-      `${recording.title} removed from this memory. It is still in your catalog.`,
-    );
+    setAnnouncement(w.removed(recording.title));
     pendingFocus.current = { control: "search" };
   }
 
   function add(recording: Recording) {
     onChange([...recordings, recording]);
     setQuery("");
-    setAnnouncement(`${recording.title} added to this memory.`);
+    setAnnouncement(w.added(recording.title));
     pendingFocus.current = { control: "search" };
   }
 
   return (
     <section aria-labelledby={headingId} className="studio-memory-music">
       <h2 id={headingId} className="studio-label">
-        The music
+        {t.memory.music}
       </h2>
 
       {recordings.length === 0 && albumLinks.length === 0 ? (
-        <p className="studio-hint">
-          No songs yet. Add the songs this memory belongs to; they come from
-          your catalog.
-        </p>
+        <p className="studio-hint">{w.empty}</p>
       ) : (
-        <ol className="studio-memory-songs" aria-label="Songs in this memory">
+        <ol className="studio-memory-songs" aria-label={w.listLabel}>
           {recordings.map((recording, index) => (
             <li key={recording.trackId} className="studio-memory-song">
               <span className="studio-memory-thumb" aria-hidden="true">
@@ -139,7 +137,7 @@ export function MemoryMusic({
                   {recording.title}
                 </span>
                 <span className="studio-memory-song-facts">
-                  {recordingFacts(recording)}
+                  {recordingFacts(t, recording)}
                 </span>
               </span>
               {readOnly ? null : (
@@ -148,7 +146,11 @@ export function MemoryMusic({
                     type="button"
                     ref={register(`${recording.trackId}:up`)}
                     className="studio-icon-button"
-                    aria-label={`Move ${recording.title} up (song ${index + 1} of ${recordings.length})`}
+                    aria-label={w.moveUp(
+                      recording.title,
+                      index + 1,
+                      recordings.length,
+                    )}
                     disabled={index === 0}
                     onClick={() => move(index, "up")}
                   >
@@ -158,7 +160,11 @@ export function MemoryMusic({
                     type="button"
                     ref={register(`${recording.trackId}:down`)}
                     className="studio-icon-button"
-                    aria-label={`Move ${recording.title} down (song ${index + 1} of ${recordings.length})`}
+                    aria-label={w.moveDown(
+                      recording.title,
+                      index + 1,
+                      recordings.length,
+                    )}
                     disabled={index === recordings.length - 1}
                     onClick={() => move(index, "down")}
                   >
@@ -168,7 +174,11 @@ export function MemoryMusic({
                     type="button"
                     ref={register(`${recording.trackId}:remove`)}
                     className="studio-icon-button"
-                    aria-label={`Remove ${recording.title} from this memory (song ${index + 1} of ${recordings.length})`}
+                    aria-label={w.remove(
+                      recording.title,
+                      index + 1,
+                      recordings.length,
+                    )}
                     onClick={() => remove(index)}
                   >
                     <Icon name="close" size={18} />
@@ -184,7 +194,7 @@ export function MemoryMusic({
               </span>
               <span className="studio-memory-song-body">
                 <span className="studio-memory-song-title">{title}</span>
-                <span className="studio-memory-song-facts">Album</span>
+                <span className="studio-memory-song-facts">{w.album}</span>
               </span>
             </li>
           ))}
@@ -198,16 +208,12 @@ export function MemoryMusic({
       ) : null}
 
       {readOnly ? (
-        <p className="studio-hint">
-          This memory also belongs to an album, which this editor can’t change
-          yet, so its music stays as it is. Its title and writing can still be
-          saved.
-        </p>
+        <p className="studio-hint">{w.readOnly}</p>
       ) : (
         <>
           <div className="studio-memory-add">
             <label htmlFor={searchId} className="studio-sr-only">
-              Add a song from your catalog
+              {w.addLabel}
             </label>
             <span className="studio-memory-add-field">
               <Icon name="plus" size={18} />
@@ -216,7 +222,7 @@ export function MemoryMusic({
                 ref={search}
                 type="search"
                 className="studio-field"
-                placeholder="Add a song"
+                placeholder={w.addPlaceholder}
                 autoComplete="off"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
@@ -238,14 +244,17 @@ export function MemoryMusic({
                 id={resultsId}
                 className="studio-memory-results"
                 role="region"
-                aria-label="Songs in your catalog"
+                aria-label={w.resultsLabel}
               >
-                <p className="studio-memory-results-label">In your catalog</p>
+                <p className="studio-memory-results-label">{w.inCatalog}</p>
                 {matches.length === 0 ? (
                   <p className="studio-hint">
-                    No song in your catalog matches “{query.trim()}”.{" "}
-                    <Link href="/studio/tracks/new" className="studio-link">
-                      Add a track to your catalog
+                    {w.noMatch(query.trim())}{" "}
+                    <Link
+                      href={href("/studio/tracks/new")}
+                      className="studio-link"
+                    >
+                      {w.addTrack}
                     </Link>
                     .
                   </p>
@@ -264,14 +273,17 @@ export function MemoryMusic({
                             {choice.title}
                           </span>
                           <span className="studio-memory-song-facts">
-                            {recordingFacts(choice)}
+                            {recordingFacts(t, choice)}
                           </span>
                         </span>
                         <span className="studio-memory-song-controls">
                           <button
                             type="button"
                             className="studio-icon-button"
-                            aria-label={`Add ${choice.title}, ${recordingFacts(choice)}, to this memory`}
+                            aria-label={w.add(
+                              choice.title,
+                              recordingFacts(t, choice),
+                            )}
                             onClick={() => add(choice)}
                           >
                             <Icon name="plus" size={18} />
@@ -284,9 +296,7 @@ export function MemoryMusic({
               </div>
             ) : null}
           </div>
-          <p className="studio-hint">
-            Removing a song from this memory never deletes it from your catalog.
-          </p>
+          <p className="studio-hint">{w.removeHint}</p>
         </>
       )}
 
@@ -298,8 +308,8 @@ export function MemoryMusic({
       <p role="status" className="studio-sr-only">
         {query.trim()
           ? matches.length === MAX_MATCHES
-            ? `The first ${MAX_MATCHES} songs found. Type more to narrow them.`
-            : `${matches.length} ${matches.length === 1 ? "song" : "songs"} found.`
+            ? w.firstFound(MAX_MATCHES)
+            : w.found(matches.length)
           : ""}
       </p>
     </section>

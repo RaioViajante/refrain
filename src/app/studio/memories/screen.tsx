@@ -4,11 +4,12 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { accessDenied } from "@/app/studio/access";
-import { plural } from "@/app/studio/format";
 import { StudioFrame } from "@/app/studio/frame";
 import { Icon } from "@/app/studio/icons";
 import { MemoryRows } from "@/app/studio/memories/memory-rows";
 import { StudioLoading } from "@/app/studio/studio-loading";
+import { studio } from "@/app/studio/studio-words";
+import type { InterfaceLocale } from "@/i18n/locales";
 import { authorizeAuthor } from "@/modules/identity";
 import {
   getJournalStatistics,
@@ -17,25 +18,30 @@ import {
 } from "@/modules/journals";
 
 // A fixed title: a memory's words never reach page metadata.
-export const metadata: Metadata = { title: "Memories · refrain" };
+export function memoriesMetadata(locale: InterfaceLocale): Metadata {
+  return { title: studio(locale).words.meta.memories };
+}
 
 type MemoriesProps = {
-  searchParams: Promise<{ deleted?: string | string[] }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  locale: InterfaceLocale;
 };
 
-export default function MemoriesPage({ searchParams }: MemoriesProps) {
+export function MemoriesScreen({ searchParams, locale }: MemoriesProps) {
   return (
-    <Suspense fallback={<StudioLoading />}>
-      <Memories searchParams={searchParams} />
+    <Suspense fallback={<StudioLoading locale={locale} />}>
+      <Memories searchParams={searchParams} locale={locale} />
     </Suspense>
   );
 }
 
-async function Memories({ searchParams }: MemoriesProps) {
+async function Memories({ searchParams, locale }: MemoriesProps) {
   const authorization = await authorizeAuthor(await headers());
   if (!authorization.ok) {
-    return accessDenied(authorization.reason);
+    return accessDenied(authorization.reason, locale);
   }
+  const { words, href } = studio(locale);
+  const w = words.memories;
   const { author } = authorization;
   const [memories, statistics, journals] = await Promise.all([
     listMemories(author),
@@ -46,63 +52,55 @@ async function Memories({ searchParams }: MemoriesProps) {
   const { deleted } = await searchParams;
 
   return (
-    <StudioFrame current="memories">
-      <h1 className="studio-title">Memories</h1>
-      <p className="studio-lede">
-        The moments songs take you back to. A memory belongs to as many songs as
-        you want, in the order you choose.
-      </p>
+    <StudioFrame locale={locale} path="/studio/memories" current="memories">
+      <h1 className="studio-title">{w.title}</h1>
+      <p className="studio-lede">{w.lead}</p>
       <p>
         <Link
-          href="/studio/memories/new"
+          href={href("/studio/memories/new")}
           className="studio-button studio-button-primary"
         >
           <Icon name="plus" />
-          Write a memory
+          {words.desk.writeMemory}
         </Link>
       </p>
 
       {deleted === "1" ? (
         <p role="status" className="studio-panel">
-          The memory is in Recently deleted. Its writing is kept, and you can
-          restore it from there.
+          {w.movedToDeleted}
         </p>
       ) : null}
 
       {memories.length === 0 ? (
         <div className="studio-panel studio-empty">
-          <p className="studio-section-title">No memories yet</p>
-          <p>
-            Write down a moment a song takes you back to. It begins as a draft
-            that only you can see, and it is saved only when you save it.
-          </p>
+          <p className="studio-section-title">{w.emptyTitle}</p>
+          <p>{w.emptyBody}</p>
         </div>
       ) : (
         <>
-          <p className="studio-meta" aria-label="Memory totals">
-            {plural(statistics.total, "memory", "memories")}: {statistics.draft}{" "}
-            {statistics.draft === 1 ? "draft" : "drafts"}, {statistics.private}{" "}
-            private
-            {statistics.published > 0
-              ? `, ${statistics.published} published`
-              : ""}
-            .
+          <p className="studio-meta" aria-label={w.totalsLabel}>
+            {words.desk.memoriesSummary(
+              statistics.total,
+              statistics.draft,
+              statistics.private,
+              statistics.published,
+            )}
           </p>
-          <MemoryRows memories={memories} label="Memories" />
+          <MemoryRows locale={locale} memories={memories} label={w.title} />
         </>
       )}
 
       <p className="studio-meta">
         <Link
-          href="/studio/journals/deleted"
+          href={href("/studio/journals/deleted")}
           className="studio-link inline-flex items-center gap-2"
         >
           <Icon name="trash" size={16} />
-          Recently deleted ({statistics.deleted + journals.deleted})
+          {words.desk.recentlyDeleted(statistics.deleted + journals.deleted)}
         </Link>
       </p>
       <p className="studio-hint" style={{ maxWidth: "62ch" }}>
-        Publishing memories isn’t available yet.
+        {w.publishingNote}
       </p>
     </StudioFrame>
   );
