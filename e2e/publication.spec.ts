@@ -1107,3 +1107,39 @@ test("a tab that still shows the journal unpublished cannot take something away 
   await expect(page.getByLabel("Include when published")).not.toBeChecked();
   await other.close();
 });
+
+test("a private journal's removal saves without asking (issue #54)", async ({
+  page,
+}) => {
+  // The journal is published (the previous test). Make it private through
+  // the studio: nothing of it is public any more.
+  await page.goto(journalUrl);
+  await visibility(page)
+    .getByRole("button", { name: "Unpublish…", exact: true })
+    .click();
+  await page
+    .getByRole("dialog", { name: "Unpublish the English version?" })
+    .getByRole("button", { name: "Unpublish" })
+    .click();
+  await expect(page.getByText("is no longer published.")).toBeVisible();
+  expect((await stored()).status).toBe("private");
+  expect((await reflections())[0]).toMatchObject({
+    is_published: true,
+    body_text: shown,
+  });
+
+  // No longer including the reflection takes nothing from readers: it saves
+  // at once, with neither dialog.
+  await openEditor(page);
+  await openTrack(page, names.tracks[0]);
+  await page.getByLabel("Include when published").uncheck();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText("Saved just now")).toBeVisible();
+  await expect(removalDialog(page)).toHaveCount(0);
+  await expect(changeDialog(page)).toHaveCount(0);
+  expect((await reflections())[0]).toMatchObject({
+    is_published: false,
+    body_text: shown,
+  });
+  expect((await stored()).status).toBe("private");
+});
