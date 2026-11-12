@@ -588,6 +588,76 @@ test("a change that only takes something away asks first, names it, and Cancel w
   await expect(page.getByText("Unsaved changes")).toBeVisible();
 });
 
+test("clearing a public reflection's text asks first, and confirming takes the text away (issue #54)", async ({
+  page,
+}) => {
+  const tokens = watchTokens(page);
+  const first = async () =>
+    (await reflections()).find(({ title }) => title === names.tracks[0])!;
+  const journal = await stored();
+  await openEditor(page);
+
+  // The previous test unflagged the first track's reflection. Including it
+  // again is an addition: the change dialog, confirmed with its token.
+  const field = await openTrack(page, names.tracks[0]);
+  await expect(field).toHaveValue(shown);
+  await page.getByLabel("Include when published").check();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  const change = changeDialog(page);
+  await expect(change).toContainText(shown);
+  await change
+    .getByRole("button", { name: "Save and update published writing" })
+    .click();
+  await expect(change).toBeHidden();
+  await expect(page.getByText("Saved just now")).toBeVisible();
+  expect(tokens).toHaveLength(1);
+  expect(await first()).toMatchObject({ is_published: true, body_text: shown });
+  const version = (await stored()).version;
+
+  // Clearing its text takes it away from readers: the removal dialog names
+  // it, and confirming saves without any token.
+  await field.fill("");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  const removal = removalDialog(page);
+  await expect(removal.getByRole("listitem")).toHaveText([
+    `Reflection on the track · ${names.tracks[0]} · English`,
+  ]);
+  await expect(changeDialog(page)).toHaveCount(0);
+  await removal.getByRole("button", { name: "Save and take it away" }).click();
+  await expect(removal).toBeHidden();
+  await expect(page.getByText("Unsaved changes")).toHaveCount(0);
+  await expect.poll(async () => (await stored()).version).toBe(version + 1);
+  expect(tokens).toHaveLength(1);
+
+  // What is stored: the text is gone, the setting is kept, and the published
+  // version itself is untouched.
+  expect(await first()).toMatchObject({ is_published: true, body_text: null });
+  const row = await stored();
+  expect(row.status).toBe("published");
+  expect(row.body_text).toBe(journal.body_text);
+  expect(row.published_at).toEqual(journal.published_at);
+
+  // After a reload, the editor shows the track as empty.
+  await openEditor(page);
+  await expect(
+    page.getByRole("button", { name: literal(names.tracks[0]) }),
+  ).toContainText("empty");
+
+  // Put the text back, not included, for the rest of the run. Nothing about
+  // it is public before or after, so this save asks nothing.
+  await (await openTrack(page, names.tracks[0])).fill(shown);
+  await page.getByLabel("Include when published").uncheck();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText("Saved just now")).toBeVisible();
+  await expect(removalDialog(page)).toHaveCount(0);
+  await expect(changeDialog(page)).toHaveCount(0);
+  expect(await first()).toMatchObject({
+    is_published: false,
+    body_text: shown,
+  });
+  expect(tokens).toHaveLength(1);
+});
+
 test("a save that edits and takes away shows both before anything is written (issue #54)", async ({
   page,
 }) => {
@@ -621,6 +691,51 @@ test("a save that edits and takes away shows both before anything is written (is
   expect((await stored()).body_text).toBe(before.body_text);
   expect(await albumRatingStored()).toBe(9);
   await expect(page.getByText("Unsaved changes")).toBeVisible();
+  expect(tokens).toEqual([]);
+});
+
+test("clearing only the album rating asks first, and Cancel writes nothing and keeps it cleared in the editor (issue #54)", async ({
+  page,
+}) => {
+  const tokens = watchTokens(page);
+  await openEditor(page);
+  const before = await stored();
+  const reflectionsBefore = await reflections();
+  expect(await albumRatingStored()).toBe(9);
+
+  const rating = page.getByRole("group", {
+    name: /Your rating for the album/,
+  });
+  await rating.getByRole("button", { name: "Clear" }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  const removal = removalDialog(page);
+  await expect(removal.getByRole("listitem")).toHaveText([
+    "Your rating for the album",
+  ]);
+  await expect(changeDialog(page)).toHaveCount(0);
+
+  // Cancel: nothing is written, and the editor still holds the cleared rating.
+  await removal.getByRole("button", { name: "Cancel" }).click();
+  await expect(removal).toBeHidden();
+  await expect(
+    rating.getByRole("radio", { name: "No rating", exact: true }),
+  ).toBeChecked();
+  await expect(rating.locator(".studio-rating-words")).toHaveText("No rating");
+  await expect(page.getByText("Unsaved changes")).toBeVisible();
+  expect(await albumRatingStored()).toBe(9);
+  expect(await stored()).toEqual(before);
+  expect(await reflections()).toEqual(reflectionsBefore);
+  expect(tokens).toEqual([]);
+
+  // The edit is still pending: saving again asks the same question again.
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(removal.getByRole("listitem")).toHaveText([
+    "Your rating for the album",
+  ]);
+  await removal.getByRole("button", { name: "Cancel" }).click();
+  await expect(removal).toBeHidden();
+  expect(await albumRatingStored()).toBe(9);
+  expect(await stored()).toEqual(before);
   expect(tokens).toEqual([]);
 });
 
