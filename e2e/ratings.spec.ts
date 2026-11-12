@@ -269,6 +269,156 @@ test("moves through the half steps with the arrow keys, with visible focus", asy
   await expect(checked).toBeChecked();
 });
 
+/** Where focus is, against a rating's group: inside it, before or after it in
+ * the document, or nowhere (the body). */
+const focusPlace = (rating: Locator) =>
+  rating.evaluate((group) => {
+    const active = document.activeElement;
+    if (!active || active === document.body) {
+      return "body";
+    }
+    if (group.contains(active)) {
+      return "inside";
+    }
+    return group.compareDocumentPosition(active) &
+      Node.DOCUMENT_POSITION_FOLLOWING
+      ? "after"
+      : "before";
+  });
+
+/** Clear, from the keyboard (Tab from the checked star, then a key), hands
+ * focus to "No rating", draws its ring on the words, moves nothing, and the
+ * next Tab and Shift+Tab continue from the group. */
+async function clearFromTheKeyboard(
+  page: Page,
+  rating: Locator,
+  key: "Enter" | "Space",
+  names: { star: string; none: string; clear: string },
+) {
+  const none = rating.getByRole("radio", { name: names.none, exact: true });
+  const clear = rating.getByRole("button", { name: names.clear });
+  const words = rating.locator(".studio-rating-words");
+  const row = rating.locator(".studio-rating-row");
+  const star = rating.getByRole("radio", { name: names.star, exact: true });
+
+  await star.focus();
+  await page.keyboard.press("Space");
+  await expect(star).toBeChecked();
+  const before = await row.boundingBox();
+  await page.keyboard.press("Tab");
+  await expect(clear).toBeFocused();
+  await page.keyboard.press(key);
+
+  await expect(none).toBeChecked();
+  await expect(words).toHaveText(names.none);
+  await expect(clear).toBeHidden();
+  await expect(none).toBeFocused();
+  expect(await focusPlace(rating)).toBe("inside");
+  await expect(words).toHaveCSS("outline-style", "solid");
+  await expect(words).toHaveCSS("outline-width", "2px");
+  expect(await row.boundingBox()).toEqual(before);
+
+  await page.keyboard.press("Tab");
+  expect(await focusPlace(rating)).toBe("after");
+  await page.keyboard.press("Shift+Tab");
+  await expect(none).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  expect(await focusPlace(rating)).toBe("before");
+  await page.keyboard.press("Tab");
+  await expect(none).toBeFocused();
+}
+
+for (const which of ["album", "track"] as const) {
+  test(`Clear hands focus to "No rating" in the ${which}'s rating, from the keyboard and the mouse`, async ({
+    page,
+  }) => {
+    await openEditor(page);
+    await openTrack(page);
+    const rating = which === "album" ? albumRating(page) : trackRating(page);
+    const other = which === "album" ? trackRating(page) : albumRating(page);
+    const names = { star: "3 stars", none: "No rating", clear: "Clear" };
+    const none = rating.getByRole("radio", { name: "No rating", exact: true });
+
+    for (const key of ["Enter", "Space"] as const) {
+      await clearFromTheKeyboard(page, rating, key, names);
+    }
+
+    // With the mouse: the rating is cleared and focus is on "No rating", so
+    // the next Tab continues from the group, not from the top of the page.
+    await pick(rating, "2 stars");
+    await rating.getByRole("button", { name: "Clear" }).click();
+    await expectState(rating, "No rating", null);
+    await expect(none).toBeFocused();
+    await page.keyboard.press("Tab");
+    expect(await focusPlace(rating)).toBe("after");
+
+    // Nothing else moves focus to "No rating": choosing a rating, or a rating
+    // in the other group, leaves focus where the author put it.
+    await pick(rating, "4 stars");
+    await expect(
+      rating.getByRole("radio", { name: "4 stars", exact: true }),
+    ).toBeFocused();
+    await pick(other, "1 star");
+    await other.getByRole("button", { name: "Clear" }).click();
+    await expect(
+      other.getByRole("radio", { name: "No rating", exact: true }),
+    ).toBeFocused();
+    await expect(
+      rating.getByRole("radio", { name: "4 stars", exact: true }),
+    ).toBeChecked();
+    expect(await focusPlace(rating)).not.toBe("inside");
+  });
+}
+
+test("Clear hands focus to the right place at every width, and in forced colors", async ({
+  page,
+}) => {
+  const names = { star: "3 stars", none: "No rating", clear: "Clear" };
+  for (const width of [320, 360, 390, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await openEditor(page);
+    await openTrack(page);
+    await clearFromTheKeyboard(page, albumRating(page), "Enter", names);
+    await clearFromTheKeyboard(page, trackRating(page), "Space", names);
+    expect(
+      await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth -
+          document.documentElement.clientWidth,
+      ),
+      `no sideways scrolling at ${width} px`,
+    ).toBeLessThanOrEqual(0);
+  }
+
+  // In forced colors the ring is still drawn, in the system's colors.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.emulateMedia({ forcedColors: "active" });
+  await openEditor(page);
+  await clearFromTheKeyboard(page, albumRating(page), "Enter", names);
+});
+
+test('Clear hands focus to "Sem nota" in the Portuguese Studio', async ({
+  page,
+}) => {
+  await page.goto(`${journalUrl.replace("/studio/", "/pt/studio/")}/edit`);
+  await expect(page.locator("form[data-editor-ready]")).toBeAttached();
+  await expect(page.getByLabel("Sua reflexão", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: /^Faixa 1:/ }).click();
+  const names = { star: "3 estrelas", none: "Sem nota", clear: "Limpar" };
+  const album = page.getByRole("group", { name: /Sua nota para o álbum/ });
+  const track = page.getByRole("group", { name: /Nota desta faixa/ });
+  await expect(track).toBeVisible();
+  await clearFromTheKeyboard(page, album, "Enter", names);
+  await clearFromTheKeyboard(page, track, "Space", names);
+
+  await album.getByRole("radio", { name: "2 estrelas", exact: true }).focus();
+  await page.keyboard.press("Space");
+  await album.getByRole("button", { name: "Limpar" }).click();
+  await expect(
+    album.getByRole("radio", { name: "Sem nota", exact: true }),
+  ).toBeFocused();
+});
+
 test("keeps the stars in the same place in every state, in a row 44px tall", async ({
   page,
 }) => {

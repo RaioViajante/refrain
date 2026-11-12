@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useId, useRef } from "react";
 
 import { StarInk } from "@/app/studio/journals/star-ink";
 import { useStudio } from "@/app/studio/studio-locale";
@@ -38,6 +38,7 @@ export function RatingField({
   const { words: t } = useStudio();
   const name = useId();
   const noteId = `${name}-note`;
+  const noRating = useRef<HTMLInputElement>(null);
   return (
     <fieldset
       className="studio-rating"
@@ -88,6 +89,7 @@ export function RatingField({
           ))}
         </div>
         <input
+          ref={noRating}
           type="radio"
           id={`${name}-none`}
           name={name}
@@ -104,12 +106,19 @@ export function RatingField({
           {words(t, value)}
         </span>
         {/* Always in the row, so that choosing a first rating moves nothing.
-            Without a rating it is invisible and out of the tab order. */}
+            Without a rating it is invisible and out of the tab order, so
+            Clear hands focus to "No rating", the value it chose, in the same
+            group: focus never stays on a hidden button or falls to the page.
+            Only Clear does this; a rating changed any other way moves no
+            focus. */}
         <button
           type="button"
           className="studio-button-quiet"
           data-unset={value === null ? "" : undefined}
-          onClick={() => onChange(null)}
+          onClick={() => {
+            onChange(null);
+            noRating.current?.focus();
+          }}
         >
           {t.rating.clear}
         </button>
