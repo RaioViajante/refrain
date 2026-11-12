@@ -6,7 +6,9 @@ import { saveAlbumJournalInput } from "./input";
 
 // Issue #54: the Studio's editor asks before a save takes a public
 // reflection's text away, so it must know exactly when the server stores no
-// text. Both use `isBlankText`; this holds the save's own validation to it.
+// text. The editor calls `isBlankText`; the save's schema does not, but applies
+// `normalizeBodyText` (which starts with the same `cleanText`) and the same
+// `INVISIBLE_ONLY`. This holds the two to the same answer.
 
 const TRACK = "00000000-0000-4000-8000-000000000001";
 const ENTRY = "00000000-0000-4000-8000-000000000002";
