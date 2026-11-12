@@ -181,8 +181,19 @@ test("the Portuguese Studio speaks Portuguese, and the selector keeps the page",
   await expect(
     footer(page).locator(".studio-language-option").last(),
   ).toBeFocused();
+  // Open, each option is shown and is a 44px target.
+  const options = footer(page).locator(".studio-language-option");
+  await expect(options).toHaveCount(2);
+  for (const option of await options.all()) {
+    await expect(option).toBeVisible();
+    await expectTouchTarget(option);
+  }
   await page.keyboard.press("Escape");
   await expect(selector(page)).toBeFocused();
+  // Closed, the options are not shown, and the button is a 44px target.
+  for (const option of await options.all()) {
+    await expect(option).toBeHidden();
+  }
   await expectTouchTarget(selector(page));
 });
 

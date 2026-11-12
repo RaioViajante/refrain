@@ -266,30 +266,94 @@ test("fits the screen without horizontal scrolling, and keeps the reading measur
   }
 });
 
-const smallControls = (page: Page) =>
+// Every control the page renders, measured; and the ones it does not render.
+// A control that is not rendered (the options of the closed language selector,
+// inside a closed native disclosure) has no size a reader could touch: its box
+// is whatever the browser computes for content it skips, which CI once
+// reported as 0x0 for one of the two options. Such controls are listed, not
+// measured, and the list must be exactly the ones expected.
+const controls = (page: Page) =>
   page.evaluate(() => {
-    const found: string[] = [];
+    const small: string[] = [];
+    const notRendered: string[] = [];
     for (const element of document.querySelectorAll("a, summary, button")) {
+      const name = `${element.tagName}.${element.className}`;
+      if (!element.checkVisibility()) {
+        notRendered.push(name);
+        continue;
+      }
       const rect = element.getBoundingClientRect();
       if (rect.height < 43.5 || rect.width < 43.5) {
-        found.push(
-          `${element.tagName}.${element.className} ${Math.round(rect.width)}x${Math.round(rect.height)}`,
+        small.push(
+          `${name} ${Math.round(rect.width)}x${Math.round(rect.height)}`,
         );
       }
     }
-    return found;
+    return { small, notRendered };
   });
+
+/** Every control is a 44px target, with the language selector closed and
+ * then open. */
+async function expectTouchTargets(page: Page) {
+  // The album journal's selector streams in its own boundary: it is ready
+  // once its button is shown.
+  const button = page.locator("summary.public-language-button");
+  await expect(button).toBeVisible();
+  await expect(page.locator("details.public-language")).not.toHaveAttribute(
+    "open",
+    "",
+  );
+  expect(await controls(page)).toEqual({
+    small: [],
+    notRendered: ["A.public-language-option", "A.public-language-option"],
+  });
+
+  await button.click();
+  await expect(page.locator("details.public-language")).toHaveAttribute(
+    "open",
+    "",
+  );
+  for (const option of await page.locator(".public-language-option").all()) {
+    await expect(option).toBeVisible();
+  }
+  expect(await controls(page)).toEqual({ small: [], notRendered: [] });
+  await button.click();
+  await expect(page.locator(".public-language-option").first()).toBeHidden();
+}
 
 test("every control is at least 44px, on the journal and on the not-found view", async ({
   page,
 }) => {
   await openJournal(page);
-  expect(await smallControls(page)).toEqual([]);
+  await expectTouchTargets(page);
   await page.goto(`${base}/albums/e2e-no-such-journal`);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
     "Nothing here",
   );
-  expect(await smallControls(page)).toEqual([]);
+  await expectTouchTargets(page);
+});
+
+test("the language selector is a 44px target, closed and open, at every width", async ({
+  page,
+}) => {
+  for (const width of [320, 360, 390, 768, 1440]) {
+    await page.setViewportSize({ width, height: 800 });
+    await openJournal(page);
+    await expectTouchTargets(page);
+    // Open, the menu stays on the screen and nothing scrolls sideways.
+    await page.locator("summary.public-language-button").click();
+    const menu = await page.locator(".public-language-menu").boundingBox();
+    expect(menu!.x, `at ${width} px`).toBeGreaterThanOrEqual(0);
+    expect(menu!.x + menu!.width, `at ${width} px`).toBeLessThanOrEqual(width);
+    expect(
+      await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth -
+          document.documentElement.clientWidth,
+      ),
+      `at ${width} px`,
+    ).toBeLessThanOrEqual(0);
+  }
 });
 
 test("reflows at 320 px and at 200% text without scrolling sideways", async ({
