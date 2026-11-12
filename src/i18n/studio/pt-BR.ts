@@ -908,6 +908,10 @@ export const studioPtBR: StudioDictionary = {
     createNote:
       "Um diário novo começa como um rascunho privado. Nada aqui é publicado.",
     editNote: "Salvar nunca muda quem pode ver este diário.",
+    removalQuestion: "Tirar isto do diário publicado?",
+    removalConfirm: "Salvar e tirar",
+    removalBody:
+      "Uma versão deste diário está publicada. Salvar tira isto do que os leitores veem; nada mais muda. Cancelar deixa o seu texto no editor.",
   },
   rating: {
     none: "Sem nota",
@@ -1109,7 +1113,7 @@ export const studioPtBR: StudioDictionary = {
     publishedNow: "Publicado agora",
     publishedAfter: "Publicado depois de salvar",
     publishedAfterNew: "Publicado depois de salvar (novo)",
-    removals: "O que você tira do texto publicado não precisa desta revisão.",
+    takenAway: "Tirado do texto publicado",
   },
   deleted: {
     title: "Excluídos recentemente",

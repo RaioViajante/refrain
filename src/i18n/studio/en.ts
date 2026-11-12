@@ -897,6 +897,10 @@ export const studioEn = {
     createNote:
       "A new journal starts as a private draft. Nothing here is published.",
     editNote: "Saving never changes who can see this journal.",
+    removalQuestion: "Take this away from the published journal?",
+    removalConfirm: "Save and take it away",
+    removalBody:
+      "A version of this journal is published. Saving takes this away from what readers see; nothing else changes. Cancelling leaves your text in the editor.",
   },
   rating: {
     none: "No rating",
@@ -1100,8 +1104,7 @@ export const studioEn = {
     publishedNow: "Published now",
     publishedAfter: "Published after saving",
     publishedAfterNew: "Published after saving (new)",
-    removals:
-      "Things you take away from the published writing do not need this review.",
+    takenAway: "Taken away from the published writing",
   },
   deleted: {
     title: "Recently deleted",

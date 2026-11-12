@@ -123,6 +123,24 @@ const publishDialog = (page: Page) =>
 const changeDialog = (page: Page) =>
   page.getByRole("dialog", { name: "Update published writing?" });
 
+const removalDialog = (page: Page) =>
+  page.getByRole("dialog", {
+    name: "Take this away from the published journal?",
+  });
+
+async function albumRatingStored() {
+  return withDatabase(async (client) => {
+    const result = await client.query<{ rating_half_steps: number | null }>(
+      `select j.rating_half_steps
+         from albums a
+         join album_journals j on j.album_id = a.id
+        where a.title = $1`,
+      [names.album],
+    );
+    return result.rows[0]!.rating_half_steps;
+  });
+}
+
 async function openEditor(page: Page) {
   await page.goto(`${journalUrl}/edit`);
   // Visible is not ready: hydration rewrites the field, and a `fill` running
@@ -478,7 +496,7 @@ test("editing published writing shows exactly what changes, and saves only on co
   expect(row.status).toBe("published");
 });
 
-test("a change that only takes something away asks nothing, and a repeated Save does not double-submit", async ({
+test("a change that only takes something away asks first, names it, and Cancel writes nothing (issue #54)", async ({
   page,
 }) => {
   const tokens = watchTokens(page);
@@ -490,14 +508,68 @@ test("a change that only takes something away asks nothing, and a repeated Save 
   });
   await openEditor(page);
 
-  // Unflagging a reflection removes it from the public page: no dialog.
-  await openTrack(page, names.tracks[0]);
+  // Clearing the text of a public reflection takes it away from readers. It
+  // needs no token, but the editor asks first and names it.
+  const field = await openTrack(page, names.tracks[0]);
+  await field.fill("");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  const removal = removalDialog(page);
+  await expect(removal).toBeVisible();
+  await expect(removal.getByRole("listitem")).toHaveText([
+    `Reflection on the track · ${names.tracks[0]} · English`,
+  ]);
+  await expect(removal).toContainText(
+    "Cancelling leaves your text in the editor",
+  );
+  await expect(changeDialog(page)).toHaveCount(0);
+  await shoot(page, "removal-dialog");
+  await scan(page, "the removal dialog");
+  await expectTouchTarget(
+    removal.getByRole("button", { name: "Save and take it away" }),
+  );
+  await expectTouchTarget(removal.getByRole("button", { name: "Cancel" }));
+  await expectNoHorizontalOverflow(page);
+
+  // Cancel writes nothing and leaves the edit in the editor.
+  await removal.getByRole("button", { name: "Cancel" }).click();
+  await expect(removal).toBeHidden();
+  await expect(field).toHaveValue("");
+  await expect(page.getByText("Unsaved changes")).toBeVisible();
+  expect((await reflections())[0]).toMatchObject({
+    is_published: true,
+    body_text: shown,
+  });
+
+  // Text the server stores nothing for (a control character and a zero-width
+  // one) is a removal too: the editor asks the server's own question.
+  await field.fill("\u0001\u200B");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(removal.getByRole("listitem")).toHaveText([
+    `Reflection on the track · ${names.tracks[0]} · English`,
+  ]);
+  await removal.getByRole("button", { name: "Cancel" }).click();
+  await expect(removal).toBeHidden();
+  expect((await reflections())[0]).toMatchObject({
+    is_published: true,
+    body_text: shown,
+  });
+
+  // Unflagging the reflection is the same removal, named once; confirming
+  // saves it, without any token.
+  await field.fill(shown);
   await page.getByLabel("Include when published").uncheck();
   await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(removal.getByRole("listitem")).toHaveText([
+    `Reflection on the track · ${names.tracks[0]} · English`,
+  ]);
+  await removal.getByRole("button", { name: "Save and take it away" }).click();
+  await expect(removal).toBeHidden();
   await expect(page.getByText("Saved just now")).toBeVisible();
-  await expect(changeDialog(page)).toHaveCount(0);
   expect(tokens).toEqual([]);
-  expect((await reflections())[0]!.is_published).toBe(false);
+  expect((await reflections())[0]).toMatchObject({
+    is_published: false,
+    body_text: shown,
+  });
 
   // An edit, then Cmd+S pressed twice quickly: one dialog, one preview.
   await page
@@ -514,6 +586,42 @@ test("a change that only takes something away asks nothing, and a repeated Save 
   await expect(dialog).toBeHidden();
   expect(tokens).toEqual([]);
   await expect(page.getByText("Unsaved changes")).toBeVisible();
+});
+
+test("a save that edits and takes away shows both before anything is written (issue #54)", async ({
+  page,
+}) => {
+  const tokens = watchTokens(page);
+  await openEditor(page);
+  const before = await stored();
+  expect(await albumRatingStored()).toBe(9);
+
+  await page
+    .getByLabel("Your reflection", { exact: true })
+    .fill("[Test] E2E Pub edited and taken away.");
+  await page
+    .getByRole("group", { name: /Your rating for the album/ })
+    .getByRole("button", { name: "Clear" })
+    .click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  const dialog = changeDialog(page);
+  await expect(dialog).toContainText("Changed: Your reflection · English");
+  await expect(dialog).toContainText("Taken away from the published writing");
+  await expect(dialog.getByRole("list").last()).toHaveText(
+    "Your rating for the album",
+  );
+  await expect(removalDialog(page)).toHaveCount(0);
+  await shoot(page, "change-and-removal");
+  await scan(page, "the change dialog with a removal");
+  await expectNoHorizontalOverflow(page);
+
+  // Cancel: neither the edit nor the removal is written.
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).toBeHidden();
+  expect((await stored()).body_text).toBe(before.body_text);
+  expect(await albumRatingStored()).toBe(9);
+  await expect(page.getByText("Unsaved changes")).toBeVisible();
+  expect(tokens).toEqual([]);
 });
 
 test("a review that no longer fits the journal stops the save in the dialog and keeps the text", async ({
@@ -558,8 +666,8 @@ test("a conflict keeps the unsaved writing and says what happened", async ({
   const typed = "[Test] E2E Pub typed in the stale tab.";
   await page.getByLabel("Your reflection", { exact: true }).fill(typed);
 
-  // Another tab saves first (a removal-free edit of the opening needs its own
-  // confirmation, so it saves the album rating away instead: a removal).
+  // Another tab saves first: it takes the album rating away, which needs no
+  // token, but the editor asks first (issue #54).
   const other = await page.context().newPage();
   await openEditor(other);
   await other
@@ -567,7 +675,13 @@ test("a conflict keeps the unsaved writing and says what happened", async ({
     .getByRole("button", { name: "Clear" })
     .click();
   await other.getByRole("button", { name: "Save", exact: true }).click();
+  const removal = removalDialog(other);
+  await expect(removal.getByRole("listitem")).toHaveText([
+    "Your rating for the album",
+  ]);
+  await removal.getByRole("button", { name: "Save and take it away" }).click();
   await expect(other.getByText("Saved just now")).toBeVisible();
+  expect(await albumRatingStored()).toBeNull();
   await other.close();
 
   await page.getByRole("button", { name: "Save", exact: true }).click();
@@ -812,5 +926,69 @@ test("a stale tab cannot undo another tab: Draft, Private, and Unpublish say wha
   await expect(
     panel.getByRole("button", { name: "Unpublish…", exact: true }),
   ).toBeVisible();
+  await other.close();
+});
+
+test("a tab that still shows the journal unpublished cannot take something away without asking (issue #54)", async ({
+  page,
+}) => {
+  // The journal is published (the previous test). Unpublish it through the
+  // studio, then load the editor: it shows nothing published.
+  await page.goto(journalUrl);
+  await visibility(page)
+    .getByRole("button", { name: "Unpublish…", exact: true })
+    .click();
+  await page
+    .getByRole("dialog", { name: "Unpublish the English version?" })
+    .getByRole("button", { name: "Unpublish" })
+    .click();
+  await expect(page.getByText("is no longer published.")).toBeVisible();
+  await openEditor(page);
+  // While nothing is published, including a reflection asks nothing.
+  await openTrack(page, names.tracks[0]);
+  await page.getByLabel("Include when published").check();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText("Saved just now")).toBeVisible();
+  expect((await reflections())[0]!.is_published).toBe(true);
+
+  // Another tab publishes it, with the reflection.
+  const other = await page.context().newPage();
+  await other.goto(journalUrl);
+  await visibility(other)
+    .getByRole("button", { name: "Publish…", exact: true })
+    .click();
+  await publishDialog(other)
+    .getByRole("button", { name: "Publish the English version" })
+    .click();
+  await expect(
+    other.getByText("is now published in your journal."),
+  ).toBeVisible();
+  expect((await stored()).status).toBe("published");
+
+  // This tab still shows it unpublished. Its removal is refused, nothing is
+  // written, and the page then shows the journal as published.
+  await page.getByLabel("Include when published").uncheck();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "changed somewhere else" }),
+  ).toBeVisible();
+  await expect(removalDialog(page)).toHaveCount(0);
+  expect((await reflections())[0]!.is_published).toBe(true);
+  await expect(
+    page.getByText(
+      "This version is published. Saving changes the published writing.",
+    ),
+  ).toBeVisible();
+
+  // The next save asks, naming what readers would lose; Cancel keeps it.
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  const removal = removalDialog(page);
+  await expect(removal.getByRole("listitem")).toHaveText([
+    `Reflection on the track · ${names.tracks[0]} · English`,
+  ]);
+  await removal.getByRole("button", { name: "Cancel" }).click();
+  await expect(removal).toBeHidden();
+  expect((await reflections())[0]!.is_published).toBe(true);
+  await expect(page.getByLabel("Include when published")).not.toBeChecked();
   await other.close();
 });

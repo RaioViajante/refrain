@@ -13,6 +13,7 @@ import {
   isSubsetWithSameValues,
   mintTestToken,
   otherSession,
+  publishForTest,
   publicAtomsFromQueries,
   reissueTestToken,
   rowChecksum,
@@ -824,6 +825,168 @@ describe("publishing and unpublishing around a confirmed save", () => {
         (await getTrackByTrack(tx, author, journal.entryId))?.tracks[0]
           ?.reflection?.publicIn,
       ).toEqual([]);
+    });
+  });
+});
+
+// Issue #54: a removal from a public page needs no token, and the interface
+// asks first (ADR 0006 § 5). The editor sends the language versions it showed
+// as published; a save or a preview made from a tab that no longer shows the
+// journal as it is is refused, so a removal is never saved without asking.
+describe("the published versions the editor showed", () => {
+  const removal = (j: Awaited<ReturnType<typeof publicJournal>>) => ({
+    albumRating: null,
+    reflections: [{ trackId: j.one, isPublished: false }],
+  });
+
+  it("lets a removal through when they are the journal's published versions", async () => {
+    await inScratchTransaction(async (tx) => {
+      const journal = await publicJournal(tx);
+      await save(
+        tx,
+        journal.entryId,
+        { albumRating: 7 },
+        (await preview(tx, journal.entryId, { albumRating: 7 })).confirmation,
+      );
+      const version = await versionOf(tx, journal.entryId);
+      const fields = { ...removal(journal), expectedPublished: ["en"] };
+      expect(
+        (await preview(tx, journal.entryId, fields)).confirmation,
+      ).toBeNull();
+      await expect(save(tx, journal.entryId, fields)).resolves.toEqual({
+        version: version + 1,
+      });
+      const after = await getTrackByTrack(tx, author, journal.entryId);
+      expect(after?.albumRating).toBeNull();
+      expect(after?.tracks[0]?.reflection?.isPublished).toBe(false);
+    });
+  });
+
+  for (const [name, shown] of [
+    ["none, while English is published (another tab published it)", []],
+    [
+      "both, while only English is published (another tab unpublished one)",
+      ["en", "pt-BR"],
+    ],
+    ["the other language only", ["pt-BR"]],
+  ] as const) {
+    it(`refuses the save and its preview when the editor showed ${name}, and writes nothing`, async () => {
+      await inScratchTransaction(async (tx) => {
+        const journal = await publicJournal(tx);
+        const fields = { ...removal(journal), expectedPublished: [...shown] };
+        const before = await rowChecksum(tx);
+        expect(
+          await failureOf(tx, (db) => preview(db, journal.entryId, fields)),
+        ).toBe("status_changed");
+        expect(
+          await failureOf(tx, (db) => save(db, journal.entryId, fields)),
+        ).toBe("status_changed");
+        // Not even an edit with a valid token gets through a stale editor.
+        const edit = { body: "[Test] Edited", expectedPublished: ["en"] };
+        const token = (await preview(tx, journal.entryId, edit)).confirmation;
+        expect(
+          await failureOf(tx, (db) =>
+            save(
+              db,
+              journal.entryId,
+              { ...edit, expectedPublished: [...shown] },
+              token,
+            ),
+          ),
+        ).toBe("status_changed");
+        expect(await rowChecksum(tx)).toEqual(before);
+      });
+    });
+  }
+
+  it("is refused after another tab publishes, and passes once the editor shows it", async () => {
+    await inScratchTransaction(async (tx) => {
+      const journal = await publicJournal(tx);
+      await setPrivacyForTest(tx, author, {
+        entryId: journal.entryId,
+        locale: "en",
+        status: "private",
+      });
+      // The editor loads: nothing is published.
+      const stale = { ...removal(journal), expectedPublished: [] };
+      expect(
+        (await preview(tx, journal.entryId, stale)).confirmation,
+      ).toBeNull();
+      // Another tab publishes the English version again (through the real
+      // checked command).
+      await publishForTest(tx, journal.entryId, "en", author);
+      const before = await rowChecksum(tx);
+      expect(
+        await failureOf(tx, (db) => save(db, journal.entryId, stale)),
+      ).toBe("status_changed");
+      expect(await rowChecksum(tx)).toEqual(before);
+      // Refreshed, the editor shows it published and asks; then it saves.
+      await save(tx, journal.entryId, { ...stale, expectedPublished: ["en"] });
+      expect(
+        (await getTrackByTrack(tx, author, journal.entryId))?.tracks[0]
+          ?.reflection?.isPublished,
+      ).toBe(false);
+    });
+  });
+
+  it("does not refuse a version moving between draft and private, which no reader sees", async () => {
+    await inScratchTransaction(async (tx) => {
+      const journal = await publicJournal(tx);
+      await setPrivacyForTest(tx, author, {
+        entryId: journal.entryId,
+        locale: "pt-BR",
+        status: "draft",
+      });
+      await expect(
+        save(tx, journal.entryId, {
+          ...removal(journal),
+          expectedPublished: ["en"],
+        }),
+      ).resolves.toBeDefined();
+    });
+  });
+
+  it("is optional: a save without it is weighed exactly as before", async () => {
+    await inScratchTransaction(async (tx) => {
+      const journal = await publicJournal(tx);
+      // A removal needs no token (ADR 0006 § 5)...
+      await expect(
+        save(tx, journal.entryId, removal(journal)),
+      ).resolves.toBeDefined();
+      // ...and a change still does, whatever else the save removes.
+      const before = await rowChecksum(tx);
+      expect(
+        await failureOf(tx, (db) =>
+          save(db, journal.entryId, {
+            body: "[Test] Edited",
+            reflections: [{ trackId: journal.two, isPublished: false }],
+          }),
+        ),
+      ).toBe("confirmation_required");
+      expect(await rowChecksum(tx)).toEqual(before);
+    });
+  });
+
+  it("refuses a list that is not a set of known languages", async () => {
+    await inScratchTransaction(async (tx) => {
+      const journal = await publicJournal(tx);
+      for (const shown of [
+        ["en", "en"],
+        ["es"],
+        ["EN"],
+        "en",
+        ["en", "pt-BR", "en"],
+      ]) {
+        expect(
+          await failureOf(tx, (db) =>
+            save(db, journal.entryId, {
+              ...removal(journal),
+              expectedPublished: shown,
+            }),
+          ),
+          JSON.stringify(shown),
+        ).toBe("invalid_input");
+      }
     });
   });
 });

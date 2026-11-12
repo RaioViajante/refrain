@@ -5,9 +5,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ConfirmDialog } from "@/app/studio/form-kit";
 import { saveJournalAction } from "@/app/studio/journals/actions";
 import { previewPublicChangeAction } from "@/app/studio/journals/preview-change-action";
+import type { JournalRemoval } from "@/app/studio/journals/removals";
 import {
   changePlace,
   Notice,
+  RemovalView,
   ReviewedValueView,
 } from "@/app/studio/journals/review-parts";
 import { failureMessage } from "@/app/studio/messages";
@@ -34,8 +36,12 @@ type Stage =
  *
  * - The token lives only in this dialog's state and is sent only by `confirm`.
  *   The editor never sees it.
- * - A save that changes nothing a reader sees has no token: the dialog hands
- *   control back (`onNothingToConfirm`) and the editor saves as it always has.
+ * - A save that adds or changes nothing a reader sees has no token: the dialog
+ *   hands control back (`onNothingToConfirm`), and the editor asks about any
+ *   removal before it saves (issue #54).
+ * - What the same save takes away from readers (`removals`, named by the
+ *   editor; a removal needs no token) is listed too, so nothing is saved
+ *   before the author has seen everything that changes.
  * - If the server refuses (the review ran out, or something changed), the
  *   dialog says so and drops the token. The author asks for a new review.
  * - Any other refusal closes the dialog and goes back to the editor, which
@@ -43,6 +49,7 @@ type Stage =
  */
 export function ChangeDialog({
   payload,
+  removals,
   onSaved,
   onNothingToConfirm,
   onRefused,
@@ -50,6 +57,11 @@ export function ChangeDialog({
 }: {
   /** The save, exactly as the editor would send it, without a token. */
   payload: Record<string, unknown> | undefined;
+  /**
+   * What the same save takes away from readers, named by the editor: a
+   * removal needs no token, and the dialog still shows it.
+   */
+  removals: JournalRemoval[];
   onSaved: (version: number) => void;
   onNothingToConfirm: () => void;
   onRefused: (failure: Failure) => void;
@@ -59,6 +71,7 @@ export function ChangeDialog({
   return payload ? (
     <OpenChangeDialog
       payload={payload}
+      removals={removals}
       onSaved={onSaved}
       onNothingToConfirm={onNothingToConfirm}
       onRefused={onRefused}
@@ -69,12 +82,14 @@ export function ChangeDialog({
 
 function OpenChangeDialog({
   payload,
+  removals,
   onSaved,
   onNothingToConfirm,
   onRefused,
   onCancel,
 }: {
   payload: Record<string, unknown>;
+  removals: JournalRemoval[];
   onSaved: (version: number) => void;
   onNothingToConfirm: () => void;
   onRefused: (failure: Failure) => void;
@@ -264,7 +279,18 @@ function OpenChangeDialog({
                 );
               })}
             </ul>
-            <p className="studio-hint">{w.removals}</p>
+            {removals.length > 0 ? (
+              <div>
+                <h3 className="studio-label">{w.takenAway}</h3>
+                <ul className="studio-review-list">
+                  {removals.map((item, index) => (
+                    <li key={index}>
+                      <RemovalView removal={item} />
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
           </>
         ) : null}
       </div>

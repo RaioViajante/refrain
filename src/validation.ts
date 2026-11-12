@@ -45,3 +45,20 @@ export function cleanText(text: string): string {
     .replace(/\r\n?/g, "\n")
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "");
 }
+
+/**
+ * Unicode white space only, and the zero-width characters that render as
+ * nothing, is blank (ADR 0006 § 4, step 6): a text row always means text.
+ */
+export const INVISIBLE_ONLY = /^[\p{White_Space}\u200B-\u200D\u2060\uFEFF]*$/u;
+
+/**
+ * Whether the server stores no text for `text`: once cleaned (control
+ * characters removed), it is blank. The body and reflection normalization
+ * removes only white space beyond `cleanText`, so this is exactly the
+ * server's test. Pure, so the Studio's editor asks the same question before a
+ * save (issue #54).
+ */
+export function isBlankText(text: string): boolean {
+  return INVISIBLE_ONLY.test(cleanText(text));
+}

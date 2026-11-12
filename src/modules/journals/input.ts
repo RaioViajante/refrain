@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { locales } from "@/db";
 import { MAX_CONFIRMATION_TOKEN_LENGTH } from "@/modules/identity";
-import { cleanText } from "@/validation";
+import { cleanText, INVISIBLE_ONLY } from "@/validation";
 
 import { normalizeBodyText } from "./body";
 
@@ -54,10 +54,6 @@ export type CreateAlbumJournalInput = z.input<typeof createAlbumJournalInput>;
 // shorter than a whole-album reflection, and a blank text removes it.
 export const MAX_REFLECTION_LENGTH = 20_000;
 export const MAX_REFLECTIONS_PER_SAVE = 500;
-
-// Unicode white space only, and the zero-width characters that render as
-// nothing, is blank (ADR 0006 § 4, step 6): a text row always means text.
-const INVISIBLE_ONLY = /^[\p{White_Space}\u200B-\u200D\u2060\uFEFF]*$/u;
 
 const reflectionText = z
   .string()
@@ -117,6 +113,17 @@ export const saveAlbumJournalInput = z
         (list) =>
           new Set(list.map((item) => item.trackId)).size === list.length,
       ),
+    // The language versions the author's editor showed as published (issue
+    // #54). When it is given and the journal's published versions are no
+    // longer exactly these (another tab published or unpublished one), the
+    // save, and its preview, are refused as `status_changed`: a removal from
+    // a public page needs no token, and the interface must ask first (ADR
+    // 0006 § 5), which an editor that believes nothing is public cannot do.
+    // The same guard as a memory's `expectedStatus` (M3.7).
+    expectedPublished: z
+      .array(z.enum(locales))
+      .max(locales.length)
+      .refine((list) => new Set(list).size === list.length),
     // Needed only when the save changes what a reader sees of a public
     // journal. It comes from the confirmation dialog and nowhere else.
     confirmation: z
@@ -129,6 +136,7 @@ export const saveAlbumJournalInput = z
     body: true,
     albumRating: true,
     reflections: true,
+    expectedPublished: true,
     confirmation: true,
   })
   .refine(
