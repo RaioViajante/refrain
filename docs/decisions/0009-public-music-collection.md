@@ -154,7 +154,7 @@ This is verified by tests (§ 15), not assumed.
 | **Relisting** the same album | Kept. A slug input is refused (`slug_fixed`), and the review shows the existing address. | set | `200` at the **same** address |
 | **Archiving** the album | Kept | Cleared in the same transaction | `404` |
 | **Restoring** the album | Kept | Stays `NULL`. Restore never relists. | `404` until a confirmed relisting |
-| **Renaming** the album | Kept: the slug does not follow the title | Unchanged (refused while shown, § 8) | Unchanged |
+| **Renaming** the album | Kept: the slug does not follow the title | Unchanged (refused while shown, § 9) | Unchanged |
 | **Deleting** the album | Refused (`collection_address_reserved`) while a slug exists. Archive instead. | n/a | n/a |
 | **Collision** | The preview refuses a slug held by another album (`slug_taken`). A concurrent first listing of the same slug fails at commit on `UNIQUE` (`slug_taken`). Nothing is written, and the author previews again. | unchanged | unchanged |
 
@@ -235,13 +235,15 @@ The atoms public after each operation are a subset of the atoms public before, w
 - **Lists of artists (amends A6, item 1):**
   - every read that derives artist addresses (the artist page, the `/artists` archive, and the Home's Artists section) computes them over the **whole** extended visible set, so a namesake gets the same address everywhere;
   - the `/artists` archive lists every artist with a page, with two counts: served album journals and listed albums;
-  - the Home's Artists section keeps A6's choice: artists with served journals only.
+  - **proposed** ([Open decisions](#open-decisions), item 4): the Home's Artists section keeps A6's choice, artists with served journals only.
 - **Collection-only artists** (decision 13): an artist whose only public page comes from the collection.
   - Their page shows **no photograph**, even when one is stored.
   - **None can be chosen.** `setArtistPhoto` refuses (`public_page`) for them, and the Studio offers no photograph control for them.
   - Removing a stored photograph stays allowed.
   - An artist whose page also comes from a served journal keeps A5's behaviour, which stays local-only until deployment-gate item 7 is recorded.
-- **A5's publication disclosure is computed against A5's own set, not the extended one (amends A5, part 1).** A collection-only artist has a page but shows no photograph. A publication that would give that artist a journal-derived page therefore **discloses it as opening**, with its photograph's file, version, credit, and license, or none, and binds it into the fingerprint. Without this, a photograph stored before the artist became collection-only (for example, chosen while a journal gave the artist a page that was later unpublished) would appear unreviewed, because the page already counts as open.
+- **A5's publication disclosure decides membership against A5's own set (amends A5, part 1).** A collection-only artist has a page but shows no photograph. A publication that would give that artist a journal-derived page therefore lists it under **"Artist pages gaining a journal"**, with its photograph's file, version, credit, and license, or none, and binds it into the fingerprint, beside A5's "Artist pages that will open".
+  - **Which artists** are listed is decided against A5's set: artists with a page from a served journal.
+  - **Their addresses**, and those of any namesake, are still computed over the **extended** set, because that is what the pages answer. Without this, a photograph stored before the artist became collection-only (for example, chosen while a journal gave the artist a page that was later unpublished) would appear unreviewed, because the page already counts as open.
 - **Restoring an artist** who would gain a page, or whose shown credit would change its rendering, is refused, as in A5, now also when the page would come from a listed album.
 
 ### 9. Gate G8: shown catalog records are not edited in place
@@ -271,7 +273,7 @@ The atoms public after each operation are a subset of the atoms public before, w
 | `removeAlbumArtwork`, `removeArtistPhoto`, unlist, archive album | Always allowed (§ 7) |
 | `restoreAlbum` | Allowed: it never relists (§ 5). Among public reads, only the collection rule depends on `albums.archived_at`. |
 | `linkAlbumToMusic`, `linkArtistToMusic` | Allowed when they fill identifiers only, which no page shows. Refused for a shown album if linking would create its reference edition. |
-| `importMusicRelease`, `importMusicArtist`, `createAlbum`, `createArtist` | Allowed: a new record is not shown, and reused artists and recordings are not changed |
+| `importMusicArtist`, `createAlbum`, `createArtist`, and `importMusicRelease` outside the refusal above | Allowed: a new record is not shown, and reused artists and recordings are not changed |
 | `deleteAlbum`, `deleteArtist`, `deleteTrack` | A listed-once album is refused (§ 5). Otherwise the foreign keys already refuse a referenced record (`RESTRICT`). |
 
 **Closing the gap at publication time (amends ADR 0006 § 2, and strengthens it).** Refusal alone leaves one window: while a journal is unpublished its album is not shown, so a catalog edit made **between a publication's preview and its confirmation** would reach the page unreviewed. Therefore:
@@ -300,7 +302,7 @@ ADR 0006's "Informational lines are not part of the set" therefore ends for cata
 ### 10. Locks and concurrency
 
 - **Order, for every command in § 6 to § 9:**
-  1. entries `FOR SHARE`, in ascending id order: every album journal of the albums involved, as A3 and A5 already do, and **every memory linking the albums or tracks involved, whatever their state**;
+  1. entries `FOR SHARE`, in ascending id order: every album journal of the albums involved, as A3 and A5 already do, and **every memory that links any album involved, any track involved, or any track on an album involved, whatever its state**. That includes the memories linking the recordings that `importMusicRelease` reuses, which therefore takes entry locks for the first time;
   2. then albums, in ascending id order (`FOR NO KEY UPDATE` for a write to the album, as A3 does, so that the foreign-key `KEY SHARE` locks of journal and memory inserts are not blocked; `FOR SHARE` otherwise);
   3. then artists, in ascending id order;
   4. then tracks.
@@ -312,6 +314,7 @@ ADR 0006's "Informational lines are not part of the set" therefore ends for cata
 - **Listing against catalog edits.** Listing locks the album's journal entries `FOR SHARE`, the album `FOR NO KEY UPDATE`, then its credited artists `FOR SHARE`. An edit that holds one of those rows makes the listing wait and then fail as stale. A listing that commits first is seen by the edit, which then refuses.
 - **Residual windows, recorded and not closed:**
   - **Concurrent page openings.** A publication **of another album's journal** that opens or closes the same artist page, or changes a namesake's address, while a listing runs is not serialized with it. The page ends as one of the two reviews described (A5's class).
+  - **Another album's journal changes a memory's named album.** A memory names, for a linked track, the album with a served journal, or else the earliest one. Publishing or unpublishing **another** album's journal can change which album a served memory names, and that publication's review does not show it. Recorded as A5's class: the named album is a catalog record already in the catalog, and nothing private is shown. Closing it would mean disclosing affected memories in the publication review, which is a follow-up.
   - **Late entries.** An entry created after a command's locking statement is not locked by it (A3's class).
   - **Deadlocks.** A command that takes rows outside this order (`createTrack`'s foreign-key locks, as A5 records) can deadlock. PostgreSQL aborts one request with `40P01`, and nothing is written.
 - **Isolation.** The default `READ COMMITTED` is enough, because every decision is made by a statement that runs after the locks.
@@ -513,7 +516,7 @@ These texts change in the same pull request that accepts this ADR. None changes 
 Product decisions 1 to 15 are settled. These remain for the owner, and none blocks accepting the architecture:
 
 1. **Navigation:** whether "Collection" joins the header's sections. Proposed: no. It is reached from the Home section, from artist pages, and from journal pages, which keeps the V4.4 header unchanged.
-2. **Collection archive order.** Proposed: artist sort name, then year, then title.
+2. **Collection archive order.** Proposed: first credited artist's name as rendered, then year, then title. The sort name stays outside public reads (§ 9). Using it would put it under the G8 refusal.
 3. **Labels in both languages:** the Home section's link to `/collection`, the collection page's heading for its journal links, and the journal page's link to the collection page.
 4. **Artists on the Home:** proposed, the Home's Artists section keeps A6's journal-derived artists, and the `/artists` archive lists collection-only artists too (§ 8).
 5. **Scope of `noindex` at the first public opening:** this ADR applies it to collection surfaces. Whether the rest of the public site also opens with `noindex` belongs to the [hosted-launch plan](../hosted-launch.md) and its stage S4.
