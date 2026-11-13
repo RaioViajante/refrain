@@ -12,6 +12,7 @@ Significant architectural, data, and workflow decisions are recorded here as sho
 | [0006](0006-publication-decision-and-acknowledgement.md) | Publication Decision and Acknowledgement | Accepted; amended through 2026-11-10 (A1 to A7; A7's public surfaces are built, its Studio surfaces are not) |
 | [0007](0007-hosted-backups-and-retention.md) | Hosted Backups, Retention, and Recovery | Accepted (2026-11-07); not provisioned yet |
 | [0008](0008-interface-localization.md) | Interface Localization (English and Brazilian Portuguese) | Accepted (2026-11-10); not implemented |
+| [0009](0009-public-music-collection.md) | The Public Music Collection | Proposed (2026-11-12, revised and narrowed 2026-11-13); not accepted, nothing built |
 
 ## Format
 
