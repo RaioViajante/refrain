@@ -54,7 +54,7 @@
 | **Status quo:** catalog only beside published writing | Rejected. It does not meet decision 1. |
 | **Implicit visibility:** every catalog album that is not archived is public | Rejected. It breaks decisions 2 and 3. |
 | **A published snapshot:** a frozen JSON copy of what was reviewed, which public pages read | Not chosen. It closes G8 by construction for the collection only, and adds a second copy of the catalog and a second rendering path. It remains the fallback if the refusal guard proves too costly in use ([Revisit when](#revisit-when)). |
-| **A confirmed catalog change:** a token-bound preview of the wording delta across every page that shows a record, then the edit | Not chosen for now. It would let a typo be fixed without taking pages down. But it needs a delta over every surface kind, its own token purpose, and its own tests: a larger change than refusal. It is the next step if § 8's cost is too high. |
+| **A confirmed catalog change:** a token-bound preview of the wording delta across every page that shows a record, then the edit | Not chosen for now. It would let a typo be fixed without taking pages down. But it needs a delta over every surface kind, its own token purpose, and its own tests: a larger change than refusal. It is the next step if § 9's cost is too high. |
 | **A separate `catalog_listings` table** | Not chosen. It is equivalent to two columns, with one more join, and listings need no history rows. |
 | **Addresses in the `/albums/<slug>` namespace** | Rejected, also by decision 6. Journal slugs live in `entry_slugs` ([ADR 0003 § 3](0003-relational-schema-conventions.md#3-published-slugs-stay-reserved-after-permanent-deletion)), so uniqueness across both tables would need a trigger. It would also change M3.1's resolution, `308`s, and G1 evidence. |
 | **Chosen:** two columns on `albums`, a confirmed listing, the `/collection` section, a refusal guard for every shown catalog record, and catalog atoms bound into publication fingerprints | The smallest change that meets the owner's decisions, keeps uniqueness declared in PostgreSQL, leaves the journal routes untouched, and closes G8 in a way that tests can verify. |
@@ -70,7 +70,7 @@
 - **A shown catalog record:** any catalog row whose wording a public surface renders while public reads are on. That means:
   - a listed album, its credited artists, its reference edition, and that edition's tracks;
   - an album with a served album journal, its credits, its reference edition (including the label the journal page shows), and its tracks;
-  - every album and track linked from a served memory, and their credited artists;
+  - every album and track linked from a served memory, the artists credited on them (`album_artists` for a linked album, `track_artists` for a linked track), and **every album that contains a linked track**: a memory page names one of them for the track, namely the album with a served journal or else the earliest by year and title ([`memory-music.ts`](../../src/modules/publication/memory-music.ts)), so adding the track to an album, or renaming or re-dating any album that contains it, can change the memory page;
   - every artist with a public page.
 
   "Shown" is computed only from Publication fragments (§ 3).
@@ -85,7 +85,7 @@ One migration, through [`/refrain-db-change`](../development.md#database-changes
 | `collection_slug text NULL` | The collection address. It is set at the first confirmed listing, then **never changed or cleared**. | `UNIQUE (collection_slug)`; `CHECK (collection_slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$' AND char_length(collection_slug) <= 80)`, the same form as `entry_slugs` |
 
 - **Both default to `NULL`.** Every existing album, and every future import, starts unlisted (decision 2). The migration sets no values: it lists nothing.
-- **A slug is present exactly when the album was listed at least once.** That plays the role of `was_published` in ADR 0003, without a history table.
+- **The application sets a slug only at the first listing,** so a slug is present exactly when the album was listed at least once. That plays the role of `was_published` in ADR 0003, without a history table. The database enforces only "listed ⇒ slug". The converse is the commands' rule, and an out-of-process writer is on G3's inventory (§ 14).
 - **No other column changes.** Listing touches no foreign key and no authored table.
 - **The smaller alternative was examined.** A single `collection_slug` whose presence means "listed" cannot keep the address stable across unlisting, so the second column is needed.
 
@@ -101,8 +101,8 @@ The publication predicate gains one fragment, implemented once in [`predicate.ts
 - its credited artists, in credit order, as `credited_as` or the artist's name;
 - each one linked only when that artist has a public page;
 - the reference edition's tracklist: disc, position, title, and `length_ms` formatted as minutes and seconds (nothing when the length is unknown, never an invented value);
-- the cover, under § 11, or the existing fallback frame, with its source line;
-- either the approved sentence (decision 9) or the links to the album's served journals (§ 10).
+- the cover, under § 12, or the existing fallback frame, with its source line;
+- either the approved sentence (decision 9) or the links to the album's served journals (§ 11).
 
 **What it never shows or uses:**
 
@@ -133,7 +133,7 @@ In particular:
 
 - **The approved sentence** depends only on whether a served journal exists. A listed album with a draft journal shows the sentence exactly as one with no journal does.
 - **Listing state never depends on writing.** No command lists or unlists because of a journal's state, and the listing review is identical with or without unpublished writing.
-- **Refusals that name writing** (§ 8) are Studio responses: authorized, `private, no-store`, never logged with their content, and never part of a public response.
+- **Refusals that name writing** (§ 9) are Studio responses: authorized, `private, no-store`, never logged with their content, and never part of a public response.
 
 This is verified by tests (§ 15), not assumed.
 
@@ -149,7 +149,7 @@ This is verified by tests (§ 15), not assumed.
 
 | Event | `collection_slug` | `collection_listed_at` | The address answers |
 | --- | --- | --- | --- |
-| **First listing** (slug `NULL`) | Proposed from the title by [`slug.ts`](../../src/modules/publication/slug.ts)'s normalization, with suffixes (`-2`, `-3`) for slugs that any album holds. **The author may replace it** in the review (decision 7). It is validated (the `CHECK` form, at most 80 characters, not held by any album, listed or not, archived or not), shown in the disclosure, and bound into the token. Then it is written. | set | `200` |
+| **First listing** (slug `NULL`) | Proposed from the title by [`slug.ts`](../../src/modules/publication/slug.ts)'s normalization, with suffixes (`-2`, `-3`) for slugs that any album holds. A title that normalizes to nothing (for example, one written entirely in a non-Latin script) gets no proposal: the preview answers `slug_required`, and the author supplies one. **The author may replace a proposal** in the review (decision 7). It is validated (the `CHECK` form, at most 80 characters, not held by any album, listed or not, archived or not), shown in the disclosure, and bound into the token. Then it is written. | set | `200` |
 | **Unlisting** | Kept | `NULL` | The identical unknown-address `404` |
 | **Relisting** the same album | Kept. A slug input is refused (`slug_fixed`), and the review shows the existing address. | set | `200` at the **same** address |
 | **Archiving** the album | Kept | Cleared in the same transaction | `404` |
@@ -164,6 +164,9 @@ This is verified by tests (§ 15), not assumed.
   - Refusing deletion keeps it reserved even after the album is no longer wanted.
 - **No historical addresses.** Because a slug never changes, there are no previous addresses and no redirects to preserve. Changing an address would need its own decision, with `308` semantics that respect INV-5.
 - **Out-of-process writers.** A deletion or edit through `psql`, a console, or a script could break these rules. They are on G3's inventory (§ 14).
+- **A limit shared with journal slugs: restoring an older backup.** A backup taken before an album's first listing holds no slug for it. If such a copy were restored, that address would no longer be reserved, and another album could take it. The backup inventory deliberately carries no slugs ([ADR 0007 § 3](0007-hosted-backups-and-retention.md#3-what-a-recovery-may-do)), and journal slugs published after the backup have the same limit today. It is recorded here, not closed. Two mitigations:
+  - a restored copy starts with nothing listed (§ 14);
+  - the recovery review compares the restored albums with the newest available state before anything is listed again.
 
 ### 6. Listing: preview and confirmation
 
@@ -174,10 +177,15 @@ Listing follows ADR 0006's three-part model: a disclosure, a server-authenticate
   - the **collection address** that will be public: the existing slug, or for a first listing the proposed slug or the author's valid replacement;
   - every atom of § 3 exactly as the page will render it;
   - the **artist pages the listing would open** and the **public artist pages whose address would change**, as A5's review does;
-  - the cover the page would show, or "fallback", and whether cover display is enabled (§ 11);
+  - the **stored cover**, or "none", **whatever the cover switch says** (§ 12), and separately whether the switch currently shows it;
+  - the **served journal pages that will gain a link** to this collection page (§ 11);
   - a confirmation token.
 
-  It refuses an archived album, an album with no reference edition or no tracks (`nothing_to_list`), an invalid or taken slug, and a slug input for an album that already has one.
+  It refuses:
+  - an archived album;
+  - an album with no reference edition or no tracks (`nothing_to_list`);
+  - an invalid or taken slug, or a missing one where none can be proposed (`slug_required`);
+  - a slug input for an album that already has one.
 - **The token** reuses ADR 0006's machinery: an HMAC over claims, a key derived from the application secret through the Identity module, binding to the author's user and session, a 15-minute expiry on the database clock, no storage, never logged or echoed, and a refusal carries none. It differs in four ways:
   - its own prefix, `cc1.`;
   - its own HKDF `info` string, `refrain/confirmation-token/collection1`, under ADR 0006's rule that "a new use of the secret gets a new `info` string";
@@ -187,7 +195,7 @@ Listing follows ADR 0006's three-part model: a disclosure, a server-authenticate
   Its fingerprint is the SHA-256 of the canonical JSON of the album id, the operation, the slug, every atom of the disclosure, and the album's `updated_at` as the state stamp. The atoms are bound directly and are the primary guarantee.
 - **`listAlbumInCollection(db, author, { albumId, slug?, confirmation })`** runs in one transaction:
   1. Zod, then the token's form, key, MAC, purpose, actor, and album binding, all **before** any lock.
-  2. The locks of § 9.
+  2. The locks of § 10.
   3. Refuse an archived album.
   4. The expiry, on `clock_timestamp()` after the locks.
   5. Recompute the disclosure from the locked rows, and refuse `confirmation_stale` (fresh disclosure, no token) on any difference.
@@ -196,7 +204,7 @@ Listing follows ADR 0006's three-part model: a disclosure, a server-authenticate
   An already listed album with an unchanged disclosure is a no-op.
 - **Error codes** are ADR 0006's (`invalid_input`, `unavailable`, `confirmation_required`, `confirmation_invalid`, `confirmation_expired`, `confirmation_stale`), plus:
   - `album_not_found`, `album_archived`, `nothing_to_list`;
-  - `invalid_slug`, `slug_taken`, `slug_fixed`;
+  - `invalid_slug`, `slug_required`, `slug_taken`, `slug_fixed`;
   - `collection_address_reserved`.
 
   Every failure writes nothing.
@@ -213,22 +221,27 @@ These operations only take something away. Each **needs no token** (ADR 0006, ow
 | --- | --- |
 | `unlistAlbumFromCollection` | Clears `collection_listed_at` and keeps the slug (§ 5). Artist pages that existed only through this listing close. |
 | Archive a listed album | Unlists it in the same transaction |
-| Remove an album's cover | **Always allowed**, including while a journal is served or the album is listed. **This amends A3**, which today refuses removal while a journal is public. Removal is the cover takedown path, and the fallback frame shows instead. |
+| Remove an album's cover | **Always allowed**, including while a journal is served, while the album is listed, and **while the album is archived** (archiving does not hide a served journal's page). **This amends A3**, which today refuses removal while a journal is public, and drops `removeAlbumArtwork`'s refusal of archived albums. Removal is the cover takedown path, and the fallback frame shows instead. |
 | Remove an artist's photograph | Always allowed, as A5 already says |
 | Unpublish or delete a journal or memory | Unchanged (ADR 0006) |
 
-The atoms public after each operation are a subset of the atoms public before, with unchanged values (tested, § 15).
+The atoms public after each operation are a subset of the atoms public before, with unchanged values (tested, § 15), with **one recorded exception**. Unlisting, or archiving an album or an artist, can remove a namesake from the visible set. The other artist's derived address then changes from its suffixed form to the bare one ([`artist-address.ts`](../../src/modules/publication/artist-address.ts)), and the old address answers the unknown-address `404`. It is the A5 residual for derived artist addresses: it reveals nothing private, and a stored artist slug would remove it.
 
 ### 8. Artist pages and photographs
 
 - **The public artist set becomes A5's set plus the artists credited** (`album_artists`, never `track_artists`) on a listed album, while the artist is not archived.
 - **Addresses** are still derived from names over the whole visible set ([`artist-address.ts`](../../src/modules/publication/artist-address.ts)). A listing can open pages and change a namesake's address, and both are in its disclosure and fingerprint (§ 6).
 - **An artist page lists** the artist's served album journals (as today) and its listed albums, each linked to its collection page.
+- **Lists of artists (amends A6, item 1):**
+  - every read that derives artist addresses (the artist page, the `/artists` archive, and the Home's Artists section) computes them over the **whole** extended visible set, so a namesake gets the same address everywhere;
+  - the `/artists` archive lists every artist with a page, with two counts: served album journals and listed albums;
+  - the Home's Artists section keeps A6's choice: artists with served journals only.
 - **Collection-only artists** (decision 13): an artist whose only public page comes from the collection.
   - Their page shows **no photograph**, even when one is stored.
   - **None can be chosen.** `setArtistPhoto` refuses (`public_page`) for them, and the Studio offers no photograph control for them.
   - Removing a stored photograph stays allowed.
   - An artist whose page also comes from a served journal keeps A5's behaviour, which stays local-only until deployment-gate item 7 is recorded.
+- **A5's publication disclosure is computed against A5's own set, not the extended one (amends A5, part 1).** A collection-only artist has a page but shows no photograph. A publication that would give that artist a journal-derived page therefore **discloses it as opening**, with its photograph's file, version, credit, and license, or none, and binds it into the fingerprint. Without this, a photograph stored before the artist became collection-only (for example, chosen while a journal gave the artist a page that was later unpublished) would appear unreviewed, because the page already counts as open.
 - **Restoring an artist** who would gain a page, or whose shown credit would change its rendering, is refused, as in A5, now also when the page would come from a listed album.
 
 ### 9. Gate G8: shown catalog records are not edited in place
@@ -243,26 +256,31 @@ The atoms public after each operation are a subset of the atoms public before, w
 
 | Command | While the record is shown |
 | --- | --- |
-| `updateAlbum`: title, year, credits (adding, removing, order, `credited_as`), and **reference-edition fields** (label, date, country) | Refused. **This narrows A5**, which allowed reordering, credit wording, and credit removal. |
-| `setAlbumTracklist`, `addTrackToAlbum`, `removeTrackFromAlbum`, `moveTrackInAlbum` | Refused for a shown album |
-| `createTrack` **with an `albumId`** (it appends to that album's tracklist) | Refused for a shown album. Without an album, allowed. |
+| `updateAlbum`: title, year, credits (adding, removing, order, `credited_as`), and **reference-edition fields** (label, date, country) | Refused for a shown album, including an album that contains a memory-linked track (§ 1). **This narrows A5**, which allowed reordering, credit wording, and credit removal. |
+| `setAlbumTracklist`, `addTrackToAlbum`, `removeTrackFromAlbum`, `moveTrackInAlbum` | Refused for a shown album, and whenever they would add a track linked from a served memory to any album (that can change the album the memory names) |
+| `createTrack` **with an `albumId`** (it appends to that album's tracklist) | Refused for a shown album. Without an album, allowed: a new track is linked from nothing. |
+| `importMusicRelease` reusing an existing recording | Refused when a reused recording is linked from a served memory and the new album would become the album that memory names (§ 1). Otherwise allowed. |
 | `updateTrack`: title, length, credit, track artists | Refused for a track on a shown album or linked from a served memory |
-| `archiveTrack`, `restoreTrack` | Refused for such a track (they change how a memory renders it) |
-| `updateArtist`: any field (name, sort name, kind, identifier) | Refused for an artist with a public page or credited on a shown album. **This narrows A5**, which allowed renames. The sort name orders public lists. |
+| `archiveTrack`, `restoreTrack` | Allowed: no public read depends on a track's archived state, and the collection page lists the reference edition's tracks as they are |
+| `updateArtist`: the **name** | Refused for an artist with a public page, credited on a shown album, or credited on a memory-linked track. **This narrows A5**, which allowed renames. |
+| `updateArtist`: sort name, kind, identifier | Allowed: no public read uses them. A static test asserts that the Publication reads do not select these columns. |
 | `archiveArtist` | Allowed (a reduction, as A5 says). The credit renders as plain text. |
 | `restoreArtist` | Refused when it would open a page or change a shown credit's rendering |
 | `setAlbumArtwork` | Refused for a shown album (A3, extended to listed albums) |
 | `setArtistPhoto` | Refused while the artist has any public page (A5), and always for a collection-only artist (§ 8) |
 | `removeAlbumArtwork`, `removeArtistPhoto`, unlist, archive album | Always allowed (§ 7) |
+| `restoreAlbum` | Allowed: it never relists (§ 5). Among public reads, only the collection rule depends on `albums.archived_at`. |
 | `linkAlbumToMusic`, `linkArtistToMusic` | Allowed when they fill identifiers only, which no page shows. Refused for a shown album if linking would create its reference edition. |
 | `importMusicRelease`, `importMusicArtist`, `createAlbum`, `createArtist` | Allowed: a new record is not shown, and reused artists and recordings are not changed |
 | `deleteAlbum`, `deleteArtist`, `deleteTrack` | A listed-once album is refused (§ 5). Otherwise the foreign keys already refuse a referenced record (`RESTRICT`). |
 
 **Closing the gap at publication time (amends ADR 0006 § 2, and strengthens it).** Refusal alone leaves one window: while a journal is unpublished its album is not shown, so a catalog edit made **between a publication's preview and its confirmation** would reach the page unreviewed. Therefore:
 
-- **the catalog atoms each page renders** (for an album journal: title, year, edition label, credits as rendered, tracklist titles and order, and the cover or fallback; for a memory: the rendered title and credit of each linked album and track) **join the publication disclosure and fingerprint**, as A5 already did for artist pages;
+- **the catalog atoms each page renders join the publication disclosure and fingerprint**, as A5 already did for artist pages:
+  - for an album journal: title, year, edition label, credits as rendered, each track's title, credit, and order, the stored cover or none, and the presence and address of the collection link;
+  - for a memory: each link's rendered title, its credited artists, and the album named for each linked track (title and address);
 - **a catalog edit in that window makes the publication stale** (`confirmation_stale`, the fresh disclosure, no token);
-- **the confirmed save** (ADR 0006 § 5) is unaffected: it changes writing, not the catalog.
+- **the confirmed save (amends ADR 0006 §§ 1 and 5):** a memory link's atom gains its rendered wording (title, credits, named album). Today a link is bound by id only, so a track not yet linked could be renamed between `previewPublicChange` and the save. An added or reordered link's wording is now part of the delta, so such a rename makes the save stale.
 
 ADR 0006's "Informational lines are not part of the set" therefore ends for catalog wording. That is the resolution G8 asks for.
 
@@ -277,21 +295,23 @@ ADR 0006's "Informational lines are not part of the set" therefore ends for cata
   - a previous address still answers as INV-5 says.
 - **The cost** is that the pages are briefly absent and the author confirms each again. It is recorded as a consequence. If it proves too high, the confirmed catalog change in [Alternatives](#alternatives-considered) is the next step, through its own decision.
 
-**What remains outside the guard, recorded rather than accepted as harmless:** what external providers serve (an image replaced at the Cover Art Archive under the same Image ID). § 11's cover switch and the takedown path bound it, and the rights review records it.
+**What remains outside the guard, recorded rather than accepted as harmless:** what external providers serve (an image replaced at the Cover Art Archive under the same Image ID). § 12's cover switch and the takedown path bound it, and the rights review records it.
 
 ### 10. Locks and concurrency
 
 - **Order, for every command in § 6 to § 9:**
-  1. entries `FOR SHARE`, in ascending id order: every journal of the albums involved and every memory linking the albums or tracks involved, whatever their state, as A3 and A5 already do;
-  2. then albums, in ascending id order (`FOR UPDATE` for a write to the album, `FOR SHARE` otherwise);
+  1. entries `FOR SHARE`, in ascending id order: every album journal of the albums involved, as A3 and A5 already do, and **every memory linking the albums or tracks involved, whatever their state**;
+  2. then albums, in ascending id order (`FOR NO KEY UPDATE` for a write to the album, as A3 does, so that the foreign-key `KEY SHARE` locks of journal and memory inserts are not blocked; `FOR SHARE` otherwise);
   3. then artists, in ascending id order;
   4. then tracks.
 
-  No entry command takes an explicit catalog lock (L3 unchanged). Listing takes no entry lock, because no entry state decides it beyond which artist pages exist.
+  **Share-locking memory entries is new.** A3 and A5 lock album-journal entries only, and A3's note on L2 says that any other command holding several entry locks needs its own decision. **This is that decision:** several memory entries may be held `FOR SHARE`, in the same ascending id order, interleaved with the album journals in one sorted list. No entry command waits on a second entry, so no cycle forms among them.
+
+  No entry command takes an explicit catalog lock (L3 unchanged). **Listing share-locks the album's own journal entries first,** because the served-journal links it discloses depend on them. The artist pages it discloses can also depend on other albums' journals, which it does not lock: that is the residual window below.
 - **Publication against catalog edits.** A publication takes its entry `FOR UPDATE`. A catalog edit holds that entry `FOR SHARE` before deciding. Either the edit commits first and the publication's fingerprint, which now binds catalog atoms, fails as stale; or the publication commits first and the edit then sees the record shown and refuses.
-- **Listing against catalog edits.** Listing locks the album `FOR UPDATE`, then its credited artists `FOR SHARE`. An edit that holds one of those rows makes the listing wait and then fail as stale. A listing that commits first is seen by the edit, which then refuses.
+- **Listing against catalog edits.** Listing locks the album's journal entries `FOR SHARE`, the album `FOR NO KEY UPDATE`, then its credited artists `FOR SHARE`. An edit that holds one of those rows makes the listing wait and then fail as stale. A listing that commits first is seen by the edit, which then refuses.
 - **Residual windows, recorded and not closed:**
-  - **Concurrent page openings.** A publication that opens the same artist page between a listing's preview and its commit leaves the page open, as both reviews said (A5's class).
+  - **Concurrent page openings.** A publication **of another album's journal** that opens or closes the same artist page, or changes a namesake's address, while a listing runs is not serialized with it. The page ends as one of the two reviews described (A5's class).
   - **Late entries.** An entry created after a command's locking statement is not locked by it (A3's class).
   - **Deadlocks.** A command that takes rows outside this order (`createTrack`'s foreign-key locks, as A5 records) can deadlock. PostgreSQL aborts one request with `40P01`, and nothing is written.
 - **Isolation.** The default `READ COMMITTED` is enough, because every decision is made by a statement that runs after the locks.
@@ -338,7 +358,7 @@ Every surface reads only through the Publication module's reading entry point, i
 - **Cover display: `REFRAIN_COVER_DISPLAY_ENABLED`, a new server-only switch.** It follows D4's form: never `NEXT_PUBLIC_`, read per request, enabled only by exactly `true`, and **off by default**.
   - **Off:** every surface (public pages, and the Studio, under the owner's 2026-11-08 reading in #82) renders the existing fallback frame, and no page asks a reader's or the author's browser to fetch from the Cover Art Archive. Stored `cover_url` values and their Image IDs are **kept**, not cleared, so the author's choices survive.
   - **On a hosted deployment,** the owner turns it on only after recording the deployment-gate item 6 review. Local development may turn it on.
-  - **It can only hide.** A cover shown after it is turned on is one that a listing or publication review already disclosed.
+  - **It can only hide.** Listing and publication disclosures bind the **stored** cover whatever the switch says (§ 6, § 9), so a cover shown after the switch is turned on is one that a review disclosed. **Limit:** journals published before § 9's fingerprint rule is implemented did not bind their cover (ADR 0006 kept covers out of the fingerprint). The item 6 review therefore covers every cover the deployment would show, not only those that reviews disclosed.
 - **An Image ID is not a licence.** Choosing an image in the Studio, or the Cover Art Archive serving it, says which image the author prefers. It grants no right to display it publicly. The Cover Art Archive states that its images are "copyrighted by their respective copyright owners".
   - Only the owner's recorded item 6 review authorizes hosted display. No document, test, or agent may treat an Image ID approval, a successful fetch, or this switch's existence as that authorization.
   - The same holds for photographs and item 7.
@@ -366,7 +386,10 @@ Every surface reads only through the Publication module's reading entry point, i
   - no photograph control for collection-only artists.
 
   There is no bulk control. Administrative controls never appear on public pages.
-- **The new writers** of `collection_listed_at` and `collection_slug` (the listing, unlisting, and album-archive commands, and the migration that adds the columns) join ADR 0006 § 9's static writer scan by call target. Any other writer fails it.
+- **Module ownership.** The listing, unlisting, and preview commands belong to the **Publication** module. It owns public state and the confirmation tokens, and it writes only `albums.collection_listed_at` and `albums.collection_slug`, as the one checked writer of listing state (ADR 0006 § 9).
+  - `archiveAlbum` stays in Catalog and clears the listing through a Publication function, the way Catalog commands already ask [`catalog-exposure.ts`](../../src/modules/publication/catalog-exposure.ts) whether a record is shown.
+  - Identity's signing functions gain the `list_collection` purpose and the `cc1` claims, with their own tests. Only the Publication module may import them.
+- **The new writers** of `collection_listed_at` and `collection_slug` (the listing and unlisting commands, and the Publication function `archiveAlbum` calls) join ADR 0006 § 9's static writer scan by call target. Any other writer in production code fails it. The migration that adds the columns writes no value; migrations are outside that scan and on G3's inventory.
 - **G3's inventory** gains both columns: scripts, migrations, fixtures (confined to `src/testing/` and the disposable database), manual access, CI, and restore.
 - **Restoring a backup makes nothing public ([ADR 0007 § 3](0007-hosted-backups-and-retention.md#3-what-a-recovery-may-do)):**
   - `ops/backup/recovery-demote.sql` also sets `collection_listed_at = NULL` on every album, keeping the slugs;
@@ -400,14 +423,26 @@ On real PostgreSQL unless stated. Each one is a merge condition of the change th
   - no mint-and-consume, and no listing without the dialog's confirm control (static and browser).
 - **Takedown (§ 7):**
   - the next request answers `404` or the fallback frame;
-  - cover removal allowed while a journal is served and while the provider is down;
+  - cover removal allowed while a journal is served, for an archived album, and while the provider is down;
   - the subset property.
 - **G8 (§ 9):**
   - each row refused while shown, with no row changed, and allowed while not shown;
   - the static coverage test over every catalog writer;
   - a catalog edit between a publication's preview and its confirmation makes it `confirmation_stale`, for an album journal and for a memory;
+  - a rename of a track between a memory's `previewPublicChange` and its save, when the save adds or reorders that link, makes the save stale;
+  - **memory-named albums:** adding a memory-linked track to an album (tracklist commands, `createTrack`, `importMusicRelease`), and renaming or re-dating an album that contains one, are refused while the memory is served;
+  - renaming an artist credited only on a memory-linked track is refused;
+  - the Publication reads select no `sort_name` or `kind`;
   - the take-down, edit, republish path restores the pages with their slugs and history.
-- **Concurrency (§ 10):** over real connections, listing and publication each against a rename, a credit change, a tracklist change, an artwork change, and each other, seen waiting and then refusing or completing as described.
+- **Artist pages (§ 8):**
+  - a publication that gives a collection-only artist a journal page discloses it as opening, with its stored photograph, and goes stale when that photograph changes;
+  - addresses are equal across the artist page, the `/artists` archive, and the Home for namesakes split between the collection and journals;
+  - a collection-only artist shows no photograph, and `setArtistPhoto` refuses for one;
+  - the namesake exception of § 7 is the only non-subset outcome.
+- **Concurrency (§ 10):**
+  - over real connections, listing and publication each against a rename, a credit change, a tracklist change, an artwork change, and each other, seen waiting and then refusing or completing as described;
+  - a memory's publication against an edit of a track it links;
+  - static checks of the lock order in every guarded command, memory entries included.
 - **Switches:**
   - the HTTP switch-off matrix over the new routes in both language forms;
   - the Home identical with reads off;
@@ -433,11 +468,17 @@ These texts change in the same pull request that accepts this ADR. None changes 
 
 - **[Security § Publication predicate](../security.md#publication-predicate):** the closing sentence about catalog metadata becomes "…only in the context of publicly visible entries, **or of an album listed in the public collection** ([ADR 0009](0009-public-music-collection.md))". The required-tests list gains § 15.
 - **ADR 0006** (by a pointer under *Amendments*, not by editing its decisions):
-  - § 2: catalog atoms join the disclosure and fingerprint (§ 9);
-  - A3: cover removal is always allowed;
-  - A4 and A6: the Home's Collection section;
-  - A5: the public artist set grows; edits to shown artists and credits are refused; no photograph is chosen or shown for a collection-only artist;
+  - §§ 1, 2, and 5: catalog atoms join the publication disclosure and fingerprint, and a memory link's atom gains its rendered wording (§ 9);
+  - § 9: a third preview, `previewCollectionListing`, mints tokens. The token family `cc1` and the listing writers join the static scans.
+  - § 10: the new commands join its list;
+  - A3: cover removal is always allowed, also for an archived album;
+  - L2, read with A3: memory entries may be share-locked (§ 10);
+  - A4 and A6: the Home's Collection section; A6, item 1: artist addresses over the extended set (§ 8);
+  - A5: the public artist set grows; its disclosure is computed against its own set; edits to shown artist names and credits are refused; no photograph is chosen or shown for a collection-only artist;
   - § 14, G8: resolved by § 9, once its tests pass and the owner reviews the evidence.
+- **[Security § Deployment gate](../security.md#deployment-gate):**
+  - item 6 gains the collection as a surface, with `REFRAIN_COVER_DISPLAY_ENABLED` as the switch it says does not exist yet. Its removal procedure no longer says "unpublish first", because removal becomes always allowed.
+  - item 7 gains the collection-only rule of § 8.
 - **[ADR 0007 § 3](0007-hosted-backups-and-retention.md#3-what-a-recovery-may-do):** the recovery demotion also unlists.
 - **[Product](../product.md), [Data Model](../data-model.md), [Architecture](../architecture.md), [Design System](../design-system.md), [Roadmap](../roadmap.md):** each records what is decided and, separately, what is built.
 
@@ -474,7 +515,8 @@ Product decisions 1 to 15 are settled. These remain for the owner, and none bloc
 1. **Navigation:** whether "Collection" joins the header's sections. Proposed: no. It is reached from the Home section, from artist pages, and from journal pages, which keeps the V4.4 header unchanged.
 2. **Collection archive order.** Proposed: artist sort name, then year, then title.
 3. **Labels in both languages:** the Home section's link to `/collection`, the collection page's heading for its journal links, and the journal page's link to the collection page.
-4. **Scope of `noindex` at the first public opening:** this ADR applies it to collection surfaces. Whether the rest of the public site also opens with `noindex` belongs to the [hosted-launch plan](../hosted-launch.md) and its stage S4.
+4. **Artists on the Home:** proposed, the Home's Artists section keeps A6's journal-derived artists, and the `/artists` archive lists collection-only artists too (§ 8).
+5. **Scope of `noindex` at the first public opening:** this ADR applies it to collection surfaces. Whether the rest of the public site also opens with `noindex` belongs to the [hosted-launch plan](../hosted-launch.md) and its stage S4.
 
 ## Revisit when
 
