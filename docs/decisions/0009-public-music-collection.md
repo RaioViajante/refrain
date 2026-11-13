@@ -252,10 +252,10 @@ The atoms public after each operation are a subset of the atoms public before, w
 - **Lists of artists (amends A6, item 1):**
   - **Two named fragments** in [`queries.ts`](../../src/modules/publication/queries.ts):
     - **`publicArtists`, extended**, is the one source of visibility and of addresses. `publicArtistAddresses` is built from it. Every surface that shows an artist address takes the address from it: the artist page, album-journal credits, memory pages, the sitemap, address resolution, the collection pages, **and the `/artists` archive and the Home's Artists section**. Those two derive addresses over their own rows today ([`public-archives.ts`](../../src/modules/publication/public-archives.ts), [`public-home.ts`](../../src/modules/publication/public-home.ts)), so a namesake would get different addresses on different surfaces.
-    - **`journalArtists`, A5's set unchanged** (credited on an album with a served journal), is used for exactly three decisions:
+    - **`journalArtists`, A5's set unchanged** (credited on an album with a served journal), is used for exactly two decisions:
       - the publication disclosure's "Artist pages gaining a journal" ([`disclosure.ts`](../../src/modules/publication/disclosure.ts));
-      - `artistsNewlyExposedByCredit`, so that a credit giving an artist a journal-derived page for the first time is refused as A5 says;
       - the Home's Artists section's membership (decision 19).
+    - **`artistsNewlyExposedByCredit` decides nothing new.** It refuses only on an album with a served journal, and § 9 already refuses every credit change on such an album. It may stay as defence in depth, but its outcome is § 9's, and it is exempt from § 15's mutation rule;
     - **Every other exposure check uses the extended set:** `lockArtistRestoreExposure` (restore) and `isArtistOnPublicPage` (`setArtistPhoto`, rename, archive), in [`catalog-exposure.ts`](../../src/modules/publication/catalog-exposure.ts). Restoring an artist credited only on a listed album would otherwise open a collection-derived page with no review;
   - the `/artists` archive lists every artist with a page, with two counts: served album journals and listed albums;
   - the Home's Artists section keeps A6's choice, artists with served journals only (decision 19). A collection-only artist is never listed there, but its address is still computed over the extended set.
@@ -337,7 +337,7 @@ ADR 0006's "Informational lines are not part of the set" therefore ends for cata
 
      Adding a track to an album writes only an `album_tracks` row, whose foreign key takes `KEY SHARE`, which does not conflict with a publication's `FOR SHARE`. Today `addTrackToAlbum`, `setAlbumTracklist`, and `importMusicRelease` read the added or reused track with a plain `select`. Without this write-mode lock, a memory published meanwhile would not see the new album and would not wait. `FOR NO KEY UPDATE` conflicts with `FOR SHARE` and still allows foreign-key `KEY SHARE`.
 
-     **`createTrack` with an album follows the order too.** Today it inserts the track and its `track_artists` rows, taking `KEY SHARE` on the artists, before it locks the album ([`commands.ts`](../../src/modules/catalog/commands.ts)). It must lock the entries, the album, and the named artists (`FOR SHARE`) **before** inserting anything. Otherwise, under this order, a rename that changes an artist's identifier and a `createTrack` naming that artist could deadlock with only two transactions. The same applies to any catalog command that inserts rows before taking § 10's locks.
+     **`createTrack` with an album follows the order too.** Today it inserts the track and its `track_artists` rows, taking `KEY SHARE` on the artists, before it locks the album ([`commands.ts`](../../src/modules/catalog/commands.ts)). It must lock the entries, the album, and the named artists (`FOR SHARE`) **before** inserting anything. Otherwise, under this order, a rename that changes an artist's identifier and a `createTrack` naming that artist could deadlock with only two transactions. **`importMusicRelease` must do the same:** today it inserts the album, its `album_artists` rows (taking `KEY SHARE` on reused artists), and the tracks before any lock ([`music.ts`](../../src/modules/catalog/music.ts)). It is also the command that takes entry locks for the first time. Any other catalog command that inserts rows before taking § 10's locks is reordered the same way.
 
   **What "involved" means, per command** (lock modes as in the order above):
 
@@ -349,6 +349,7 @@ ADR 0006's "Informational lines are not part of the set" therefore ends for cata
   | `importMusicRelease` | the albums already containing each reused recording (share) | reused artists (share) | **reused recordings (write)** | journals of those albums (they decide the named album unless R1(a) is adopted); memories linking the reused recordings |
   | `linkAlbumToMusic`, `archiveAlbum` (with its listing clear) | that album (write) | none | none | the album's journals |
   | `listAlbumInCollection` | that album (write) | its credited artists (share) | none | the album's journals |
+  | `unlistAlbumFromCollection` | that album (write) | none | none | none: a reduction, and publications already share-lock the album |
 
 - **Publications and confirmed saves lock what their fingerprint binds (amends L3; closes R5).** Under its entry lock, a publication or confirmed save takes `FOR SHARE`, in § 10's order, on the catalog rows its catalog atoms are read from (§ 9): the album, its edition's tracks, and the credited artists for an album journal; each linked album and track, the albums containing each linked track, and their artists for a memory. It then computes the fingerprint.
   - `FOR SHARE` conflicts with every catalog write mode above. A catalog edit that holds a row makes the publication wait, and the publication then fails as stale. A publication that holds the rows makes the edit wait, and the edit then sees the record shown and refuses.
@@ -371,7 +372,7 @@ Every surface reads only through the Publication module's reading entry point, i
   - It has the cover frame, title, artists, year, and the tracklist with durations.
   - It has no rating stars, favourite circles, or per-track "not written yet" labels (decision 8).
   - With no served journal, it shows the approved sentence (decision 9), once, in the place where the journal's writing would begin.
-  - With served journals, the sentence is replaced by one "Read the journal" / "Ler o diário" link per served journal (decision 18), naming the title of the version `versionPreference` selects, at its served `/albums/<slug>` address. Several links are ordered by `entries.first_published_at`, oldest first, then by entry id. That order is the same in both languages and depends only on served journals. There is no excerpt, no rating, and no `308` (decision 11).
+  - With served journals, the sentence is replaced by one "Read the journal" / "Ler o diário" link per served journal (decision 18), naming the title of the version `versionPreference` selects, at its served `/albums/<slug>` address. Several links are ordered by the earliest `entry_texts.published_at` among each entry's **currently visible** versions (from `publicLanguageVersions`), oldest first, then by entry id. Neither `entries.first_published_at` nor any version's `first_published_at` is used: they keep the history of versions that are no longer public, which would let the order reveal an unpublished translation (§ 4). The order is the same in both languages and depends only on served versions. There is no excerpt, no rating, and no `308` (decision 11).
 - **Album journal page** (`/albums/<slug>`): unchanged, plus **one "Back to the collection" / "Voltar à coleção" link to the album's collection page when the album is listed** (decisions 11 and 18). The link's presence depends only on the listing, never on other writing.
 - **Collection archive** (`/collection`): every listed album once, linked to its collection page, built from the existing album-archive components.
   - **Order (decision 17), the same in both languages and for every reader**, never using ratings, favourites, journals, or the listing time:
@@ -460,6 +461,7 @@ On real PostgreSQL unless stated. Each one is a merge condition of the change th
   - an independent implementation of § 3 and § 8, compared with every collection read over the state matrix (listed or not × archived or not × journal and memory states × artist archived × namesakes);
   - the existing oracles unchanged.
 - **No inference (§ 4):** for each public collection surface, in both languages and every request form, the whole response for a listed album with each kind of unpublished writing (draft, private, deleted, restored, unpublished translation, unflagged reflection) equals the response with no writing.
+  - In particular, two served journals of a listed album, one of which has a translation that was published and later unpublished, give the same "Read the journal" order as without that history.
 - **Slug lifecycle (§ 5):**
   - every row of the table;
   - the author's slug accepted only on a first listing;
@@ -487,7 +489,7 @@ On real PostgreSQL unless stated. Each one is a merge condition of the change th
   - the Publication reads select no `sort_name` or `kind`;
   - the take-down, edit, republish path restores the pages with their slugs and history.
 - **Artist pages (§ 8):**
-  - restoring an artist credited only on a listed album is refused; setting a photograph, renaming, and archiving decide from the extended set; a credit giving a collection-only artist a journal-derived page is refused as A5's `artistsNewlyExposedByCredit` says;
+  - restoring an artist credited only on a listed album is refused; setting a photograph, renaming, and archiving decide from the extended set; a credit change on an album with a served journal is refused by § 9;
   - a publication that gives a collection-only artist a journal page discloses it as opening, with its stored photograph, and goes stale when that photograph changes;
   - addresses are equal across the artist page, the `/artists` archive, and the Home for namesakes split between the collection and journals;
   - a collection-only artist shows no photograph, and `setArtistPhoto` refuses for one;
