@@ -349,7 +349,8 @@ ADR 0006's "Informational lines are not part of the set" therefore ends for cata
   | `updateTrack`, `archiveTrack`, `restoreTrack` | every album containing the track (share) | the artists it names (share) | that track (write) | journals of those albums; memories linking the track or those albums |
   | `updateArtist`, `restoreArtist`, `setArtistPhoto`, `archiveArtist` | albums crediting the artist, and albums of tracks crediting it (share) | that artist (write) | tracks crediting it (share) | journals of those albums; memories linking those albums or tracks |
   | `importMusicRelease` | the albums already containing each reused recording (share) | reused artists (share) | **reused recordings (write)** | journals of those albums (they decide the named album unless R1(a) is adopted); memories linking the reused recordings |
-  | `linkAlbumToMusic`, `archiveAlbum` (with its listing clear) | that album (write) | none | none | the album's journals only: neither changes anything a memory renders (identifiers, and the collection listing) |
+  | `linkAlbumToMusic` | that album (write) | none | none | the album's journals only: it changes only identifiers, which no memory renders |
+  | `archiveAlbum` (with its listing clear) | that album (write) | none | none | the album's journals only: a memory sees the listing only through its artist links, and clearing it is a reduction (§ 7; addresses: R2), as for `unlistAlbumFromCollection` |
   | `listAlbumInCollection` | that album (write) | its credited artists (**write**, `FOR NO KEY UPDATE`) | none | the album's journals only: a memory sees a listing only through its artist links, and memory publications serialize with it on the artist rows |
   | `unlistAlbumFromCollection` | that album (write) | none | none | none: a reduction, and every publication that renders the album already locks its row (album journals `FOR NO KEY UPDATE`, memories `FOR SHARE`) |
 
