@@ -300,7 +300,7 @@ The atoms public after each operation are a subset of the atoms public before, w
 | `updateAlbum`: the reference edition's date and country | Allowed when the reference edition exists: no public read selects them. The static column test of the `updateArtist` row covers them too. When none exists, `updateAlbum` creates one, which is refused for an album with a served journal, as for `linkAlbumToMusic`. |
 | `setAlbumTracklist`, `addTrackToAlbum`, `removeTrackFromAlbum`, `moveTrackInAlbum` | Refused for a shown album, and whenever they would add a track linked from a served memory to any album. That is conservative: under § 17 only an album that would precede the named one changes what the memory shows. For an album shown only as a containing album, only adding or removing the linked track is refused. |
 | `createTrack` **with an `albumId`** (it appends to that album's tracklist) | Refused for a shown album, except an album shown only as a containing album (a new track is linked from nothing, so it changes no memory). Without an album, allowed. |
-| `importMusicRelease` reusing an existing recording | Refused when a reused recording is linked from a served memory and the new album would become the album that memory names (§ 1). Otherwise allowed. |
+| `importMusicRelease` reusing an existing recording | Refused when a reused recording is linked from a served memory and the new album would become the album that memory names (§ 1). The rule's last tie-break is the album id, which exists only after the insert, so the check runs after the insert, in the same transaction, and a refusal rolls everything back. Otherwise allowed. |
 | `updateTrack`: title, length, credit, track artists | Refused for a track linked from a served memory, or on a shown album other than one shown only as a containing album |
 | `updateAlbum`: `mbReleaseGroupId`; `updateTrack`: `mbRecordingId` | Allowed: no Publication read selects them; included in the static column test |
 | `archiveTrack`, `restoreTrack` | Allowed: no public read depends on a track's archived state, and the collection page lists the reference edition's tracks as they are |
@@ -360,7 +360,7 @@ ADR 0006's "Informational lines are not part of the set" therefore ends for cata
   | --- | --- | --- | --- | --- |
   | `updateAlbum`, the tracklist commands, `createTrack` with an album, `setAlbumArtwork`, `deleteAlbum` | that album (write) | the artists it names (share) | its tracks (share); **the tracks added (write)** | the album's journals; memories linking the album or any of its tracks or the added track |
   | `archiveTrack`, `restoreTrack` | none | none | that track (the `UPDATE`'s own lock) | none: allowed with no decision (§ 9) |
-  | `updateTrack` | every album containing the track (share) | the artists it names (share) | that track (write) | journals of those albums; memories linking the track or those albums. Not memories linking other tracks on those albums: a track edit changes only that track's atoms, and no other track's named album depends on it |
+  | `updateTrack` (it decides in a fresh statement after its track lock, never from the album set it read before locking) | every album containing the track (share) | the artists it names (share) | that track (write) | journals of those albums; memories linking the track or those albums. Not memories linking other tracks on those albums: a track edit changes only that track's atoms, and no other track's named album depends on it |
   | `updateArtist`, `restoreArtist`, `setArtistPhoto`, `archiveArtist` | albums crediting the artist, and albums of tracks crediting it (share) | that artist (write) | tracks crediting it (share) | journals of those albums; memories linking those albums or tracks. Not memories linking other tracks on those albums: a memory renders an artist only through the track or album it links directly |
   | `importMusicRelease` | the albums already containing each reused recording (share) | reused artists (share) | **reused recordings (write)** | memories linking the reused recordings only: under § 17 no journal decides the named album, and the new album has no journal |
   | `linkAlbumToMusic` | that album (write) | none | none | the album's journals only: it changes only identifiers, which no memory renders |
@@ -389,13 +389,21 @@ ADR 0006's "Informational lines are not part of the set" therefore ends for cata
 
   **Share-locking memory entries is new.** A3 and A5 lock album-journal entries only, and A3's note on L2 says that any other command holding several entry locks needs its own decision. **This is that decision:** several memory entries may be held `FOR SHARE`, in the same ascending id order, interleaved with the album journals in one sorted list. No entry command waits on a second entry, so no cycle forms among them.
 
-  **L1 gains a narrow exception (not a reading).** An album journal's publication reads other memories' `memory_music` and served state, rows L1 says are read only under their entry's `FOR UPDATE`, **without those entry locks**. It serializes instead through the album row and the credited artists' rows, which every memory publication and confirmed save that could change the list locks first (§ 17). The windows left are § 17's C7 and R4. A5's "a publication locks only its own entry" is the precedent, but this is a new reader, so the owner approves it explicitly at acceptance.
+  **L1 gains a narrow exception (not a reading), for the owner to approve at acceptance.** L1 says a transaction that reads a row owned by entry E in order to decide first locks E `FOR UPDATE`. A5's "a publication locks only its own entry" is the precedent for artist pages. This ADR adds a **closed list** of readers that decide from other entries' rows **without those entry locks**, each serialized through catalog rows instead:
+
+  | Reader | Rows of other entries it reads | Serialized through | Window left |
+  | --- | --- | --- | --- |
+  | An album journal's publication | served memories' `memory_music` and state (memories that name the album; pages on which a credit becomes a link) | the album row and its credited artists' rows (`FOR NO KEY UPDATE`), which every memory publication and confirmed save that could add to those lists locks first | § 17's C7 and R4: a memory's unpublication, deletion, or link-removing save |
+  | A listing | served memories' `memory_music` and state, and other albums' served journals (the artist pages it opens or changes, and the pages on which a credit becomes a link) | its credited artists' rows (`FOR NO KEY UPDATE`), which every journal transition and memory publication rendering them locks | R4: the same memory reductions, and namesakes |
+  | A memory's publication or confirmed save | the named album's served journals (its link's presence and address, § 17) | the named album's row (`FOR SHARE`), which every album journal transition takes `FOR NO KEY UPDATE` | none |
+
+  No other command may read another entry's rows to decide without that entry's lock; the static lock test checks the list. **L6 is narrowed for these atoms only:** a reduction in the window column can commit between a reader's comparison and its write. The end state is then a subset of what the review showed (§ 7), never an addition.
 
   Apart from the locks above (the share locks on fingerprinted catalog rows, and an album journal's own album row and credited artists `FOR NO KEY UPDATE`), no entry command takes an explicit catalog lock.
 
   **Where the album lock lives.** `publishAlbumJournalVersion` checks the kind before the engine opens its transaction, and ADR 0006 § 4 step 3 says the engine takes no kind. The album lock is therefore taken **inside the engine**: under the entry lock, it looks up `album_journals` for the entry and, when it finds a row, locks that album. **Unpublishing** takes it in the engine too (`unpublishLanguageVersion` can learn the kind under its entry lock: it calls `lockLiveEntry`, which returns it), so every caller takes it. **Deleting** has no Publication command: `deleteAlbumJournal`, the only command that sets an album journal's `deleted_at`, takes the album row and then its credited artists after `lockAlbumJournal` ([`journals/commands.ts`](../../src/modules/journals/commands.ts)), or the deletion moves into a Publication command that does. `permanentlyDeleteEntry` acts only on an already-deleted, unserved entry and needs none. A test asserts that every album-journal unpublish and delete path takes the album and artist locks. For publications and confirmed saves, **the token's expiry and every atom are read after all of § 10's locks** (the album and its credited artists `FOR NO KEY UPDATE`, and the catalog share locks), as L6 requires. Unpublishing and deleting carry no token. **Listing share-locks the album's own journal entries first,** because the served-journal links it discloses depend on them. The artist pages it discloses can also depend on other albums' journals, whose transitions serialize with it on the artist rows. What remains is R4's: memory reductions and namesakes.
 - **Publication against catalog edits.** A publication takes its entry `FOR UPDATE`, then, for an album journal, its album and then its credited artists `FOR NO KEY UPDATE`, and the other catalog rows `FOR SHARE`. A catalog edit holds the entry `FOR SHARE` and its catalog rows in a write mode before deciding. Either the edit commits first and the publication's fingerprint, which now binds catalog atoms, fails as stale; or the publication commits first and the edit then sees the record shown and refuses.
-- **Listing against catalog edits.** Listing locks the album's journal entries `FOR SHARE`, the album `FOR UPDATE`, its credited artists `FOR NO KEY UPDATE`, then its reference edition's tracks `FOR SHARE`. The track lock is needed because `updateTrack` serializes with an album only through the album set it read before its locks: an album that gained the track meanwhile (through `addTrackToAlbum`) would otherwise be listed with the old title while the rename commits. That mode conflicts with the `FOR SHARE` that publications and confirmed saves take on the artists they render, so they serialize with the listing (R4), and it still allows foreign-key `KEY SHARE`. An edit that holds one of those rows makes the listing wait and then fail as stale. A listing that commits first is seen by the edit, which then refuses.
+- **Listing against catalog edits.** Listing locks the album's journal entries `FOR SHARE`, the album `FOR UPDATE`, its credited artists `FOR NO KEY UPDATE`, then its reference edition's tracks `FOR SHARE`. The track lock is needed because `updateTrack` serializes with an album only through the album set it read before its locks: an album that gained the track meanwhile (through `addTrackToAlbum`) would otherwise be listed with the old title while the rename commits. The artists' `FOR NO KEY UPDATE` conflicts with the `FOR SHARE` that publications and confirmed saves take on the artists they render, so they serialize with the listing (R4), and it still allows foreign-key `KEY SHARE`. An edit that holds one of those rows makes the listing wait and then fail as stale. A listing that commits first is seen by the edit, which then refuses.
 - **Residual windows** are not closed by this order. Each is listed in [Residual risks](#residual-risks) with its cause, consequence, mitigation, test evidence, and criterion: R4 (reductions and namesakes during a listing) and R6 (deadlocks). R5 (late entries) is addressed by the publication share locks above, which are not built, and stays open until its test passes. R1 (a memory's named album) is not a lock window: § 17 removes its only input that no review covers (other journals' state, which an unpublication with no token could change). Its remaining inputs are catalog rows, which § 9 guards and the locks above serialize, and it stays open until § 17 is built and tested.
 - **Isolation.** The default `READ COMMITTED` is enough, because every decision is made by a statement that runs after the locks.
 
@@ -412,6 +420,8 @@ Every surface reads only through the Publication module's reading entry point, i
   - When several links are approved, they are ordered by the earliest `entry_texts.published_at` among each entry's **currently visible** versions (from `publicLanguageVersions`), oldest first, then by entry id. Neither `entries.first_published_at` nor any version's `first_published_at` is used: they keep the history of versions that are no longer public, which would let the order reveal an unpublished translation (§ 4). The order is the same in both languages and depends only on served versions. There is no excerpt, no rating, and no `308` (decision 11).
 - **Album journal page** (`/albums/<slug>`): unchanged, plus **one "Back to the collection" / "Voltar à coleção" link to the album's collection page when the album is listed** (decisions 11 and 18). The link's presence depends only on the listing, never on other writing.
 - **Collection archive** (`/collection`): every listed album once, linked to its collection page, built from the existing album-archive components.
+  - **What a card shows (a closed list):** the album's title, its artists as credited (each linked only when the artist has a page), its year, its cover or the fallback frame (§ 12), and its collection address.
+  - **Never:** a rating, a track or written-track count, a journal's date, links to other journals, or anything else the album-archive card carries for journals. An oracle and the HTTP suite assert the list.
   - **Order (decision 17), the same in both languages and for every reader**, never using ratings, favourites, journals, or the listing time:
     1. the first credited artist's name **as the page shows it** (`credited_as`, or the artist's name), which is how decision 17's "artist's name" is read. It is compared with the archives' existing `nameOrder` ([`public-archives.ts`](../../src/modules/publication/public-archives.ts): `Intl.Collator("en", { sensitivity: "base", numeric: true })`), in TypeScript. That ignores case and accents, does not depend on the database's collation or the reader's language, and needs no database object. Albums with no credit come last;
     2. `first_release_year`, ascending, with an unknown year last;
@@ -426,6 +436,7 @@ Every surface reads only through the Publication module's reading entry point, i
   - **This amends A4 and A6:** the Home may also show a discreet section, "Collection" / "Coleção", with **at most four** listed albums (title, artists, year, cover or fallback, collection address), newest `collection_listed_at` first, then album id, using the Home's existing album cards, and a "View the collection" / "Ver a coleção" link to `/collection` (decision 18) in the pattern of the other sections' links.
   - The Home's Artists section is unchanged: only artists related to served journals (decision 19).
   - A4's switch-off rule is unchanged: with reads off, the section is empty and the Home is identical whatever the database holds.
+- **Headers and routing:** `/collection/:path*` and `/pt/collection/:path*` join [`next.config.ts`](../../next.config.ts)'s public header rules (the public headers, with a CSP that allows the cover hosts, as A7 item 6 requires per section) and the proxy's list of sections.
 - **Metadata:** title, description, canonical address, and Open Graph tags from the § 3 atoms only. No Open Graph image is generated.
 - **Indexing:** every collection surface follows the site-wide rule of § 16 (decisions 12 and 20). Once `noindex` is lifted under § 16, collection surfaces are not added to the sitemap without their own decision.
 - **Without JavaScript:**
@@ -446,6 +457,7 @@ Every surface reads only through the Publication module's reading entry point, i
   The static guard test and the HTTP switch-off matrix are extended to the new routes. The switch hides and never reveals.
 - **Cover display: `REFRAIN_COVER_DISPLAY_ENABLED`, a new server-only switch.** It follows D4's form: never `NEXT_PUBLIC_`, read per request, enabled only by exactly `true`, and **off by default**.
   - **Off:** every surface (public pages, and the Studio, under the owner's 2026-11-08 reading in #82) renders the existing fallback frame, and no page asks a reader's or the author's browser to fetch from the Cover Art Archive. Stored `cover_url` values and their Image IDs are **kept**, not cleared, so the author's choices survive.
+    - **The Studio's choosing screens** (the artwork chooser and the release review of M3.2) fetch nothing from the Cover Art Archive either. **Until the owner decides** ([Open decisions](#open-decisions)), they show the candidates as text (type and Image ID) and **offer no choice**: choosing an image the author cannot see is not a choice, so it fails closed and the stored cover is kept. Removal stays allowed (§ 7). Local development may turn the switch on and choose there.
   - **On a hosted deployment,** the owner turns it on only after recording the deployment-gate item 6 review. Local development may turn it on.
   - **It can only hide.** Listing and publication disclosures bind the **stored** cover whatever the switch says (§ 6, § 9), so a cover shown after the switch is turned on is one that a review disclosed. **Limit:** journals published before § 9's fingerprint rule is implemented did not bind their cover (ADR 0006 kept covers out of the fingerprint). The item 6 review therefore covers every cover the deployment would show, not only those that reviews disclosed.
 - **An Image ID is not a licence.** Choosing an image in the Studio, or the Cover Art Archive serving it, says which image the author prefers. It grants no right to display it publicly. The Cover Art Archive states that its images are "copyrighted by their respective copyright owners".
@@ -522,7 +534,7 @@ On real PostgreSQL unless stated. Each one is a merge condition of the change th
   - the static coverage test over every catalog writer;
   - a catalog edit between a publication's preview and its confirmation makes it `confirmation_stale`, for an album journal and for a memory;
   - a rename of a track between a memory's `previewPublicChange` and its save, when the save adds or reorders that link, makes the save stale;
-  - **containing albums:** while the memory is served, adding a memory-linked track to an album through the tracklist commands is refused; `importMusicRelease` is refused when the new album would precede the named one, and allowed otherwise, after which the new album is guarded as a containing album; renaming or re-dating a containing album, and deleting one, are refused;
+  - **containing albums:** while the memory is served, adding a memory-linked track to an album through the tracklist commands is refused; `importMusicRelease` is refused when the new album would precede the named one (including a tie on year and title decided by the new id, with everything rolled back), and allowed otherwise, after which the new album is guarded as a containing album; renaming or re-dating a containing album, and deleting one, are refused;
   - the edition's date and country, `sort_name`, and `kind` are not selected by any Publication read, and edits to them are allowed;
   - renaming an artist credited only on a memory-linked track is refused;
   - the Publication reads select no `sort_name` or `kind`;
@@ -552,7 +564,7 @@ On real PostgreSQL unless stated. Each one is a merge condition of the change th
 - **Switches:**
   - the HTTP switch-off matrix over the new routes in both language forms;
   - the Home identical with reads off;
-  - the cover switch off means no Cover Art Archive URL in any response, Studio included, and the fallback frame.
+  - the cover switch off means no Cover Art Archive URL in any response, Studio included (the artwork chooser and the release review among them), and the fallback frame; with it off, the choosing screens offer no choice.
 - **Indexing:**
   - the tests of § 16, on every collection surface as on every other public surface.
 - **Order and labels:**
@@ -686,7 +698,7 @@ No command sets `album_journals.is_featured` today. A command that did would cha
 | **C7.** M unpublished while B's journal publication, which lists M as gaining a link, commits | Nothing serializes them: unpublishing is a reduction and locks no album. The end state is a subset of B's review (M absent). Recorded like R4's reductions, and tested |
 | **C8.** `deleteAlbum` or `removeTrackFromAlbum` on a containing album, against M's publication | The command share-locks M's entry and holds the album in a write mode. If it commits first, M's publication sees different atoms and fails stale; if M commits first, the command sees M served and refuses |
 
-**Transition.** The rule ships in **one change** with everything it relies on: § 9's fingerprints and refusals for containing albums, § 10's locks (including the album journal's artist and album locks), the album journal's new disclosure lists, and the dialog changes above. Shipped alone, a catalog command could change a served memory's named album with no review.
+**Transition.** The rule ships no earlier than, or together with, everything it relies on: § 9's fingerprints and refusals for containing albums, § 10's locks (including the album journal's artist and album locks), the album journal's new disclosure lists, and the dialog changes above. Shipped alone, a catalog command could change a served memory's named album with no review.
 
 - **Before** that change is deployed on any database, every memory served there is **unpublished** (public reads may also stay off meanwhile, but that alone is not enough: a memory that stays published cannot be published again, and a confirmed save reviews only its delta). After the deploy, each is published again through § 17's review, and only then are reads turned on. Otherwise the deploy itself would change served memories' named albums with no review, widening G8. Comparing the two rules is not enough: the old rule's result drifted with other journals' states, and nothing bound what the author reviewed then, so a memory whose two results agree today may show an album its author never reviewed. Alternatively, the record shows that the database had no served memory at the deploy, **the expected path for both current databases**. Either is recorded as R1's evidence.
 - **A visible side effect:** unpublishing clears `published_at` and republishing sets a new one ([`publication/commands.ts`](../../src/modules/publication/commands.ts)), so a republished memory shows a new date and moves in `/memories`, "Recently written", and the Home. `first_published_at` and the slugs are kept. It is recorded under Consequences.
@@ -727,7 +739,7 @@ Each risk stays open until its criterion is met. Documenting a risk does not res
 
 ## Effect on existing decisions
 
-The texts below change in two steps, and none changes before acceptance:
+The texts below change in two steps, and none changes before acceptance. **Read every bullet below as both:** at acceptance, a pointer saying "decided by ADR 0009, not built"; at build, the rewrite described. Present tense in a bullet describes the text after the build:
 
 - **At acceptance,** each one gains a pointer to this ADR marking the change as **decided, not built**. Text that records implemented behaviour or verified evidence (Security's implemented-controls and required-tests rows, the release gates' residuals, ADR 0006 § 14's G8 status, the evidence files) keeps its wording, with a note: "superseded by ADR 0009 once built and tested".
 - **New requirement rows** (Security § Required tests) are added at acceptance, marked "not built". **Existing rows, and the predicate's closing sentence below,** change only in the build pull requests, as the next point says.
@@ -743,7 +755,9 @@ The texts below change in two steps, and none changes before acceptance:
   - § 10: the new commands join its list;
   - A3: cover removal is always allowed, also for an archived album;
   - L1 and L2, read with A3: catalog commands may read `memory_music` under memory entries' `FOR SHARE`, as A3 allows for album journals, and memory entries may be share-locked (§ 10);
-  - **L1, a narrow exception for the owner to approve:** an album journal's publication reads other memories' `memory_music` and served state without their entry locks, serialized instead through the album and artist rows; the remaining windows are § 17's C7 and R4 (§ 10);
+  - **L1, a narrow exception for the owner to approve:** the closed list of readers in § 10 (an album journal's publication, a listing, and a memory's publication or confirmed save) decides from other entries' rows without their entry locks, each serialized through named catalog rows, with the windows listed there (§ 17's C7, R4);
+  - **L6, narrowed for those atoms only:** a listed reduction can commit between the comparison and the write; the end state is a subset of the review (§ 10);
+  - § 4 step 3 ("the engine takes no kind"): the engine looks up `album_journals` for its entry to take the album and artist locks (§ 10);
   - L3: publications and confirmed saves take `FOR SHARE` on the catalog rows their fingerprint binds, after the entry lock. Publishing, unpublishing, and deleting an album journal take its album row `FOR NO KEY UPDATE`, and those three transitions, listing, unlisting, and archiving an album take its credited artists `FOR NO KEY UPDATE` (§ 10). The order is unchanged. **A3 and A5 each carry a note** stating that no entry transaction takes an explicit catalog lock: each gains a pointer to this amendment.
   - A4 and A6: the Home's Collection section; A6, item 1: artist addresses over the extended set (§ 8);
   - A5: the public artist set grows; its disclosure is computed against its own set; edits to shown artist names and credits are refused; no photograph is chosen or shown for a collection-only artist;
@@ -779,6 +793,7 @@ The texts below change in two steps, and none changes before acceptance:
   - While a memory linking a recording is served (§ 17): every album containing the recording is guarded for its title and year, adding the recording to an album through the tracklist commands is refused, and a containing album cannot be deleted.
   - An archived album is still named on a memory; only unpublishing the memory removes its title.
   - `importMusicRelease` is refused when the new album would precede a served memory's named album.
+  - With the cover switch off, a hosted Studio cannot choose covers until the owner decides otherwise (§ 12).
   - A memory whose recording is also on a later album with a served journal no longer links to that journal (pending the owner's acknowledgement).
   - At the transition, a memory that was served is republished, so its `published_at` and its place in date-ordered lists change (§ 17). None is expected on the current databases.
   - Album journal publications that share a credited artist, and memory publications crediting it, serialize on the artist row.
@@ -787,8 +802,8 @@ The texts below change in two steps, and none changes before acceptance:
   - every journal and memory route, slug, and `308`;
   - `/albums` and its archive;
   - INV-1 to INV-5;
-  - the `ct1` token;
-  - L4 to L6 (L1 gains the narrow exception above, L2 is read with A3, and L3 is amended, as § 10 says);
+  - the `ct1` token's form, claims, key, and expiry (§ 9 changes what its fingerprint binds);
+  - L4 and L5 (L1 gains the narrow exception above, L2 is read with A3, L3 is amended, and L6 is narrowed for the listed atoms, as § 10 says);
   - gates G1 to G7, which still block any hosted public page, and G8, until §§ 9, 10, and 17 are built, tested, and reviewed by the owner.
 
   Accepting this ADR closes no gate and authorizes no deployment, data transfer, switch change, or lifting of `noindex`.
@@ -801,6 +816,16 @@ Product decisions 1 to 21 are settled, with three acknowledgements still to be r
 
 - **Decision 17's "artist's name":** § 11 reads it as the first credit as the page shows it (`credited_as`, or the artist's name). The owner confirms that reading at acceptance.
 - **Owner condition 5 and R2:** § 17 creates no address for the named album. But an artist-page takedown (unlisting, archiving, unpublishing) can still move a namesake credited on a memory from its suffixed address to the bare one, A5's derived-address exception (R2). The owner records, at acceptance, whether condition 5 is met with that exception until the G1 decision for R2, or whether a stored artist slug becomes a precondition of § 17.
+
+Explicit approvals at acceptance, because each changes an accepted rule:
+
+- L1's narrow exception and L6's narrowing (§ 10);
+- A3's relaxation (cover removal always allowed, § 7) and A5's narrowing (no renames of shown artists or credit edits on shown albums, § 9);
+- ADR 0006 § 4 step 3, the engine looking up an entry's album (§ 10).
+
+Pending owner decision (Studio):
+
+- **Choosing covers on a hosted Studio while the cover switch is off.** Until decided, the choosing screens show candidates as text and offer no choice (§ 12).
 
 Pending Studio design review (AGENTS § 6: nothing the V4.4 design does not show is presumed approved):
 
