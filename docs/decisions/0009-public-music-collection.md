@@ -1,7 +1,7 @@
 # ADR 0009: The Public Music Collection
 
 - **Status:** **Proposed.** It is not accepted, and it changes nothing yet. Until the owner accepts it, the existing contract holds word for word: [Security § Publication predicate](../security.md#publication-predicate) ("Catalog metadata … public pages show it only in the context of publicly visible entries"), [ADR 0006](0006-publication-decision-and-acknowledgement.md) and its amendments A1 to A7, and gates G1 to G8. No code, schema, migration, data, hosting setting, or public surface changes because this file exists.
-- **Date:** Proposed 2026-11-12. Revised the same day after the owner's review, which settled the product decisions recorded in [Owner decisions](#owner-decisions-2026-11-12).
+- **Date:** Proposed 2026-11-12. Revised the same day after the owner's review, and on 2026-11-13 with the owner's last five product decisions, all recorded in [Owner decisions](#owner-decisions-2026-11-12).
 - **Scope:** Letting a reader browse selected catalog metadata (an album's title, artists, year, cover or fallback, tracklist, and durations) when no journal about the album is published, through an explicit, reviewed, confirmed listing by the author. It covers the schema, the visibility rule, the addresses and their lifecycle, listing and removal, artist pages, the catalog-wording gate G8, locks, public surfaces in both languages, the switches, indexing, and the tests. It does **not** cover publishing writing, hosting, data transfer, or enabling public reads anywhere.
 
 ## Context
@@ -42,10 +42,26 @@
    - PT-BR: "Algumas palavras ainda esperam para ser escritas."
 10. **Home:** a discreet "Collection" / "Coleção" section, with at most four listed albums, using the V4.4 identity and the existing album components.
 11. When a published journal exists, the reader can move between the journal and the collection page in both directions, with **no automatic `308`**.
-12. **The first public opening uses `noindex`.** It is lifted later only after review and the owner's authorization.
+12. **The first public opening uses `noindex`.** It is lifted later only after review and the owner's authorization. Decision 20 extends it to every public surface.
 13. No artist photograph is shown, **or can be chosen**, for an artist who is public only through the collection, in this first implementation.
 14. The V4.4 design is not redesigned. The interface stays in English and Brazilian Portuguese, responsive, and readable without JavaScript.
 15. No real data is imported into, or published on, the hosted database in this stage.
+
+Added on 2026-11-13:
+
+16. **Navigation:** "Collection" is **not** added to the header's sections. The collection is reached from the Home and from contextual links.
+17. **Order of `/collection`:** the artist's name alphabetically, then the release year, then the release title. The order is deterministic, with a stable tie-break, and never depends on ratings, favourites, or journals (§ 11).
+18. **Approved labels:**
+
+    | Link | EN | PT-BR |
+    | --- | --- | --- |
+    | Home → collection | "View the collection" | "Ver a coleção" |
+    | Collection page → published journal | "Read the journal" | "Ler o diário" |
+    | Journal page → collection page | "Back to the collection" | "Voltar à coleção" |
+
+    Decision 9's sentence is unchanged.
+19. **Artists on the Home:** the Home's Artists section keeps showing only artists related to published journals. Artists public only through the collection appear on the collection's own pages and in the artists archive, under the approved predicate.
+20. **Indexing at the first anonymous opening:** `noindex` on **every public surface**, not only the collection. Lifting it needs an explicit decision, an SEO review, and an update of the hosted-launch plan (§ 16). This ADR records requirements and dependencies only. Nothing is implemented now.
 
 ### Alternatives considered
 
@@ -164,7 +180,7 @@ This is verified by tests (§ 15), not assumed.
   - Refusing deletion keeps it reserved even after the album is no longer wanted.
 - **No historical addresses.** Because a slug never changes, there are no previous addresses and no redirects to preserve. Changing an address would need its own decision, with `308` semantics that respect INV-5.
 - **Out-of-process writers.** A deletion or edit through `psql`, a console, or a script could break these rules. They are on G3's inventory (§ 14).
-- **A limit shared with journal slugs: restoring an older backup.** A backup taken before an album's first listing holds no slug for it. If such a copy were restored, that address would no longer be reserved, and another album could take it. The backup inventory deliberately carries no slugs ([ADR 0007 § 3](0007-hosted-backups-and-retention.md#3-what-a-recovery-may-do)), and journal slugs published after the backup have the same limit today. It is recorded here, not closed. Two mitigations:
+- **A limit shared with journal slugs: restoring an older backup.** A backup taken before an album's first listing holds no slug for it. If such a copy were restored, that address would no longer be reserved, and another album could take it. The backup inventory deliberately carries no slugs ([ADR 0007 § 3](0007-hosted-backups-and-retention.md#3-what-a-recovery-may-do)), and journal slugs published after the backup have the same limit today. It is recorded as [R3](#residual-risks), not closed. Two mitigations:
   - a restored copy starts with nothing listed (§ 14);
   - the recovery review compares the restored albums with the newest available state before anything is listed again.
 
@@ -225,7 +241,7 @@ These operations only take something away. Each **needs no token** (ADR 0006, ow
 | Remove an artist's photograph | Always allowed, as A5 already says |
 | Unpublish or delete a journal or memory | Unchanged (ADR 0006) |
 
-The atoms public after each operation are a subset of the atoms public before, with unchanged values (tested, § 15), with **one recorded exception**. Unlisting, or archiving an album or an artist, can remove a namesake from the visible set. The other artist's derived address then changes from its suffixed form to the bare one ([`artist-address.ts`](../../src/modules/publication/artist-address.ts)), and the old address answers the unknown-address `404`. It is the A5 residual for derived artist addresses: it reveals nothing private, and a stored artist slug would remove it.
+The atoms public after each operation are a subset of the atoms public before, with unchanged values (tested, § 15), with **one recorded exception**. Unlisting, or archiving an album or an artist, can remove a namesake from the visible set. The other artist's derived address then changes from its suffixed form to the bare one ([`artist-address.ts`](../../src/modules/publication/artist-address.ts)), and the old address answers the unknown-address `404`. It is the A5 residual for derived artist addresses, recorded as [R2](#residual-risks): it reveals nothing private, and a stored artist slug would remove it.
 
 ### 8. Artist pages and photographs
 
@@ -235,7 +251,7 @@ The atoms public after each operation are a subset of the atoms public before, w
 - **Lists of artists (amends A6, item 1):**
   - every read that derives artist addresses (the artist page, the `/artists` archive, and the Home's Artists section) computes them over the **whole** extended visible set, so a namesake gets the same address everywhere;
   - the `/artists` archive lists every artist with a page, with two counts: served album journals and listed albums;
-  - **proposed** ([Open decisions](#open-decisions), item 4): the Home's Artists section keeps A6's choice, artists with served journals only.
+  - the Home's Artists section keeps A6's choice, artists with served journals only (decision 19). A collection-only artist is never listed there, but its address is still computed over the extended set.
 - **Collection-only artists** (decision 13): an artist whose only public page comes from the collection.
   - Their page shows **no photograph**, even when one is stored.
   - **None can be chosen.** `setArtistPhoto` refuses (`public_page`) for them, and the Studio offers no photograph control for them.
@@ -312,11 +328,7 @@ ADR 0006's "Informational lines are not part of the set" therefore ends for cata
   No entry command takes an explicit catalog lock (L3 unchanged). **Listing share-locks the album's own journal entries first,** because the served-journal links it discloses depend on them. The artist pages it discloses can also depend on other albums' journals, which it does not lock: that is the residual window below.
 - **Publication against catalog edits.** A publication takes its entry `FOR UPDATE`. A catalog edit holds that entry `FOR SHARE` before deciding. Either the edit commits first and the publication's fingerprint, which now binds catalog atoms, fails as stale; or the publication commits first and the edit then sees the record shown and refuses.
 - **Listing against catalog edits.** Listing locks the album's journal entries `FOR SHARE`, the album `FOR NO KEY UPDATE`, then its credited artists `FOR SHARE`. An edit that holds one of those rows makes the listing wait and then fail as stale. A listing that commits first is seen by the edit, which then refuses.
-- **Residual windows, recorded and not closed:**
-  - **Concurrent page openings.** A publication **of another album's journal** that opens or closes the same artist page, or changes a namesake's address, while a listing runs is not serialized with it. The page ends as one of the two reviews described (A5's class).
-  - **Another album's journal changes a memory's named album.** A memory names, for a linked track, the album with a served journal, or else the earliest one. Publishing or unpublishing **another** album's journal can change which album a served memory names, and that publication's review does not show it. Recorded as A5's class: the named album is a catalog record already in the catalog, and nothing private is shown. Closing it would mean disclosing affected memories in the publication review, which is a follow-up.
-  - **Late entries.** An entry created after a command's locking statement is not locked by it (A3's class).
-  - **Deadlocks.** A command that takes rows outside this order (`createTrack`'s foreign-key locks, as A5 records) can deadlock. PostgreSQL aborts one request with `40P01`, and nothing is written.
+- **Residual windows** are not closed by this order. Each is listed in [Residual risks](#residual-risks) with its cause, consequence, mitigation, test evidence, and criterion: R1 (a memory's named album), R4 (concurrent artist page openings), R5 (late entries), and R6 (deadlocks).
 - **Isolation.** The default `READ COMMITTED` is enough, because every decision is made by a statement that runs after the locks.
 
 ### 11. Public surfaces
@@ -327,21 +339,25 @@ Every surface reads only through the Publication module's reading entry point, i
   - It has the cover frame, title, artists, year, and the tracklist with durations.
   - It has no rating stars, favourite circles, or per-track "not written yet" labels (decision 8).
   - With no served journal, it shows the approved sentence (decision 9), once, in the place where the journal's writing would begin.
-  - With served journals, the sentence is replaced by links to each one: the title of the version `versionPreference` selects, at its served `/albums/<slug>` address. There is no excerpt, no rating, and no `308` (decision 11).
-- **Album journal page** (`/albums/<slug>`): unchanged, plus **one link to the album's collection page when the album is listed** (decision 11). The link's presence depends only on the listing, never on other writing.
+  - With served journals, the sentence is replaced by one "Read the journal" / "Ler o diário" link per served journal (decision 18), naming the title of the version `versionPreference` selects, at its served `/albums/<slug>` address. There is no excerpt, no rating, and no `308` (decision 11).
+- **Album journal page** (`/albums/<slug>`): unchanged, plus **one "Back to the collection" / "Voltar à coleção" link to the album's collection page when the album is listed** (decisions 11 and 18). The link's presence depends only on the listing, never on other writing.
 - **Collection archive** (`/collection`): every listed album once, linked to its collection page, built from the existing album-archive components.
+  - **Order (decision 17), the same in both languages and for every reader**, never using ratings, favourites, journals, or the listing time:
+    1. the first credited artist's name as rendered (`credited_as` or the name), compared alphabetically with one fixed collation, case- and accent-insensitive, pinned in the query (never the database default or the reader's language); albums with no credit come last;
+    2. `first_release_year`, ascending, with an unknown year last;
+    3. the title, under the same collation;
+    4. stable tie-breaks: the artist name and then the title compared byte for byte, then the album id.
+
+    The sort name is not used (§ 9).
+- **Navigation (decision 16):** the header's sections are unchanged. "Collection" is not added. The collection is reached from the Home section, collection and artist pages, and the journal page's link.
 - **`/albums` archive:** unchanged. It lists served album journals only (decision 6).
 - **Artist pages and `/artists`:** § 8.
 - **Home:**
-  - **This amends A4 and A6:** the Home may also show a discreet section, "Collection" / "Coleção", with **at most four** listed albums (title, artists, year, cover or fallback, collection address), newest `collection_listed_at` first, using the Home's existing album cards, and a link to `/collection` in the pattern of the other sections' "All …" links.
+  - **This amends A4 and A6:** the Home may also show a discreet section, "Collection" / "Coleção", with **at most four** listed albums (title, artists, year, cover or fallback, collection address), newest `collection_listed_at` first, then album id, using the Home's existing album cards, and a "View the collection" / "Ver a coleção" link to `/collection` (decision 18) in the pattern of the other sections' links.
+  - The Home's Artists section is unchanged: only artists related to served journals (decision 19).
   - A4's switch-off rule is unchanged: with reads off, the section is empty and the Home is identical whatever the database holds.
 - **Metadata:** title, description, canonical address, and Open Graph tags from the § 3 atoms only. No Open Graph image is generated.
-- **Indexing at the first public opening** (decision 12):
-  - every collection surface (`/collection`, `/collection/<slug>`, and their `/pt` forms) sends `<meta name="robots" content="noindex">` and an `X-Robots-Tag: noindex` header;
-  - they are absent from the sitemap;
-  - `robots.txt` does **not** disallow them, so that crawlers can read the `noindex`.
-
-  `noindex` is fixed in code, not in an environment variable. Removing it is a reviewed pull request that needs the owner's written authorization.
+- **Indexing:** every collection surface follows the site-wide rule of § 16 (decisions 12 and 20). Once `noindex` is lifted under § 16, collection surfaces are not added to the sitemap without their own decision.
 - **Without JavaScript:**
   - every collection surface is complete in the first response, with no content inside a Suspense boundary that only a script reveals;
   - the footer language selector is visible on every one of them;
@@ -373,7 +389,7 @@ Every surface reads only through the Publication module's reading entry point, i
 - `/collection…` and `/pt/collection…` get the same visibility decision, the same `404`, and the same headers per section.
 - Interface strings come from `src/i18n/` and `src/i18n/studio/`, and a missing functional translation is a defect.
 - The approved sentence ships in both languages (decision 9).
-- Labels not yet approved (the section heading's link, the journal ↔ collection links) need the owner's wording in both languages before they ship ([Open decisions](#open-decisions)).
+- The three link labels are approved in both languages (decision 18). Any other new functional string still needs both languages before it ships.
 - Catalog metadata is shown as stored and never translated.
 - The interface language never decides what is listed.
 
@@ -451,9 +467,11 @@ On real PostgreSQL unless stated. Each one is a merge condition of the change th
   - the Home identical with reads off;
   - the cover switch off means no Cover Art Archive URL in any response, Studio included, and the fallback frame.
 - **Indexing:**
-  - `noindex` in the markup and the header on every collection surface;
-  - absent from the sitemap;
-  - not disallowed in `robots.txt`.
+  - the tests of § 16, on every collection surface as on every other public surface.
+- **Order and labels:**
+  - the collection archive's order over names differing only by case and accents, unknown years, missing credits, and full ties;
+  - the same order in both languages;
+  - the approved labels in both languages.
 - **HTTP:**
   - `no-store` on every response class;
   - the identical `404` for unknown, unlisted, archived, and never-listed addresses;
@@ -464,6 +482,58 @@ On real PostgreSQL unless stated. Each one is a merge condition of the change th
   - axe, keyboard, 44px targets, and no sideways scroll;
   - every collection surface with JavaScript disabled.
 - **Restore:** the demote and check scripts clear and detect listings.
+
+### 16. Indexing at the first anonymous opening (site-wide; requirements only)
+
+Decision 20: when the site is first reachable anonymously, **every public surface carries `noindex`**. This section records the requirements and dependencies. **Nothing is implemented, and nothing changes now.**
+
+**Surface classes.**
+
+| Class | Members | Today (local) | Requirement while `noindex` holds | Must not change |
+| --- | --- | --- | --- | --- |
+| **Public content routes** | `/`, `/pt`, `/albums…`, `/artists…`, `/memories…`, `/collection…`, and their `/pt` forms, in every transport form (document, `_rsc`, `.rsc`, `.segments`, `/_next/data`) | No robots directive | `<meta name="robots" content="noindex">` in both root layouts' metadata, **and** `X-Robots-Tag: noindex` on every response | Statuses, bodies, `no-store`, A4's switch-off identity (the header is a constant, so it cannot depend on the database) |
+| **`404` responses** | Every unknown, unserved, switch-off, or page-level not-found answer | One shared view, identical headers across reasons | The same `X-Robots-Tag: noindex` on **every** `404`, whatever its reason, set by the proxy's not-found headers and by the header rules alike | INV-5 and A7 item 5: identical status, body, and headers across reasons |
+| **`308` redirects** | Previous journal slugs, address normalizations | `no-store` | `X-Robots-Tag: noindex` on the application's own `308`s. The framework's repeated-slash `308` stays outside application headers: the gap A2 and G2 already record | INV-5 |
+| **Studio and authenticated routes** | `/studio/**`, `/pt/studio/**`, sign-in | `robots: noindex, nofollow` metadata ([`studio-layout.tsx`](../../src/app/studio/studio-layout.tsx)); `robots.txt` disallows them; private, `no-store` headers | Add `X-Robots-Tag: noindex, nofollow` to their private headers. `noindex` is **never** the access control: authorization is (Security § Authorization contract) | Authorization on every page and action, private headers, the sign-in behaviour |
+| **Internal endpoints** | `/api/auth/**`, Server Action `POST`s | `robots.txt` disallows `/api/` | `X-Robots-Tag: noindex` on their responses; the `Disallow` stays | The handler's origin checks and responses |
+| **Technical files** | `/robots.txt`, `/sitemap.xml`, `/_next/static/**`, `/artwork/*` (the Home character, the `404` artwork), icons | `robots.txt` served with reads on; the sitemap lists served addresses | `robots.txt` keeps its `Disallow` lines and **does not disallow content routes**, so that crawlers can read `noindex`. It omits its `Sitemap:` line. `/sitemap.xml` answers the unknown-address `404` (a sitemap of `noindex` pages contradicts itself). Static files and images carry `X-Robots-Tag: noindex` | `robots.txt` and the sitemap under D4 when reads are off |
+| **Platform responses** | Vercel Authentication's `302`, the provider's sign-in | Outside the application | Not controlled by the application. They disappear for anonymous readers when protection changes (S4) | Never relied on |
+
+**Mechanism.**
+- **Fixed in code,** as one server-only constant read by the header rules ([`next.config.ts`](../../next.config.ts)), the proxy's own responses ([`src/proxy.ts`](../../src/proxy.ts)), the root layouts, `robots.txt`, and the sitemap.
+- **Not an environment variable and not request-controlled,** so no configuration change, header, cookie, or query can lift it.
+- **Constant on every response,** so it adds no difference between states, reasons, or languages.
+
+**Tests,** required with the implementation:
+- a static test that every header rule, the proxy's responses, and both root layouts apply the constant;
+- the anonymous HTTP matrix asserting `X-Robots-Tag` on every class above, in both language forms and every request form, with the reads switch on and off;
+- `404` headers still identical across reasons;
+- `robots.txt` without a `Sitemap:` line and without a content `Disallow`;
+- `/sitemap.xml` answering the identical `404`;
+- a browser check of the meta tag with JavaScript disabled.
+
+**Dependencies.**
+- It must be **implemented and verified before S4's protection change** ([hosted-launch plan](../hosted-launch.md), stage S4, step 2).
+- It is part of the evidence for G5 (`robots`, the sitemap) and for deployment-gate item 2 (redirect status and indexing reviewed).
+
+**Lifting it** needs all of these, as one reviewed pull request:
+- the owner's explicit, written decision;
+- an SEO review: which surfaces to index, canonical addresses, language alternates, which sitemap entries return, and the collection's own decision (§ 11);
+- an update of the hosted-launch plan.
+
+## Residual risks
+
+Each risk stays open until its criterion is met. Documenting a risk does not resolve it.
+
+| # | Cause | Consequence | Mitigation | Test evidence required | Criterion |
+| --- | --- | --- | --- | --- | --- |
+| **R1. A memory's named album changes through another album's journal** | [`memory-music.ts`](../../src/modules/publication/memory-music.ts) names, for a linked track, the album with a served journal first, otherwise the earliest by year, title, and id. Another album's served state is therefore an input to a memory page. | Publishing or unpublishing album B's journal changes the album title and link a served memory M shows. Neither M's review nor B's discloses it, and unpublishing B asks for no token. This is catalog wording changing on a public page without confirmation (G8). It reveals nothing private: the album is catalog data, and a link goes only to a served page. | **Proposed, for the owner's choice at acceptance:** (a) make the named album independent of publication state, always the earliest album containing the track by year, title, and id, so § 9's guard covers it; a journal link appears only when that album has a served journal. This changes M3.7's naming rule. (b) Disclose and bind affected memories in every publication review. That does not cover unpublishing, which is a reduction with no token, so (b) alone is insufficient. **Recommended: (a).** | For (a): an integration test over a memory × two albums × each journal state, showing the named album unchanged by the other album's publication and unpublication; the memory oracle updated; a mutation that restores the old rule fails | **Blocks the first hosted public page** until (a), or an equivalent the owner approves, is implemented and tested. G8 cannot be waived. It does not block accepting this ADR, provided the owner chooses the approach at acceptance. |
+| **R2. Namesakes and derived artist addresses** | Artist addresses are derived from names over the visible set ([`artist-address.ts`](../../src/modules/publication/artist-address.ts)). A suffix depends on which namesakes are visible, and listing, unlisting, archiving, publishing, and unpublishing change that set. | An artist page's address can change without its own review. The old address answers the identical unknown-address `404` and inbound links break. Nothing private is revealed (the addresses come from public names). Additions disclose the change they cause (A5, § 6). Reductions (unlisting, archiving, unpublishing) do not. | Additions are bound by the listing and publication reviews. The definitive fix is a stored, retained artist slug (a migration and its own decision), the owner decision already open under G1 in the [hosted-launch plan](../hosted-launch.md) § 6 | The namesake matrix: addresses equal across the artist page, the `/artists` archive, and the Home; the old address answering a byte-identical `404` with no `308`; disclosures listing the address changes that listing and publication cause | **Blocks S4** until the owner records the G1 decision: either a stored artist slug, implemented and tested before S4, or the derived addresses accepted in writing in #47 with this evidence. It does not block accepting this ADR. |
+| **R3. Slug reservation lost after restoring an older backup** | The reservation lives only in `albums.collection_slug`. The backup inventory carries no slugs ([ADR 0007 § 3](0007-hosted-backups-and-retention.md#3-what-a-recovery-may-do)), so a backup taken before an album's first listing has no slug for it. | After such a restore, an address that was public is free. Another album could later be listed at it, and an old link would show a different album. Nothing private is revealed. Journal slugs published after a backup have the same limit today. | A restored copy starts with nothing listed (§ 14). **Proposed procedure:** on a restored database, no first listing is made until the owner has compared its collection slugs with those of the newest available state. Carrying collection slugs (public text) in the inventory would make this mechanical, but it needs an ADR 0007 amendment, because the inventory carries no slugs today. | `recovery-demote.sql` clears listings and keeps slugs; `recovery-check.sql` fails while any album is listed; if the inventory is amended, `reconcile` reports a collection slug missing from the candidate | **Blocks any first listing on a restored database** until the comparison is recorded, or the owner accepts the gap in writing for that recovery. It does not block S4 by itself: no hosted backup exists yet, and G6 is open. It does not block accepting this ADR. |
+| **R4. Concurrent artist page openings** | A publication of another album's journal can open or close an artist page, or change a namesake's address, while a listing runs, unserialized with it (A5's class) | The page ends as one of the two disclosed states. No undisclosed photograph can appear (§ 8). | Listing locks its own album's journals (§ 10) | A real-connection test showing the outcome is one of the two disclosed states | Accepted only in writing at G7, as a verified, bounded residual |
+| **R5. Late entries** | An entry created after a command's locking statement is not locked by it (A3's class) | Needs two further author requests within the command's milliseconds | None beyond the short transaction | None feasible deterministically; A3's analysis applies | Accepted only in writing at G7 |
+| **R6. Deadlocks** | Commands that take rows outside § 10's order (`createTrack`'s foreign-key locks, as A5 records) | One request aborts with `40P01` and writes nothing. Availability only. | None needed for integrity | A5's existing deadlock evidence, re-run with the new commands | Accepted only in writing at G7 |
+| **R7. A provider replaces an image under the same Image ID** | The Cover Art Archive serves the image. Refrain stores only its address. | A reader could see an image the author never reviewed | The cover switch (§ 12), the always-allowed takedown (§ 7), and the item 6 review | The cover switch tests (§ 15) | Part of the deployment-gate item 6 review; covers stay hidden on a hosted surface until it is recorded |
 
 ## Effect on existing decisions, on acceptance
 
@@ -481,7 +551,11 @@ These texts change in the same pull request that accepts this ADR. None changes 
   - § 14, G8: resolved by § 9, once its tests pass and the owner reviews the evidence.
 - **[Security § Deployment gate](../security.md#deployment-gate):**
   - item 6 gains the collection as a surface, with `REFRAIN_COVER_DISPLAY_ENABLED` as the switch it says does not exist yet. Its removal procedure no longer says "unpublish first", because removal becomes always allowed.
-  - item 7 gains the collection-only rule of § 8.
+  - item 7 gains the collection-only rule of § 8;
+  - item 2 (redirect status and indexing reviewed) gains § 16's requirements.
+- **[Hosted Launch](../hosted-launch.md):**
+  - stage S4 gains § 16's site-wide `noindex` as a precondition of its protection change;
+  - § 6 records R1 and R2 as launch blockers under G8 and G1.
 - **[ADR 0007 § 3](0007-hosted-backups-and-retention.md#3-what-a-recovery-may-do):** the recovery demotion also unlists.
 - **[Product](../product.md), [Data Model](../data-model.md), [Architecture](../architecture.md), [Design System](../design-system.md), [Roadmap](../roadmap.md):** each records what is decided and, separately, what is built.
 
@@ -513,13 +587,11 @@ These texts change in the same pull request that accepts this ADR. None changes 
 
 ## Open decisions
 
-Product decisions 1 to 15 are settled. These remain for the owner, and none blocks accepting the architecture:
+All product decisions (1 to 20) are settled. What remains for the owner is in [Residual risks](#residual-risks):
 
-1. **Navigation:** whether "Collection" joins the header's sections. Proposed: no. It is reached from the Home section, from artist pages, and from journal pages, which keeps the V4.4 header unchanged.
-2. **Collection archive order.** Proposed: first credited artist's name as rendered, then year, then title. The sort name stays outside public reads (§ 9). Using it would put it under the G8 refusal.
-3. **Labels in both languages:** the Home section's link to `/collection`, the collection page's heading for its journal links, and the journal page's link to the collection page.
-4. **Artists on the Home:** proposed, the Home's Artists section keeps A6's journal-derived artists, and the `/artists` archive lists collection-only artists too (§ 8).
-5. **Scope of `noindex` at the first public opening:** this ADR applies it to collection surfaces. Whether the rest of the public site also opens with `noindex` belongs to the [hosted-launch plan](../hosted-launch.md) and its stage S4.
+- the choice for R1, at acceptance (recommended: (a));
+- the G1 decision for R2, before S4;
+- the recovery procedure for R3, and whether to amend ADR 0007's inventory.
 
 ## Revisit when
 
@@ -527,4 +599,4 @@ Product decisions 1 to 15 are settled. These remain for the owner, and none bloc
 - A bulk listing is wanted. It needs its own acknowledgement decision.
 - Addresses need to change. That needs a `308` design that respects INV-5.
 - Artist photographs are wanted for collection-only artists, after deployment-gate item 7.
-- Indexing is to be enabled: a reviewed change with the owner's written authorization.
+- Indexing is to be enabled: § 16's conditions.
