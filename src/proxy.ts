@@ -9,6 +9,7 @@ import {
 } from "@/modules/publication/public";
 
 import { normalizedAddress } from "./address-normalization";
+import { ROBOTS_DIRECTIVE, ROBOTS_HEADER } from "./indexing-policy";
 import {
   ARTIST_CONTENT_SECURITY_POLICY,
   CONTENT_SECURITY_POLICY,
@@ -101,6 +102,14 @@ const UNKNOWN_ADDRESS = "/__refrain-unknown-address";
 
 const NO_STORE = "no-store";
 
+// The indexing policy (src/indexing-policy.ts), on every response this proxy
+// makes itself, as `Cache-Control` is: the same constant as the header rules
+// of next.config.ts. The rule for every address there already reaches these
+// responses, encoded addresses included; this second copy keeps them from
+// depending on any header rule. Only src/indexing-policy.test.ts can tell the
+// two apart.
+const ROBOTS = { [ROBOTS_HEADER]: ROBOTS_DIRECTIVE } as const;
+
 // The same values as `publicHeaders` in next.config.ts, without
 // `Cache-Control`, which the not-found view sets itself (`no-store`).
 const PUBLIC_SECURITY_HEADERS = {
@@ -108,6 +117,7 @@ const PUBLIC_SECURITY_HEADERS = {
   "Referrer-Policy": "strict-origin-when-cross-origin",
   "X-Frame-Options": "DENY",
   "Content-Security-Policy": CONTENT_SECURITY_POLICY,
+  ...ROBOTS,
 } as const;
 
 // The artist pages' (M3.5): the same, with their image policy, which adds
@@ -130,6 +140,7 @@ const STUDIO_SECURITY_HEADERS = {
   "Content-Security-Policy": CONTENT_SECURITY_POLICY,
   "X-Content-Type-Options": "nosniff",
   "Referrer-Policy": "no-referrer",
+  ...ROBOTS,
 } as const;
 
 // What the public matchers above can let through, in any of the framework's
@@ -218,7 +229,7 @@ export async function proxy(request: NextRequest) {
   if (normal !== null) {
     return NextResponse.redirect(new URL(normal, request.url), {
       status: 308,
-      headers: { "Cache-Control": NO_STORE },
+      headers: { "Cache-Control": NO_STORE, ...ROBOTS },
     });
   }
 
@@ -299,12 +310,12 @@ export async function proxy(request: NextRequest) {
           `${prefix}/${isMemory ? "memories" : "albums"}/${decision.currentSlug}`,
           request.url,
         ),
-        { status: 308, headers: { "Cache-Control": NO_STORE } },
+        { status: 308, headers: { "Cache-Control": NO_STORE, ...ROBOTS } },
       );
     case "method_not_allowed":
       return new Response(null, {
         status: 405,
-        headers: { Allow: "GET, HEAD", "Cache-Control": NO_STORE },
+        headers: { Allow: "GET, HEAD", "Cache-Control": NO_STORE, ...ROBOTS },
       });
     case "unavailable":
       return new Response("Service unavailable", {
@@ -312,6 +323,7 @@ export async function proxy(request: NextRequest) {
         headers: {
           "Content-Type": "text/plain; charset=utf-8",
           "Cache-Control": NO_STORE,
+          ...ROBOTS,
         },
       });
     case "not_found":

@@ -802,6 +802,31 @@ test("a draft, and an unknown address, show the same not-found view with a real 
   expect(result.violations.map((v) => v.id)).toEqual([]);
 });
 
+test("asks not to be indexed without JavaScript, in both languages, served or not", async ({
+  browser,
+}) => {
+  // The initial indexing policy (docs/security.md#indexing): the meta tag is
+  // in the document the server sends, and the header on the response.
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  const page = await context.newPage();
+  for (const path of [
+    "/",
+    "/pt",
+    `/albums/${slug}`,
+    `/pt/albums/${slug}`,
+    `/albums/${draftSlug}`,
+    `/pt/albums/e2e-no-such-journal`,
+  ]) {
+    const response = await page.goto(`${base}${path}`);
+    expect(response?.headers()["x-robots-tag"], path).toBe("noindex, nofollow");
+    await expect(
+      page.locator('meta[name="robots"][content="noindex, nofollow"]'),
+      path,
+    ).toHaveCount(1);
+  }
+  await context.close();
+});
+
 test("a trailing slash is normalized to the same address", async ({ page }) => {
   await openJournal(page);
   const response = await page.goto(`${base}/albums/${slug}/`);
