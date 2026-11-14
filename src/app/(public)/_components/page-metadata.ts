@@ -64,11 +64,19 @@ export function publicPageMetadata({
   };
 }
 
-/** What a public page that is not served describes: nothing about it. */
+/**
+ * What a public page that is not served describes: nothing about it. It also
+ * carries the indexing policy, because the global not-found view is its own
+ * document, outside both roots: src/indexing-policy.ts's value, written out
+ * because a public file imports only the reading entry point
+ * (src/app/public-surface.test.ts); src/indexing-policy.test.ts keeps the
+ * copies equal.
+ */
 export function notFoundMetadata(locale: InterfaceLocale): Metadata {
   const t = dictionaryFor(locale);
   return {
     title: `${t.notFound.pageTitle} · refrain`,
     description: t.site.description,
+    robots: "noindex, nofollow",
   };
 }

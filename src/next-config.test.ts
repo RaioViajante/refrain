@@ -52,12 +52,17 @@ describe("next.config.ts header routes", () => {
 
   it("leave every public route `no-store`, as before", async () => {
     const routes = await headerRoutes();
-    const publicRoutes = routes.filter(
-      (route) =>
-        !route.source.startsWith("/studio") &&
-        !route.source.startsWith("/pt/studio") &&
-        !route.source.startsWith("/api/auth"),
-    );
+    // The first rule, for every address, sets only the indexing policy
+    // (src/indexing-policy.test.ts) and no `Cache-Control`.
+    expect(routes[0]).toEqual({ source: "/:path*", cacheControl: undefined });
+    const publicRoutes = routes
+      .slice(1)
+      .filter(
+        (route) =>
+          !route.source.startsWith("/studio") &&
+          !route.source.startsWith("/pt/studio") &&
+          !route.source.startsWith("/api/auth"),
+      );
     expect(publicRoutes.length).toBeGreaterThan(0);
     for (const route of publicRoutes) {
       expect(route.cacheControl, route.source).toBe("no-store");

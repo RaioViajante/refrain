@@ -19,6 +19,13 @@ const ARTIST_CONTENT_SECURITY_POLICY =
 // private, and never reused without asking the server (F-01).
 const PRIVATE_NO_STORE = "private, no-store, max-age=0, must-revalidate";
 
+// The initial indexing policy, as in src/indexing-policy.ts (this file cannot
+// import application modules; src/indexing-policy.test.ts keeps them equal):
+// one constant on every response, never read from the environment
+// (docs/security.md#indexing).
+const ROBOTS_DIRECTIVE = "noindex, nofollow";
+const ROBOTS_HEADER = { key: "X-Robots-Tag", value: ROBOTS_DIRECTIVE };
+
 const nextConfig: NextConfig = {
   // Data is dynamic unless it is explicitly cached with `use cache`, so nothing
   // is prerendered from the database by accident (docs/architecture.md).
@@ -51,6 +58,7 @@ const nextConfig: NextConfig = {
       { key: "Content-Security-Policy", value: STUDIO_CONTENT_SECURITY_POLICY },
       { key: "X-Content-Type-Options", value: "nosniff" },
       { key: "Referrer-Policy", value: "no-referrer" },
+      ROBOTS_HEADER,
     ];
     // The public pages (M3.1). `no-store` is set here as well as by the
     // framework and the proxy, because a prerendered shell that answers a
@@ -64,6 +72,7 @@ const nextConfig: NextConfig = {
       { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
       { key: "X-Frame-Options", value: "DENY" },
       { key: "Content-Security-Policy", value: CONTENT_SECURITY_POLICY },
+      ROBOTS_HEADER,
     ];
     // The same, with the artist pages' image policy (M3.5).
     const artistHeaders = publicHeaders.map((header) =>
@@ -72,6 +81,13 @@ const nextConfig: NextConfig = {
         : header,
     );
     return [
+      // The indexing policy on every address, including those no other rule
+      // names: an address no route serves, the static files and images, and
+      // the framework's own files. It sets nothing else, so every other
+      // header stays as before, and it comes first: the rules below repeat
+      // the same value, and the framework keeps the last rule that sets a
+      // header.
+      { source: "/:path*", headers: [ROBOTS_HEADER] },
       // The Home (M3.4): exactly `/`. It lists public journals per request, so
       // it is `no-store` like every other public response.
       { source: "/", headers: publicHeaders },

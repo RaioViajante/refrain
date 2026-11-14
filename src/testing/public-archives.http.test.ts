@@ -573,7 +573,11 @@ describe("every archive response", () => {
       expect(html).toContain(
         `<meta property="og:url" content="${ORIGIN}/${archive}"/>`,
       );
-      expect(html).not.toMatch(/<meta name="robots"/);
+      // The initial indexing policy (docs/security.md#indexing): exactly the
+      // policy's tag, and no other robots directive.
+      expect(html.match(/<meta name="robots"[^>]*>/g)).toEqual([
+        '<meta name="robots" content="noindex, nofollow"/>',
+      ]);
     }
   });
 });

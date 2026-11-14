@@ -502,7 +502,9 @@ describe("public reads enabled: the sitemap and robots.txt", () => {
     expect(response.status).toBe(200);
     expect(response.headers["cache-control"]).toBe("no-store");
     expect(response.body).toContain("Disallow: /studio");
-    expect(response.body).toContain(`Sitemap: ${on.baseURL}/sitemap.xml`);
+    // The initial indexing policy: the sitemap is not named while every page
+    // asks not to be indexed (src/testing/indexing.http.test.ts).
+    expect(response.body).not.toContain("Sitemap:");
     expect(response.body).not.toContain(prefix);
   });
 
