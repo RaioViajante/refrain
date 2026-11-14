@@ -159,7 +159,9 @@ describe("reviewing a release", () => {
       expect(review.artwork.map((choice) => choice.imageId)).toEqual([
         FIXTURE.frontImage,
       ]);
-      expect(review.artwork[0]!.coverUrl).toBe(FRONT);
+      expect(review.artwork[0]!.releaseId).toBe(FIXTURE.firstPressing);
+      // A choice carries no cover address (only image sources).
+      expect(JSON.stringify(review.artwork)).not.toContain(`"${FRONT}"`);
       expect(review.existingAlbum).toBeNull();
       expect(review.sameTitle).toEqual([]);
     });

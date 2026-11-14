@@ -8,16 +8,19 @@ import {
 } from "./artwork";
 
 // The cover display switch (docs/security.md § Deployment gate, item 6; the
-// design proposed in ADR 0009 § 12, PR #98). It decides whether any page,
-// public or Studio, may ask a browser to fetch an album cover. It can only
-// hide: it never publishes, lists, or reveals anything, and every public read
-// still goes through the publication predicate.
+// design proposed in ADR 0009 § 12, PR #98). Real covers are the intended
+// look of Refrain; this is the operational control over showing them: it
+// authorizes covers on a server, or takes them all down. It decides whether
+// any page, public or Studio, may ask a browser to fetch an album cover. It
+// can only hide: it never publishes, lists, or reveals anything, and every
+// public read still goes through the publication predicate.
 //
 // - Server-only: never a `NEXT_PUBLIC_` variable, never in a client bundle,
 //   never controlled by a request.
-// - Off by default, everywhere (local development and tests included), and
-//   fail closed: unset, empty, or anything other than exactly `true` (so
-//   `TRUE`, `1`, `yes`, and ` true` too) means off.
+// - Fail closed: unset, empty, or anything other than exactly `true` (so
+//   `TRUE`, `1`, `yes`, and ` true` too) means off. Local development turns
+//   it on in `.env.development.local`; a hosted deployment only after the
+//   owner's item 6 review.
 // - Read when a request is served, never at build time: Next.js inlines only
 //   `NEXT_PUBLIC_` variables into a build, and the HTTP tests serve one build
 //   with several values to prove it.

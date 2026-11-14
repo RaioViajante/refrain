@@ -3,14 +3,16 @@
 // build and the disposable test database. One build is served with
 // `REFRAIN_COVER_DISPLAY_ENABLED` unset, `false`, `TRUE`, and `true`:
 //
-// - unless it is exactly `true`, no response names an image host, a stored
-//   cover's release, or its image id: not the public pages (the Home, the album
-//   archive, an album journal, an artist page) in English and Portuguese and
-//   in their transport forms, and not the author's own Studio (the Desk, the
-//   albums, an album, its artwork page, the journals, the editor, Add music's
-//   edition list and release review), in either language, document or RSC;
-// - the Studio's choosing screens list the archive's candidates as text, and
-//   the action that chooses a cover is refused (`cover_display_disabled`);
+// - unless it is exactly `true`, no response names an image host or a stored
+//   cover's address: not the public pages (the Home, the album archive, an
+//   album journal, an artist page) in English and Portuguese and in their
+//   transport forms, and not the author's own Studio (the Desk, the albums,
+//   an album, its artwork page, the journals, the editor, Add music's edition
+//   list and release review), in either language, document or RSC. A stored
+//   cover's release and image id appear nowhere either, except as text on the
+//   Studio's choosing screens, which list the archive's candidates (and mark
+//   the chosen one) by design;
+// - the action that chooses a cover is refused (`cover_display_disabled`);
 // - exactly `true` shows the same covers as before, which proves the scan can
 //   see them;
 // - authentication, public reads, and the indexing policy are unchanged, and
@@ -344,6 +346,52 @@ describe("with the switch anything but exactly `true`", () => {
         }
       });
     }
+  });
+
+  it("lists the stored cover's image id as text when it is one of the candidates, marked as chosen, with no address and no image", async () => {
+    // In real use the stored cover was chosen from these very candidates.
+    const front = `https://coverartarchive.org/release/${FIXTURE.firstPressing}/${FIXTURE.frontImage}`;
+    const original = coverOf(chooser.albumId);
+    await client.query("update albums set cover_url = $1 where id = $2", [
+      front,
+      chooser.albumId,
+    ]);
+    try {
+      for (const [name, server] of Object.entries(off)) {
+        for (const [language, image, chosen] of [
+          ["", "image", "the chosen cover"],
+          ["/pt", "imagem", "a capa escolhida"],
+        ] as const) {
+          const path = `${language}/studio/albums/${chooser.albumId}/artwork`;
+          for (const rsc of [false, true]) {
+            const what = `${name} ${path} ${rsc ? "_rsc" : ""}`;
+            const page = await request(server.baseURL, path, {
+              rsc,
+              headers: { cookie: author.cookie },
+            });
+            expect(page.status, what).toBe(200);
+            expect(page.body, what).not.toContain("archive.org");
+            expect(page.body, what).not.toContain(front);
+            expect(page.body, what).not.toContain("expectedCoverUrl");
+          }
+          const page = await request(server.baseURL, path, {
+            headers: { cookie: author.cookie },
+          });
+          expect(page.body, `${name} ${path}`).not.toMatch(/<img\b/);
+          expect(page.body, `${name} ${path}`).toMatch(
+            new RegExp(
+              `${image} ${FIXTURE.frontImage}(?: \\([^)<]*\\))?(?:<!-- -->)? \\(${chosen}\\)`,
+            ),
+          );
+        }
+      }
+    } finally {
+      await client.query("update albums set cover_url = $1 where id = $2", [
+        original,
+        chooser.albumId,
+      ]);
+    }
+    await expectStoredCoversKept();
   });
 
   it("refuses a cover choice, writes nothing, and keeps every stored cover", async () => {

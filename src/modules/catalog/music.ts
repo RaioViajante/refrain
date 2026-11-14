@@ -391,18 +391,23 @@ function isFront(image: ArtworkImage): boolean {
   return image.front || image.types.includes("Front");
 }
 
+/**
+ * One front cover the author may choose. It carries no cover address, only
+ * its image sources, and those only while the cover display switch is on.
+ */
 export interface ArtworkChoice {
   releaseId: string;
   imageId: string;
   /** Its image sources, or null while the cover display switch is off. */
   artwork: DisplayedCover | null;
-  /** Its canonical address, which is what would be stored. Server-only. */
-  coverUrl: string;
   types: string[];
   approved: boolean;
 }
 
-function choicesOf(images: ArtworkImage[]): ArtworkChoice[] {
+/** The choices, each with the canonical address it would store (internal). */
+function candidatesOf(
+  images: ArtworkImage[],
+): (ArtworkChoice & { coverUrl: string })[] {
   return images.filter(isFront).flatMap((image) => {
     const coverUrl = canonicalCoverUrl(image);
     return coverUrl
@@ -418,6 +423,10 @@ function choicesOf(images: ArtworkImage[]): ArtworkChoice[] {
         ]
       : [];
   });
+}
+
+function choicesOf(images: ArtworkImage[]): ArtworkChoice[] {
+  return candidatesOf(images).map(({ coverUrl: _stored, ...choice }) => choice);
 }
 
 /**
@@ -1435,11 +1444,10 @@ export async function listAlbumArtworkChoices(
         : await providers.coverArt.listReleaseGroupImages(
             album.mbReleaseGroupId!,
           );
-    const choices = choicesOf(images).map((choice) => ({
+    const choices = candidatesOf(images).map(({ coverUrl, ...choice }) => ({
       ...choice,
       current:
-        choice.coverUrl === album.coverUrl &&
-        album.coverSource === COVER_ART_SOURCE,
+        coverUrl === album.coverUrl && album.coverSource === COVER_ART_SOURCE,
     }));
     return { ...base, source, choices, unavailable: false };
   } catch (error) {

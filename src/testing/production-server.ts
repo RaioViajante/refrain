@@ -247,9 +247,6 @@ export async function startProductionServer(
   // The public-reads switch is never inherited from the shell that runs the
   // tests: a server has it only if the test sets it (ADR 0006, D4).
   delete env.REFRAIN_PUBLIC_READS_ENABLED;
-  // Nor the cover display switch (docs/security.md § Deployment gate, item 6):
-  // covers are off unless the test turns them on.
-  delete env.REFRAIN_COVER_DISPLAY_ENABLED;
   // The providers are always the local mock: a test never calls the real
   // MusicBrainz, Cover Art Archive (M3.2), Wikimedia Commons, or Wikidata
   // (M3.3).
@@ -263,6 +260,16 @@ export async function startProductionServer(
     } else {
       env[key] = value;
     }
+  }
+  // The cover display switch (docs/security.md § Deployment gate, item 6) is
+  // never inherited from the shell or a local environment file: unless the
+  // test sets it, it is the empty string, which is off. Not deleted: Next.js
+  // fills a variable missing from the environment from `.env` and
+  // `.env.local` (`@next/env`), so a developer's own setting would return.
+  // `.env.development.local`, where Development says to turn covers on for
+  // `pnpm dev`, is never read by `next start`.
+  if (!options.env || options.env.REFRAIN_COVER_DISPLAY_ENABLED === undefined) {
+    env.REFRAIN_COVER_DISPLAY_ENABLED = "";
   }
 
   if (withAuthor) {

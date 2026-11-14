@@ -138,6 +138,19 @@ describe("the only way to build a cover's image addresses", () => {
     );
   });
 
+  it("leaves only the stored address's builder outside the switch, and only the artwork commands call it", () => {
+    // `canonicalCoverUrl` builds what the catalog stores for a chosen image
+    // (no size, so not an image source); it never reaches a page.
+    for (const file of sources("src")) {
+      if (file.startsWith(join("src", "integrations", "cover-art-archive"))) {
+        continue;
+      }
+      if (readFileSync(file, "utf8").includes("canonicalCoverUrl")) {
+        expect(file).toBe(join("src", "modules", "catalog", "music.ts"));
+      }
+    }
+  });
+
   it("is reached only through the entry point: no module imports the builders' file", () => {
     for (const file of sources("src")) {
       if (file.startsWith(join("src", "integrations", "cover-art-archive"))) {
