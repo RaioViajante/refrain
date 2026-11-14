@@ -522,7 +522,7 @@ describe("address normalization", () => {
     expect(signIn.status).toBe(200);
   });
 
-  it("KNOWN LIMITATION, for the owner: a repeated slash or a backslash still gets the framework's 308 without no-store, the same for every address", async () => {
+  it("KNOWN LIMITATION, for the owner: a repeated slash or a backslash still gets the framework's 308 without no-store or the indexing header, the same for every address", async () => {
     // Next.js 16.4.3 answers these at the top of its router, before any header
     // rule, redirect, or proxy runs, with an empty header set
     // (server/lib/router-utils/resolve-routes.js). The application cannot add
@@ -533,6 +533,7 @@ describe("address normalization", () => {
       status: got.status,
       location: (got.headers.location ?? "").split(s).join("SLUG"),
       cacheControl: got.headers["cache-control"],
+      robots: got.headers["x-robots-tag"],
       body: got.body.split(s).join("SLUG"),
     });
     for (const server of [on, off]) {
@@ -545,6 +546,7 @@ describe("address normalization", () => {
         status: 308,
         location: "/albums/SLUG",
         cacheControl: undefined,
+        robots: undefined,
         body: "/albums/SLUG",
       });
       expect(answers[1]).toEqual(answers[0]);
@@ -555,6 +557,7 @@ describe("address normalization", () => {
       status?: number;
       location?: string;
       cc?: string;
+      robots?: string | string[];
     }>((resolve, reject) => {
       const url = new URL(on.baseURL);
       const req = httpRequest(
@@ -569,6 +572,7 @@ describe("address normalization", () => {
             status: res.statusCode,
             location: res.headers.location,
             cc: res.headers["cache-control"],
+            robots: res.headers["x-robots-tag"],
           });
         },
       );
@@ -579,6 +583,8 @@ describe("address normalization", () => {
       status: 308,
       location: `/albums/${slug("draft")}`,
       cc: undefined,
+      // Nor the indexing policy's header (src/testing/indexing.http.test.ts).
+      robots: undefined,
     });
   });
 });

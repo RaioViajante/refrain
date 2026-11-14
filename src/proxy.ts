@@ -104,8 +104,10 @@ const NO_STORE = "no-store";
 
 // The indexing policy (src/indexing-policy.ts), on every response this proxy
 // makes itself, as `Cache-Control` is: the same constant as the header rules
-// of next.config.ts, set here so that these responses do not depend on those
-// rules, which match the raw path only and so miss an encoded address.
+// of next.config.ts. The rule for every address there already reaches these
+// responses, encoded addresses included; this second copy keeps them from
+// depending on any header rule. Only src/indexing-policy.test.ts can tell the
+// two apart.
 const ROBOTS = { [ROBOTS_HEADER]: ROBOTS_DIRECTIVE } as const;
 
 // The same values as `publicHeaders` in next.config.ts, without

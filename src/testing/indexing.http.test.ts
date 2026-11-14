@@ -9,11 +9,13 @@
 // and disallows no content; the sitemap answers as before. The value is the
 // same everywhere, so it says nothing about any address. The one response
 // that lacks it is the framework's own repeated-slash `308`, which runs before
-// any application header (a recorded limitation, fixed in shape below).
+// any application header, for a repeated slash or a backslash (a recorded
+// limitation, fixed in shape below).
 //
 // Synthetic data only: every row is labelled "[Test]" and removed at the end.
 import { randomBytes, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { request as httpRequest } from "node:http";
 
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
@@ -81,8 +83,31 @@ let artists: SeededArtists;
 let memories: SeededMemories;
 let artistAddress = "";
 
-/** Every value of the header seen, by the request that received it. */
-const seen = new Map<string, string | undefined>();
+/**
+ * Every value of the header seen, keyed by the whole request that received it
+ * (method, server, path, and headers), so no two requests share an entry.
+ */
+const seen = new Map<string, { path: string; value: string | undefined }>();
+
+function remember(
+  base: string,
+  path: string,
+  init: Parameters<typeof request>[2],
+  value: string | undefined,
+) {
+  const headers = { ...(init?.headers as Record<string, string> | undefined) };
+  if (headers.cookie && headers.cookie === author?.cookie) {
+    headers.cookie = "<the author's session>";
+  }
+  const key = JSON.stringify([
+    init?.method ?? "GET",
+    base,
+    path,
+    init?.rsc ?? false,
+    headers,
+  ]);
+  seen.set(key, { path, value });
+}
 
 async function got(
   base: string,
@@ -91,16 +116,47 @@ async function got(
 ): Promise<Snapshot> {
   const response = await request(base, path, init);
   // The author's own Studio shows the author's drafts: those answers are not
-  // part of what a reader was sent, so they leave the scanned corpus.
+  // part of what a reader was sent, so they leave the scanned corpus. Only
+  // the author's session does; any other cookie stays a reader's request.
   const cookie = (init.headers as Record<string, string> | undefined)?.cookie;
-  if (cookie) {
+  if (cookie !== undefined && cookie === author?.cookie) {
     corpus.splice(corpus.length - 2, 2);
   }
-  seen.set(
-    `${init.method ?? "GET"} ${base === offBase ? "off" : "other"} ${path}`,
-    response.headers["x-robots-tag"],
-  );
+  remember(base, path, init, response.headers["x-robots-tag"]);
   return response;
+}
+
+/**
+ * A request sent as written: fetch() normalizes a backslash, so the
+ * framework's backslash answer needs a raw request.
+ */
+function raw(
+  base: string,
+  path: string,
+): Promise<{ status?: number; location?: string; robots?: string }> {
+  return new Promise((resolve, reject) => {
+    const url = new URL(base);
+    const req = httpRequest(
+      { host: url.hostname, port: url.port, path },
+      (res) => {
+        res.resume();
+        const robots = res.headers["x-robots-tag"];
+        remember(
+          base,
+          path,
+          {},
+          Array.isArray(robots) ? robots.join() : robots,
+        );
+        resolve({
+          status: res.statusCode,
+          location: res.headers.location,
+          robots: Array.isArray(robots) ? robots.join() : robots,
+        });
+      },
+    );
+    req.on("error", reject);
+    req.end();
+  });
 }
 
 function expectPolicy(response: Snapshot, what: string) {
@@ -363,17 +419,40 @@ describe("public addresses, with public reads on and off, in both languages", ()
     }
   });
 
-  it("KNOWN LIMITATION: the framework's repeated-slash 308 has no application header at all, and its target has the policy", async () => {
-    // Next.js answers a repeated slash before any header rule or proxy runs
-    // (see the same limitation for `no-store` in
-    // public-request-forms.http.test.ts). A 308 has no content to index; the
-    // address it names carries the policy.
+  it("KNOWN LIMITATION: the framework's repeated-slash and backslash 308 has no application header at all, and its target has the policy", async () => {
+    // Next.js answers a repeated slash or a backslash before any header rule
+    // or proxy runs (see the same limitation for `no-store` in
+    // public-request-forms.http.test.ts), so the application cannot add the
+    // header there. A 308 has no content to index; the address it names
+    // carries the policy. This fixes the documented shape, not a header the
+    // framework does not allow.
     for (const base of [on.baseURL, offBase]) {
-      const response = await got(base, `/albums//${slug("grace")}`);
-      expect(response.status).toBe(308);
-      expect(response.headers["x-robots-tag"]).toBeUndefined();
-      const target = await got(base, response.headers.location!);
-      expectPolicy(target, "the repeated slash's target");
+      for (const [path, destination] of [
+        [`/albums//${slug("grace")}`, `/albums/${slug("grace")}`],
+        [`/pt//albums/${slug("grace")}`, `/pt/albums/${slug("grace")}`],
+        [`//albums/${slug("grace")}`, `/albums/${slug("grace")}`],
+      ] as const) {
+        const response = await got(base, path);
+        expect(response.status, path).toBe(308);
+        expect(response.headers.location, path).toBe(destination);
+        expect(response.headers["x-robots-tag"], path).toBeUndefined();
+        const target = await got(base, destination);
+        expectPolicy(target, `the target of ${path}`);
+      }
+      // A backslash, which a browser never sends but a raw client can.
+      for (const [path, destination] of [
+        [`/albums\\${slug("grace")}`, `/albums/${slug("grace")}`],
+        [`/pt\\albums\\${slug("grace")}`, `/pt/albums/${slug("grace")}`],
+      ] as const) {
+        const response = await raw(base, path);
+        expect(response, path).toEqual({
+          status: 308,
+          location: destination,
+          robots: undefined,
+        });
+        const target = await got(base, destination);
+        expectPolicy(target, `the target of ${path}`);
+      }
     }
   });
 });
@@ -552,16 +631,22 @@ describe("the robots meta tag", () => {
 });
 
 describe("the policy as a whole", () => {
-  it("is one value on every response that has the header, and only the repeated slash lacks it", () => {
-    const values = new Set(seen.values());
+  it("is one value on every response that has the header, and only the framework's repeated-slash and backslash 308 lacks it", () => {
+    const values = new Set([...seen.values()].map(({ value }) => value));
     values.delete(undefined);
     expect([...values]).toEqual([ROBOTS_DIRECTIVE]);
-    const missing = [...seen.entries()]
-      .filter(([, value]) => value === undefined)
-      .map(([key]) => key);
-    for (const key of missing) {
-      expect(key, key).toMatch(/\/albums\/\//);
-    }
+    const missing = [...seen.values()]
+      .filter(({ value }) => value === undefined)
+      .map(({ path }) => path);
+    expect(new Set(missing)).toEqual(
+      new Set([
+        `/albums//${slug("grace")}`,
+        `/pt//albums/${slug("grace")}`,
+        `//albums/${slug("grace")}`,
+        `/albums\\${slug("grace")}`,
+        `/pt\\albums\\${slug("grace")}`,
+      ]),
+    );
   });
 
   it("sent no private marker in anything any request received", () => {

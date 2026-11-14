@@ -15,7 +15,7 @@
 //   this header.
 //
 // next.config.ts cannot import application modules, and the root layouts and
-// the not-found metadata import none (src/app/public-surface.test.ts), so
+// the not-found metadata may import none (src/app/public-surface.test.ts), so
 // they repeat this value; src/indexing-policy.test.ts keeps the copies equal.
 export const ROBOTS_DIRECTIVE = "noindex, nofollow";
 

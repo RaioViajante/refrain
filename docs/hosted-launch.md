@@ -213,13 +213,13 @@ On the day, with S1 done and verified:
 
 Only after every gate and condition in [§ 6](#6-hosted-release-gates-g1g8-and-their-dependencies) is closed by owner-reviewed evidence, and the canonical-host redirect ([§ 7](#7-minimal-launch-critical-fixes), item 2) is deployed and verified. The order makes each step safe if the next one fails.
 
-1. **Reads still off.** Confirm `REFRAIN_PUBLIC_READS_ENABLED=false` in the running production deployment: every public route answers the unknown-address `404` on the canonical domain, with the owner's Vercel session. Confirm also, with that session, that the deployment carries the [initial indexing policy](security.md#indexing): `X-Robots-Tag: noindex, nofollow` on the Home, an unknown address, `/studio/sign-in`, and a static file.
+1. **Reads still off.** Confirm `REFRAIN_PUBLIC_READS_ENABLED=false` in the running production deployment: every public route answers the unknown-address `404` on the canonical domain, with the owner's Vercel session. Confirm also, with that session, that the deployment carries the [initial indexing policy](security.md#indexing): `X-Robots-Tag: noindex, nofollow` on the Home, an unknown address, `/studio/sign-in`, and a static file, as one value; record any value the host adds or merges.
 2. **Change the protection mode,** from All Deployments to the mode the owner approves, which leaves only production domains public.
 3. **Inventory every hostname at once, anonymously** (no Vercel session), while reads are still off:
 
    | Hostname | Expected |
    | --- | --- |
-   | `refrain.raioviajante.com` | The site, with public routes answering `404` (reads off) and `/studio` answering the sign-in |
+   | `refrain.raioviajante.com` | The site, with public routes answering `404` (reads off) and `/studio` answering the sign-in, each with the one `X-Robots-Tag: noindex, nofollow` |
    | `refrain-chi.vercel.app`, `refrain-bryanalvarenga-5889s-projects.vercel.app` | `308` to the canonical domain, or the provider's sign-in. Never the site under its own name |
    | The current deployment's generated URL, a staged deployment's URL, and every `refrain-git-…` alias | The provider's sign-in (protected) |
 
