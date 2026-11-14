@@ -152,7 +152,11 @@ async function Album({ params, locale }: Props) {
             : w.notLinked}
         </p>
         <p>
-          {album.mbReleaseGroupId || album.edition?.mbReleaseId ? (
+          {/* A stored cover can always be removed there (ADR 0006 A8), even
+              on an album that is not linked to MusicBrainz. */}
+          {album.mbReleaseGroupId ||
+          album.edition?.mbReleaseId ||
+          album.coverStored ? (
             <Link
               href={href(`/studio/albums/${album.id}/artwork`)}
               className="studio-button"

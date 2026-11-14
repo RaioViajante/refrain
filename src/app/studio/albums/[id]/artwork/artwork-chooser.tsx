@@ -1,23 +1,21 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
 
-import {
-  removeAlbumArtworkAction,
-  setAlbumArtworkAction,
-} from "@/app/studio/albums/actions";
+import { setAlbumArtworkAction } from "@/app/studio/albums/actions";
 import { ArtworkPlaceholder } from "@/app/studio/artwork-placeholder";
-import { ConfirmDialog, useSubmission } from "@/app/studio/form-kit";
+import { useSubmission } from "@/app/studio/form-kit";
 import { failureMessage } from "@/app/studio/messages";
 import { useStudio } from "@/app/studio/studio-locale";
 
-// Choosing an album's cover (M3.2). Each action sends a fingerprint of the
+// Choosing an album's cover (M3.2). Each choice sends a fingerprint of the
 // stored cover the author is looking at (`expectedCover`, never its address),
 // so a change made elsewhere meanwhile is never silently replaced: the server
 // refuses and the page asks to look again. While the cover display switch is
 // off (`coverDisplay`), no image is shown and the candidates are text with no
 // choice; the server refuses a choice anyway (`cover_display_disabled`).
+// Removing the cover is not here: it is offered in every state of the page
+// (`remove-artwork.tsx`, ADR 0006 A8).
 
 interface Choice {
   releaseId: string;
@@ -48,7 +46,6 @@ export function ArtworkChooser({
   const { locale, words } = useStudio();
   const w = words.artworkPage;
   const { pending, failure, run, clearFailure } = useSubmission();
-  const [removing, setRemoving] = useState(false);
 
   async function choose(choice: Choice) {
     const result = await run(() =>
@@ -59,16 +56,6 @@ export function ArtworkChooser({
         expectedCover: currentCover,
       }),
     );
-    if (result.ok) {
-      router.refresh();
-    }
-  }
-
-  async function remove() {
-    const result = await run(() =>
-      removeAlbumArtworkAction({ albumId, expectedCover: currentCover }),
-    );
-    setRemoving(false);
     if (result.ok) {
       router.refresh();
     }
@@ -139,22 +126,6 @@ export function ArtworkChooser({
         </>
       )}
 
-      {hasArtwork ? (
-        <div className="studio-actions">
-          <button
-            type="button"
-            className="studio-button"
-            disabled={pending}
-            onClick={() => {
-              clearFailure();
-              setRemoving(true);
-            }}
-          >
-            {w.remove}
-          </button>
-        </div>
-      ) : null}
-
       <p
         role={failure ? "alert" : "status"}
         className={failure ? "studio-problem" : "studio-hint"}
@@ -166,17 +137,6 @@ export function ArtworkChooser({
             ? failureMessage(words, failure)
             : ""}
       </p>
-
-      <ConfirmDialog
-        open={removing}
-        title={w.removeQuestion}
-        confirmLabel={w.removeConfirm}
-        pending={pending}
-        onConfirm={remove}
-        onCancel={() => setRemoving(false)}
-      >
-        <p>{w.removeBody}</p>
-      </ConfirmDialog>
     </section>
   );
 }

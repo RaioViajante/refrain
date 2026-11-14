@@ -608,8 +608,9 @@ export const studioPtBR: StudioDictionary = {
       `Capa frontal ${n}: imagem ${imageId}${types ? ` (${types})` : ""}`,
     currentCandidate: " (a capa escolhida)",
     onPublicPageBody:
-      "Um diário publicado mostra este álbum, então a capa não pode mudar aqui: uma mudança chegaria aos leitores sem uma confirmação, que ainda não existe. Despublique o diário primeiro se a capa precisar mudar.",
-    archived: "Este álbum está arquivado. Restaure-o para trocar a capa.",
+      "Um diário publicado mostra este álbum, então não dá para escolher outra capa aqui: ela chegaria aos leitores sem uma confirmação, que ainda não existe. Para escolher outra, despublique o diário primeiro.",
+    archived: "Este álbum está arquivado. Restaure-o para escolher uma capa.",
+    canStillRemove: "Você ainda pode remover a capa acima.",
     notLinkedTitle: "Não vinculado ao MusicBrainz",
     notLinkedStart:
       "A capa vem do Cover Art Archive, que precisa saber qual álbum do MusicBrainz é este. Encontre-o em ",
@@ -633,7 +634,9 @@ export const studioPtBR: StudioDictionary = {
     removeQuestion: "Remover a capa deste álbum?",
     removeConfirm: "Remover",
     removeBody:
-      "O álbum volta a mostrar o quadro “ainda sem capa”. Você pode escolher uma capa de novo quando quiser.",
+      "O álbum volta a mostrar o quadro “ainda sem capa”, aqui e em todas as páginas que o mostram, inclusive as públicas. Nenhum diário é despublicado, e nada mais muda no álbum. Você pode escolher uma capa de novo depois, onde a escolha for permitida.",
+    removePending: "Removendo…",
+    removed: "Capa removida. O álbum mostra o quadro “ainda sem capa”.",
   },
   tracks: {
     title: "Faixas",

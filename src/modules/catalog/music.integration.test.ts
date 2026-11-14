@@ -1254,15 +1254,13 @@ describe("artwork", () => {
           ),
         ),
       ).toBe("public_page");
-      expect(
-        await refusal(tx, (savepoint) =>
-          removeAlbumArtwork(savepoint, author, {
-            albumId,
-            expectedCover: coverStateOf(FRONT),
-          }),
-        ),
-      ).toBe("public_page");
       expect(await storedCoverUrl(tx, albumId)).toBe(FRONT);
+      // Removing it is always allowed (ADR 0006 A8): cover-removal tests.
+      await removeAlbumArtwork(tx, author, {
+        albumId,
+        expectedCover: coverStateOf(FRONT),
+      });
+      expect(await storedCoverUrl(tx, albumId)).toBe(null);
     });
   });
 

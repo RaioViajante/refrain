@@ -600,8 +600,9 @@ export const studioEn = {
       `Front cover ${n}: image ${imageId}${types ? ` (${types})` : ""}`,
     currentCandidate: " (the chosen cover)",
     onPublicPageBody:
-      "A published journal shows this album, so its artwork can’t change here: a change would reach readers without a confirmation, and that confirmation isn’t built yet. Unpublish the journal first if the artwork must change.",
-    archived: "This album is archived. Restore it to change its artwork.",
+      "A published journal shows this album, so another cover can’t be chosen here: it would reach readers without a confirmation, and that confirmation isn’t built yet. To choose another, unpublish the journal first.",
+    archived: "This album is archived. Restore it to choose a cover.",
+    canStillRemove: "You can still remove the cover above.",
     notLinkedTitle: "Not linked to MusicBrainz",
     notLinkedStart:
       "Artwork comes from the Cover Art Archive, which needs to know which MusicBrainz album this is. Find it in ",
@@ -625,7 +626,9 @@ export const studioEn = {
     removeQuestion: "Remove this album’s artwork?",
     removeConfirm: "Remove",
     removeBody:
-      "The album shows the “no artwork yet” frame again. You can choose a cover again at any time.",
+      "The album shows the “no artwork yet” frame again, here and on every page that shows it, public pages included. No journal is unpublished, and nothing else about the album changes. You can choose a cover again later, where choosing is allowed.",
+    removePending: "Removing…",
+    removed: "Artwork removed. The album shows the “no artwork yet” frame.",
   },
   tracks: {
     title: "Tracks",

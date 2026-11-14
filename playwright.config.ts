@@ -259,9 +259,10 @@ export default defineConfig({
     {
       // The cover display switch (docs/security.md § Deployment gate, item 6):
       // a reader's and the author's browser, against the server whose switch
-      // is unset and the ones where it is on (e2e/global-setup.ts).
+      // is unset and the ones where it is on (e2e/global-setup.ts); and
+      // removing a cover in every state (ADR 0006 A8).
       name: "cover-display-desktop",
-      testMatch: /cover-display\.spec\.ts/,
+      testMatch: /cover-(display|removal)\.spec\.ts/,
       use: {
         browserName: "chromium",
         viewport: { width: 1280, height: 900 },
@@ -271,7 +272,7 @@ export default defineConfig({
     },
     {
       name: "cover-display-390",
-      testMatch: /cover-display\.spec\.ts/,
+      testMatch: /cover-(display|removal)\.spec\.ts/,
       use: {
         browserName: "chromium",
         viewport: { width: 390, height: 844 },

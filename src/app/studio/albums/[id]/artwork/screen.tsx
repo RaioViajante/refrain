@@ -14,6 +14,7 @@ import { listAlbumArtworkChoices } from "@/modules/catalog";
 import { authorizeAuthor } from "@/modules/identity";
 
 import { ArtworkChooser } from "./artwork-chooser";
+import { RemoveArtwork } from "./remove-artwork";
 
 export function artworkMetadata(locale: InterfaceLocale): Metadata {
   return { title: studio(locale).words.meta.artwork };
@@ -21,10 +22,12 @@ export function artworkMetadata(locale: InterfaceLocale): Metadata {
 
 // An album's artwork (M3.2): the front covers the Cover Art Archive has for
 // the album's MusicBrainz edition (or release group), and the author's choice.
-// While a published journal shows the album, nothing here can change it
-// (ADR 0006 D5, gate G8). While the cover display switch is off, no image is
-// shown, the candidates are listed as text, and none can be chosen
-// (docs/security.md § Deployment gate, item 6); removal is still offered.
+// While a published journal shows the album, or the album is archived, no
+// cover can be chosen (ADR 0006 D5, gate G8). While the cover display switch
+// is off, no image is shown, the candidates are listed as text, and none can
+// be chosen (docs/security.md § Deployment gate, item 6). Removing the stored
+// cover is offered in every one of those states (ADR 0006 A8): it only takes
+// something away.
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -63,7 +66,9 @@ async function Artwork({ params, locale }: Props) {
           ← {artwork.title}
         </Link>
       </p>
-      <h1 className="studio-title">{w.title}</h1>
+      <h1 id="artwork-title" className="studio-title" tabIndex={-1}>
+        {w.title}
+      </h1>
       <div className="flex flex-wrap items-end gap-8">
         <ArtworkPlaceholder
           locale={locale}
@@ -79,6 +84,12 @@ async function Artwork({ params, locale }: Props) {
               : w.noArtwork}
         </p>
       </div>
+      <RemoveArtwork
+        albumId={id}
+        expectedCover={artwork.currentCover}
+        hasArtwork={artwork.coverStored}
+        focusId="artwork-title"
+      />
 
       {artwork.onPublicPage ? (
         <div className="studio-panel" role="status">
@@ -86,10 +97,12 @@ async function Artwork({ params, locale }: Props) {
             {words.photoPage.onPublicPageTitle}
           </p>
           <p>{w.onPublicPageBody}</p>
+          {artwork.coverStored ? <p>{w.canStillRemove}</p> : null}
         </div>
       ) : artwork.archived ? (
         <div className="studio-panel" role="status">
           <p>{w.archived}</p>
+          {artwork.coverStored ? <p>{w.canStillRemove}</p> : null}
         </div>
       ) : !artwork.linked ? (
         <div className="studio-panel" role="status">

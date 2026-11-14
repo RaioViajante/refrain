@@ -111,7 +111,8 @@ export async function moveTrackInAlbumAction(
 }
 
 // Artwork (M3.2): a front cover from the Cover Art Archive, chosen by the
-// author, or none. Refused while a published journal shows the album (gate G8).
+// author, or none. A choice is refused while a published journal shows the
+// album (gate G8); a removal is always allowed (ADR 0006 A8).
 
 export async function setAlbumArtworkAction(
   input: unknown,

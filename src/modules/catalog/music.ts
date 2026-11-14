@@ -1559,9 +1559,17 @@ const removeArtworkInput = z.object({
 });
 
 /**
- * Removes an album's artwork, under the same conditions, except the cover
- * display switch: removing a cover only takes something away, so it is
- * allowed while covers are hidden.
+ * Removes an album's artwork: the cover takedown (ADR 0006 A8). It only takes
+ * something away, so it is always allowed: while a journal about the album is
+ * public, for an archived album, while the cover display switch is off, and
+ * with no provider request. It writes the album's two cover columns and
+ * nothing else, and it takes no entry lock: no publication binds the cover,
+ * so there is nothing to serialize with (A8 replaces A3 for this command).
+ *
+ * It is refused (`review_stale`, nothing written) when a cover other than the
+ * one the author saw is stored, so a cover is never removed unseen. When no
+ * cover is stored, there is nothing to take away: it succeeds and writes
+ * nothing, whatever the author saw (a repeated removal).
  */
 export async function removeAlbumArtwork(
   db: DatabaseExecutor,
@@ -1571,25 +1579,18 @@ export async function removeAlbumArtwork(
   const { albumId, expectedCover } = parse(removeArtworkInput, input);
   await guarded(() =>
     db.transaction(async (tx) => {
-      // The entries first, then the album (ADR 0006 § 7, L3: catalog locks
-      // come after the entry lock): every journal entry about the album is
-      // locked FOR SHARE and the predicate decides, so a publish waits for
-      // this change, or this change sees the publish.
-      if (await lockAlbumPublicExposure(tx, albumId)) {
-        throw new CatalogError("public_page");
-      }
+      // The album row only, FOR NO KEY UPDATE: a concurrent choice of cover
+      // (setAlbumArtwork) takes the same lock, so one waits for the other and
+      // then compares the cover the author saw with the one stored.
       const album = await albumIdentity(tx, albumId, true);
       if (!album) {
         throw new CatalogError("not_found");
       }
-      if (album.archived) {
-        throw new CatalogError("archived_reference");
+      if (album.coverUrl === null && album.coverSource === null) {
+        return;
       }
       if (coverStateOf(album.coverUrl) !== expectedCover) {
         throw new CatalogError("review_stale");
-      }
-      if (album.coverUrl === null && album.coverSource === null) {
-        return;
       }
       await tx
         .update(schema.albums)

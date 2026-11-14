@@ -353,7 +353,7 @@ describe("Add music with the author's session", () => {
     expect(kept).toBe("[Test] Paper Singer");
   });
 
-  it("refuses an artwork change while a published journal shows the album", async () => {
+  it("refuses a cover choice while a published journal shows the album, and allows its removal", async () => {
     const albumId = await scalar<string>(
       "select id from albums where mb_release_group_id = $1",
       [FIXTURE.paperMoon],
@@ -371,29 +371,29 @@ describe("Add music with the author's session", () => {
       [entry, albumId],
     );
 
-    const removal = await call(
-      "removeAlbumArtworkAction",
-      { albumId, expectedCover: FRONT_STATE },
-      albumId,
-    );
-    expect(removal).toEqual({ ok: false, code: "public_page" });
     const artwork = await page(
       `/studio/albums/${albumId}/artwork`,
       author.cookie,
     );
     expect(artwork.html).toContain("Shown on a public page");
     expect(artwork.html).not.toContain("Use this cover");
+    // The removal is offered in this state too (ADR 0006 A8).
+    expect(artwork.html).toContain("Remove artwork…");
     expect(
-      await scalar<string>("select cover_url from albums where id = $1", [
+      await call(
+        "setAlbumArtworkAction",
+        {
+          albumId,
+          releaseId: FIXTURE.legacyEdition,
+          imageId: FIXTURE.legacyFrontImage,
+          expectedCover: FRONT_STATE,
+        },
         albumId,
-      ]),
-    ).toBe(FRONT);
+      ),
+    ).toEqual({ ok: false, code: "public_page" });
 
-    // Unpublished, the change is possible again, and stale views are refused.
-    await db.query(
-      "update entry_texts set status = 'private', published_at = null where entry_id = $1",
-      [entry],
-    );
+    // A stale view is refused; the view of the stored cover removes it, and
+    // the journal stays published.
     expect(
       await call(
         "removeAlbumArtworkAction",
@@ -408,6 +408,24 @@ describe("Add music with the author's session", () => {
         albumId,
       ),
     ).toMatchObject({ ok: true });
+    expect(
+      await scalar<string | null>(
+        "select cover_url from albums where id = $1",
+        [albumId],
+      ),
+    ).toBe(null);
+    expect(
+      await scalar<string>(
+        "select status from entry_texts where entry_id = $1",
+        [entry],
+      ),
+    ).toBe("published");
+
+    // Unpublished, a cover can be chosen again.
+    await db.query(
+      "update entry_texts set status = 'private', published_at = null where entry_id = $1",
+      [entry],
+    );
     expect(
       await call(
         "setAlbumArtworkAction",
