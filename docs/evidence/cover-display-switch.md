@@ -33,7 +33,7 @@ Every cover image source is built in [`artwork.ts`](../../src/integrations/cover
 | Studio: Desk, Albums, Journals, Recently deleted, Add music's catalog list, a new journal | `listAlbumCovers` | Fallback frame |
 | Studio: a journal, the editor | `getAlbumCover` | Fallback frame; the margin says a cover is chosen but not shown |
 | Studio: an album | `getAlbum` | Fallback frame; "A cover is chosen; covers are turned off here." |
-| Studio: the artwork page | `listAlbumArtworkChoices` | Fallback frame; a notice; the archive's candidates as text (number, image id, type), with no choice; removal still offered where it was |
+| Studio: the artwork page | `listAlbumArtworkChoices` | Fallback frame; a notice; the archive's candidates as text (number, image id, type), with no choice; removal offered in every state ([A8](../decisions/0006-publication-decision-and-acknowledgement.md#a8-removing-an-albums-cover-is-always-allowed)) |
 | Add music: the edition list | `listMusicEditions` | No previews |
 | Add music: the release review | `reviewMusicRelease` | The candidates as text; no choice; the album is added without a cover |
 | Metadata and social previews | — | No `og:image` or other image metadata exists for covers |
@@ -47,7 +47,7 @@ Every cover image source is built in [`artwork.ts`](../../src/integrations/cover
 | `setAlbumArtwork` | `cover_display_disabled`, before any provider request; nothing written |
 | `importMusicRelease` with `coverImageId` | `cover_display_disabled`, before any provider request; nothing written |
 | `importMusicRelease` without one | Unchanged |
-| `removeAlbumArtwork` | Allowed, under its existing conditions (ADR 0006 A3 unchanged) |
+| `removeAlbumArtwork` | Allowed. Since ADR 0006 A8 (PR #102), in every state ([Evidence: cover removal](cover-removal.md)) |
 
 Both artwork commands now take `expectedCover`: a SHA-256 fingerprint of the stored cover address, or `null`. They no longer take the address itself (`expectedCoverUrl`). The address never reaches a page's HTML or RSC payload, with the switch on or off. A stale fingerprint is `review_stale`. A malformed one, or an address, is `invalid_input`.
 
@@ -59,7 +59,7 @@ Not changed by this PR:
 - the schema and migrations, so no stored cover changes;
 - the indexing policy;
 - the Content-Security-Policy, which still allows the cover hosts (`next.config.ts` fixes it at build time, and it is not the control here);
-- cover removal while a journal is public or the album is archived, still refused (that is PR 3, not authorized);
+- cover removal while a journal is public or the album is archived, which was still refused here; PR #102 allows it ([A8](../decisions/0006-publication-decision-and-acknowledgement.md#a8-removing-an-albums-cover-is-always-allowed));
 - no provider is called on a normal read.
 
 ## Tests
@@ -91,4 +91,4 @@ Changing it on a hosted deployment takes a new deployment, since an environment 
 - **The hosted site.** Nothing is deployed. Before S4, S4 step 1 checks that the variable is unset there and that the Studio shows the fallback frame ([hosted-launch](../hosted-launch.md#public-release-sequence-stage-s4)).
 - **Turning it on for a hosted deployment** needs the owner's recorded item 6 review. Journals published before a fingerprint binds their cover (the proposed ADR 0010 § 2) did not bind it. The item 6 review covers every cover the deployment would show.
 - **The Content-Security-Policy** still allows the cover hosts.
-- **Cover removal while a journal is public, or for an archived album,** is refused as before (A3). Its relaxation is a separate, unauthorized change.
+- **Cover removal while a journal is public, or for an archived album,** was refused here (A3). PR #102 allows it under ADR 0006 A8 ([Evidence: cover removal](cover-removal.md)).
