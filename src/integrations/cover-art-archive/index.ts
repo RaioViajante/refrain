@@ -1,16 +1,28 @@
 // Cover Art Archive integration: public entry point. Server-only.
+//
+// A cover's image sources (`src`, `srcSet`) are built only behind the cover
+// display switch (`display.ts`): this entry point exports no other function
+// that builds one (src/integrations/cover-art-archive/display.test.ts).
+// `canonicalCoverUrl` builds the canonical address that the catalog stores for
+// a chosen image, not an image source; only the artwork commands call it, on
+// the server, and it never reaches a page.
 export {
   canonicalCoverUrl,
   COVER_ART_ARCHIVE_ORIGIN,
   COVER_ART_SOURCE,
   COVER_IMAGE_HOSTS,
-  coverArtworkFor,
-  frontThumbnailFor,
-  coverArtworkOf,
   parseCoverUrl,
-  type CoverArtwork,
+  storedCoverOf,
   type CoverReference,
 } from "./artwork";
+export {
+  COVER_DISPLAY_VARIABLE,
+  coverDisplayEnabled,
+  displayedCoverFor,
+  displayedCoverOf,
+  displayedFrontThumbnailFor,
+  type DisplayedCover,
+} from "./display";
 export {
   coverArtArchive,
   createCoverArtArchiveClient,

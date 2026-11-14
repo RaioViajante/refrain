@@ -318,6 +318,7 @@ describe("albums", () => {
         mbReleaseGroupId: MB_ID,
         archived: false,
         artwork: null,
+        coverStored: false,
         credits: [
           {
             artistId: second,

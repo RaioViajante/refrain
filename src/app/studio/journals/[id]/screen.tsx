@@ -159,7 +159,7 @@ async function Journal({ params, searchParams, locale }: JournalProps) {
         <div className="studio-journal-side">
           <ArtworkPlaceholder
             locale={locale}
-            artwork={cover}
+            artwork={cover?.artwork ?? null}
             title={journal.albumTitle}
             size={220}
           />

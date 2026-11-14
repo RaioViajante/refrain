@@ -3,7 +3,7 @@ import "server-only";
 import { sql } from "drizzle-orm";
 
 import type { DatabaseExecutor, Locale } from "@/db";
-import { coverArtworkOf } from "@/integrations/cover-art-archive";
+import { displayedCoverOf } from "@/integrations/cover-art-archive";
 
 import { publicLanguageVersions } from "./predicate";
 import {
@@ -210,16 +210,18 @@ export async function getPublicAlbumJournal(
 }
 
 /**
- * The album's artwork as a page may show it: only the image sources, and only
- * for a stored cover in the exact form Refrain writes. Anything else in those
- * columns shows the fallback, never an address taken from the database.
+ * The album's artwork as a page may show it: only the image sources, only for
+ * a stored cover in the exact form Refrain writes, and only while the cover
+ * display switch is on (`REFRAIN_COVER_DISPLAY_ENABLED`). Otherwise the page
+ * shows the fallback frame, never an address taken from the database. Every
+ * public surface that shows a cover (the album journal, the Home, the album
+ * archive, an artist page) reads it here.
  */
 export function publicArtworkOf(
   coverUrl: string | null,
   coverSource: string | null,
 ): PublicArtwork | null {
-  const artwork = coverArtworkOf(coverUrl, coverSource);
-  return artwork ? { src: artwork.src, srcSet: artwork.srcSet } : null;
+  return displayedCoverOf(coverUrl, coverSource);
 }
 
 /**

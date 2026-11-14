@@ -5,6 +5,7 @@
 // provider. The mock records every request it receives, which is how these
 // tests see what the server sent out: its identification, its spacing, and
 // that an anonymous request sends nothing at all.
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 
 import { Client } from "pg";
@@ -17,17 +18,32 @@ import {
   type MintedSession,
 } from "@/testing/http-session";
 import { removeMusicFixtureRecords } from "@/testing/music-records";
+import {
+  startProductionServer,
+  type ProductionServer,
+} from "@/testing/production-server";
 import { artistReview, releaseReviews } from "@/testing/music-reviews";
 import { FIXTURE, SCENARIO } from "@/testing/provider-fixtures";
 import { assertDisposableTestDatabase } from "@/testing/test-database";
 
-const base = inject("studioBaseURL");
 const secret = inject("studioCommandEnv").BETTER_AUTH_SECRET!;
 const databaseUrl = inject("studioCommandEnv").DATABASE_URL!;
-const mock = inject("providerMockOrigin");
+
+// Add music shows and chooses covers, so these tests run on a server of the
+// same build with the cover display switch on, sharing the database and the
+// session secret (the shared server has it off, the default; its off state is
+// tested in cover-display.http.test.ts).
+let server: ProductionServer;
+let base = "";
+let mock = "";
 
 const USER_AGENT = "Refrain/0.1.0 ( https://github.com/RaioViajante/refrain )";
 const FRONT = `https://coverartarchive.org/release/${FIXTURE.firstPressing}/${FIXTURE.frontImage}`;
+// What the artwork page sends back for the stored cover it shows: a
+// fingerprint of the stored address, never the address itself.
+const FRONT_STATE = createHash("sha256")
+  .update(`refrain:cover:${FRONT}`)
+  .digest("hex");
 
 let db: Client;
 let author: MintedSession;
@@ -110,6 +126,15 @@ async function scalar<Value>(sql: string, params: unknown[] = []) {
 }
 
 beforeAll(async () => {
+  server = await startProductionServer({
+    withAuthor: false,
+    env: {
+      BETTER_AUTH_SECRET: secret,
+      REFRAIN_COVER_DISPLAY_ENABLED: "true",
+    },
+  });
+  base = server.baseURL;
+  mock = server.providerMockOrigin;
   db = new Client({
     connectionString: databaseUrl,
     application_name: "refrain-http-music-tests",
@@ -118,7 +143,7 @@ beforeAll(async () => {
   await assertDisposableTestDatabase(db);
   await removeMusicFixtureRecords(db);
   author = await mintAuthorSession(db, secret);
-});
+}, 120_000);
 
 afterAll(async () => {
   try {
@@ -126,6 +151,7 @@ afterAll(async () => {
     await removeMintedSessions(db);
   } finally {
     await db.end();
+    await server?.stop();
   }
 });
 
@@ -347,7 +373,7 @@ describe("Add music with the author's session", () => {
 
     const removal = await call(
       "removeAlbumArtworkAction",
-      { albumId, expectedCoverUrl: FRONT },
+      { albumId, expectedCover: FRONT_STATE },
       albumId,
     );
     expect(removal).toEqual({ ok: false, code: "public_page" });
@@ -371,14 +397,14 @@ describe("Add music with the author's session", () => {
     expect(
       await call(
         "removeAlbumArtworkAction",
-        { albumId, expectedCoverUrl: null },
+        { albumId, expectedCover: null },
         albumId,
       ),
     ).toEqual({ ok: false, code: "stale" });
     expect(
       await call(
         "removeAlbumArtworkAction",
-        { albumId, expectedCoverUrl: FRONT },
+        { albumId, expectedCover: FRONT_STATE },
         albumId,
       ),
     ).toMatchObject({ ok: true });
@@ -389,7 +415,7 @@ describe("Add music with the author's session", () => {
           albumId,
           releaseId: FIXTURE.legacyEdition,
           imageId: FIXTURE.legacyFrontImage,
-          expectedCoverUrl: null,
+          expectedCover: null,
         },
         albumId,
       ),

@@ -261,6 +261,16 @@ export async function startProductionServer(
       env[key] = value;
     }
   }
+  // The cover display switch (docs/security.md § Deployment gate, item 6) is
+  // never inherited from the shell or a local environment file: unless the
+  // test sets it, it is the empty string, which is off. Not deleted: Next.js
+  // fills a variable missing from the environment from `.env` and
+  // `.env.local` (`@next/env`), so a developer's own setting would return.
+  // `.env.development.local`, where Development says to turn covers on for
+  // `pnpm dev`, is never read by `next start`.
+  if (!options.env || options.env.REFRAIN_COVER_DISPLAY_ENABLED === undefined) {
+    env.REFRAIN_COVER_DISPLAY_ENABLED = "";
+  }
 
   if (withAuthor) {
     const provisioned = await run(

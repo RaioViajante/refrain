@@ -12,30 +12,35 @@ import { ConfirmDialog, useSubmission } from "@/app/studio/form-kit";
 import { failureMessage } from "@/app/studio/messages";
 import { useStudio } from "@/app/studio/studio-locale";
 
-// Choosing an album's cover (M3.2). Each action sends the artwork the author
-// is looking at (`expectedCoverUrl`), so a change made elsewhere meanwhile is
-// never silently replaced: the server refuses and the page asks to look again.
+// Choosing an album's cover (M3.2). Each action sends a fingerprint of the
+// stored cover the author is looking at (`expectedCover`, never its address),
+// so a change made elsewhere meanwhile is never silently replaced: the server
+// refuses and the page asks to look again. While the cover display switch is
+// off (`coverDisplay`), no image is shown and the candidates are text with no
+// choice; the server refuses a choice anyway (`cover_display_disabled`).
 
 interface Choice {
   releaseId: string;
   imageId: string;
-  src: string;
-  srcSet: string;
+  types: string[];
+  artwork: { src: string; srcSet: string } | null;
   current: boolean;
 }
 
 export function ArtworkChooser({
   albumId,
   title,
-  currentCoverUrl,
+  currentCover,
   hasArtwork,
+  coverDisplay,
   fromReleaseGroup,
   choices,
 }: {
   albumId: string;
   title: string;
-  currentCoverUrl: string | null;
+  currentCover: string | null;
   hasArtwork: boolean;
+  coverDisplay: boolean;
   fromReleaseGroup: boolean;
   choices: Choice[];
 }) {
@@ -51,7 +56,7 @@ export function ArtworkChooser({
         albumId,
         releaseId: choice.releaseId,
         imageId: choice.imageId,
-        expectedCoverUrl: currentCoverUrl,
+        expectedCover: currentCover,
       }),
     );
     if (result.ok) {
@@ -61,7 +66,7 @@ export function ArtworkChooser({
 
   async function remove() {
     const result = await run(() =>
-      removeAlbumArtworkAction({ albumId, expectedCoverUrl: currentCoverUrl }),
+      removeAlbumArtworkAction({ albumId, expectedCover: currentCover }),
     );
     setRemoving(false);
     if (result.ok) {
@@ -74,8 +79,23 @@ export function ArtworkChooser({
       <h2 id="artwork-choices" className="studio-section-title">
         {w.frontCovers}
       </h2>
+      {!coverDisplay ? (
+        <div className="studio-panel" role="status">
+          <p className="studio-section-title">{w.displayOffTitle}</p>
+          <p>{w.displayOffBody}</p>
+        </div>
+      ) : null}
       {choices.length === 0 ? (
         <p className="studio-hint">{w.noFrontCover}</p>
+      ) : !coverDisplay ? (
+        <ul className="studio-list">
+          {choices.map((choice, index) => (
+            <li key={`${choice.releaseId}/${choice.imageId}`}>
+              {w.candidate(index + 1, choice.imageId, choice.types.join(", "))}
+              {choice.current ? w.currentCandidate : ""}
+            </li>
+          ))}
+        </ul>
       ) : (
         <>
           {fromReleaseGroup ? (
@@ -91,7 +111,7 @@ export function ArtworkChooser({
               >
                 <ArtworkPlaceholder
                   locale={locale}
-                  artwork={choice}
+                  artwork={choice.artwork}
                   title={w.frontCoverOf(title, index + 1)}
                   size={220}
                 />

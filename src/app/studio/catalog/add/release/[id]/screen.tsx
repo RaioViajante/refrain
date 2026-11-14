@@ -296,10 +296,13 @@ async function Review({ params, locale }: Props) {
           review={review.review!}
           title={release.releaseGroup.title}
           artworkUnavailable={review.artworkUnavailable}
+          coverDisplay={review.coverDisplay}
+          // Only these fields reach the browser: never a cover address, and
+          // no image source while covers are off.
           choices={review.artwork.map((choice) => ({
             imageId: choice.imageId,
-            src: choice.artwork.src,
-            srcSet: choice.artwork.srcSet,
+            types: choice.types,
+            artwork: choice.artwork,
           }))}
         />
       ) : null}

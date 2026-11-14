@@ -61,10 +61,13 @@ let client: Client;
 const seeded: SeededJournal[] = [];
 const servers: ProductionServer[] = [];
 
-async function start(value: string | undefined) {
+async function start(
+  value: string | undefined,
+  extra: Record<string, string> = {},
+) {
   const server = await startProductionServer({
     withAuthor: false,
-    env: { REFRAIN_PUBLIC_READS_ENABLED: value },
+    env: { REFRAIN_PUBLIC_READS_ENABLED: value, ...extra },
   });
   servers.push(server);
   return server;
@@ -620,8 +623,14 @@ describe("a database failure", () => {
 describe("the album artwork (M3.2)", () => {
   const release = "3f8c4f8e-0000-4000-8000-000000000001";
   const stored = `https://coverartarchive.org/release/${release}/1000000001`;
+  // The cover display switch is off unless exactly `true` (the shared `on`
+  // server leaves it unset), so these tests serve the same build with it on.
+  let covers: ProductionServer;
+  beforeAll(async () => {
+    covers = await start("true", { REFRAIN_COVER_DISPLAY_ENABLED: "true" });
+  }, 120_000);
 
-  it("shows the chosen cover in its frame, from the archive only, without a referrer", async () => {
+  it("shows the chosen cover in its frame, from the archive only, without a referrer, only with the cover display switch on", async () => {
     const journal = await seedSimple(client, {
       slug: slug("artwork"),
       title: "[Test] Artwork album",
@@ -634,7 +643,7 @@ describe("the album artwork (M3.2)", () => {
       [stored, journal.albumId],
     );
 
-    const got = await request(on.baseURL, `/albums/${slug("artwork")}`);
+    const got = await request(covers.baseURL, `/albums/${slug("artwork")}`);
     expect(got.status).toBe(200);
     expect(got.headers["content-security-policy"]).toBe(
       CONTENT_SECURITY_POLICY,
@@ -656,6 +665,17 @@ describe("the album artwork (M3.2)", () => {
     // Only the thumbnails: the stored address itself is never in the page.
     expect(got.body).not.toContain(`${stored}"`);
 
+    // With the cover display switch unset, the same page shows the fallback
+    // frame and names no image host.
+    const unset = await request(on.baseURL, `/albums/${slug("artwork")}`);
+    expect(unset.status).toBe(200);
+    expect(unset.body).not.toContain("coverartarchive.org");
+    expect(unset.body).not.toContain(release);
+    expect([...unset.body.matchAll(/<img\b[^>]*>/g)]).toHaveLength(0);
+    expect(unset.body).toContain(
+      "Album artwork for [Test] Artwork album: not available yet",
+    );
+
     // With public reads off, the address is the unknown one: no cover either.
     const hidden = await request(off.baseURL, `/albums/${slug("artwork")}`);
     expect(hidden.status).toBe(404);
@@ -674,7 +694,7 @@ describe("the album artwork (M3.2)", () => {
         "update albums set cover_url = $1, cover_source = $2 where id = $3",
         [coverUrl, coverSource, journal.albumId],
       );
-      const got = await request(on.baseURL, `/albums/${slug("artwork")}`);
+      const got = await request(covers.baseURL, `/albums/${slug("artwork")}`);
       expect(got.status).toBe(200);
       expect(got.body, coverUrl).not.toMatch(/<img\b/);
       expect(got.body).not.toContain("evil.example");
@@ -692,9 +712,11 @@ describe("the album artwork (M3.2)", () => {
       "update albums set cover_url = $1, cover_source = 'Cover Art Archive' where id = $2",
       [stored, draft.albumId],
     );
-    const got = await request(on.baseURL, `/albums/${slug("draft")}`);
-    expect(got.status).toBe(404);
-    expect(got.body).not.toContain("coverartarchive.org");
+    for (const server of [on, covers]) {
+      const got = await request(server.baseURL, `/albums/${slug("draft")}`);
+      expect(got.status).toBe(404);
+      expect(got.body).not.toContain("coverartarchive.org");
+    }
   });
 });
 

@@ -1,5 +1,5 @@
 import { eq, sql } from "drizzle-orm";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { schema } from "@/db";
 import {
@@ -14,6 +14,7 @@ import { setTestArtistPhoto } from "@/testing/public-artists";
 import { commonsThumbnail, PHOTO } from "@/testing/wikimedia-fixtures";
 
 import {
+  getAlbum,
   getAlbumCover,
   listAlbumCovers,
   listArtistPhotos,
@@ -169,8 +170,17 @@ describe("listRecordingChoices (M3.6, the memory picker)", () => {
 describe("listAlbumCovers and getAlbumCover", () => {
   const release = "3f8c4f8e-0000-4000-8000-000000000123";
   const stored = `https://coverartarchive.org/release/${release}/1000000001`;
+  const sources = {
+    src: `${stored}-500.jpg`,
+    srcSet: `${stored}-250.jpg 250w, ${stored}-500.jpg 500w, ${stored}-1200.jpg 1200w`,
+  };
 
-  it("returns the addresses built from a valid stored cover, and nothing for an album without one", async () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("returns the addresses built from a valid stored cover while covers are on, and nothing for an album without one", async () => {
+    vi.stubEnv("REFRAIN_COVER_DISPLAY_ENABLED", "true");
     await inRollbackTransaction(async (tx) => {
       const covered = await createTestAlbum(tx, { title: "[Test] Covered" });
       const bare = await createTestAlbum(tx, { title: "[Test] Bare" });
@@ -180,19 +190,58 @@ describe("listAlbumCovers and getAlbumCover", () => {
         .where(eq(schema.albums.id, covered.albumId));
 
       const covers = await listAlbumCovers(tx, testAuthor());
-      expect(covers.get(covered.albumId)).toEqual({
-        src: `${stored}-500.jpg`,
-        srcSet: `${stored}-250.jpg 250w, ${stored}-500.jpg 500w, ${stored}-1200.jpg 1200w`,
-      });
+      expect(covers.get(covered.albumId)).toEqual(sources);
       expect(covers.has(bare.albumId)).toBe(false);
-      expect(await getAlbumCover(tx, testAuthor(), covered.albumId)).toEqual(
-        covers.get(covered.albumId),
-      );
-      expect(await getAlbumCover(tx, testAuthor(), bare.albumId)).toBeNull();
+      expect(await getAlbumCover(tx, testAuthor(), covered.albumId)).toEqual({
+        artwork: sources,
+        stored: true,
+      });
+      expect(await getAlbumCover(tx, testAuthor(), bare.albumId)).toEqual({
+        artwork: null,
+        stored: false,
+      });
     });
   });
 
+  it("returns no address while covers are off, and still says a cover is stored", async () => {
+    for (const value of [undefined, "false", "TRUE", "1"]) {
+      vi.stubEnv("REFRAIN_COVER_DISPLAY_ENABLED", value);
+      await inRollbackTransaction(async (tx) => {
+        const covered = await createTestAlbum(tx, { title: "[Test] Covered" });
+        await tx
+          .update(schema.albums)
+          .set({ coverUrl: stored, coverSource: "Cover Art Archive" })
+          .where(eq(schema.albums.id, covered.albumId));
+
+        const covers = await listAlbumCovers(tx, testAuthor());
+        expect(covers.has(covered.albumId), value).toBe(false);
+        expect(
+          await getAlbumCover(tx, testAuthor(), covered.albumId),
+          value,
+        ).toEqual({ artwork: null, stored: true });
+        const album = await getAlbum(tx, testAuthor(), covered.albumId);
+        expect([album!.artwork, album!.coverStored], value).toEqual([
+          null,
+          true,
+        ]);
+        // The stored cover is kept as it was.
+        const [row] = await tx
+          .select({
+            coverUrl: schema.albums.coverUrl,
+            coverSource: schema.albums.coverSource,
+          })
+          .from(schema.albums)
+          .where(eq(schema.albums.id, covered.albumId));
+        expect(row, value).toEqual({
+          coverUrl: stored,
+          coverSource: "Cover Art Archive",
+        });
+      });
+    }
+  });
+
   it("leaves out a stored value that does not parse, so no stored address reaches a page", async () => {
+    vi.stubEnv("REFRAIN_COVER_DISPLAY_ENABLED", "true");
     await inRollbackTransaction(async (tx) => {
       const tampered = await createTestAlbum(tx, { title: "[Test] Tampered" });
       const foreign = await createTestAlbum(tx, { title: "[Test] Foreign" });
@@ -211,9 +260,10 @@ describe("listAlbumCovers and getAlbumCover", () => {
       const covers = await listAlbumCovers(tx, testAuthor());
       expect(covers.has(tampered.albumId)).toBe(false);
       expect(covers.has(foreign.albumId)).toBe(false);
-      expect(
-        await getAlbumCover(tx, testAuthor(), tampered.albumId),
-      ).toBeNull();
+      expect(await getAlbumCover(tx, testAuthor(), tampered.albumId)).toEqual({
+        artwork: null,
+        stored: false,
+      });
     });
   });
 });

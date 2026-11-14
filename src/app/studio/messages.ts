@@ -69,6 +69,8 @@ export function failureMessage(
       return f.notLinked;
     case "public_page":
       return f.publicPage;
+    case "cover_display_disabled":
+      return f.coverDisplayDisabled;
     case "photo_not_usable":
       return f.photoNotUsable;
     case "failed":

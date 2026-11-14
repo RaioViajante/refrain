@@ -122,16 +122,26 @@ export function coverArtworkFor(
 }
 
 /**
+ * The release and image of an album's stored cover, or null. Both columns
+ * must hold exactly what Refrain writes. It builds no image address, so it
+ * says whether a cover is stored whatever the display switch says.
+ */
+export function storedCoverOf(
+  coverUrl: string | null | undefined,
+  coverSource: string | null | undefined,
+): CoverReference | null {
+  return coverSource === COVER_ART_SOURCE ? parseCoverUrl(coverUrl) : null;
+}
+
+/**
  * The artwork to show for an album's stored cover, or null (show the
- * fallback). Both columns must hold exactly what Refrain writes.
+ * fallback). Both columns must hold exactly what Refrain writes. Only
+ * `display.ts` calls it, behind the cover display switch.
  */
 export function coverArtworkOf(
   coverUrl: string | null | undefined,
   coverSource: string | null | undefined,
 ): CoverArtwork | null {
-  if (coverSource !== COVER_ART_SOURCE) {
-    return null;
-  }
-  const reference = parseCoverUrl(coverUrl);
+  const reference = storedCoverOf(coverUrl, coverSource);
   return reference ? coverArtworkFor(reference) : null;
 }

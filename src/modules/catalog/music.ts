@@ -17,12 +17,14 @@ import {
   canonicalCoverUrl,
   COVER_ART_SOURCE,
   coverArtArchive,
-  coverArtworkFor,
-  coverArtworkOf,
-  frontThumbnailFor,
+  coverDisplayEnabled,
+  displayedCoverFor,
+  displayedCoverOf,
+  displayedFrontThumbnailFor,
+  storedCoverOf,
   type ArtworkImage,
   type CoverArtArchiveClient,
-  type CoverArtwork,
+  type DisplayedCover,
 } from "@/integrations/cover-art-archive";
 import {
   creditText,
@@ -389,23 +391,32 @@ function isFront(image: ArtworkImage): boolean {
   return image.front || image.types.includes("Front");
 }
 
+/**
+ * One front cover the author may choose. It carries no cover address, only
+ * its image sources, and those only while the cover display switch is on.
+ */
 export interface ArtworkChoice {
   releaseId: string;
   imageId: string;
-  artwork: CoverArtwork;
+  /** Its image sources, or null while the cover display switch is off. */
+  artwork: DisplayedCover | null;
   types: string[];
   approved: boolean;
 }
 
-function choicesOf(images: ArtworkImage[]): ArtworkChoice[] {
+/** The choices, each with the canonical address it would store (internal). */
+function candidatesOf(
+  images: ArtworkImage[],
+): (ArtworkChoice & { coverUrl: string })[] {
   return images.filter(isFront).flatMap((image) => {
-    const artwork = coverArtworkFor(image);
-    return artwork
+    const coverUrl = canonicalCoverUrl(image);
+    return coverUrl
       ? [
           {
             releaseId: image.releaseId,
             imageId: image.imageId,
-            artwork,
+            artwork: displayedCoverFor(image),
+            coverUrl,
             types: image.types,
             approved: image.approved,
           },
@@ -413,6 +424,28 @@ function choicesOf(images: ArtworkImage[]): ArtworkChoice[] {
       : [];
   });
 }
+
+function choicesOf(images: ArtworkImage[]): ArtworkChoice[] {
+  return candidatesOf(images).map(({ coverUrl: _stored, ...choice }) => choice);
+}
+
+/**
+ * The value a Studio screen sends back to say which stored cover the author
+ * was looking at (`expectedCover`), so that a change made elsewhere meanwhile
+ * is refused (`review_stale`). It is a fingerprint of the stored address, not
+ * the address: no cover address reaches a page while the cover display switch
+ * is off. Not a secret, and null when no cover is stored.
+ */
+export function coverStateOf(coverUrl: string | null): string | null {
+  return coverUrl === null
+    ? null
+    : createHash("sha256").update(`refrain:cover:${coverUrl}`).digest("hex");
+}
+
+const expectedCover = z
+  .string()
+  .regex(/^[0-9a-f]{64}$/)
+  .nullable();
 
 // ---------------------------------------------------------------------------
 // Reading the catalog for the review
@@ -668,9 +701,12 @@ export async function listMusicEditions(
     releases: releases.map((release) => ({
       ...release,
       catalogAlbumId: byRelease.get(release.id) ?? null,
-      // Only an edition MusicBrainz says has a front cover asks for one.
+      // Only an edition MusicBrainz says has a front cover asks for one, and
+      // only while the cover display switch is on.
       artwork:
-        release.hasFrontArtwork === true ? frontThumbnailFor(release.id) : null,
+        release.hasFrontArtwork === true
+          ? displayedFrontThumbnailFor(release.id)
+          : null,
     })),
     total,
     catalogAlbum: album ?? null,
@@ -705,9 +741,14 @@ export interface ReleaseReview {
   >;
   /** Albums with the same title and no MusicBrainz identity: link instead? */
   sameTitle: LocalAlbumMatch[];
-  /** Front covers the author may choose; none is chosen by default. */
+  /**
+   * Front covers the author may choose; none is chosen by default. While the
+   * cover display switch is off they have no image, and none may be chosen.
+   */
   artwork: ArtworkChoice[];
   artworkUnavailable: boolean;
+  /** Whether covers may be shown and chosen (the cover display switch). */
+  coverDisplay: boolean;
 }
 
 export async function reviewMusicRelease(
@@ -815,6 +856,7 @@ export async function reviewMusicRelease(
     sameTitle,
     artwork,
     artworkUnavailable,
+    coverDisplay: coverDisplayEnabled(),
   };
 }
 
@@ -866,6 +908,11 @@ export async function importMusicRelease(
   providers: MusicProviders = defaultProviders(),
 ): Promise<{ id: string }> {
   const { releaseId, review, coverImageId } = parse(importInput, input);
+  // A cover the author cannot see is not a choice: while the cover display
+  // switch is off, an import that names one is refused before any request.
+  if (coverImageId !== null && !coverDisplayEnabled()) {
+    throw new CatalogError("cover_display_disabled");
+  }
 
   // Every external call happens before the transaction (docs/data-model.md).
   const release = await provided(() =>
@@ -1340,15 +1387,20 @@ export interface AlbumArtworkChoices {
   title: string;
   archived: boolean;
   linked: boolean;
-  /** The artwork shown now, if any. */
-  current: CoverArtwork | null;
-  /** The stored value, to send back as `expectedCoverUrl`. */
-  currentCoverUrl: string | null;
+  /** The artwork shown now, if any (null while the switch is off). */
+  current: DisplayedCover | null;
+  /** Whether a cover is stored, shown or not. */
+  coverStored: boolean;
+  /** The stored cover's fingerprint, to send back as `expectedCover`. */
+  currentCover: string | null;
+  /** Whether covers may be shown and chosen (the cover display switch). */
+  coverDisplay: boolean;
   /** True: artwork changes are refused (gate G8). */
   onPublicPage: boolean;
   /** Where the choices come from. */
   source: "release" | "release_group" | null;
-  choices: ArtworkChoice[];
+  /** Each with whether it is the stored cover. */
+  choices: (ArtworkChoice & { current: boolean })[];
   unavailable: boolean;
 }
 
@@ -1371,8 +1423,10 @@ export async function listAlbumArtworkChoices(
     title: album.title,
     archived: album.archived,
     linked: album.mbReleaseGroupId !== null || album.mbReleaseId !== null,
-    current: coverArtworkOf(album.coverUrl, album.coverSource),
-    currentCoverUrl: album.coverUrl,
+    current: displayedCoverOf(album.coverUrl, album.coverSource),
+    coverStored: storedCoverOf(album.coverUrl, album.coverSource) !== null,
+    currentCover: coverStateOf(album.coverUrl),
+    coverDisplay: coverDisplayEnabled(),
     onPublicPage,
   };
   const source = album.mbReleaseId
@@ -1390,7 +1444,12 @@ export async function listAlbumArtworkChoices(
         : await providers.coverArt.listReleaseGroupImages(
             album.mbReleaseGroupId!,
           );
-    return { ...base, source, choices: choicesOf(images), unavailable: false };
+    const choices = candidatesOf(images).map(({ coverUrl, ...choice }) => ({
+      ...choice,
+      current:
+        coverUrl === album.coverUrl && album.coverSource === COVER_ART_SOURCE,
+    }));
+    return { ...base, source, choices, unavailable: false };
   } catch (error) {
     if (!(error instanceof ProviderError)) {
       throw error;
@@ -1399,20 +1458,20 @@ export async function listAlbumArtworkChoices(
   }
 }
 
-const expectedCover = z.string().max(500).nullable();
-
 const setArtworkInput = z.object({
   albumId: z.uuid(),
   releaseId: musicBrainzId,
   imageId: imageIdInput,
-  expectedCoverUrl: expectedCover,
+  expectedCover,
 });
 
 /**
  * Sets an album's artwork to one front image of a release of the album's own
  * release group (or its reference edition's release). Refused if the album's
- * identity or artwork changed since the author looked (`review_stale`), and
- * while the album is on a public page (`public_page`, gate G8).
+ * identity or artwork changed since the author looked (`review_stale`), while
+ * the album is on a public page (`public_page`, gate G8), and while the cover
+ * display switch is off (`cover_display_disabled`, before any request: a
+ * cover the author cannot see is not a choice).
  */
 export async function setAlbumArtwork(
   db: DatabaseExecutor,
@@ -1420,10 +1479,13 @@ export async function setAlbumArtwork(
   input: unknown,
   providers: MusicProviders = defaultProviders(),
 ): Promise<void> {
-  const { albumId, releaseId, imageId, expectedCoverUrl } = parse(
+  const { albumId, releaseId, imageId, expectedCover } = parse(
     setArtworkInput,
     input,
   );
+  if (!coverDisplayEnabled()) {
+    throw new CatalogError("cover_display_disabled");
+  }
   const before = await albumIdentity(db, albumId, false);
   if (!before) {
     throw new CatalogError("not_found");
@@ -1473,7 +1535,7 @@ export async function setAlbumArtwork(
       if (
         album.mbReleaseGroupId !== before.mbReleaseGroupId ||
         album.mbReleaseId !== before.mbReleaseId ||
-        album.coverUrl !== expectedCoverUrl
+        coverStateOf(album.coverUrl) !== expectedCover
       ) {
         throw new CatalogError("review_stale");
       }
@@ -1493,16 +1555,20 @@ export async function setAlbumArtwork(
 
 const removeArtworkInput = z.object({
   albumId: z.uuid(),
-  expectedCoverUrl: expectedCover,
+  expectedCover,
 });
 
-/** Removes an album's artwork, under the same conditions. */
+/**
+ * Removes an album's artwork, under the same conditions, except the cover
+ * display switch: removing a cover only takes something away, so it is
+ * allowed while covers are hidden.
+ */
 export async function removeAlbumArtwork(
   db: DatabaseExecutor,
   _author: AuthorizedAuthor,
   input: unknown,
 ): Promise<void> {
-  const { albumId, expectedCoverUrl } = parse(removeArtworkInput, input);
+  const { albumId, expectedCover } = parse(removeArtworkInput, input);
   await guarded(() =>
     db.transaction(async (tx) => {
       // The entries first, then the album (ADR 0006 § 7, L3: catalog locks
@@ -1519,7 +1585,7 @@ export async function removeAlbumArtwork(
       if (album.archived) {
         throw new CatalogError("archived_reference");
       }
-      if (album.coverUrl !== expectedCoverUrl) {
+      if (coverStateOf(album.coverUrl) !== expectedCover) {
         throw new CatalogError("review_stale");
       }
       if (album.coverUrl === null && album.coverSource === null) {

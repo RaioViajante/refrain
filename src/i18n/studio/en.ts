@@ -198,6 +198,8 @@ export const studioEn = {
       "This album isn’t linked to MusicBrainz yet, so there is no artwork to choose from.",
     publicPage:
       "A published journal shows this on a public page, and this change would reach readers without a confirmation, which isn’t built yet. Nothing was changed. A photograph can always be removed; to change one, or to restore an artist that has one, remove it first or unpublish the journals that show it.",
+    coverDisplayDisabled:
+      "Covers are turned off here, so a cover can’t be chosen: you couldn’t see it. Nothing was changed, and the cover already chosen is kept.",
     photoNotUsable:
       "This photograph can no longer be used: its license, credit, or file changed on Wikimedia Commons. Nothing was changed. Choose another, or review it again.",
     failed: "Something went wrong, and nothing was changed. Try again.",
@@ -515,6 +517,7 @@ export const studioEn = {
     details: "Details",
     artworkTitle: "Artwork and MusicBrainz",
     coverSource: "Cover: Cover Art Archive. ",
+    coverHidden: "A cover is chosen; covers are turned off here. ",
     noArtwork: "No artwork yet. ",
     linked:
       "Linked to MusicBrainz, so a cover can be chosen from the Cover Art Archive.",
@@ -587,7 +590,15 @@ export const studioEn = {
   artworkPage: {
     title: "Artwork",
     coverSource: "Cover: Cover Art Archive",
+    coverHidden:
+      "A cover is chosen. Covers are turned off here, so it isn’t shown, and it is kept as it is.",
     noArtwork: "No artwork yet. The album shows the “no artwork yet” frame.",
+    displayOffTitle: "Covers are turned off here",
+    displayOffBody:
+      "No image is loaded from the Cover Art Archive, so no cover can be chosen. The front covers the archive lists are below, as text. The chosen cover can still be removed.",
+    candidate: (n: number, imageId: string, types: string) =>
+      `Front cover ${n}: image ${imageId}${types ? ` (${types})` : ""}`,
+    currentCandidate: " (the chosen cover)",
     onPublicPageBody:
       "A published journal shows this album, so its artwork can’t change here: a change would reach readers without a confirmation, and that confirmation isn’t built yet. Unpublish the journal first if the artwork must change.",
     archived: "This album is archived. Restore it to change its artwork.",
@@ -762,6 +773,8 @@ export const studioEn = {
     noFrontCover:
       "The Cover Art Archive has no front cover for this edition. The album will show “no artwork yet”.",
     chooseCover: "Choose a front cover from the Cover Art Archive, or none.",
+    displayOff:
+      "Covers are turned off here, so no cover can be chosen, and the album is added without one. The front covers the archive lists are below, as text.",
     noArtwork: "No artwork",
     frontCover: (n: number) => `Front cover ${n}`,
     adding: "Adding…",
@@ -818,6 +831,7 @@ export const studioEn = {
     editInCatalog: "Edit in catalog",
     artwork: "Artwork",
     coverSource: "Cover Art Archive",
+    coverHidden: "A cover is chosen; covers are turned off here",
     noArtwork: "No artwork yet",
     change: "Change…",
     changeLabel: " the album’s artwork",
