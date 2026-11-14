@@ -132,7 +132,7 @@ From [#47](https://github.com/RaioViajante/refrain/issues/47) and [Security § P
 | **G2** Cache behaviour | No shared cache, `no-store` responses, F-01 studio headers verified on the host | Through the **real public URL**, including the hosting provider's edge:<ul><li>the next request after unpublish, delete, restore, unflag, rating cleared, address change, and text edit shows the new state;</li><li>`Cache-Control: no-store` on **every response class** (pages, `404`, `308`, RSC and prefetch forms, sitemap, `robots`, metadata images);</li><li>no cache-hit indicator (`Age`, `x-vercel-cache` hits) except as ADR 0006 A2 narrowly allows;</li><li>no journal data in the build output;</li><li>sitemap, metadata, back/forward.</li></ul>The repeated-slash `308` without `no-store` is an owner decision | S2, G1 |
 | **G3** Writers of public state | None. Not started | The inventory of every writer: application, scripts, migrations, fixtures, **restore** (the procedure exists in [Hosted Backups § Recovery](hosted-backups.md#recovery)), manual access, CI | — |
 | **G4** Database-layer enforcement | None | An ADR deciding triggers, row-level security, least-privilege roles, or accepted risk; then implementation and tests | G3 |
-| **G5** Predicate and configuration | The oracle and privacy matrix pass on the production build with the **test** role | The same against the production build with the **hosted role**. The secret's generation method recorded. HTTPS `BETTER_AUTH_URL`. The Studio unreachable without a session and `noindex` (it is: `robots: noindex, nofollow`). Error pages, `robots`, sitemap, and Open Graph serving only public content. Deployment-gate items 1–5 (#11) | S2, #11 |
+| **G5** Predicate and configuration | The oracle and privacy matrix pass on the production build with the **test** role | The same against the production build with the **hosted role**. The secret's generation method recorded. HTTPS `BETTER_AUTH_URL`. The Studio unreachable without a session and `noindex` (it is: `robots: noindex, nofollow`, and the [initial indexing policy](security.md#indexing) adds the same `X-Robots-Tag` on every response, locally). Error pages, `robots`, sitemap, and Open Graph serving only public content. Deployment-gate items 1–5 (#11) | S2, #11 |
 | **G6** Backups | Toolchain built and tested ([Hosted Backups](hosted-backups.md)); ADR 0007 accepted on 2026-11-07 | Provisioning, 7 green scheduled days, a real drill, a copy outside GitHub ([closing criteria](hosted-backups.md#closing-f-02-and-g6)) | #65 |
 | **G7** Independent review | Per-milestone reviews in separate contexts | A review of the **public surface** as deployed. The M3.5 three-operation deadlock fixed or accepted in writing | G1–G5 implemented |
 | **G8** Catalog wording | None (a documented gap) | Catalog edits (names, titles, credits, track order) change public wording without a confirmation. Resolve it, or record an independently verified safe alternative. No waiver | — |
@@ -161,6 +161,7 @@ Each is its own reviewed PR, with tests, before S4. None changes production when
 5. **Covers and photographs** (items 6 and 7): the owner's rights review, or clear them for the first public release.
 6. **#54**, the album-journal editor asks before a removal from a published journal (required before any hosted launch; fixed in PR #95, merged, [evidence](evidence/issue-54.md)); **#44**, readable without JavaScript; and **#69**, the intermittent CI failure.
 7. **Backups (G6)**, through #65.
+8. **Initial indexing policy.** Every response the application controls says `noindex, nofollow`, in a header and in each document's meta tag, and `robots.txt` names no sitemap ([Security § Indexing](security.md#indexing)). Implemented locally; not deployed. It must be on the hosted deployment, and verified there, before step 2 of the [public release sequence](#public-release-sequence-stage-s4). Lifting it later needs the owner's written decision and its own reviewed pull request.
 
 Deliberately **not** proposed:
 - a second trusted origin;
@@ -212,7 +213,7 @@ On the day, with S1 done and verified:
 
 Only after every gate and condition in [§ 6](#6-hosted-release-gates-g1g8-and-their-dependencies) is closed by owner-reviewed evidence, and the canonical-host redirect ([§ 7](#7-minimal-launch-critical-fixes), item 2) is deployed and verified. The order makes each step safe if the next one fails.
 
-1. **Reads still off.** Confirm `REFRAIN_PUBLIC_READS_ENABLED=false` in the running production deployment: every public route answers the unknown-address `404` on the canonical domain, with the owner's Vercel session.
+1. **Reads still off.** Confirm `REFRAIN_PUBLIC_READS_ENABLED=false` in the running production deployment: every public route answers the unknown-address `404` on the canonical domain, with the owner's Vercel session. Confirm also, with that session, that the deployment carries the [initial indexing policy](security.md#indexing): `X-Robots-Tag: noindex, nofollow` on the Home, an unknown address, `/studio/sign-in`, and a static file.
 2. **Change the protection mode,** from All Deployments to the mode the owner approves, which leaves only production domains public.
 3. **Inventory every hostname at once, anonymously** (no Vercel session), while reads are still off:
 
@@ -224,7 +225,7 @@ Only after every gate and condition in [§ 6](#6-hosted-release-gates-g1g8-and-t
 
    **Any other result:** go back to All Deployments at once, then investigate.
 4. **Turn reads on:** set `REFRAIN_PUBLIC_READS_ENABLED=true` (Production), make a staged deployment of the same approved commit from a clean checkout, and check it. Then promote it. Environment changes reach only new deployments, so this is a deployment, not a toggle.
-5. **Verify publicly,** without a session: the Home, the archives, a published `[Test]` page, an unpublished address answering the identical `404`, the sitemap, `no-store` on every response class, and the Studio's sign-in. Re-run the inventory in step 3.
+5. **Verify publicly,** without a session: the Home, the archives, a published `[Test]` page, an unpublished address answering the identical `404`, the sitemap, `no-store` and `X-Robots-Tag: noindex, nofollow` on every response class, `robots.txt` without a `Sitemap:` line, and the Studio's sign-in. Re-run the inventory in step 3.
 
 **Emergency stop, in order of speed:**
 1. **Set Deployment Protection back to All Deployments.** It takes effect immediately, needs no deployment, and makes every hostname private again.
