@@ -198,6 +198,8 @@ export const studioPtBR: StudioDictionary = {
       "Este álbum ainda não está vinculado ao MusicBrainz, então não há capas para escolher.",
     publicPage:
       "Um diário publicado mostra isto numa página pública, e esta mudança chegaria aos leitores sem uma confirmação, que ainda não existe. Nada foi alterado. Uma foto sempre pode ser removida; para trocá-la, ou para restaurar um artista que tem uma, remova-a primeiro ou despublique os diários que a mostram.",
+    coverDisplayDisabled:
+      "As capas estão desativadas aqui, então não dá para escolher uma: você não conseguiria vê-la. Nada foi alterado, e a capa já escolhida foi mantida.",
     photoNotUsable:
       "Esta foto não pode mais ser usada: a licença, o crédito ou o arquivo mudou no Wikimedia Commons. Nada foi alterado. Escolha outra, ou revise de novo.",
     failed: "Algo deu errado, e nada foi alterado. Tente de novo.",
@@ -520,6 +522,7 @@ export const studioPtBR: StudioDictionary = {
     details: "Detalhes",
     artworkTitle: "Capa e MusicBrainz",
     coverSource: "Capa: Cover Art Archive. ",
+    coverHidden: "Há uma capa escolhida; as capas estão desativadas aqui. ",
     noArtwork: "Ainda sem capa. ",
     linked:
       "Vinculado ao MusicBrainz, então dá para escolher uma capa do Cover Art Archive.",
@@ -595,7 +598,15 @@ export const studioPtBR: StudioDictionary = {
   artworkPage: {
     title: "Capa",
     coverSource: "Capa: Cover Art Archive",
+    coverHidden:
+      "Há uma capa escolhida. As capas estão desativadas aqui, então ela não aparece, e continua guardada como está.",
     noArtwork: "Ainda sem capa. O álbum mostra o quadro “ainda sem capa”.",
+    displayOffTitle: "As capas estão desativadas aqui",
+    displayOffBody:
+      "Nenhuma imagem é carregada do Cover Art Archive, então não dá para escolher uma capa. As capas frontais que o arquivo lista estão abaixo, em texto. A capa escolhida ainda pode ser removida.",
+    candidate: (n: number, imageId: string, types: string) =>
+      `Capa frontal ${n}: imagem ${imageId}${types ? ` (${types})` : ""}`,
+    currentCandidate: " (a capa escolhida)",
     onPublicPageBody:
       "Um diário publicado mostra este álbum, então a capa não pode mudar aqui: uma mudança chegaria aos leitores sem uma confirmação, que ainda não existe. Despublique o diário primeiro se a capa precisar mudar.",
     archived: "Este álbum está arquivado. Restaure-o para trocar a capa.",
@@ -772,6 +783,8 @@ export const studioPtBR: StudioDictionary = {
     noFrontCover:
       "O Cover Art Archive não tem capa frontal para esta edição. O álbum vai mostrar “ainda sem capa”.",
     chooseCover: "Escolha uma capa frontal do Cover Art Archive, ou nenhuma.",
+    displayOff:
+      "As capas estão desativadas aqui, então não dá para escolher uma, e o álbum é adicionado sem capa. As capas frontais que o arquivo lista estão abaixo, em texto.",
     noArtwork: "Sem capa",
     frontCover: (n: number) => `Capa frontal ${n}`,
     adding: "Adicionando…",
@@ -829,6 +842,7 @@ export const studioPtBR: StudioDictionary = {
     editInCatalog: "Editar no catálogo",
     artwork: "Capa",
     coverSource: "Cover Art Archive",
+    coverHidden: "Há uma capa escolhida; as capas estão desativadas aqui",
     noArtwork: "Ainda sem capa",
     change: "Trocar…",
     changeLabel: " a capa do álbum",

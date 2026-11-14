@@ -1156,8 +1156,9 @@ describe("the Publication reading module", () => {
     /^server-only$/,
     /^drizzle-orm$/,
     /^@\/db$/,
-    // M3.2: the pure parser of a stored cover, and nothing else from it (the
-    // next test). No provider is ever called while reading a public page.
+    // M3.2: the builder of a stored cover's image sources, behind the cover
+    // display switch, and nothing else from it (the next test). No provider
+    // is ever called while reading a public page.
     /^@\/integrations\/cover-art-archive$/,
     // M3.5: the pure parser of a stored photograph and its caption, and
     // nothing else from it (below); and the hash of an artist's address.
@@ -1166,7 +1167,7 @@ describe("the Publication reading module", () => {
     /^\.\/(public|public-reads|public-routing|public-album-journal|public-home|public-artist|public-memory|public-archives|excerpt|memory-music|text|artist-address|queries|predicate|slug|snapshot)$/,
   ];
 
-  it("uses only the pure cover parser from the Cover Art Archive integration", () => {
+  it("uses only the switch-gated cover builder from the Cover Art Archive integration", () => {
     const imported: string[] = [];
     for (const file of reading) {
       const source = parse(readFileSync(file, "utf8"), file);
@@ -1189,7 +1190,7 @@ describe("the Publication reading module", () => {
       }
     }
     expect(imported).toEqual([
-      "src/modules/publication/public-album-journal.ts:coverArtworkOf",
+      "src/modules/publication/public-album-journal.ts:displayedCoverOf",
     ]);
   });
 

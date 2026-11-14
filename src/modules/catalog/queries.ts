@@ -4,8 +4,9 @@ import { sql } from "drizzle-orm";
 
 import type { ArtistKind, DatabaseExecutor } from "@/db";
 import {
-  coverArtworkOf,
-  type CoverArtwork,
+  displayedCoverOf,
+  storedCoverOf,
+  type DisplayedCover,
 } from "@/integrations/cover-art-archive";
 import { artistPhotoOf } from "@/integrations/wikimedia-commons";
 import type { AuthorizedAuthor } from "@/modules/identity";
@@ -166,10 +167,8 @@ export interface ArtistPhotoImage {
   srcSet: string;
 }
 
-export interface AlbumCover {
-  src: string;
-  srcSet: string;
-}
+/** A cover's image sources, only while the cover display switch is on. */
+export type AlbumCover = DisplayedCover;
 
 /**
  * The chosen cover of every album that has a valid one, keyed by album, for
@@ -177,6 +176,8 @@ export interface AlbumCover {
  * it (public pages use the Publication module). A stored value that does not
  * parse is left out, so the row keeps its record mark, and the image
  * addresses are always rebuilt from its parts, never copied from the row.
+ * While the cover display switch is off the map is empty: every row keeps its
+ * record mark, and no stored cover changes.
  */
 export async function listAlbumCovers(
   db: DatabaseExecutor,
@@ -190,20 +191,24 @@ export async function listAlbumCovers(
           where cover_url is not null`);
   const covers = new Map<string, AlbumCover>();
   for (const row of result.rows) {
-    const artwork = coverArtworkOf(row.cover_url, row.cover_source);
+    const artwork = displayedCoverOf(row.cover_url, row.cover_source);
     if (artwork) {
-      covers.set(row.id, { src: artwork.src, srcSet: artwork.srcSet });
+      covers.set(row.id, artwork);
     }
   }
   return covers;
 }
 
-/** One album's chosen cover, under the same rules as `listAlbumCovers`. */
+/**
+ * One album's chosen cover, under the same rules as `listAlbumCovers`
+ * (`artwork`), and whether one is stored at all (`stored`), which stays true
+ * while the cover display switch hides it. Null when there is no such album.
+ */
 export async function getAlbumCover(
   db: DatabaseExecutor,
   _author: AuthorizedAuthor,
   albumId: string,
-): Promise<AlbumCover | null> {
+): Promise<{ artwork: AlbumCover | null; stored: boolean } | null> {
   const result = await db.execute<{
     cover_url: string | null;
     cover_source: string | null;
@@ -212,8 +217,10 @@ export async function getAlbumCover(
   if (!row) {
     return null;
   }
-  const artwork = coverArtworkOf(row.cover_url, row.cover_source);
-  return artwork ? { src: artwork.src, srcSet: artwork.srcSet } : null;
+  return {
+    artwork: displayedCoverOf(row.cover_url, row.cover_source),
+    stored: storedCoverOf(row.cover_url, row.cover_source) !== null,
+  };
 }
 
 /**
@@ -449,8 +456,13 @@ export interface AlbumDetail {
   firstReleaseYear: number | null;
   mbReleaseGroupId: string | null;
   archived: boolean;
-  /** The chosen cover, only in the one stored form (M3.2), else null. */
-  artwork: CoverArtwork | null;
+  /**
+   * The chosen cover, only in the one stored form (M3.2) and only while the
+   * cover display switch is on, else null.
+   */
+  artwork: AlbumCover | null;
+  /** Whether a cover is stored, shown or not. */
+  coverStored: boolean;
   credits: {
     artistId: string;
     artistName: string;
@@ -562,7 +574,8 @@ export async function getAlbum(
     firstReleaseYear: album.first_release_year,
     mbReleaseGroupId: album.mb_release_group_id,
     archived: album.archived,
-    artwork: coverArtworkOf(album.cover_url, album.cover_source),
+    artwork: displayedCoverOf(album.cover_url, album.cover_source),
+    coverStored: storedCoverOf(album.cover_url, album.cover_source) !== null,
     credits: credits.rows.map((credit) => ({
       artistId: credit.artist_id,
       artistName: credit.name,

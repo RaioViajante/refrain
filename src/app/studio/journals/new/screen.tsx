@@ -12,6 +12,7 @@ import { StudioLoading } from "@/app/studio/studio-loading";
 import { studio } from "@/app/studio/studio-words";
 import type { InterfaceLocale } from "@/i18n/locales";
 import {
+  getAlbumCover,
   listAlbumCovers,
   listAlbumsWithArtists,
   listAlbumTrackCounts,
@@ -57,6 +58,8 @@ async function NewJournal({ searchParams, locale }: Props) {
     .filter((credit) => credit.albumId === album?.albumId)
     .map((credit) => credit.artistName)
     .join(", ");
+  // Whether the chosen album has a cover stored, shown or not.
+  const cover = album ? await getAlbumCover(author, album.albumId) : null;
 
   return (
     <StudioFrame
@@ -94,7 +97,8 @@ async function NewJournal({ searchParams, locale }: Props) {
               albumId={album.albumId}
               albumTitle={album.title}
               artistNames={artists}
-              hasCover={covers.has(album.albumId)}
+              hasCover={cover?.stored ?? false}
+              coverShown={covers.has(album.albumId)}
             />
           }
           create={{ albumId: album.albumId }}

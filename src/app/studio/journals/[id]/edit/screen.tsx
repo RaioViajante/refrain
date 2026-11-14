@@ -93,7 +93,7 @@ async function EditJournal({ params, locale }: Props) {
           <div className="studio-editor-head studio-editor-head-album">
             <ArtworkPlaceholder
               locale={locale}
-              artwork={cover}
+              artwork={cover?.artwork ?? null}
               title={journal.albumTitle}
               size={120}
             />
@@ -115,7 +115,8 @@ async function EditJournal({ params, locale }: Props) {
             albumId={journal.albumId}
             albumTitle={journal.albumTitle}
             artistNames={journal.artistNames}
-            hasCover={cover !== null}
+            hasCover={cover?.stored ?? false}
+            coverShown={(cover?.artwork ?? null) !== null}
           />
         }
         edit={{

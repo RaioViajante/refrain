@@ -257,6 +257,32 @@ export default defineConfig({
       },
     },
     {
+      // The cover display switch (docs/security.md § Deployment gate, item 6):
+      // a reader's and the author's browser, against the server whose switch
+      // is unset and the ones where it is on (e2e/global-setup.ts).
+      name: "cover-display-desktop",
+      testMatch: /cover-display\.spec\.ts/,
+      use: {
+        browserName: "chromium",
+        viewport: { width: 1280, height: 900 },
+        storageState: AUTH_FILE,
+      },
+      dependencies: ["setup"],
+    },
+    {
+      name: "cover-display-390",
+      testMatch: /cover-display\.spec\.ts/,
+      use: {
+        browserName: "chromium",
+        viewport: { width: 390, height: 844 },
+        isMobile: true,
+        hasTouch: true,
+        deviceScaleFactor: 2,
+        storageState: AUTH_FILE,
+      },
+      dependencies: ["cover-display-desktop"],
+    },
+    {
       // Add music and artwork (M3.2) again at a phone width.
       name: "music-390",
       testMatch: /music\.spec\.ts/,

@@ -247,6 +247,9 @@ export async function startProductionServer(
   // The public-reads switch is never inherited from the shell that runs the
   // tests: a server has it only if the test sets it (ADR 0006, D4).
   delete env.REFRAIN_PUBLIC_READS_ENABLED;
+  // Nor the cover display switch (docs/security.md § Deployment gate, item 6):
+  // covers are off unless the test turns them on.
+  delete env.REFRAIN_COVER_DISPLAY_ENABLED;
   // The providers are always the local mock: a test never calls the real
   // MusicBrainz, Cover Art Archive (M3.2), Wikimedia Commons, or Wikidata
   // (M3.3).

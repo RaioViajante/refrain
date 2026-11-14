@@ -15,12 +15,15 @@ import { useStudio } from "@/app/studio/studio-locale";
 // The author's explicit approval of a reviewed release (M3.2). Nothing is
 // written until "Add to catalog" is pressed, and what is sent is only the
 // release, the fingerprint of the review the author is looking at, and the
-// cover they chose, if any. No cover is chosen by default.
+// cover they chose, if any. No cover is chosen by default. While the cover
+// display switch is off (`coverDisplay`), no image is shown, the candidates
+// are text, and none can be chosen: the album is added without a cover, and
+// the server refuses a cover anyway (`cover_display_disabled`).
 
 interface Choice {
   imageId: string;
-  src: string;
-  srcSet: string;
+  types: string[];
+  artwork: { src: string; srcSet: string } | null;
 }
 
 export function ReleaseApproval({
@@ -29,12 +32,14 @@ export function ReleaseApproval({
   title,
   choices,
   artworkUnavailable,
+  coverDisplay,
 }: {
   releaseId: string;
   review: string;
   title: string;
   choices: Choice[];
   artworkUnavailable: boolean;
+  coverDisplay: boolean;
 }) {
   const router = useRouter();
   const { locale, words, href } = useStudio();
@@ -47,7 +52,7 @@ export function ReleaseApproval({
       importMusicReleaseAction({
         releaseId,
         review,
-        coverImageId: cover || null,
+        coverImageId: coverDisplay ? cover || null : null,
       }),
     );
     if (result.ok) {
@@ -67,6 +72,27 @@ export function ReleaseApproval({
           </p>
         ) : choices.length === 0 ? (
           <p className="studio-hint">{w.noFrontCover}</p>
+        ) : !coverDisplay ? (
+          <div className="space-y-2">
+            <p
+              className="studio-hint"
+              role="status"
+              style={{ maxWidth: "62ch" }}
+            >
+              {w.displayOff}
+            </p>
+            <ul className="studio-list">
+              {choices.map((choice, index) => (
+                <li key={choice.imageId}>
+                  {words.artworkPage.candidate(
+                    index + 1,
+                    choice.imageId,
+                    choice.types.join(", "),
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
         ) : (
           <fieldset className="studio-choice-group space-y-2">
             <legend className="studio-hint">{w.chooseCover}</legend>
@@ -88,7 +114,7 @@ export function ReleaseApproval({
                 <li key={choice.imageId} className="studio-choice">
                   <ArtworkPlaceholder
                     locale={locale}
-                    artwork={choice}
+                    artwork={choice.artwork}
                     title={words.artworkPage.frontCoverOf(title, index + 1)}
                     size={220}
                   />

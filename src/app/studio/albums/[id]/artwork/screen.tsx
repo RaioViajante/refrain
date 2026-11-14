@@ -22,7 +22,9 @@ export function artworkMetadata(locale: InterfaceLocale): Metadata {
 // An album's artwork (M3.2): the front covers the Cover Art Archive has for
 // the album's MusicBrainz edition (or release group), and the author's choice.
 // While a published journal shows the album, nothing here can change it
-// (ADR 0006 D5, gate G8).
+// (ADR 0006 D5, gate G8). While the cover display switch is off, no image is
+// shown, the candidates are listed as text, and none can be chosen
+// (docs/security.md § Deployment gate, item 6); removal is still offered.
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -70,7 +72,11 @@ async function Artwork({ params, locale }: Props) {
           size={220}
         />
         <p className="studio-meta">
-          {artwork.current ? w.coverSource : w.noArtwork}
+          {artwork.current
+            ? w.coverSource
+            : artwork.coverStored
+              ? w.coverHidden
+              : w.noArtwork}
         </p>
       </div>
 
@@ -113,15 +119,18 @@ async function Artwork({ params, locale }: Props) {
         <ArtworkChooser
           albumId={id}
           title={artwork.title}
-          currentCoverUrl={artwork.currentCoverUrl}
-          hasArtwork={artwork.current !== null}
+          currentCover={artwork.currentCover}
+          hasArtwork={artwork.coverStored}
+          coverDisplay={artwork.coverDisplay}
           fromReleaseGroup={artwork.source === "release_group"}
+          // Only these fields reach the browser: never a stored or canonical
+          // cover address, and no image source while covers are off.
           choices={artwork.choices.map((choice) => ({
             releaseId: choice.releaseId,
             imageId: choice.imageId,
-            src: choice.artwork.src,
-            srcSet: choice.artwork.srcSet,
-            current: choice.artwork.coverUrl === artwork.currentCoverUrl,
+            types: choice.types,
+            artwork: choice.artwork,
+            current: choice.current,
           }))}
         />
       )}

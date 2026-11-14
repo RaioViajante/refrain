@@ -1,5 +1,13 @@
 import { eq, inArray, sql } from "drizzle-orm";
-import { afterAll, describe, expect, it } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 import { getDb, schema, type Transaction } from "@/db";
 import {
@@ -20,6 +28,7 @@ import { lockAlbumPublicExposure } from "@/modules/publication";
 
 import { CatalogError } from "./errors";
 import {
+  coverStateOf,
   importMusicArtist,
   importMusicRelease,
   linkAlbumToMusic,
@@ -41,6 +50,24 @@ import { getAlbum } from "./queries";
 
 const author = testAuthor();
 const FRONT = `https://coverartarchive.org/release/${FIXTURE.firstPressing}/${FIXTURE.frontImage}`;
+
+// Choosing covers needs the cover display switch on (it is off by default,
+// and its off state has its own tests in cover-display.integration.test.ts).
+beforeEach(() => {
+  vi.stubEnv("REFRAIN_COVER_DISPLAY_ENABLED", "true");
+});
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
+/** The cover address stored on an album, read from its row. */
+async function storedCoverUrl(tx: Transaction, albumId: string) {
+  const [row] = await tx
+    .select({ coverUrl: schema.albums.coverUrl })
+    .from(schema.albums)
+    .where(eq(schema.albums.id, albumId));
+  return row?.coverUrl ?? null;
+}
 
 function failureOf(error: unknown) {
   return error instanceof CatalogError ? error.failure : error;
@@ -132,7 +159,7 @@ describe("reviewing a release", () => {
       expect(review.artwork.map((choice) => choice.imageId)).toEqual([
         FIXTURE.frontImage,
       ]);
-      expect(review.artwork[0]!.artwork.coverUrl).toBe(FRONT);
+      expect(review.artwork[0]!.coverUrl).toBe(FRONT);
       expect(review.existingAlbum).toBeNull();
       expect(review.sameTitle).toEqual([]);
     });
@@ -233,7 +260,7 @@ describe("importing a release (boundary 1)", () => {
         },
         credits: [{ artistName: "[Test] Ink Quartet", creditedAs: null }],
       });
-      expect(album!.artwork?.coverUrl).toBe(FRONT);
+      expect(await storedCoverUrl(tx, album!.id)).toBe(FRONT);
       expect(
         album!.tracklist.map((t) => [
           t.position,
@@ -1004,13 +1031,11 @@ describe("artwork", () => {
           albumId,
           releaseId: FIXTURE.firstPressing,
           imageId: FIXTURE.frontImage,
-          expectedCoverUrl: null,
+          expectedCover: null,
         },
         providers,
       );
-      expect((await getAlbum(tx, author, albumId))!.artwork?.coverUrl).toBe(
-        FRONT,
-      );
+      expect(await storedCoverUrl(tx, albumId)).toBe(FRONT);
 
       // Another release of the same release group.
       const legacy = `https://coverartarchive.org/release/${FIXTURE.legacyEdition}/${FIXTURE.legacyFrontImage}`;
@@ -1021,17 +1046,15 @@ describe("artwork", () => {
           albumId,
           releaseId: FIXTURE.legacyEdition,
           imageId: FIXTURE.legacyFrontImage,
-          expectedCoverUrl: FRONT,
+          expectedCover: coverStateOf(FRONT),
         },
         providers,
       );
-      expect((await getAlbum(tx, author, albumId))!.artwork?.coverUrl).toBe(
-        legacy,
-      );
+      expect(await storedCoverUrl(tx, albumId)).toBe(legacy);
 
       await removeAlbumArtwork(tx, author, {
         albumId,
-        expectedCoverUrl: legacy,
+        expectedCover: coverStateOf(legacy),
       });
       const [row] = await tx
         .select()
@@ -1052,7 +1075,7 @@ describe("artwork", () => {
           albumId,
           releaseId: FIXTURE.firstPressing,
           imageId: FIXTURE.frontImage,
-          expectedCoverUrl: null,
+          expectedCover: null,
         },
         providers,
       );
@@ -1063,7 +1086,7 @@ describe("artwork", () => {
             albumId,
             releaseId: FIXTURE.legacyEdition,
             imageId: FIXTURE.legacyFrontImage,
-            expectedCoverUrl: null,
+            expectedCover: null,
           },
         ],
         [
@@ -1072,7 +1095,7 @@ describe("artwork", () => {
             albumId,
             releaseId: FIXTURE.firstPressing,
             imageId: FIXTURE.backImage,
-            expectedCoverUrl: FRONT,
+            expectedCover: coverStateOf(FRONT),
           },
         ],
         [
@@ -1081,7 +1104,7 @@ describe("artwork", () => {
             albumId,
             releaseId: FIXTURE.firstPressing,
             imageId: "999",
-            expectedCoverUrl: FRONT,
+            expectedCover: coverStateOf(FRONT),
           },
         ],
       ];
@@ -1097,13 +1120,11 @@ describe("artwork", () => {
         await refusal(tx, (savepoint) =>
           removeAlbumArtwork(savepoint, author, {
             albumId,
-            expectedCoverUrl: null,
+            expectedCover: null,
           }),
         ),
       ).toBe("review_stale");
-      expect((await getAlbum(tx, author, albumId))!.artwork?.coverUrl).toBe(
-        FRONT,
-      );
+      expect(await storedCoverUrl(tx, albumId)).toBe(FRONT);
     });
   });
 
@@ -1120,7 +1141,7 @@ describe("artwork", () => {
               albumId: manual.albumId,
               releaseId: FIXTURE.firstPressing,
               imageId: FIXTURE.frontImage,
-              expectedCoverUrl: null,
+              expectedCover: null,
             },
             providers,
           ),
@@ -1139,7 +1160,7 @@ describe("artwork", () => {
               albumId: manual.albumId,
               releaseId: FIXTURE.firstPressing,
               imageId: FIXTURE.frontImage,
-              expectedCoverUrl: null,
+              expectedCover: null,
             },
             providers,
           ),
@@ -1150,19 +1171,19 @@ describe("artwork", () => {
           albumId: manual.albumId,
           releaseId: FIXTURE.firstPressing,
           imageId: "https://evil.example/a.jpg",
-          expectedCoverUrl: null,
+          expectedCover: null,
         },
         {
           albumId: manual.albumId,
           releaseId: "javascript:alert(1)",
           imageId: "1",
-          expectedCoverUrl: null,
+          expectedCover: null,
         },
         {
           albumId: "x",
           releaseId: FIXTURE.firstPressing,
           imageId: "1",
-          expectedCoverUrl: null,
+          expectedCover: null,
         },
       ]) {
         expect(
@@ -1199,7 +1220,7 @@ describe("artwork", () => {
           albumId,
           releaseId: FIXTURE.firstPressing,
           imageId: FIXTURE.frontImage,
-          expectedCoverUrl: null,
+          expectedCover: null,
         },
         providers,
       );
@@ -1225,7 +1246,7 @@ describe("artwork", () => {
               albumId,
               releaseId: FIXTURE.legacyEdition,
               imageId: FIXTURE.legacyFrontImage,
-              expectedCoverUrl: FRONT,
+              expectedCover: coverStateOf(FRONT),
             },
             providers,
           ),
@@ -1235,13 +1256,11 @@ describe("artwork", () => {
         await refusal(tx, (savepoint) =>
           removeAlbumArtwork(savepoint, author, {
             albumId,
-            expectedCoverUrl: FRONT,
+            expectedCover: coverStateOf(FRONT),
           }),
         ),
       ).toBe("public_page");
-      expect((await getAlbum(tx, author, albumId))!.artwork?.coverUrl).toBe(
-        FRONT,
-      );
+      expect(await storedCoverUrl(tx, albumId)).toBe(FRONT);
     });
   });
 
@@ -1407,7 +1426,7 @@ describe("the artwork guard and publishing, over real connections", () => {
           albumId: album!.id,
           releaseId: FIXTURE.firstPressing,
           imageId: FIXTURE.frontImage,
-          expectedCoverUrl: null,
+          expectedCover: null,
         },
         providers,
       ).then(

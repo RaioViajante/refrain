@@ -85,8 +85,12 @@ async function seedPublic(args: string[]): Promise<string> {
 export default async function setup() {
   let server;
   try {
+    // Covers on: the Studio's tests choose and show covers. The switch is
+    // off by default (docs/security.md § Deployment gate, item 6); its off
+    // state has its own server below and e2e/cover-display.spec.ts.
     server = await startProductionServer({
       port: PORT,
+      env: { REFRAIN_COVER_DISPLAY_ENABLED: "true" },
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -108,12 +112,26 @@ export default async function setup() {
   }
 
   let publicServer: ProductionServer | undefined;
+  let coversOffServer: ProductionServer | undefined;
   let seededPublic: string | undefined;
   const publicPrefix = `e2e${randomUUID().slice(0, 6)}`;
   try {
     publicServer = await startProductionServer({
       withAuthor: false,
-      env: { REFRAIN_PUBLIC_READS_ENABLED: "true" },
+      env: {
+        REFRAIN_PUBLIC_READS_ENABLED: "true",
+        REFRAIN_COVER_DISPLAY_ENABLED: "true",
+      },
+    });
+    // The same build, public reads on, the cover display switch unset (its
+    // default), and the studio's session secret, so the author's stored
+    // session opens its Studio too.
+    coversOffServer = await startProductionServer({
+      withAuthor: false,
+      env: {
+        REFRAIN_PUBLIC_READS_ENABLED: "true",
+        BETTER_AUTH_SECRET: server.commandEnv.BETTER_AUTH_SECRET,
+      },
     });
     seededPublic = await seedPublic(["seed", publicPrefix]);
   } catch (error) {
@@ -121,10 +139,13 @@ export default async function setup() {
       await seedPublic(["remove", seededPublic, publicPrefix]).catch(() => {});
     }
     await publicServer?.stop().catch(() => {});
+    await coversOffServer?.stop().catch(() => {});
     await server.stop();
     throw error;
   }
   const pub = publicServer;
+  const coversOff = coversOffServer!;
+  process.env.E2E_COVERS_OFF_URL = coversOff.baseURL;
   const seeded = JSON.parse(seededPublic) as {
     grace: { slug: string; entryId: string };
     draft: { slug: string };
@@ -156,6 +177,7 @@ export default async function setup() {
     try {
       await seedPublic(["remove", seededPublic, publicPrefix]).catch(() => {});
       await pub.stop().catch(() => {});
+      await coversOff.stop().catch(() => {});
     } catch {
       // The studio's own teardown below must still run.
     }

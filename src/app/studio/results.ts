@@ -34,6 +34,9 @@ export type StudioFailure =
   | "already_linked"
   | "not_linked"
   | "public_page"
+  // The cover display switch is off: no cover can be chosen. Nothing was
+  // written.
+  | "cover_display_disabled"
   // Wikimedia Commons (M3.3). Nothing was written.
   | "photo_not_usable"
   | "failed";

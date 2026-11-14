@@ -2714,13 +2714,13 @@ describe("what a request without the author's session can do", () => {
             albumId: ids.album,
             releaseId: FIXTURE.firstPressing,
             imageId: FIXTURE.frontImage,
-            expectedCoverUrl: null,
+            expectedCover: null,
           },
         ],
         routeId: ids.album,
       },
       removeAlbumArtworkAction: {
-        args: [{ albumId: ids.album, expectedCoverUrl: null }],
+        args: [{ albumId: ids.album, expectedCover: null }],
         routeId: ids.album,
       },
       // An artist's photograph (M3.3).

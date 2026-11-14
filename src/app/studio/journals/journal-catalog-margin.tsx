@@ -14,12 +14,16 @@ export function JournalCatalogMargin({
   albumTitle,
   artistNames,
   hasCover,
+  coverShown,
 }: {
   locale: InterfaceLocale;
   albumId: string;
   albumTitle: string;
   artistNames: string;
+  /** Whether a cover is stored, shown or not. */
   hasCover: boolean;
+  /** Whether it is shown (the cover display switch is on). */
+  coverShown: boolean;
 }) {
   const w = studioWords(locale).journalMargin;
   return (
@@ -44,7 +48,13 @@ export function JournalCatalogMargin({
         <h2 id="editor-artwork" className="studio-margin-title">
           {w.artwork}
         </h2>
-        <p className="studio-meta">{hasCover ? w.coverSource : w.noArtwork}</p>
+        <p className="studio-meta">
+          {hasCover
+            ? coverShown
+              ? w.coverSource
+              : w.coverHidden
+            : w.noArtwork}
+        </p>
         <p>
           <Link
             href={localizedHref(locale, `/studio/albums/${albumId}/artwork`)}

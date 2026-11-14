@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   schema,
@@ -29,6 +29,10 @@ import {
 } from "./public-home";
 import { routeAlbumJournalRequest } from "./public-routing";
 import { resolvePublicSlug } from "./queries";
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 // The public album-journal read model against real PostgreSQL (M3.1): what a
 // reader may see, in every state of the journal, compared with an independent
@@ -362,6 +366,7 @@ describe("the public album journal's projection", () => {
   });
 
   it("shows the chosen cover as image sources only, and nothing for any other stored value (M3.2)", async () => {
+    vi.stubEnv("REFRAIN_COVER_DISPLAY_ENABLED", "true");
     await inRollbackTransaction(async (tx) => {
       const { entryId, album } = await publishedJournal(tx);
       const release = "3f8c4f8e-0000-4000-8000-000000000001";
@@ -392,6 +397,41 @@ describe("the public album journal's projection", () => {
         expect(tampered.album.artwork, coverUrl).toBeNull();
         expect(JSON.stringify(tampered)).not.toContain(coverUrl);
       }
+    });
+  });
+
+  it("shows no cover while the cover display switch is off, and keeps the stored one", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const { entryId, album } = await publishedJournal(tx);
+      const release = "3f8c4f8e-0000-4000-8000-000000000001";
+      const stored = `https://coverartarchive.org/release/${release}/1000000001`;
+      await tx
+        .update(schema.albums)
+        .set({ coverUrl: stored, coverSource: "Cover Art Archive" })
+        .where(eq(schema.albums.id, album.albumId));
+      for (const value of [undefined, "", "false", "TRUE", "1", " true"]) {
+        vi.stubEnv("REFRAIN_COVER_DISPLAY_ENABLED", value);
+        for (const locale of ["en", "pt-BR"] as const) {
+          const page = await getPublicAlbumJournal(tx, entryId, locale);
+          if (!page) {
+            continue;
+          }
+          expect(page.album.artwork, `${value} ${locale}`).toBeNull();
+          expect(JSON.stringify(page)).not.toContain("coverartarchive.org");
+          expect(JSON.stringify(page)).not.toContain(release);
+        }
+      }
+      const [row] = await tx
+        .select({
+          coverUrl: schema.albums.coverUrl,
+          coverSource: schema.albums.coverSource,
+        })
+        .from(schema.albums)
+        .where(eq(schema.albums.id, album.albumId));
+      expect(row).toEqual({
+        coverUrl: stored,
+        coverSource: "Cover Art Archive",
+      });
     });
   });
 

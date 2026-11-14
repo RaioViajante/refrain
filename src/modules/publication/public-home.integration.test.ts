@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { and, eq, sql } from "drizzle-orm";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 
 import { getDb, schema, type Database, type Transaction } from "@/db";
 import {
@@ -51,6 +51,10 @@ import {
 } from "./public-home";
 import { listPublicMemoryAddresses } from "./public-memory";
 import { inSnapshot } from "./snapshot";
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 // The Home's read model against real PostgreSQL (M3.4). What it lists is
 // compared with the publication predicate's own oracle in
@@ -385,6 +389,7 @@ describe("the Home's read model", () => {
   });
 
   it("names the credited artists in order, and shows a stored cover only in the form Refrain writes", async () => {
+    vi.stubEnv("REFRAIN_COVER_DISPLAY_ENABLED", "true");
     await inRollbackTransaction(async (tx) => {
       const p = `facts-${randomUUID().slice(0, 8)}`;
       const first = await createTestArtist(tx, "[Test] First");
@@ -422,6 +427,12 @@ describe("the Home's read model", () => {
       const artwork = (await card()).artwork!;
       expect(artwork.src).toMatch(/^https:\/\/coverartarchive\.org\/release\//);
       expect(artwork.srcSet).toContain("250w");
+      // The cover display switch off: the fallback, whatever is stored.
+      for (const value of [undefined, "false", "TRUE"]) {
+        vi.stubEnv("REFRAIN_COVER_DISPLAY_ENABLED", value);
+        expect((await card()).artwork, value).toBeNull();
+      }
+      vi.stubEnv("REFRAIN_COVER_DISPLAY_ENABLED", "true");
 
       // Anything else in those columns is never an address on the page.
       await tx

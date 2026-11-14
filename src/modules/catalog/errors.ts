@@ -30,6 +30,10 @@ import type { FieldErrors } from "@/validation";
  *   artwork, its photograph (M3.5), or an artist's restore that would show a
  *   photograph does not happen without a confirmation that does not exist
  *   yet (ADR 0006 D5, gate G8).
+ * - `cover_display_disabled`: the cover display switch is off
+ *   (`REFRAIN_COVER_DISPLAY_ENABLED`), so a cover cannot be chosen: the
+ *   author could not see it. Nothing was written, and the stored cover is
+ *   kept. Removing a cover is still allowed.
  *
  * Wikimedia Commons (M3.3), with `provider_*` and `review_stale` above:
  *
@@ -50,6 +54,7 @@ export type CatalogFailure =
   | "already_linked"
   | "not_linked"
   | "public_page"
+  | "cover_display_disabled"
   | "photo_not_usable";
 
 /** What stands in the way of a delete or removal. */

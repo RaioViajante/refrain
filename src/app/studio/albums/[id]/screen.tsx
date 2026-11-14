@@ -142,7 +142,11 @@ async function Album({ params, locale }: Props) {
           {w.artworkTitle}
         </h2>
         <p className="studio-hint" style={{ maxWidth: "62ch" }}>
-          {album.artwork ? w.coverSource : w.noArtwork}
+          {album.artwork
+            ? w.coverSource
+            : album.coverStored
+              ? w.coverHidden
+              : w.noArtwork}
           {album.mbReleaseGroupId || album.edition?.mbReleaseId
             ? w.linked
             : w.notLinked}
@@ -153,7 +157,7 @@ async function Album({ params, locale }: Props) {
               href={href(`/studio/albums/${album.id}/artwork`)}
               className="studio-button"
             >
-              {album.artwork ? w.changeArtwork : w.chooseArtwork}
+              {album.coverStored ? w.changeArtwork : w.chooseArtwork}
             </Link>
           ) : (
             <Link
