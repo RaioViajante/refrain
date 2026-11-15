@@ -5,8 +5,10 @@ import { cache, Suspense } from "react";
 
 import {
   getPublicAlbumJournal,
+  listPublicAlbumArchive,
   publicReadsEnabled,
   resolvePublicAlbumJournalSlug,
+  type PublicAlbumCard,
   type PublicAlbumJournal,
 } from "@/modules/publication/public";
 
@@ -14,16 +16,12 @@ import {
   notFoundMetadata,
   publicPageMetadata,
 } from "@/app/(public)/_components/page-metadata";
-import { LanguageSelector } from "@/app/(public)/_components/language-selector";
-import {
-  PUBLIC_CONTENT_ID,
-  PublicFrame,
-} from "@/app/(public)/_components/public-frame";
+import { V3_CONTENT_ID, V3Frame } from "@/app/v3/frame";
 import { dictionaryFor } from "@/i18n/dictionaries";
 import { OPEN_GRAPH_LOCALE, type InterfaceLocale } from "@/i18n/locales";
 import { localizedHref } from "@/i18n/paths";
 
-import { JournalView } from "./journal-view";
+import { JournalView, type JournalNeighbours } from "./journal-view";
 
 // A public album journal, read through the Publication module alone. The
 // status of this address was decided before the page was rendered (src/proxy.ts);
@@ -97,26 +95,12 @@ export function AlbumJournalScreen({
   params,
   locale,
 }: Readonly<{ params: Promise<{ slug: string }>; locale: InterfaceLocale }>) {
-  // The frame is outside the Suspense boundary, as the section's layout had
-  // it, so the prerendered shell holds the frame and a loading line, and the
-  // page has one navigation. Only the language selector waits for the
-  // journal's own address, in its own boundary.
+  // The frame waits for the journal: its languages link to the journal's own
+  // address, which is known only once the journal is found to be served.
   return (
-    <PublicFrame
-      locale={locale}
-      path={null}
-      selector={
-        <Suspense fallback={null}>
-          <AlbumJournalSelector params={params} locale={locale} />
-        </Suspense>
-      }
-      current="albums"
-      inside
-    >
-      <Suspense fallback={<AlbumJournalLoading locale={locale} />}>
-        <AlbumJournal params={params} locale={locale} />
-      </Suspense>
-    </PublicFrame>
+    <Suspense fallback={<AlbumJournalLoading locale={locale} />}>
+      <AlbumJournal params={params} locale={locale} />
+    </Suspense>
   );
 }
 
@@ -124,27 +108,42 @@ function AlbumJournalLoading({
   locale,
 }: Readonly<{ locale: InterfaceLocale }>) {
   return (
-    <main
-      className="public-shell public-loading"
-      id={PUBLIC_CONTENT_ID}
-      tabIndex={-1}
-      aria-busy="true"
-    >
-      <p>{dictionaryFor(locale).loading}</p>
-    </main>
+    <V3Frame locale={locale} path={null} page="album" current="albums" inside>
+      <main className="wrap" id={V3_CONTENT_ID} tabIndex={-1} aria-busy="true">
+        <p className="say">{dictionaryFor(locale).loading}</p>
+      </main>
+    </V3Frame>
   );
 }
 
-/** The selector, once the journal is known to be served at its address. */
-async function AlbumJournalSelector({
-  params,
-  locale,
-}: Readonly<{ params: Promise<{ slug: string }>; locale: InterfaceLocale }>) {
-  const { slug } = await params;
-  const loaded = await load(slug, locale);
-  return loaded.kind === "page" ? (
-    <LanguageSelector locale={locale} path={`/albums/${loaded.slug}`} />
-  ) : null;
+/**
+ * The journals written just before and just after this one, in writing order
+ * (first publication), from the public archive: one card per album, so a
+ * neighbour is always a page that is served.
+ */
+async function neighboursOf(
+  slug: string,
+  locale: InterfaceLocale,
+): Promise<JournalNeighbours> {
+  let cards: PublicAlbumCard[];
+  try {
+    cards = await listPublicAlbumArchive(locale);
+  } catch {
+    return { before: null, after: null };
+  }
+  const ordered = [...cards].sort(
+    (a, b) => a.publishedAt.getTime() - b.publishedAt.getTime(),
+  );
+  const index = ordered.findIndex(
+    (card) =>
+      card.slug === slug ||
+      card.otherJournals.some((other) => other.slug === slug),
+  );
+  if (index < 0) return { before: null, after: null };
+  return {
+    before: ordered[index - 1] ?? null,
+    after: ordered[index + 1] ?? null,
+  };
 }
 
 async function AlbumJournal({
@@ -159,5 +158,21 @@ async function AlbumJournal({
   if (loaded.kind !== "page") {
     notFound();
   }
-  return <JournalView journal={loaded.journal} locale={locale} />;
+  const neighbours = await neighboursOf(loaded.slug, locale);
+  return (
+    <V3Frame
+      locale={locale}
+      path={`/albums/${loaded.slug}`}
+      page="album"
+      current="albums"
+      inside
+    >
+      <JournalView
+        journal={loaded.journal}
+        locale={locale}
+        neighbours={neighbours}
+        slug={loaded.slug}
+      />
+    </V3Frame>
+  );
 }

@@ -1,317 +1,334 @@
 import Link from "next/link";
-import { Fragment } from "react";
 
 import type {
+  PublicAlbumCard,
   PublicAlbumJournal,
-  PublicArtwork,
+  PublicJournalTrack,
 } from "@/modules/publication/public";
 
-import { ClosingLinks } from "@/app/(public)/_components/closing-links";
-import { PUBLIC_CONTENT_ID } from "@/app/(public)/_components/public-frame";
-import { RecordIcon } from "@/app/(public)/_components/record-icon";
 import { renderDocument } from "@/app/(public)/_components/rich-text";
-import { Stars } from "@/app/(public)/_components/stars";
-import { dictionaryFor } from "@/i18n/dictionaries";
-import { formatDate, ratingText } from "@/i18n/format";
-import type { InterfaceLocale } from "@/i18n/locales";
+import { Cover, labelLine } from "@/app/v3/cover";
+import { PenRing, Vinyl } from "@/app/v3/objects";
+import { otherLocale, type InterfaceLocale } from "@/i18n/locales";
 import { localizedHref } from "@/i18n/paths";
+import { v3Decimal, v3StringsFor } from "@/i18n/v3";
+import { pixelDate, v3TemplatesFor } from "@/i18n/v3/templates";
 
-// The public album journal (the approved V4.4 "Grace" screen). It renders only
-// what the Publication read model returned, which is already limited to what a
-// reader may see. It has no author control, no draft marker, and no private
-// metadata, and the writing is shown in the language it was written in.
+import { TrackRuntime } from "./track-runtime";
 
-function Chevron({ className }: Readonly<{ className?: string }>) {
+// The public album journal (docs/design-system.md, Part I, Pages: album
+// journal), drawn from the approved reference: the sleeve and its record, the
+// title, the rating circled in pen, the opening sentence; the margin note and
+// the writing; the back of the sleeve, track by track; and the journals
+// written before and after it.
+//
+// Everything comes from the Publication module's read of this one public
+// language version (PublicAlbumJournal) and, for the crate, the public
+// archive. A track whose reflection is not public in this language shows as
+// "not written yet", the same as a track with none (INV-3): the page never
+// tells the two apart. The favourite circle and the track rating come only
+// with a public reflection. Annotations appear only when the author recorded
+// them; an empty field is not rendered (ADR 0011 § 4.10).
+
+const RATING_RING =
+  "M14.3 17.5 Q19.7 10.7 25 7.7 Q30.4 4.7 39.1 5 Q47.9 5.3 55.5 4 Q63 2.8 68.8 6.4 Q74.6 10 82.7 9.5 Q90.9 9.1 97.2 11 Q103.6 12.9 107.8 15.9 Q112 18.9 113.9 22.2 Q115.7 25.6 117.8 29.2 Q119.9 32.7 116.4 36 Q112.9 39.3 107.7 41.8 Q102.4 44.3 99.7 47.9 Q96.9 51.6 89.3 52.7 Q81.6 53.8 74.1 54.1 Q66.6 54.4 59 55.2 Q51.4 56 43.8 55.3 Q36.1 54.5 28.7 52.9 Q21.4 51.3 17.1 48.2 Q12.8 45.1 9.3 41.9 Q5.7 38.8 3.7 35.4 Q1.6 31.9 1.6 28.3 Q1.7 24.7 6.1 21.7 Q10.5 18.7 11.3 14.4 Q12.1 10.2 21.4 9.6 Q30.6 8.9 37.1 7.1 Q43.6 5.4 51.1 5 L58.7 4.6";
+const FAVOURITE_RING =
+  "M14.9 12.2 Q30.5 9.6 37.4 8.1 Q44.4 6.6 53.2 5.3 Q62.1 3.9 73 4.1 Q84 4.3 94.4 4.7 Q104.7 5.1 112.1 6.6 Q119.5 8.2 127.9 9.3 Q136.2 10.3 144 11.8 Q151.8 13.2 155.5 15.3 Q159.3 17.3 154 19.3 Q148.7 21.4 150 23.4 Q151.3 25.5 150.1 27.9 Q149 30.3 138.6 31.3 Q128.2 32.4 119.4 33.6 Q110.6 34.8 100.3 35.7 Q90.1 36.5 79.9 35.2 Q69.6 33.9 59.2 34 Q48.7 34.1 39.3 33.1 Q29.9 32.2 22 30.7 Q14 29.3 7.8 27.4 Q1.5 25.6 0.2 23.4 Q-1.1 21.2 2.4 19.1 Q5.9 17 8.3 15 Q10.7 13 16.1 11.2 Q21.6 9.4 29.4 7.9 Q37.3 6.5 47 5.6 Q56.8 4.7 67.4 4 L78 3.3";
+
+const pad = (n: number) => String(n).padStart(2, "0");
+
+/** The track the sleeve's record shows first: the favourite, else the first written. */
+function firstShown(tracks: readonly PublicJournalTrack[]): PublicJournalTrack | null {
   return (
-    <svg
-      className={className}
-      width="22"
-      height="22"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path d="m9 6 6 6-6 6" />
-    </svg>
+    tracks.find((track) => track.reflection?.isFavourite) ??
+    tracks.find((track) => track.reflection !== null) ??
+    null
   );
 }
 
-/**
- * The album artwork in its fixed 1:1 frame (docs/design-system.md §
- * Components). The fallback is always there; a chosen Cover Art Archive cover
- * covers it once loaded, so nothing moves, and if the image never arrives the
- * fallback is what remains. The image is decorative inside the frame, which
- * carries the accessible name. It is requested without a referrer, and only
- * from the archive (the Content-Security-Policy allows nothing else).
- */
-function Artwork({
-  title,
-  artwork,
-  locale,
-}: Readonly<{
-  title: string;
-  artwork: PublicArtwork | null;
-  locale: InterfaceLocale;
-}>) {
-  const t = dictionaryFor(locale).albumJournal;
-  return (
-    <>
-      <div
-        className="pj-cover"
-        role="img"
-        aria-label={artwork ? t.artworkFor(title) : t.artworkMissingFor(title)}
-      >
-        <span className="pj-cover-hatch" aria-hidden="true" />
-        <span className="pj-cover-text" aria-hidden="true">
-          <RecordIcon />
-          <b>{t.artwork}</b>
-          <i>{artwork ? t.artworkFromArchive : t.artworkNotYet}</i>
-        </span>
-        {artwork ? (
-          // eslint-disable-next-line @next/next/no-img-element -- a remote cover, deliberately not routed through an image optimizer (docs/evidence/m3-2.md)
-          <img
-            className="pj-cover-image"
-            src={artwork.src}
-            srcSet={artwork.srcSet}
-            sizes="(max-width: 720px) 100vw, 514px"
-            width={500}
-            height={500}
-            alt=""
-            decoding="async"
-            fetchPriority="high"
-            referrerPolicy="no-referrer"
-          />
-        ) : null}
-      </div>
-      {artwork ? <p className="pj-cover-caption">{t.artworkCaption}</p> : null}
-    </>
-  );
+export interface JournalNeighbours {
+  before: PublicAlbumCard | null;
+  after: PublicAlbumCard | null;
 }
 
 export function JournalView({
   journal,
-  locale: interfaceLocale,
-}: Readonly<{ journal: PublicAlbumJournal; locale: InterfaceLocale }>) {
-  // `locale` is the writing's language (the version shown); the interface
-  // language only chooses the words around it.
-  const { album, credits, tracks, locale } = journal;
-  const dictionary = dictionaryFor(interfaceLocale);
-  const t = dictionary.albumJournal;
-  const facts = [
-    album.firstReleaseYear ? String(album.firstReleaseYear) : null,
-    album.label,
-    tracks.length > 0 ? t.tracks(tracks.length) : null,
-  ].filter((fact): fact is string => fact !== null);
+  locale,
+  neighbours,
+  slug,
+}: Readonly<{
+  journal: PublicAlbumJournal;
+  locale: InterfaceLocale;
+  neighbours: JournalNeighbours;
+  slug: string;
+}>) {
+  const t = v3StringsFor(locale).album;
+  const tt = v3TemplatesFor(locale);
+  const { album } = journal;
+  const artists = journal.credits.map((credit) => credit.name);
+  const artistLine = artists.join(", ");
+  const year = album.firstReleaseYear;
+  const shown = firstShown(journal.tracks);
+  const rating =
+    journal.ratingHalfSteps !== null ? v3Decimal(locale, journal.ratingHalfSteps / 2) : null;
   const body = renderDocument(journal.body, 2);
-  const ratingValue =
-    journal.ratingHalfSteps !== null
-      ? ratingText(interfaceLocale, journal.ratingHalfSteps)
-      : "";
-
+  const firstArtist = journal.credits.find((credit) => credit.artistAddress !== null);
+  const titleLine = [album.title, year ? String(year) : null].filter(Boolean).join(", ");
+  const written = journal.locale;
   return (
-    <main className="public-shell pj" id={PUBLIC_CONTENT_ID} tabIndex={-1}>
-      <article className="pj-grid">
-        <div className="pj-art">
-          <Artwork
-            title={album.title}
-            artwork={album.artwork}
-            locale={interfaceLocale}
-          />
-        </div>
-        <div className="pj-meta">
-          <p>
-            {t.published}{" "}
-            <time dateTime={journal.publishedAt.toISOString()}>
-              {formatDate(interfaceLocale, journal.publishedAt, "long")}
-            </time>
-          </p>
-          <p>{dictionary.writtenIn(dictionary.writingLanguages[locale])}</p>
-          {tracks.length > 0 ? (
-            <a className="pj-button" href="#tracks">
-              <span>{t.goToTracks}</span>
-              <Chevron className="pj-chevron-down" />
-            </a>
-          ) : null}
-          {journal.marginNote?.trim() ? (
-            <aside className="pj-margin-note" lang={locale}>
-              <p>{journal.marginNote}</p>
-            </aside>
-          ) : null}
-        </div>
-
-        <header className="pj-head">
-          <p className="pj-kind">
-            <RecordIcon />
-            {t.kind}
-          </p>
-          <h1 className="pj-title">{album.title}</h1>
-          {credits.length > 0 ? (
-            <p className="pj-artist">
-              {credits.map((credit, index) => (
-                <Fragment key={index}>
-                  {index > 0 ? ", " : null}
-                  {credit.artistAddress ? (
-                    // Each credited artist's page (M3.5). An archived artist
-                    // has none, and its name stays plain text.
-                    <Link
-                      className="pj-artist-link"
-                      href={localizedHref(
-                        interfaceLocale,
-                        `/artists/${credit.artistAddress}`,
-                      )}
-                    >
-                      {credit.name}
-                    </Link>
-                  ) : (
-                    credit.name
-                  )}
-                </Fragment>
-              ))}
-            </p>
-          ) : null}
-          {facts.length > 0 ? (
-            <p className="pj-facts">{facts.join(" · ")}</p>
-          ) : null}
-          {journal.opening?.trim() ? (
-            <p className="pj-opening" lang={locale}>
-              {journal.opening}
-            </p>
-          ) : null}
-          {journal.ratingHalfSteps !== null ? (
-            <p className="pj-rating">
-              <span aria-hidden="true">{dictionary.rating.label}</span>
-              <Stars
-                halfSteps={journal.ratingHalfSteps}
-                label={dictionary.rating.accessible(ratingValue)}
-                size={22}
+    <main id="main" tabIndex={-1}>
+      <article lang={journal.locale}>
+        <section className="gtop wrap" aria-labelledby="pp-h1">
+          <div className="sl front" data-a="sleeve" data-d="0">
+            <Vinyl top={t.nowT} bottom={shown ? pad(shown.number) : ""} />
+            <div className="card">
+              <p className="gt ser" lang={locale === journal.locale ? undefined : journal.locale}>
+                {album.title}.
+              </p>
+              <Cover
+                artwork={album.artwork}
+                title={album.title}
+                line={labelLine(artists, year)}
+                loading="eager"
               />
-              <span className="pj-rating-value" aria-hidden="true">
-                {`[${ratingValue}] / 5`}
+              <span className="foot">
+                <span className="ser">{year ?? ""}</span>
+                <span className="hand">
+                  {artistLine
+                    .toLowerCase()
+                    .split(" ")
+                    .map((word, i) => (
+                      <span key={i}>
+                        {i > 0 ? <br /> : null}
+                        {word}
+                      </span>
+                    ))}
+                </span>
               </span>
+            </div>
+          </div>
+          <div className="txt">
+            <p className="k pix" data-a="fade" data-d="4" lang={locale}>
+              {tt.albumKind(journal.tracks.length)}
+            </p>
+            <h1 id="pp-h1" className="ser" data-a="up" data-d="5">
+              {album.title}
+            </h1>
+            {artistLine || year ? (
+              <p className="by" data-a="up" data-d="7">
+                {[artistLine, year].filter(Boolean).join(", ")}
+              </p>
+            ) : null}
+            {rating ? (
+              <p
+                className="rt hand"
+                role="img"
+                aria-label={tt.ratingAria(rating)}
+                data-a="pop"
+                data-d="10"
+              >
+                [{rating}]
+                <PenRing d={RATING_RING} viewBox="0 0 120 60" />
+                <small aria-hidden="true">{t.myRating}</small>
+              </p>
+            ) : null}
+            {journal.opening?.trim() ? (
+              <p className="open ser" data-a="up" data-d="12">
+                {journal.opening}
+              </p>
+            ) : null}
+          </div>
+        </section>
+        <section className="review wrap" aria-labelledby="pp-h1">
+          {journal.marginNote?.trim() ? (
+            <p className="mg hand" data-a="write" data-d="2">
+              {journal.marginNote}
             </p>
           ) : null}
-        </header>
-
-        {body ? (
-          <div className="pj-body" lang={locale}>
+          <div className="body" data-a="up" data-d="0">
             {body}
+            <p className="fine2 pix" lang={locale}>
+              {tt.written(pixelDate(locale, journal.publishedAt))} ·{" "}
+              {journal.isOriginal
+                ? tt.inLanguage(written)
+                : tt.translatedFrom(otherLocale(written))}
+              {journal.isOriginal ? null : (
+                <>
+                  {" · "}
+                  <Link
+                    className="orig pix"
+                    href={localizedHref(otherLocale(locale), `/albums/${slug}`)}
+                    hrefLang={otherLocale(locale)}
+                  >
+                    {tt.readOriginal}
+                  </Link>
+                </>
+              )}
+            </p>
+          </div>
+        </section>
+        <section className="tk wrap" aria-labelledby="pp-tk" lang={locale}>
+          <div className="shead" data-a="up" data-d="0">
+            <h2 id="pp-tk">
+              {t.trH}
+              <span className="ser">{titleLine}</span>
+            </h2>
+            <p>{t.trHint}</p>
+          </div>
+          <div className="bw" data-a="sleeve" data-d="2" style={{ ["--vx" as string]: "-40%" }}>
+            <Vinyl top={locale === "pt-BR" ? "lado a" : "side a"} bottom={year ? String(year) : ""} />
+            <div className="back">
+              <span className="mono ser" aria-hidden="true">
+                {album.title.charAt(0)}
+              </span>
+              <div className="top pix">
+                <span>{year ?? ""}</span>
+                <span>{t.side}</span>
+              </div>
+              <ol aria-label={album.title}>
+                {journal.tracks.map((track) => (
+                  <TrackRow
+                    key={track.number}
+                    track={track}
+                    locale={locale}
+                    open={shown?.number === track.number}
+                    journalLocale={journal.locale}
+                  />
+                ))}
+              </ol>
+            </div>
+          </div>
+          <div className="after">
+            {firstArtist?.artistAddress ? (
+              <Link
+                className="pill"
+                href={localizedHref(locale, `/artists/${firstArtist.artistAddress}`)}
+              >
+                {tt.moreAbout(firstArtist.name)}
+              </Link>
+            ) : null}
+            <Link className="pill ghost" href={localizedHref(locale, "/albums")}>
+              {t.all}
+            </Link>
+          </div>
+        </section>
+        <Crate locale={locale} neighbours={neighbours} />
+      </article>
+      <TrackRuntime />
+    </main>
+  );
+}
+
+function TrackRow({
+  track,
+  locale,
+  open,
+  journalLocale,
+}: Readonly<{
+  track: PublicJournalTrack;
+  locale: InterfaceLocale;
+  open: boolean;
+  journalLocale: string;
+}>) {
+  const t = v3StringsFor(locale).album;
+  const tt = v3TemplatesFor(locale);
+  const reflection = track.reflection;
+  const credit = track.credit ? `${t.by} ${track.credit}` : null;
+  const text = reflection ? renderDocument(reflection.body, 3) : null;
+  if (!reflection) {
+    return (
+      <li>
+        <div className="trow off">
+          <span className="no">{pad(track.number)}</span>
+          <span className="nm">
+            <span className="tt">{track.title}</span>
+            {credit ? <span className="cr">{credit}</span> : null}
+          </span>
+          <span className="ny">{t.notYet}</span>
+          <span aria-hidden="true" />
+        </div>
+      </li>
+    );
+  }
+  const rating =
+    reflection.ratingHalfSteps !== null ? v3Decimal(locale, reflection.ratingHalfSteps / 2) : null;
+  return (
+    <li>
+      <details className="trw" open={open} data-n={pad(track.number)}>
+        <summary className="trow">
+          <span className="no">{pad(track.number)}</span>
+          <span className="nm">
+            <span className="tt">
+              {track.title}
+              {reflection.isFavourite ? <PenRing d={FAVOURITE_RING} viewBox="0 0 160 40" /> : null}
+            </span>
+            {reflection.isFavourite ? <span className="note hand">{t.fav}</span> : null}
+            {reflection.isStillWriting ? <span className="note hand">{t.draft}</span> : null}
+            {credit ? <span className="cr">{credit}</span> : null}
+          </span>
+          {rating ? (
+            <span className="rv hand" role="img" aria-label={tt.ratingAria(rating)}>
+              [{rating}]
+            </span>
+          ) : (
+            <span />
+          )}
+          <span className="pl" aria-hidden="true" />
+        </summary>
+        {text ? (
+          <div className="leaf2" lang={journalLocale}>
+            {/* eslint-disable-next-line @next/next/no-img-element -- decorative tape */}
+            <img className="tp" src="/v3/tape-a.png" alt="" aria-hidden="true" />
+            <div className="hand leaf-text">{text}</div>
           </div>
         ) : null}
-      </article>
+      </details>
+    </li>
+  );
+}
 
-      {tracks.length > 0 ? (
-        <section
-          className="pj-grid pj-tracks-section"
-          id="tracks"
-          aria-labelledby="tracks-heading"
-        >
-          <div className="pj-tracks-intro">
-            <h2 id="tracks-heading">{t.trackByTrack}</h2>
-            <p>{t.trackByTrackHint}</p>
-          </div>
-          <ol className="pj-tracks" role="list">
-            {tracks.map((track) => {
-              const number = String(track.number).padStart(2, "0");
-              const reflection = track.reflection;
-              const name = (
-                <>
-                  <span
-                    className={reflection?.isFavourite ? "pj-fav" : undefined}
-                  >
-                    {reflection?.isFavourite ? (
-                      <span className="pj-visually-hidden">{t.favourite}</span>
-                    ) : null}
-                    {track.title}
-                  </span>
-                  {reflection?.isStillWriting ? (
-                    <span className="pj-still-writing">{t.stillWriting}</span>
-                  ) : null}
-                </>
-              );
-              const credit = track.credit ? (
-                <span className="pj-track-credit">{t.by(track.credit)}</span>
-              ) : null;
-
-              if (!reflection) {
-                return (
-                  <li key={track.number} className="pj-track">
-                    <div className="pj-track-row pj-track-unwritten">
-                      <span className="pj-visually-hidden">
-                        {t.track(track.number)}
-                      </span>
-                      <span className="pj-track-number" aria-hidden="true">
-                        {number}
-                      </span>
-                      <span className="pj-track-name">
-                        <span className="pj-track-title">{track.title}</span>
-                        {credit}
-                      </span>
-                      <span className="pj-track-status">{t.notWrittenYet}</span>
-                    </div>
-                  </li>
-                );
-              }
-
-              const reflectionBody = renderDocument(reflection.body, 3);
-              const rating =
-                reflection.ratingHalfSteps !== null
-                  ? ratingText(interfaceLocale, reflection.ratingHalfSteps)
-                  : null;
-              return (
-                <li key={track.number} className="pj-track">
-                  <details>
-                    <summary className="pj-track-row">
-                      <span className="pj-visually-hidden">
-                        {t.track(track.number)}
-                      </span>
-                      <span className="pj-track-number" aria-hidden="true">
-                        {number}
-                      </span>
-                      <span className="pj-track-name">
-                        <span className="pj-track-title">{name}</span>
-                        {credit}
-                      </span>
-                      {rating !== null ? (
-                        <span className="pj-track-rating">
-                          <Stars
-                            halfSteps={reflection.ratingHalfSteps ?? 0}
-                            label={dictionary.rating.accessible(rating)}
-                            size={15}
-                          />
-                          <span className="pj-rating-value" aria-hidden="true">
-                            {`[${rating}]`}
-                          </span>
-                        </span>
-                      ) : (
-                        <span />
-                      )}
-                      <Chevron className="pj-chevron" />
-                    </summary>
-                    <div className="pj-reflection" lang={locale}>
-                      {reflectionBody}
-                    </div>
-                  </details>
-                </li>
-              );
-            })}
-          </ol>
-        </section>
-      ) : null}
-      <ClosingLinks
-        locale={interfaceLocale}
-        archive="/albums"
-        label={t.allAlbums}
-        artists={credits.flatMap((credit) =>
-          credit.artistAddress
-            ? [{ name: credit.name, address: credit.artistAddress }]
-            : [],
-        )}
-      />
-    </main>
+function Crate({
+  locale,
+  neighbours,
+}: Readonly<{ locale: InterfaceLocale; neighbours: JournalNeighbours }>) {
+  const t = v3StringsFor(locale).album;
+  const { before, after } = neighbours;
+  if (!before && !after) return null;
+  const sleeve = (card: PublicAlbumCard, label: string) => {
+    const year = card.firstReleaseYear;
+    return (
+      <Link className="cr1" href={localizedHref(locale, `/albums/${card.slug}`)}>
+        <span>
+          <span className="pix">{label}</span>
+          <span className="nm ser">{card.albumTitle}</span>
+          <span className="ar">{[card.credits.join(", "), year].filter(Boolean).join(", ")}</span>
+        </span>
+        <span className="cv" aria-hidden="true">
+          <Vinyl
+            top={card.credits.join(", ").toLowerCase()}
+            bottom={card.albumTitle.toUpperCase()}
+          />
+          <Cover
+            artwork={card.artwork}
+            title={card.albumTitle}
+            line={labelLine(card.credits, year)}
+            sizes="150px"
+          />
+        </span>
+      </Link>
+    );
+  };
+  return (
+    <nav className="crate wrap" aria-label={t.crateA} data-a="up" data-d="0" lang={locale}>
+      {before ? (
+        sleeve(before, t.before)
+      ) : (
+        <span className="cr0">
+          <span className="pix">{t.before}</span>
+          <span className="hand">{t.firstOne}</span>
+        </span>
+      )}
+      {after ? sleeve(after, t.after) : <span />}
+    </nav>
   );
 }
