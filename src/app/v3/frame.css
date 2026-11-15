@@ -445,3 +445,10 @@ body:has(> .pp) {
   font-size: 11px;
   color: var(--grey);
 }
+/* The fine print's link is a 44px target, set on the line's middle. */
+.pp .ftr .fine a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  vertical-align: middle;
+}
