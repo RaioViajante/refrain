@@ -632,3 +632,17 @@ body:has(> .pp) {
 .pp.io:not([data-runtime="ready"]) .board:not(.on) .path mask path {
   animation: v3-release-path 0s linear 3s forwards;
 }
+
+/* A white label keeps its words on the sleeve: a long title is cut at the
+   label's edge, never spilled onto its neighbours. In the Albums orbit on a
+   phone a cover is about 35 px, too small for words: the label shows its
+   ring only, as a blank white label does. The list below names every album. */
+.pp .covx {
+  overflow: hidden;
+}
+@media (max-width: 720px) {
+  .pp .orb2 .ri .covx b,
+  .pp .orb2 .ri .covx .yr {
+    display: none;
+  }
+}
