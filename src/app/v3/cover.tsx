@@ -30,6 +30,10 @@ export function Cover({
         srcSet={artwork.srcSet}
         sizes={sizes ?? "(max-width: 720px) 90vw, 460px"}
         alt=""
+        width={500}
+        height={500}
+        // The archive never learns which page a reader was on.
+        referrerPolicy="no-referrer"
         loading={loading}
         decoding="async"
       />
@@ -49,6 +53,6 @@ export function labelLine(
   artists: readonly string[],
   year: number | null,
 ): string {
-  const names = artists.join(", ").toUpperCase();
+  const names = artists.join(", ");
   return [names, year ? String(year) : ""].filter(Boolean).join(" · ");
 }

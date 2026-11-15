@@ -4,8 +4,6 @@ import { connection } from "next/server";
 import {
   getPublicAlbumJournal,
   getPublicHome,
-  listPublicArtistArchive,
-  listPublicMemoryArchive,
   publicReadsEnabled,
   resolvePublicAlbumJournalSlug,
   type PublicHome,
@@ -66,8 +64,10 @@ async function load(
   }
   try {
     const home = await getPublicHome(locale);
-    // The sleeve's tracklist is the newest journal's own public page; the
-    // board and the voices are the public archives (the same visible sets).
+    // The sleeve's tracklist is the newest journal's own public page. The
+    // board and the voices are the Home's own A6 lists (three memories, three
+    // artists); the reference's fuller board waits for the owner's amendment
+    // (ADR 0011, proposed).
     const newest = home.albums[0] ?? null;
     let latest: HomeExtras["latest"] = null;
     if (newest) {
@@ -77,13 +77,9 @@ async function load(
         latest = journal ? { slug: newest.slug, journal } : null;
       }
     }
-    const [memories, artists] = await Promise.all([
-      listPublicMemoryArchive(locale),
-      listPublicArtistArchive(),
-    ]);
     return {
       home,
-      extras: { latest, memories: memories.slice(0, 7), artists },
+      extras: { latest, memories: home.memories, artists: home.artists },
     };
   } catch {
     // Never logged: a driver message can carry connection details.
@@ -114,6 +110,7 @@ export async function HomeScreen({
         home={loaded?.home ?? NOTHING_PUBLISHED}
         extras={loaded?.extras ?? NO_EXTRAS}
         locale={locale}
+        unavailable={loaded === null}
       />
     </V3Frame>
   );

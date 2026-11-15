@@ -65,8 +65,7 @@ export function ArtistsArchive({
         <section className="ptop wrap" aria-labelledby="pp-h1">
           <div className="shead">
             <h1 id="pp-h1" data-a="up" data-d="0">
-              {t.h1}
-              <span className="ser">{t.h1b}</span>
+              {t.h1} <span className="ser">{t.h1b}</span>
             </h1>
           </div>
           <p className="say" data-a="up" data-d="2" lang={lead.lang}>
@@ -101,6 +100,7 @@ export function ArtistsArchive({
                     </span>
                     <span className="nm">
                       {first}
+                      {rest ? " " : null}
                       {rest ? <span className="ser">{rest}</span> : null}
                     </span>
                     <span className="m pix">
@@ -130,7 +130,7 @@ export function ArtistsArchive({
                       >
                         <Link href={href(artist.address)}>
                           {artist.name}
-                          <sup aria-hidden="true">[{artist.albumCount}]</sup>
+                          <sup aria-hidden="true">{`[${artist.albumCount}]`}</sup>
                           <span className="sr">
                             {tt.entries(artist.albumCount)}
                           </span>
@@ -172,7 +172,7 @@ export function ArtistsArchive({
                               <Link href={href(artist.address)}>
                                 {artist.name}
                               </Link>
-                              <span className="pix">[{artist.albumCount}]</span>
+                              <span className="pix">{`[${artist.albumCount}]`}</span>
                             </li>
                           ))}
                         </ul>

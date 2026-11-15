@@ -62,6 +62,7 @@ export function MemoryView({
           </p>
           <h1 id="pp-h1" data-a="up" data-d="1">
             {titleA}
+            {titleB ? " " : null}
             {titleB ? <span className="ser">{titleB}</span> : null}
           </h1>
         </header>
@@ -82,6 +83,7 @@ export function MemoryView({
               src="/v3/tape-b.png"
               alt=""
               aria-hidden="true"
+              loading="lazy"
               style={{ left: "50%", top: -30, marginLeft: -60, rotate: "4deg" }}
             />
           </figure>
@@ -92,6 +94,7 @@ export function MemoryView({
               src="/v3/tape-a.png"
               alt=""
               aria-hidden="true"
+              loading="lazy"
               style={{ left: -40, top: -24, rotate: "-30deg" }}
             />
             {/* eslint-disable-next-line @next/next/no-img-element -- decorative tape */}
@@ -100,6 +103,7 @@ export function MemoryView({
               src="/v3/tape-b.png"
               alt=""
               aria-hidden="true"
+              loading="lazy"
               style={{ right: -40, top: -22, rotate: "26deg" }}
             />
             {paragraphs.map((paragraph, i) => (
@@ -122,7 +126,7 @@ export function MemoryView({
                   .map((a) => a.name)
                   .join(", ")
                   .toLowerCase()}
-                bottom={song.album?.title.toUpperCase() ?? ""}
+                bottom={song.album?.title ?? ""}
               />
               <span className="tx">
                 <span className="pix">{t.np}</span>
@@ -151,6 +155,14 @@ export function MemoryView({
                     )}
                   </span>
                 ) : null}
+                {memory.music.slice(1).map((other) => (
+                  <span key={other.number} className="on pix more-song">
+                    ♪ {other.title}
+                    {other.artists.length > 0
+                      ? `, ${other.artists.map((a) => a.name).join(", ")}`
+                      : ""}
+                  </span>
+                ))}
                 {song.artists
                   .filter((artist) => artist.address !== null)
                   .slice(0, 1)

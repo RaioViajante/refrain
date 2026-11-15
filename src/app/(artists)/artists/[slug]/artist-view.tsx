@@ -7,6 +7,7 @@ import { Vinyl } from "@/app/v3/objects";
 import { TORN_HALVES } from "@/app/v3/rings";
 import type { InterfaceLocale } from "@/i18n/locales";
 import { localizedHref } from "@/i18n/paths";
+import { dictionaryFor } from "@/i18n/dictionaries";
 import { v3StringsFor } from "@/i18n/v3";
 
 // The public artist page (docs/design-system.md, Part I, Pages: artist): the
@@ -52,6 +53,7 @@ export function ArtistView({
 }: Readonly<{ artist: PublicArtist; locale: InterfaceLocale }>) {
   const t = v3StringsFor(locale).artist;
   const c = COPY[locale];
+  const d = dictionaryFor(locale);
   const words = artist.name.trim().split(/\s+/);
   const first = words.length > 1 ? words.slice(0, -1).join(" ") : artist.name;
   const rest = words.length > 1 ? words[words.length - 1] : "";
@@ -66,15 +68,24 @@ export function ArtistView({
     });
   }
   const photo = artist.photo;
-  const halfStyle = (side: "left" | "right") =>
-    photo
-      ? {
-          clipPath: TORN_HALVES[side],
-          backgroundImage: `url("${photo.src}")`,
-          backgroundSize: "200% 100%",
-          backgroundPosition: side === "left" ? "0 0" : "100% 0",
-        }
-      : { clipPath: TORN_HALVES[side] };
+  const halfStyle = (side: "left" | "right") => ({
+    clipPath: TORN_HALVES[side],
+  });
+  // The portrait is a real image in each half, so the archive never learns
+  // which page a reader was on (no referrer), as before.
+  const portrait = (side: "left" | "right") =>
+    photo ? (
+      // eslint-disable-next-line @next/next/no-img-element -- Commons thumbnails, sized by srcSet
+      <img
+        className={`hp ${side}`}
+        src={photo.src}
+        srcSet={photo.srcSet}
+        sizes="(max-width: 720px) 100vw, 1200px"
+        alt=""
+        referrerPolicy="no-referrer"
+        decoding="async"
+      />
+    ) : null;
   return (
     <main id="main" tabIndex={-1}>
       <article>
@@ -88,6 +99,7 @@ export function ArtistView({
               aria-hidden="true"
               style={halfStyle("left")}
             >
+              {portrait("left")}
               {photo ? null : (
                 <span className="knm hand">{first.toLowerCase()}</span>
               )}
@@ -97,18 +109,27 @@ export function ArtistView({
               aria-hidden="true"
               style={halfStyle("right")}
             >
+              {portrait("right")}
               {photo ? null : (
                 <span className="knm hand">
                   {(rest || first).toLowerCase()}
                 </span>
               )}
             </span>
+            <span
+              className="sr"
+              role="img"
+              aria-label={
+                photo ? d.photo.of(artist.name) : d.photo.noneOf(artist.name)
+              }
+            />
             <div className="mid">
               <p className="k pix">
                 {locale === "pt-BR" ? "ARTISTA" : "ARTIST"}
               </p>
               <h1 id="pp-h1">
                 {first}
+                {rest ? " " : null}
                 {rest ? <span className="ser">{rest}</span> : null}
               </h1>
             </div>
@@ -170,21 +191,27 @@ export function ArtistView({
           </div>
           {photo ? (
             <p className="pcredit pix">
-              {c.photo}: {photo.credit} ·{" "}
+              {d.photo.captionPrefix}
+              {photo.credit}
+              {d.photo.viaCommons} ·{" "}
               {photo.license.url ? (
                 <a
                   href={photo.license.url}
-                  rel="license noopener"
+                  rel="license noopener noreferrer"
                   target="_blank"
                 >
                   {photo.license.name}
                 </a>
               ) : (
                 photo.license.name
-              )}{" "}
-              ·{" "}
-              <a href={photo.sourceUrl} rel="noopener" target="_blank">
-                {c.source}
+              )}
+              {photo.license.shareAlike ? ` ${d.photo.shareAlike}` : null} ·{" "}
+              <a
+                href={photo.sourceUrl}
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                {d.photo.source}
               </a>{" "}
               · {photo.modifications} {c.shown}
             </p>
@@ -213,7 +240,7 @@ export function ArtistView({
                   >
                     <Vinyl
                       top={artist.name.toLowerCase()}
-                      bottom={album.title.toUpperCase()}
+                      bottom={album.title}
                     />
                     <Cover
                       artwork={album.artwork}

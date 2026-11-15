@@ -56,7 +56,7 @@ function place(side: "left" | "right", index: number) {
 export function songLine(card: PublicMemoryCard): string | null {
   const song = card.music[0];
   if (!song) return null;
-  return `♪ ${[song.title, song.artists.join(", ")].filter(Boolean).join(", ")}`.toUpperCase();
+  return `♪ ${[song.title, song.artists.join(", ")].filter(Boolean).join(", ")}`;
 }
 
 export function MemoriesArchive({
@@ -84,8 +84,7 @@ export function MemoriesArchive({
         <section className="ptop wrap" aria-labelledby="pp-h1">
           <div className="shead">
             <h1 id="pp-h1" data-a="up" data-d="0">
-              {t.h1}
-              <span className="ser">{t.h1b}</span>
+              {t.h1} <span className="ser">{t.h1b}</span>
             </h1>
           </div>
           <p className="say" data-a="up" data-d="2">
@@ -141,7 +140,7 @@ export function MemoriesArchive({
                       data-d={String(i % 6)}
                       style={place(side, i)}
                     >
-                      <span className="n pix">({n})</span>
+                      <span className="n pix">{`(${n})`}</span>
                       <span
                         className="pg hand"
                         lang={card.locale}
@@ -152,6 +151,11 @@ export function MemoriesArchive({
                       <span className="t hand" lang={card.locale}>
                         {card.title}
                       </span>
+                      {card.rememberedWhen ? (
+                        <span className="w pix" lang={card.locale}>
+                          {card.rememberedWhen}
+                        </span>
+                      ) : null}
                       {song ? <span className="s pix">{song}</span> : null}
                     </Link>
                   );

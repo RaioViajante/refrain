@@ -258,27 +258,21 @@ describe("a public artist's page, with public reads on", () => {
     // Rendered in one pass: nothing waits in hidden markup for a script.
     expect(page.body).not.toMatch(/<div hidden id="S:/);
     const text = visibleText(page.body);
-    expect(page.body).toMatch(/<h1[^>]*>Jeff Buckley<\/h1>/);
-    expect(text).toContain("In this journal");
-    expect(text).toContain("Album journals");
+    // v3: the name between the torn halves, then the shelf of journals.
+    expect(
+      visibleText(page.body.match(/<h1[^>]*>[\s\S]*?<\/h1>/)![0]).trim(),
+    ).toBe("Jeff Buckley");
+    expect(text).toContain("albums written");
     expect(text).toContain("Grace");
     expect(text).toContain("Sketches for My Sweetheart the Drunk");
-    expect(text).toContain("Tracks I wrote about");
-    for (const track of [
-      "Mojo Pin",
-      "Last Goodbye",
-      "Everybody Here Wants You",
-    ]) {
-      expect(text).toContain(track);
-    }
     // Lilac Wine's reflection is not public, so it is not listed at all.
     expect(text).not.toContain("Lilac Wine");
     // Both album journals are linked at their served addresses.
     expect(page.body).toContain(`href="/albums/${seeded!.grace.slug}"`);
     expect(page.body).toContain(`href="/albums/${seeded!.sketches.slug}"`);
-    // "4 / 6 tracks": Grace has three public reflections of six.
-    expect(text).toContain("1994 · 3 / 6 tracks");
-    expect(text).toContain("1998 · 1 / 3 tracks");
+    // Each journal on the shelf with its artist and year.
+    expect(text).toContain("Jeff Buckley, 1994");
+    expect(text).toContain("Jeff Buckley, 1998");
     // Artist-journal text and anything biographical are never shown.
     expect(text).not.toMatch(/Last edited|Singer and songwriter|Written in/);
   });
@@ -296,6 +290,8 @@ describe("a public artist's page, with public reads on", () => {
     expect(page.body).toContain('aria-label="Photograph of Jeff Buckley"');
     const text = visibleText(page.body);
     expect(text).toContain(`Photo: ${GRACE_ARTIST_PHOTO.credit}`);
+    // v3 shows it in black and white, torn in two, and says so.
+    expect(text).toContain("Shown in black and white, torn in two.");
     expect(text).toContain("via Wikimedia Commons");
     expect(text).toContain("Resized, and cropped to fit the frame.");
     expect(text).toContain("Adaptations must use the same license.");
@@ -318,10 +314,11 @@ describe("a public artist's page, with public reads on", () => {
     expect(page.body).toContain(
       `aria-label="No photograph of ${LONG_BAND_NAME}`,
     );
-    expect(visibleText(page.body)).toContain("not available yet");
-    expect(page.body).toMatch(
-      new RegExp(`<h1[^>]*>${LONG_BAND_NAME.replace(/[[\]]/g, "\\$&")}</h1>`),
-    );
+    // v3: the halves are kraft with the name in hand (Empty states).
+    expect(page.body).toContain('class="torn no-photo"');
+    expect(
+      visibleText(page.body.match(/<h1[^>]*>[\s\S]*?<\/h1>/)![0]).trim(),
+    ).toBe(LONG_BAND_NAME);
   });
 
   it("is no-store, with the artist pages' image policy and the public headers", async () => {
@@ -499,7 +496,7 @@ describe("an artist address that is not served", () => {
     const page = await request(on.baseURL, `/albums/${seeded!.sketches.slug}`);
     const text = visibleText(page.body);
     expect(page.body).toContain('href="/albums"');
-    expect(text).toContain("All albums");
+    expect(text).toContain("All album journals");
     expect(text).toContain("More about Jeff Buckley");
     expect(text).not.toContain(`More about ${ARTIST_MARKERS.archived}`);
     expect((text.match(/More about /g) ?? []).length).toBe(1);
@@ -658,7 +655,7 @@ describe("a change shows on the next request", () => {
     expect(await artistLinks(on, seeded!.long.slug)).toEqual([]);
     const journal = await request(on.baseURL, `/albums/${seeded!.long.slug}`);
     expect(journal.status).toBe(200);
-    expect(visibleText(journal.body)).toContain("All albums");
+    expect(visibleText(journal.body)).toContain("All album journals");
     expect(visibleText(journal.body)).not.toContain("More about");
   });
 });

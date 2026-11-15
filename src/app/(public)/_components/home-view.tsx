@@ -13,6 +13,7 @@ import { Cover, labelLine } from "@/app/v3/cover";
 import { HOME_LAYOUT as layout } from "@/app/v3/home-layout";
 import { groupByYear, yearOf } from "@/app/v3/memory-shape";
 import { Attachment, PenRing, Vinyl } from "@/app/v3/objects";
+import { dictionaryFor } from "@/i18n/dictionaries";
 import type { InterfaceLocale } from "@/i18n/locales";
 import { localizedHref } from "@/i18n/paths";
 import { v3Decimal, v3StringsFor } from "@/i18n/v3";
@@ -52,7 +53,10 @@ export function HomeView({
   home,
   extras,
   locale,
+  unavailable = false,
 }: Readonly<{
+  /** True when the database could not answer: one fixed line, no detail. */
+  unavailable?: boolean;
   home: PublicHome;
   extras: HomeExtras;
   locale: InterfaceLocale;
@@ -110,6 +114,11 @@ export function HomeView({
           ) : null}
         </div>
       </section>
+      {unavailable ? (
+        <p className="say wrap home-unavailable" role="status">
+          {dictionaryFor(locale).home.unavailable}
+        </p>
+      ) : null}
       <Recent entries={home.recent} locale={locale} />
       <Albums home={home} extras={extras} locale={locale} />
       <Board memories={extras.memories} locale={locale} />
@@ -139,8 +148,10 @@ function Recent({
   const words = [t.w1, t.w2, t.w3, t.w4, t.w5];
   const places = layout.recent;
   const items = entries.slice(0, places.length);
+  if (items.length === 0) return null;
   return (
     <section
+      id="ph-recent"
       className="recent wrap"
       aria-labelledby="pp-rec"
       style={{ maxWidth: 1280 }}
@@ -177,7 +188,7 @@ function Recent({
             data-a="place"
             data-d={i % 2 === 0 ? "0" : "2"}
           >
-            <span className={`no ser ${place.side}`}>[{pad(i + 1)}]</span>
+            <span className={`no ser ${place.side}`}>{`[${pad(i + 1)}]`}</span>
             {entry.kind === "album_journal" ? (
               <>
                 <Cover
@@ -254,11 +265,10 @@ function Albums({
     .slice(0, 3);
   if (!latest && shelf.length === 0) return null;
   return (
-    <section className="albums wrap" aria-labelledby="pp-alb">
+    <section id="ph-albums" className="albums wrap" aria-labelledby="pp-alb">
       <div className="shead">
         <h2 id="pp-alb" data-a="up" data-d="0">
-          {t.albH}
-          <span className="ser">{t.track}</span>
+          {t.albH} <span className="ser">{t.track}</span>
         </h2>
       </div>
       <div className="sleeves">
@@ -307,10 +317,10 @@ function Sleeves({
       <div className="sl front" data-a="sleeve" data-d="0">
         <Vinyl
           top={artists.join(", ").toLowerCase()}
-          bottom={journal.album.title.toUpperCase()}
+          bottom={journal.album.title}
         />
         <Link className="card" href={href}>
-          <h3 className="ser">{journal.album.title}.</h3>
+          <h3 className="ser">{`${journal.album.title}.`}</h3>
           <Cover
             artwork={journal.album.artwork}
             title={journal.album.title}
@@ -352,9 +362,9 @@ function Sleeves({
                   key={track.number}
                   className={favourite ? "fav" : undefined}
                 >
-                  <span>{track.number}.</span>
+                  <span>{`${track.number}.`}</span>
                   <Link href={href}>
-                    {track.title.toUpperCase()}
+                    {track.title}
                     {favourite ? (
                       <>
                         <span className="sr"> ({t.fav})</span>
@@ -375,7 +385,7 @@ function Sleeves({
                   role="img"
                   aria-label={tt.ratingAria(rating)}
                 >
-                  [{rating}]
+                  {`[${rating}]`}
                 </span>
               </span>
             ) : (
@@ -444,13 +454,18 @@ function Board({
   }
   const ordered = groups.flatMap((group) => group.items);
   return (
-    <section className="mem" aria-labelledby="pp-mem">
+    <section
+      id={ordered.length > 0 ? "ph-memories" : undefined}
+      className="mem"
+      aria-labelledby="pp-mem"
+    >
       {/* eslint-disable-next-line @next/next/no-img-element -- decorative edge */}
       <img
         className="edge t"
         src="/v3/torn-top.png"
         alt=""
         aria-hidden="true"
+        loading="lazy"
       />
       <div className="sheet">
         <div className="wrap">
@@ -569,9 +584,7 @@ function Board({
                       {card.title}
                     </span>
                     {song ? (
-                      <span className="song pix">
-                        ♪ {song.title.toUpperCase()}
-                      </span>
+                      <span className="song pix">♪ {song.title}</span>
                     ) : null}
                   </Link>
                 );
@@ -604,6 +617,7 @@ function Board({
         src="/v3/torn-bottom.png"
         alt=""
         aria-hidden="true"
+        loading="lazy"
       />
     </section>
   );
@@ -622,8 +636,7 @@ function FromTheJournal({
     <section className="jr wrap" aria-labelledby="pp-jr">
       <div className="shead">
         <h2 id="pp-jr" data-a="up" data-d="0">
-          {t.j1}
-          <span className="ser">{t.j2}</span>
+          {t.j1} <span className="ser">{t.j2}</span>
         </h2>
       </div>
       <div className="board2">
@@ -646,6 +659,7 @@ function FromTheJournal({
             src="/v3/tape-a.png"
             alt=""
             aria-hidden="true"
+            loading="lazy"
             style={{ left: "50%", top: -30, marginLeft: -65, rotate: "-3deg" }}
           />
         </figure>
@@ -656,6 +670,7 @@ function FromTheJournal({
             src="/v3/tape-b.png"
             alt=""
             aria-hidden="true"
+            loading="lazy"
             style={{ left: -40, top: -26, rotate: "-32deg" }}
           />
           {/* eslint-disable-next-line @next/next/no-img-element -- decorative tape */}
@@ -664,6 +679,7 @@ function FromTheJournal({
             src="/v3/tape-a.png"
             alt=""
             aria-hidden="true"
+            loading="lazy"
             style={{ right: -40, top: -22, rotate: "28deg" }}
           />
           <p
@@ -722,6 +738,7 @@ function Voices({
   const places = layout.names;
   return (
     <section
+      id="ph-artists"
       className="voices wrap"
       aria-labelledby="pp-vo"
       style={{ maxWidth: 1280 }}

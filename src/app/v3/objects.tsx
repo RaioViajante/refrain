@@ -177,6 +177,7 @@ export function TornEdge({ side }: Readonly<{ side: "t" | "b" }>) {
       src={side === "t" ? "/v3/torn-top.png" : "/v3/torn-bottom.png"}
       alt=""
       aria-hidden="true"
+      loading="lazy"
     />
   );
 }

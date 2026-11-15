@@ -1671,9 +1671,6 @@ describe("the Home's components", () => {
     "next/server",
     // The language selector's keyboard island, and nothing else of React.
     "react",
-    // v3: the page runtime reads the router's pathname, to set itself up
-    // again after a client navigation.
-    "next/navigation",
   ]);
 
   /** A local specifier as a file, or null for a package or a stylesheet. */
@@ -1773,8 +1770,8 @@ describe("the Home's components", () => {
     // v3: the page runtime (the reveal observer, the hero's scroll, the pen's
     // sounds) and the footer's sound control are the only client component.
     // It receives a label string as its only prop, and imports nothing but
-    // React, the router's pathname, and the synthesized sound engine, so no
-    // read model reaches the client.
+    // React and the synthesized sound engine, so no read model reaches the
+    // client.
     expect([...files].filter(isClient)).toEqual(["src/app/v3/runtime.tsx"]);
     const island = parse(
       readFileSync("src/app/v3/runtime.tsx", "utf8"),
@@ -1786,7 +1783,7 @@ describe("the Home's components", () => {
         .map(
           (statement) => (statement.moduleSpecifier as ts.StringLiteral).text,
         ),
-    ).toEqual(["next/navigation", "react", "./sfx"]);
+    ).toEqual(["react", "./sfx"]);
     const engine = parse(
       readFileSync("src/app/v3/sfx.ts", "utf8"),
       "src/app/v3/sfx.ts",

@@ -368,8 +368,9 @@ describe("with public reads on, the Albums archive", () => {
     expect(albums.status).toBe(200);
     const text = visibleText(albums.body);
     expect(text).toContain("Albums");
+    // v3: the reference's own line about the orbit.
     expect(text).toContain(
-      "Whole records, written about slowly. Some have every track, some only a few.",
+      "The first ones sit in the middle. Each new journal is added on the outside",
     );
     // Grace once, opening its newest journal, with the earlier one under it.
     expect(text.match(/\bGrace\b/g)?.length).toBeGreaterThanOrEqual(1);
@@ -424,7 +425,8 @@ describe("with public reads on, the Artists archive", () => {
     expect(text).not.toContain("Archived Credit Artist");
     // No artist kind and no photograph on the list.
     expect(text).not.toMatch(/Solo artist|Band\b/);
-    expect(markup(list)).not.toMatch(/<img\b/);
+    // v3: the only images are the frame's own (the torn edge), never a photo.
+    expect(markup(list)).not.toMatch(/<img\b(?![^>]*src="\/v3\/)/);
     expect(list.body).not.toContain("upload.wikimedia.org");
     expect(markup(list)).not.toContain("thumb.wikimedia.org");
     // Every response under /artists/ keeps the artist pages' policy.
@@ -439,13 +441,14 @@ describe("with public reads on, the Memories archive", () => {
     const list = await page("/memories");
     expect(list.status).toBe(200);
     const text = visibleText(list.body);
-    // The owner's lead (M3.8a review), in place of the screen's.
-    expect(text).toContain("Memories and the music woven through them.");
+    // v3: the reference's lead.
+    expect(text).toContain(
+      "Kept by year. Every photo is one memory and the song that brings it back.",
+    );
     expect(text).not.toContain("Dated the way I remember");
     expect(text).toContain(PUBLIC_MEMORY.title);
     expect(text).toContain(PUBLIC_MEMORY.when);
-    expect(text).toContain(PUBLIC_MEMORY.paragraphs[0]);
-    // Only the first paragraph: the page never carries the whole writing.
+    // v3 shows no excerpt on the board, and never the whole writing.
     expect(list.body).not.toContain(PUBLIC_MEMORY.paragraphs[1]);
     expect(text).toContain(PUBLIC_MEMORY.firstSong);
     expect(text).toContain(PUBLIC_MEMORY.quietTitle);
@@ -465,8 +468,8 @@ describe("with public reads on, the Memories archive", () => {
     expect(list.headers["content-security-policy"]).toBe(
       CONTENT_SECURITY_POLICY,
     );
-    // The writing carries its own language.
-    expect(markup(list)).toMatch(/<p class="px-excerpt" lang="en">/);
+    // The title carries the writing's own language.
+    expect(markup(list)).toMatch(/<span class="t hand" lang="en">/);
   });
 });
 
@@ -475,7 +478,7 @@ describe("artist namesakes and every artist row", () => {
     const list = markup(await page("/artists"));
     const rows = [
       ...list.matchAll(
-        /<a class="px-row" href="(\/artists\/[^"]+)"><span class="px-row-name">([^<]+)<\/span>/g,
+        /<li><a href="(\/artists\/[^"]+)">([^<]+)<\/a><span class="pix">/g,
       ),
     ].map((match) => ({ href: match[1]!, name: match[2]! }));
     expect(rows.length).toBeGreaterThanOrEqual(3);
@@ -588,15 +591,16 @@ describe("the shared navigation", () => {
       /<nav aria-label="Main">[\s\S]*?<\/nav>/,
     );
     expect(nav).not.toBeNull();
-    return [...nav![0].matchAll(/<a ([^>]*)>([^<]*)<\/a>/g)].map((m) => ({
+    return [...nav![0].matchAll(/<a ([^>]*)>([^<]*)<svg/g)].map((m) => ({
       label: m[2],
       href: m[1]!.match(/href="([^"]*)"/)?.[1],
       current: m[1]!.match(/aria-current="([^"]*)"/)?.[1] ?? null,
     }));
   };
+  // v3: the header's sections are Albums, Artists, and Memories; the name
+  // ("refrain") leads to the Home, outside the list, on every page but it.
   const links = (current: string | null, value: string | null) =>
     [
-      ["Home", "/"],
       ["Albums", "/albums"],
       ["Artists", "/artists"],
       ["Memories", "/memories"],
@@ -611,7 +615,7 @@ describe("the shared navigation", () => {
     // another suite would change the bare name's address).
     const artist = hrefs(await page("/artists"), "artists")[0]!;
     const cases: [string, string | null, string | null][] = [
-      ["/", "Home", "page"],
+      ["/", null, null],
       ["/albums", "Albums", "page"],
       ["/artists", "Artists", "page"],
       ["/memories", "Memories", "page"],
@@ -627,9 +631,7 @@ describe("the shared navigation", () => {
 
   it("is the same with the switch off, on the Home and on the unknown address", async () => {
     for (const off of offs) {
-      expect(navOf(await request(off.baseURL, "/"))).toEqual(
-        links("Home", "page"),
-      );
+      expect(navOf(await request(off.baseURL, "/"))).toEqual(links(null, null));
       expect(navOf(await request(off.baseURL, "/albums"))).toEqual(
         links(null, null),
       );

@@ -1,0 +1,131 @@
+/* Refrain v3 in the Writing Studio (docs/design-system.md, Part I, Writing
+   Studio): inside the v3 shell (.stu), the existing screens take the v3
+   Studio's letters, colours, and thin lines in place of V4.4's hand-drawn
+   outlines. Their structure, controls, and behaviour are unchanged. */
+.stu {
+  --font-kalam: var(--f-archivo);
+  --font-alegreya-sans: var(--f-archivo);
+  --color-ink: #141311;
+  --color-ink-2: #3a3732;
+  --color-ink-3: #6e6a63;
+  --color-rule: #e3ded5;
+  --color-frame-quiet: #8c877e;
+  --color-paper: #faf8f4;
+  --color-paper-2: #f2efe9;
+  --color-paper-3: #f6f4ef;
+  --color-hover: #f2efe9;
+  --stroke-button: none;
+  --stroke-button-hover: none;
+  --stroke-button-focus: none;
+  --stroke-button-disabled: none;
+  --stroke-button-primary: none;
+  --stroke-button-primary-hover: none;
+  --stroke-field: none;
+  --stroke-field-hover: none;
+  --stroke-field-focus: none;
+  --stroke-area: none;
+  --stroke-area-hover: none;
+  --stroke-area-focus: none;
+  --stroke-frame: none;
+  --stroke-frame-small: none;
+  --stroke-dialog: none;
+  --stroke-rule: none;
+  --stroke-opening-line: none;
+  --stroke-rule-focus: none;
+  --stroke-underline: none;
+}
+.stu .studio-main :is(h1, h2, h3) {
+  font-family: var(--f-archivo), system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+.stu .studio-main h1 {
+  font-size: 30px;
+  line-height: 1.1;
+}
+.stu .studio-button {
+  min-height: 38px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background-color: #fff;
+  font-family: var(--f-archivo), system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+}
+.stu .studio-button:not(.studio-button-primary):hover {
+  border-color: #cdc6b9;
+}
+.stu .studio-button-primary {
+  border-color: var(--burg);
+  background-color: var(--burg);
+  color: #fbf5ef;
+}
+.stu .studio-button-primary:hover:not(:disabled) {
+  border-color: #76231c;
+  background-color: #76231c;
+}
+.stu .studio-field,
+.stu .studio-textarea,
+.stu .studio-memory-results,
+.stu .studio-dialog,
+.stu .studio-language-menu {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background-color: #fff;
+}
+.stu .studio-field:focus,
+.stu .studio-textarea:focus {
+  outline: 2px solid var(--pen);
+  outline-offset: 0;
+  border-color: transparent;
+}
+.stu .studio-opening-field {
+  border-bottom: 1px solid var(--line);
+  font-family: var(--f-serif), Georgia, serif;
+  font-style: italic;
+}
+.stu .studio-row::after,
+.stu .studio-rule {
+  background: var(--line);
+  height: 1px;
+}
+.stu .studio-dialog {
+  border-radius: 10px;
+  box-shadow: 0 24px 60px -24px rgba(20, 19, 17, 0.35);
+}
+.stu .studio-main {
+  max-width: none;
+}
+/* The shell's languages are links (the URL is the only language state). */
+.stu .side .seg a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 5px;
+}
+.stu .side .seg a[aria-current] {
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink);
+  font-weight: 600;
+}
+.stu .side .foot button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-decoration: underline;
+}
+.stu .studio-skip {
+  position: absolute;
+  left: 16px;
+  top: -60px;
+}
+.stu .studio-skip:focus {
+  top: 12px;
+  z-index: 20;
+  padding: 8px 14px;
+  background: #fff;
+}

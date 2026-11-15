@@ -1,6 +1,5 @@
 "use client";
 
-import { usePathname } from "next/navigation";
 import { useEffect, useSyncExternalStore } from "react";
 
 import { REVEAL_SOUNDS, soundEngine } from "./sfx";
@@ -24,7 +23,6 @@ const PEN_TARGETS =
   ".pp .hdr nav a:not([aria-current]), .pp .ftr nav a, .pp .lang a, .pp .lang button, .pp .sorts button, .pp .sorts a";
 
 export function V3Runtime() {
-  const pathname = usePathname();
   useEffect(() => {
     const root = document.querySelector<HTMLElement>(".pp");
     if (!root) return;
@@ -166,7 +164,7 @@ export function V3Runtime() {
     }
 
     return () => cleanups.forEach((cleanup) => cleanup());
-  }, [pathname]);
+  }, []);
   return null;
 }
 

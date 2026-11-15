@@ -53,8 +53,9 @@ function sessionSetCookie(response: Response): string | undefined {
 const AUTHENTICATED_ONLY = [
   'aria-label="Writing studio"',
   "Catalog sections",
-  "studio-nav",
-  "studio-header-end",
+  // v3: the sidebar and its foot (the site, the languages, the session).
+  'class="side"',
+  'class="foot"',
   "Sign out",
 ];
 

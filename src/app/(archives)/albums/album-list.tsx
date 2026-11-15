@@ -20,6 +20,8 @@ export interface AlbumListRow {
   key: string;
   rating: number | null;
   ratingText: string | null;
+  /** The album's other public journals, each linked so none is unreachable. */
+  others: { href: string; label: string; about: string }[];
 }
 
 type Sort = "written" | "year" | "artist" | "rating";
@@ -97,6 +99,17 @@ export function AlbumList({
         </span>
       </li>,
     );
+    for (const other of row.others) {
+      items.push(
+        <li key={other.href} className="oj">
+          <span className="n" />
+          <a href={other.href}>
+            {other.label}
+            <span className="sr">{other.about}</span>
+          </a>
+        </li>,
+      );
+    }
   }
   return (
     <div className="alist" data-a="up" data-d="0">

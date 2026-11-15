@@ -7,6 +7,8 @@ import { V3_CONTENT_ID, V3Frame } from "@/app/v3/frame";
 import { seeded, Vinyl } from "@/app/v3/objects";
 import { ORBIT_GROOVES } from "@/app/v3/rings";
 import { artistSortKey } from "@/app/v3/sort";
+import { dictionaryFor } from "@/i18n/dictionaries";
+import { formatDate } from "@/i18n/format";
 import type { InterfaceLocale } from "@/i18n/locales";
 import { localizedHref } from "@/i18n/paths";
 import { v3Decimal, v3StringsFor } from "@/i18n/v3";
@@ -138,7 +140,7 @@ function Orbit({
                 />
               </span>
               <span className="cap">
-                {n}. {album.albumTitle}
+                {`${n}. ${album.albumTitle}`}
                 <br />
                 {album.credits.join(", ")}
               </span>
@@ -180,6 +182,7 @@ export function AlbumsArchive({
 }: Readonly<{ albums: PublicAlbumCard[] | null; locale: InterfaceLocale }>) {
   const t = v3StringsFor(locale).albums;
   const tt = v3TemplatesFor(locale);
+  const lists = dictionaryFor(locale).archives;
   const ordered = albums ? inWritingOrder(albums) : [];
   const rows: AlbumListRow[] = ordered.map((album, i) => ({
     n: i + 1,
@@ -189,6 +192,11 @@ export function AlbumsArchive({
     year: album.firstReleaseYear,
     key: artistSortKey(album.credits[0] ?? album.albumTitle),
     rating: album.ratingHalfSteps !== null ? album.ratingHalfSteps / 2 : null,
+    others: album.otherJournals.map((other) => ({
+      href: localizedHref(locale, `/albums/${other.slug}`),
+      label: `${lists.anotherJournal} ${formatDate(locale, other.publishedAt)}`,
+      about: lists.aboutAlbum(album.albumTitle),
+    })),
     ratingText:
       album.ratingHalfSteps !== null
         ? `[${v3Decimal(locale, album.ratingHalfSteps / 2)}]`
@@ -200,7 +208,7 @@ export function AlbumsArchive({
         <section className="ptop wrap" aria-labelledby="pp-h1">
           <div className="shead">
             <h1 id="pp-h1" data-a="up" data-d="0">
-              {t.h1}
+              {t.h1}{" "}
               <span className="ser">{tt.albumsCount(ordered.length)}</span>
             </h1>
           </div>

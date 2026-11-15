@@ -107,8 +107,9 @@ describe("an address that no route serves", () => {
     expect(answer.body).toMatch(/<html[^>]*\blang="en"/);
     expect(answer.body).toContain("<title>Not found · refrain</title>");
     const words = visibleText(answer.body);
-    expect(words).toContain("Nothing here");
-    expect(words).toContain("This page is not available.");
+    // v3: the skipping record (docs/design-system.md, Part I, 404).
+    expect(words).toContain("this track skipped");
+    expect(words).toContain("there’s nothing on this part of the record.");
     expect(words).toContain("Back to the start");
   });
 
@@ -116,7 +117,7 @@ describe("an address that no route serves", () => {
     const answer = await request(base, "/no-such-address", { rsc: true });
     expect(answer.status).toBe(404);
     expect(answer.headers["cache-control"]).toMatch(/no-store/);
-    expect(answer.body).toContain("Nothing here");
+    expect(answer.body).toContain("this track skipped");
   });
 
   it.each(NOT_ROUTES)(
@@ -372,8 +373,8 @@ describe("a Studio record that does not exist", () => {
     );
     expect(answer.body).toMatch(/<html[^>]*\blang="pt-BR"/);
     // The shared view, in both languages, Portuguese first (ADR 0008 § 8).
-    expect(answer.body).toContain("Nada aqui");
-    expect(answer.body).toContain("Nothing here");
+    expect(answer.body).toContain("essa faixa pulou");
+    expect(answer.body).toContain("this track skipped");
     expect(answer.body).not.toContain("00000000-0000-4000-8000-000000000000</");
   });
 
@@ -387,6 +388,6 @@ describe("a Studio record that does not exist", () => {
       "private, no-store, max-age=0, must-revalidate",
     );
     expect(answer.body).toMatch(/<html[^>]*\blang="en"/);
-    expect(answer.body).toContain("Nothing here");
+    expect(answer.body).toContain("this track skipped");
   });
 });

@@ -397,15 +397,16 @@ describe("with nothing published", () => {
     console.log(`framework headers on /: ${JSON.stringify(framework)}`);
   });
 
-  it("shows the drawing, the introduction, and one quiet line, and nothing else", async () => {
+  it("shows the record, the name, and the empty board, and nothing else", async () => {
     const page = await home(on);
     const text = visibleText(page.body);
-    expect(text).toContain(
-      "A personal music journal about albums, songs, and the memories attached to them.",
-    );
-    expect(text).toContain("Nothing published yet.");
-    expect(text).not.toContain("Recently written");
-    expect(text).not.toContain("Most recent");
+    // v3: the hero (the record between "re" and "frain") and, with nothing
+    // published, the board's empty state (Empty states).
+    expect(page.body).toContain('class="hero"');
+    expect(text).toContain("a music journal, kept by hand");
+    expect(text).toContain("nothing pinned yet");
+    expect(text).not.toContain("recently written");
+    expect(text).not.toContain("Read the latest journal");
     // No section and no archive link (A6, item 6); the header's four links
     // are the only mention of the archives.
     for (const absent of [
@@ -419,8 +420,6 @@ describe("with nothing published", () => {
     ]) {
       expect(page.body, absent).not.toContain(absent);
     }
-    expect(page.body).toContain('src="/artwork/refrain-home-character.webp"');
-    expect(page.body).toContain('width="1536" height="1024"');
     expect(addressesIn(page.body)).toEqual([]);
   });
 
@@ -743,8 +742,9 @@ describe("with journals in every state", () => {
       expect(opened.status, address).toBe(200);
     }
     const text = visibleText(page.body);
-    expect(text).toContain("Recently written");
-    expect(text).toContain("Most recent: Grace · Album journal · Oct 20, 2026");
+    expect(text).toContain("recently written");
+    // The newest entry is the collage's first, and the hero's pill opens it.
+    expect(text).toMatch(/\[01\] Grace\b/);
     expect(text).toContain("Albums");
     for (const title of HIDDEN_TITLES) {
       expect(page.body, title).not.toContain(title);
@@ -1037,26 +1037,24 @@ describe("with memories and artists (A6)", () => {
     const page = await home(on);
     expect(page.status).toBe(200);
     const text = visibleText(page.body);
-    expect(text).toMatch(/Most recent: .+ · (Album journal|Memory) · /);
+    expect(text).toMatch(/\[01\] /);
     expect(text).toContain(PUBLIC_MEMORY.title);
-    expect(text).toContain(
-      `Memory · ${PUBLIC_MEMORY.firstSong} — ${PUBLIC_MEMORY.albumArtist}`,
-    );
+    // v3: a memory on the board, with its first song on the polaroid.
+    expect(text).toContain(`♪ ${PUBLIC_MEMORY.firstSong}`);
     // The sections in the approved order, each "All …" link in its own.
     const order = [
       'id="ph-recent"',
       'id="ph-albums"',
       ">All album journals<",
-      'id="ph-artists"',
-      ">All artists<",
       'id="ph-memories"',
       ">All memories<",
+      'id="ph-artists"',
+      ">All artists<",
     ].map((mark) => page.body.indexOf(mark));
     expect(order.every((at) => at >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
-    // The memory card: its "when", its title, the first paragraph only.
-    expect(text).toContain(PUBLIC_MEMORY.when);
-    expect(text).toContain(PUBLIC_MEMORY.paragraphs[0]);
+    // v3: a memory on the board shows its title and song; its writing is
+    // never sent whole (checked below).
     // Every link answers 200: entries, artists, and the archives.
     const links = linksIn(page.body);
     for (const archive of ["/albums", "/artists", "/memories"]) {
@@ -1072,10 +1070,14 @@ describe("with memories and artists (A6)", () => {
     const count = (pattern: RegExp) =>
       [...page.body.replace(/<script[\s\S]*?<\/script>/g, "").matchAll(pattern)]
         .length;
-    expect(count(/class="ph-row"/g)).toBeLessThanOrEqual(5);
-    expect(count(/class="ph-album"/g)).toBeLessThanOrEqual(4);
-    expect(count(/class="ph-artist"/g)).toBe(3);
-    expect(count(/class="px-memory"/g)).toBe(3);
+    // v3: the collage's entries, the sleeve and the shelf, the voices, and
+    // the board's polaroids, within A6's limits.
+    expect(count(/class="it( wide)?"/g)).toBeLessThanOrEqual(5);
+    expect(
+      count(/class="sl front"/g) + count(/class="mini"/g),
+    ).toBeLessThanOrEqual(4);
+    expect(count(/class="n"/g)).toBe(3);
+    expect(count(/class="pol"/g)).toBe(3);
   });
 
   it("never sends a memory's whole writing, an identifier, a photograph, or a hidden artist, in any request form", async () => {
@@ -1127,9 +1129,10 @@ describe("with memories and artists (A6)", () => {
     // An archived artist is plain text in an album's credits (catalog
     // wording, as on the album journal), never one of the Artists cards.
     const page = (await home(on)).body;
+    const artistsAt = page.indexOf('id="ph-artists"');
     const artistsSection = page.slice(
-      page.indexOf('id="ph-artists"'),
-      page.indexOf('id="ph-memories"'),
+      artistsAt,
+      page.indexOf("</section>", artistsAt),
     );
     expect(artistsSection.length).toBeGreaterThan(0);
     expect(artistsSection).not.toContain(ARTIST_MARKERS.archived);

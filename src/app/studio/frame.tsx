@@ -5,7 +5,13 @@ import { StudioLanguageSelector } from "@/app/studio/language-selector";
 import { StudioNavLink } from "@/app/studio/nav-link";
 import { SignOutButton } from "@/app/studio/sign-out-button";
 import type { InterfaceLocale } from "@/i18n/locales";
-import { localizedHref } from "@/i18n/paths";
+import { addressPair, localizedHref } from "@/i18n/paths";
+import { v3StringsFor } from "@/i18n/v3";
+
+import { v3FontClasses } from "@/app/v3/fonts";
+
+import "@/app/v3/studio.css";
+import "@/app/v3/studio-theme.css";
 import { studioWords, type StudioDictionary } from "@/i18n/studio";
 
 /**
@@ -181,10 +187,16 @@ export function StudioFooter({
 }
 
 /**
- * The studio's page furniture. Presentation only: it is rendered by pages
- * that have already authorized the request, and shows no private data. The
- * character illustration belongs to the public homepage and never appears
- * here.
+ * The studio's page furniture in the v3 design (docs/design-system.md, Part I,
+ * Writing Studio; ADR 0011, proposed): the sidebar (the name, Desk, the
+ * Library, Write, the catalog, and at its foot the site, the languages, and
+ * the session), a top bar with the section, and the screen. Presentation
+ * only: it is rendered by pages that have already authorized the request, and
+ * shows no private data.
+ *
+ * Until the v3 Library, Settings, and artist journal editor exist, the
+ * sidebar links the screens that do: the album journals (the Library), the
+ * memories, and the catalog.
  *
  * `layout` is "notebook" (a margin column and one writing column, the
  * default) or "wide" (the whole shell, for the journal and its editor).
@@ -197,27 +209,116 @@ export function StudioFrame({
   children,
 }: {
   locale: InterfaceLocale;
-  /** The page's English path, for the language selector. */
+  /** The page's English path, for the languages. */
   path: string;
   current: StudioSection;
   layout?: "notebook" | "wide";
   children: ReactNode;
 }) {
+  const words = studioWords(locale);
+  const v3 = v3StringsFor(locale).desk;
+  const pair = addressPair(path);
+  const primary = primaryOf(current);
+  const crumb =
+    primary === "catalog"
+      ? words.frame.catalog
+      : current === "journals"
+        ? v3.s39
+        : current === "memories"
+          ? v3.s41
+          : v3.s36;
   return (
-    <>
-      <StudioHeader locale={locale} current={current} />
-      <main
-        id={STUDIO_CONTENT_ID}
-        tabIndex={-1}
-        className="studio-main"
-        data-layout={layout}
-      >
-        {primaryOf(current) === "catalog" ? (
-          <CatalogNav locale={locale} current={current} />
-        ) : null}
-        {children}
-      </main>
-      <StudioFooter locale={locale} path={path} />
-    </>
+    <div className={`stu ${v3FontClasses}`}>
+      <aside className="side">
+        <a href={`#${STUDIO_CONTENT_ID}`} className="studio-skip">
+          {words.frame.skipLink}
+        </a>
+        <a className="wm" href={localizedHref(locale, "/studio")}>
+          refrain<small>studio</small>
+        </a>
+        <nav aria-label={words.frame.navigationLabel}>
+          <StudioNavLink
+            href={localizedHref(locale, "/studio")}
+            current={current === "desk"}
+          >
+            {v3.s38}
+          </StudioNavLink>
+          <StudioNavLink
+            href={localizedHref(locale, "/studio/journals")}
+            current={current === "journals"}
+          >
+            {v3.s39}
+          </StudioNavLink>
+          <StudioNavLink
+            href={localizedHref(locale, "/studio/memories")}
+            current={current === "memories"}
+          >
+            {v3StringsFor(locale).home.memories}
+          </StudioNavLink>
+          <span className="grp">{v3.s43}</span>
+          <a href={localizedHref(locale, "/studio/journals/new")}>
+            <span className="pl" aria-hidden="true">
+              +
+            </span>
+            {v3.s40}
+          </a>
+          <a href={localizedHref(locale, "/studio/memories/new")}>
+            <span className="pl" aria-hidden="true">
+              +
+            </span>
+            {v3.s41}
+          </a>
+          <span className="grp">{words.frame.catalog}</span>
+          <StudioNavLink
+            href={localizedHref(locale, "/studio/catalog")}
+            current={primary === "catalog"}
+          >
+            {words.frame.catalog}
+          </StudioNavLink>
+        </nav>
+        <div className="foot">
+          <a href={localizedHref(locale, "/")}>{v3.s46} ↗</a>
+          <div className="seg" role="group" aria-label={v3.langA}>
+            <a
+              href={pair.en}
+              hrefLang="en"
+              lang="en"
+              aria-current={locale === "en" ? "true" : undefined}
+            >
+              EN
+            </a>
+            <a
+              href={pair["pt-BR"]}
+              hrefLang="pt-BR"
+              lang="pt-BR"
+              aria-current={locale === "pt-BR" ? "true" : undefined}
+            >
+              PT
+            </a>
+          </div>
+          <span>
+            raioviajante · <SignOutButton />
+          </span>
+        </div>
+      </aside>
+      <div className="main">
+        <div className="bar">
+          <span className="crumb">
+            <b>{crumb}</b>
+          </span>
+        </div>
+        <main
+          id={STUDIO_CONTENT_ID}
+          tabIndex={-1}
+          className="studio-main content"
+          data-layout={layout}
+        >
+          {primary === "catalog" ? (
+            <CatalogNav locale={locale} current={current} />
+          ) : null}
+          {children}
+        </main>
+      </div>
+    </div>
   );
 }

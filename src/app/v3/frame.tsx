@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { Suspense } from "react";
 
 import { INTERFACE_LOCALES, type InterfaceLocale } from "@/i18n/locales";
 import { addressPair, localizedHref } from "@/i18n/paths";
+import { dictionaryFor } from "@/i18n/dictionaries";
 import { v3StringsFor } from "@/i18n/v3";
 
 import { v3FontClasses } from "./fonts";
@@ -143,7 +143,7 @@ export function V3Frame({
             refrain
           </Link>
         )}
-        <nav aria-label={frame.navAria}>
+        <nav aria-label={dictionaryFor(locale).frame.navigationLabel}>
           {HEADER_SECTIONS.map((section) => (
             <Link
               key={section}
@@ -172,6 +172,7 @@ export function V3Frame({
           src="/v3/torn-top.png"
           alt=""
           aria-hidden="true"
+          loading="lazy"
         />
         <div className="sheet">
           <div className="wrap">
@@ -209,9 +210,8 @@ export function V3Frame({
           </div>
         </div>
       </footer>
-      <Suspense fallback={null}>
-        <V3Runtime />
-      </Suspense>
+      {/* Keyed by the page, so it sets itself up again after a client navigation. */}
+      <V3Runtime key={`${page}:${path ?? ""}`} />
     </div>
   );
 }

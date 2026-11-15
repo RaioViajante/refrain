@@ -9,7 +9,8 @@ import type {
 import { renderDocument } from "@/app/(public)/_components/rich-text";
 import { Cover, labelLine } from "@/app/v3/cover";
 import { PenRing, Vinyl } from "@/app/v3/objects";
-import { otherLocale, type InterfaceLocale } from "@/i18n/locales";
+import type { InterfaceLocale } from "@/i18n/locales";
+import { dictionaryFor } from "@/i18n/dictionaries";
 import { localizedHref } from "@/i18n/paths";
 import { v3Decimal, v3StringsFor } from "@/i18n/v3";
 import { pixelDate, v3TemplatesFor } from "@/i18n/v3/templates";
@@ -57,15 +58,14 @@ export function JournalView({
   journal,
   locale,
   neighbours,
-  slug,
 }: Readonly<{
   journal: PublicAlbumJournal;
   locale: InterfaceLocale;
   neighbours: JournalNeighbours;
-  slug: string;
 }>) {
   const t = v3StringsFor(locale).album;
   const tt = v3TemplatesFor(locale);
+  const d = dictionaryFor(locale);
   const { album } = journal;
   const artists = journal.credits.map((credit) => credit.name);
   const artistLine = artists.join(", ");
@@ -82,19 +82,26 @@ export function JournalView({
   const titleLine = [album.title, year ? String(year) : null]
     .filter(Boolean)
     .join(", ");
-  const written = journal.locale;
   return (
     <main id="main" tabIndex={-1}>
       <article lang={journal.locale}>
         <section className="gtop wrap" aria-labelledby="pp-h1">
           <div className="sl front" data-a="sleeve" data-d="0">
             <Vinyl top={t.nowT} bottom={shown ? pad(shown.number) : ""} />
-            <div className="card">
+            <div
+              className="card"
+              role="group"
+              aria-label={
+                album.artwork
+                  ? d.albumJournal.artworkFor(album.title)
+                  : d.albumJournal.artworkMissingFor(album.title)
+              }
+            >
               <p
                 className="gt ser"
                 lang={locale === journal.locale ? undefined : journal.locale}
               >
-                {album.title}.
+                {`${album.title}.`}
               </p>
               <Cover
                 artwork={album.artwork}
@@ -127,7 +134,24 @@ export function JournalView({
             </h1>
             {artistLine || year ? (
               <p className="by" data-a="up" data-d="7">
-                {[artistLine, year].filter(Boolean).join(", ")}
+                {journal.credits.map((credit, i) => (
+                  <span key={`${credit.name}-${i}`}>
+                    {i > 0 ? ", " : null}
+                    {credit.artistAddress ? (
+                      <Link
+                        href={localizedHref(
+                          locale,
+                          `/artists/${credit.artistAddress}`,
+                        )}
+                      >
+                        {credit.name}
+                      </Link>
+                    ) : (
+                      credit.name
+                    )}
+                  </span>
+                ))}
+                {year ? `${artistLine ? ", " : ""}${year}` : null}
               </p>
             ) : null}
             {rating ? (
@@ -138,9 +162,14 @@ export function JournalView({
                 data-a="pop"
                 data-d="10"
               >
-                [{rating}]
+                {`[${rating}]`}
                 <PenRing d={RATING_RING} viewBox="0 0 120 60" />
                 <small aria-hidden="true">{t.myRating}</small>
+              </p>
+            ) : null}
+            {album.artwork ? (
+              <p className="fine2 pix cover-credit">
+                {d.albumJournal.artworkCaption}
               </p>
             ) : null}
             {journal.opening?.trim() ? (
@@ -160,29 +189,16 @@ export function JournalView({
             {body}
             <p className="fine2 pix" lang={locale}>
               {tt.written(pixelDate(locale, journal.publishedAt))} ·{" "}
-              {journal.isOriginal
-                ? tt.inLanguage(written)
-                : tt.translatedFrom(otherLocale(written))}
-              {journal.isOriginal ? null : (
-                <>
-                  {" · "}
-                  <Link
-                    className="orig pix"
-                    href={localizedHref(otherLocale(locale), `/albums/${slug}`)}
-                    hrefLang={otherLocale(locale)}
-                  >
-                    {tt.readOriginal}
-                  </Link>
-                </>
-              )}
+              {/* Only the shown version's own language: whether another
+                  version exists, or is public, is never said here (INV-3). */}
+              {tt.inLanguage(journal.locale)}
             </p>
           </div>
         </section>
         <section className="tk wrap" aria-labelledby="pp-tk" lang={locale}>
           <div className="shead" data-a="up" data-d="0">
             <h2 id="pp-tk">
-              {t.trH}
-              <span className="ser">{titleLine}</span>
+              {t.trH} <span className="ser">{titleLine}</span>
             </h2>
             <p>{t.trHint}</p>
           </div>
@@ -305,7 +321,7 @@ function TrackRow({
               role="img"
               aria-label={tt.ratingAria(rating)}
             >
-              [{rating}]
+              {`[${rating}]`}
             </span>
           ) : (
             <span />
@@ -320,6 +336,7 @@ function TrackRow({
               src="/v3/tape-a.png"
               alt=""
               aria-hidden="true"
+              loading="lazy"
             />
             <div className="hand leaf-text">{text}</div>
           </div>
@@ -353,7 +370,7 @@ function Crate({
         <span className="cv" aria-hidden="true">
           <Vinyl
             top={card.credits.join(", ").toLowerCase()}
-            bottom={card.albumTitle.toUpperCase()}
+            bottom={card.albumTitle}
           />
           <Cover
             artwork={card.artwork}

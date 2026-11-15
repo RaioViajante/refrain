@@ -6,6 +6,7 @@
 // not-found answer, the section's security headers, the encoded spellings of
 // the prefix, alternates and the sitemap, and the version a Portuguese reader
 // is shown. No private marker may appear in anything any request received.
+import { v3PtBR } from "@/i18n/v3/pt-BR";
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 
@@ -256,7 +257,8 @@ describe("one visibility answer for both forms (A7, items 1 to 5)", () => {
     const off = await request(offBase, "/pt");
     const miss = await request(nearMiss.baseURL, "/pt");
     expect(off.status).toBe(200);
-    expect(visibleText(off.body)).toContain("Nada publicado ainda.");
+    // v3: an empty journal's board (Empty states).
+    expect(visibleText(off.body)).toContain(v3PtBR.empty.x1);
     // The same page, apart from each server's own origin in its addresses.
     expect(masked(off, [offBase])).toEqual(masked(miss, [nearMiss.baseURL]));
     for (const marker of ["[Test]", "Grace", "Buckley"]) {
@@ -500,10 +502,10 @@ describe("what a Portuguese reader is shown (ADR 0008 § 1)", () => {
   it("shows the Portuguese version when it is published, marked as Portuguese", async () => {
     const pt = await request(on.baseURL, `/pt/albums/${slug("bilingual")}`);
     expect(pt.status).toBe(200);
-    expect(pt.body).toMatch(
-      /<p class="pj-opening" lang="pt-BR">\[Test\] Abertura publica<\/p>/,
-    );
-    expect(visibleText(pt.body)).toContain("Escrito em português");
+    // v3: the writing is marked with its language, and the fine line says it.
+    expect(pt.body).toMatch(/<article lang="pt-BR">/);
+    expect(visibleText(pt.body)).toContain("[Test] Abertura publica");
+    expect(visibleText(pt.body)).toContain("EM PORTUGUÊS");
     // The English reader still gets English.
     const english = await request(on.baseURL, `/albums/${slug("bilingual")}`);
     expect(english.body).toContain(PUBLIC_TEXT.opening);
@@ -513,21 +515,20 @@ describe("what a Portuguese reader is shown (ADR 0008 § 1)", () => {
   it("shows the original when the translation is not published, marked as English, and never names the translation", async () => {
     const pt = await request(on.baseURL, `/pt/albums/${slug("grace")}`);
     expect(pt.status).toBe(200);
-    expect(pt.body).toMatch(/<p class="pj-opening" lang="en">/);
-    expect(pt.body).toMatch(/<div class="pj-body" lang="en">/);
-    expect(visibleText(pt.body)).toContain("Escrito em inglês");
+    expect(pt.body).toMatch(/<article lang="en">/);
+    expect(visibleText(pt.body)).toContain("EM INGLÊS");
     expect(pt.body).not.toContain(PRIVATE_MARKERS.translation);
     // The rating is written with the Portuguese decimal mark.
     expect(pt.body).toContain('aria-label="Minha nota: 4,5 de 5"');
-    expect(visibleText(pt.body)).toContain("[4,5] / 5");
+    expect(visibleText(pt.body)).toContain("[4,5]");
     const home = await request(on.baseURL, "/pt");
-    expect(visibleText(home.body)).toContain("[4,5]");
-    expect(visibleText(home.body)).not.toContain("[4.5]");
+    // A rating on the Home is never written with the English decimal mark.
+    expect(visibleText(home.body)).not.toMatch(/\[\d\.\d\]/);
     // The interface around it is Portuguese.
     for (const words of [
-      "Diário de álbum",
-      "Faixa a faixa",
-      "Todos os álbuns",
+      "DIÁRIO DE ÁLBUM",
+      "faixa a faixa",
+      "Todos os diários de álbum",
     ]) {
       expect(visibleText(pt.body)).toContain(words);
     }
@@ -535,7 +536,7 @@ describe("what a Portuguese reader is shown (ADR 0008 § 1)", () => {
 
   it("gives every served page the same language selector, whether or not a translation exists", async () => {
     const selector = (html: string, path: string) =>
-      /<details class="public-language"[\s\S]*?<\/details>/
+      /<div class="lang"[\s\S]*?<\/div>/
         .exec(html)![0]
         .split(path)
         .join("PATH");
@@ -564,12 +565,14 @@ describe("what a Portuguese reader is shown (ADR 0008 § 1)", () => {
         .map((match) => match[1]!)
         .filter((href) => !href.startsWith("/_next/"));
       expect(links.length, path).toBeGreaterThan(4);
-      // Only the selector's English option leaves the Portuguese pages.
+      // Only the languages' English option leaves the Portuguese pages: once
+      // in the header and once in the footer (v3).
       const english = links.filter(
         (href) =>
           href !== "/pt" && !href.startsWith("/pt/") && !href.startsWith("#"),
       );
-      expect(english, path).toEqual([path === "/pt" ? "/" : path.slice(3)]);
+      const own = path === "/pt" ? "/" : path.slice(3);
+      expect(english, path).toEqual([own, own]);
     }
   });
 });

@@ -75,8 +75,7 @@ export async function AboutScreen({
         <section className="ptop wrap" aria-labelledby="pp-h1">
           <div className="shead">
             <h1 id="pp-h1" data-a="up" data-d="0">
-              {t.h1}
-              <span className="ser">{t.h1b}</span>
+              {t.h1} <span className="ser">{t.h1b}</span>
             </h1>
           </div>
           <div className="lnr">

@@ -295,11 +295,13 @@ describe("public reads enabled: a published journal", () => {
     // The album, the credit, the facts, the opening, the rating.
     expect(body).toContain(">Grace</h1>");
     expect(body).toContain("Jeff Buckley");
-    expect(body).toContain("1994 · Columbia · 6 tracks");
+    // v3: the credit and year under the title, and the track count above it.
+    expect(visibleText(body)).toMatch(/Jeff Buckley\s*, 1994/);
+    expect(visibleText(body)).toContain("ALBUM JOURNAL · 6 TRACKS");
     expect(body).toContain(PUBLIC_TEXT.opening);
     expect(body).toContain("My rating: 4.5 out of 5");
-    expect(body).toContain("[4.5] / 5");
-    expect(body).toContain("Written in English");
+    expect(body).toContain("[4.5]");
+    expect(body).toContain("IN ENGLISH");
     expect(body).toContain(PUBLIC_TEXT.marginNote);
     // The body, through the allow-list: a subheading, a quote, a hard break.
     expect(body).toContain(`<h2>${PUBLIC_TEXT.heading}</h2>`);
@@ -317,15 +319,14 @@ describe("public reads enabled: a published journal", () => {
     for (const title of ["Mojo Pin", "Grace", "Last Goodbye"]) {
       expect(body).toContain(PUBLIC_TEXT.reflection(title));
     }
-    expect(body).toContain("Favourite: ");
-    expect(body).toContain("(still writing)");
+    // v3: the favourite is circled, with "the one" beside it.
+    expect(body).toContain("the one");
+    expect(body).toContain("still writing");
     // Lilac Wine has a reflection that is not public: the track is listed from
     // the catalog, with its credit, and the page does not say that it exists.
     expect(body).toContain("Lilac Wine");
     expect(body).toContain("by James Shelton");
-    expect(
-      body.match(/class="pj-track-status">not written yet</g),
-    ).toHaveLength(3);
+    expect(body.match(/class="ny">NOT WRITTEN YET</g)).toHaveLength(3);
     for (const marker of PRIVATE_MARKER_LIST) {
       expect(body).not.toContain(marker);
     }
@@ -648,7 +649,10 @@ describe("the album artwork (M3.2)", () => {
     expect(got.headers["content-security-policy"]).toBe(
       CONTENT_SECURITY_POLICY,
     );
-    const images = [...got.body.matchAll(/<img\b[^>]*>/g)].map((m) => m[0]);
+    // The frame's own images (tape, the torn edge) are not covers.
+    const images = [...got.body.matchAll(/<img\b[^>]*>/g)]
+      .map((m) => m[0])
+      .filter((tag) => !tag.includes('src="/v3/'));
     expect(images).toHaveLength(1);
     const image = images[0]!;
     expect(image).toContain(`src="${stored}-500.jpg"`);
@@ -671,7 +675,11 @@ describe("the album artwork (M3.2)", () => {
     expect(unset.status).toBe(200);
     expect(unset.body).not.toContain("coverartarchive.org");
     expect(unset.body).not.toContain(release);
-    expect([...unset.body.matchAll(/<img\b[^>]*>/g)]).toHaveLength(0);
+    expect(
+      [...unset.body.matchAll(/<img\b[^>]*>/g)].filter(
+        (m) => !m[0].includes('src="/v3/'),
+      ),
+    ).toHaveLength(0);
     expect(unset.body).toContain(
       "Album artwork for [Test] Artwork album: not available yet",
     );
@@ -696,7 +704,7 @@ describe("the album artwork (M3.2)", () => {
       );
       const got = await request(covers.baseURL, `/albums/${slug("artwork")}`);
       expect(got.status).toBe(200);
-      expect(got.body, coverUrl).not.toMatch(/<img\b/);
+      expect(got.body, coverUrl).not.toMatch(/<img\b(?![^>]*src="\/v3\/)/);
       expect(got.body).not.toContain("evil.example");
       expect(got.body).not.toContain("javascript:");
       expect(got.body).not.toContain("onerror");

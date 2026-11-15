@@ -93,13 +93,26 @@ describe("what the build prerenders for the public routes", () => {
   it("has a shell that is the frame only: navigation, a loading line, and the footer", () => {
     const html = text(join(APP, "albums/[slug].html"));
     expect(visibleText(html)).toBe(
-      "Skip to content Home Albums Artists Memories Loading… some songs take you back.",
+      "Skip to content refrain Albums Artists Memories EN / PT Loading… some songs take you back. Albums Artists Memories About sound EN / PT refrain is written by raioviajante",
     );
-    // Links: the skip link and the four sections of the navigation (M3.8a),
-    // the same on every page. A link to an album would be entry data.
+    // Links: the skip link, the name, the header's sections, the footer's
+    // sections and About, and the author's site (v3), the same on every page.
+    // The languages wait for the journal's own address. A link to an album
+    // would be entry data.
     expect(
       [...html.matchAll(/<a [^>]*href="([^"]*)"/g)].map((m) => m[1]),
-    ).toEqual(["#main", "/", "/albums", "/artists", "/memories"]);
+    ).toEqual([
+      "#main",
+      "/",
+      "/albums",
+      "/artists",
+      "/memories",
+      "/albums",
+      "/artists",
+      "/memories",
+      "/about",
+      "https://raioviajante.com",
+    ]);
     // The loading state says nothing about whether anything exists.
     expect(html).toContain('aria-busy="true"');
     // No metadata that a journal could fill: the title and the description of
@@ -142,20 +155,20 @@ describe("what the build prerenders for the public routes", () => {
   it("has one not-found view, the same for every address, and it names none", () => {
     const html = text(join(APP, "_not-found.html"));
     expect(visibleText(html)).toMatch(
-      // ADR 0008 § 8: the same message in both interface languages, and the
-      // language selector, which leads to the start of each.
-      /^Not found · refrain Skip to content Home Albums Artists Memories Nothing here This page is not available\. Back to the start Nada aqui Esta página não está disponível\. Voltar ao início some songs take you back\. Language: English English Português \(Brasil\) Changes the interface only\. Writing stays in the language it was written in\.$/,
+      // ADR 0008 § 8: the v3 skipping record in English, the same message in
+      // Portuguese after it, and the frame (languages in header and footer).
+      /^Not found · refrain Skip to content refrain Albums Artists Memories EN \/ PT ERROR 404 · SIDE B this track skipped there’s nothing on this part of the record\. The link may be old, or the page moved\. Pick the record up somewhere else: Back to the start Albums Artists Memories ERRO 404 · LADO B essa faixa pulou: não tem nada nessa parte do disco\. Voltar pro começo 404 SIDE B it skips here some songs take you back\. Albums Artists Memories About sound EN \/ PT refrain is written by raioviajante$/,
     );
     expect(html).toContain('<meta name="robots" content="noindex"/>');
     expect(html).toContain("<title>Not found · refrain</title>");
-    // Its one image is the approved 404 drawing, served as the original file:
-    // no optimizer URL, no resized copy, and nothing from `reference/`.
+    // v3: the skipping record is drawn in CSS; the only image is the
+    // footer's torn edge, decorative, from the promoted assets, and nothing
+    // from `reference/`.
     const images = [...html.matchAll(/<img\b[^>]*>/g)].map((m) => m[0]);
     expect(images).toHaveLength(1);
-    expect(images[0]).toContain('src="/artwork/refrain-404.webp"');
-    expect(images[0]).toContain('width="1536"');
-    expect(images[0]).toContain('height="1024"');
-    expect(images[0]).toMatch(/alt="[^"]{40,}"/);
+    expect(images[0]).toContain('src="/v3/torn-top.png"');
+    expect(images[0]).toContain('alt=""');
+    expect(html).toContain('class="disc"');
     expect(html).not.toContain("/_next/image");
     expect(html).not.toContain("srcSet");
     expect(html).not.toContain("reference/");

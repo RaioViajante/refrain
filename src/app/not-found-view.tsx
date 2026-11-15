@@ -43,8 +43,7 @@ export function NotFoundView({
               {t.code}
             </span>
             <h1 id="pp-h1" data-a="up" data-d="1">
-              {t.h1}
-              <span className="ser">{t.h1b}</span>
+              {t.h1} <span className="ser">{t.h1b}</span>
             </h1>
             <p className="say" data-a="up" data-d="3">
               {t.say}
@@ -66,7 +65,8 @@ export function NotFoundView({
               ))}
             </div>
             <p className="nf-other say" lang={second}>
-              <span className="pix">{other.code}</span> {other.h1}: {other.h1b}{" "}
+              <span className="pix">{other.code}</span>
+              {` ${other.h1}: ${other.h1b} `}
               <Link href={localizedHref(second, "/")} hrefLang={second}>
                 {other.back}
               </Link>

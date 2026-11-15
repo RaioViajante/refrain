@@ -174,7 +174,6 @@ async function AlbumJournal({
         journal={loaded.journal}
         locale={locale}
         neighbours={neighbours}
-        slug={loaded.slug}
       />
     </V3Frame>
   );

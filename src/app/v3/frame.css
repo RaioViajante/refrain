@@ -384,3 +384,64 @@ body:has(> .pp) {
   height: 420px;
   margin-top: 60px;
 }
+/* Albums list: an album's other public journals, linked after its title. */
+.pp .alist li .oj {
+  flex: 0 0 auto;
+  color: var(--pen);
+}
+.pp .home-unavailable {
+  margin-top: 60px;
+  text-align: center;
+}
+/* Pixel lines are set in capitals by the stylesheet, so the author's titles
+   and the catalog's names reach the reader as they are written. */
+.pp .yb .mi .s,
+.pp .pol .song,
+.pp .back .card ol,
+.pp .mbd .np .tx .on {
+  text-transform: uppercase;
+}
+.pp .vinyl .lbl > .t2,
+.pp .covx .yr {
+  text-transform: uppercase;
+}
+/* The artist's portrait: one image across both halves, each half showing its
+   own side, black and white. */
+.pp .torn .half {
+  overflow: hidden;
+}
+.pp .torn.has-photo .half {
+  background-image: none;
+}
+.pp .torn .half .hp {
+  position: absolute;
+  top: 0;
+  width: 250%;
+  max-width: none;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 22%;
+}
+.pp .torn .half .hp.left {
+  left: 0;
+}
+.pp .torn .half .hp.right {
+  right: 0;
+}
+@media (max-width: 720px) {
+  .pp .torn .half .hp.left {
+    width: 100%;
+  }
+}
+.pp .alist li.oj {
+  font-size: 11px;
+}
+.pp .alist li.oj a {
+  color: var(--pen);
+}
+.pp .yb .mi .w {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--grey);
+}
