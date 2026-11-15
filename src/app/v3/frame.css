@@ -349,10 +349,24 @@ body:has(> .pp) {
     font-size: 23px;
     line-height: 34px;
   }
+  /* On a phone the sheet fits the writing, as the reference's phone rule
+     says (height: auto); the desktop's 680px minimum does not apply. */
+  .pp .mbd > .sheet {
+    min-height: 0;
+    padding: 40px 22px 26px 40px;
+  }
 }
 /* Home: memories without a photograph, and covers that fall back to the label. */
 .pp .recent .it .pg,
 .pp .board .pol .pg,
+/* The board's places are fixed, so a caption keeps to three lines (the
+   whole title stays the link's accessible name). */
+.pp .board .pol .t {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
 .pp .jr .print .pg {
   display: flex;
   align-items: center;
@@ -364,6 +378,15 @@ body:has(> .pp) {
   font-size: 26px;
   line-height: 1.1;
   text-align: center;
+}
+/* The lined stand-in keeps the photograph's shape whatever the title's
+   length: with visible overflow a long title stretched the polaroid over its
+   neighbour. A long title is cut at the bottom (it is decorative and
+   aria-hidden; the whole title is written under the polaroid). */
+.pp .recent .it .pg,
+.pp .board .pol .pg {
+  overflow: hidden;
+  align-items: safe center;
 }
 .pp .jr .print .pg {
   aspect-ratio: 1.35;

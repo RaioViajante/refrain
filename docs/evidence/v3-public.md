@@ -148,7 +148,36 @@ Comparisons were made locally against the reference screenshots, at 1440 px and 
 - Structure, objects, typography, and colour match the reference.
 - The differences come from the data: `[Test]` titles, no photographs, white-label covers while the cover switch is off.
 
-**Not done:** the automated per-section pixel-diff report described in Design System, Part I.
+### Per-band mismatch (2026-11-15)
+
+A local, uncommitted script compared each public page with the reference screenshot. It ran at 1440 px and at 390 px (2×), with reduced motion and the same `[Test]` seeds, and computed the mismatch in a browser canvas, with no new dependency.
+
+- **Method:** each image is scaled to the reference's width and cut into bands of 450 px (desktop) or 780 px (phone). A band's figure is the share of pixels whose largest channel differs by more than 48 of 255, after both images are scaled down 8× (structure rather than glyphs).
+- **Reading the numbers:** the reference's own sample content (photographs, real covers, seven memories, long journals) is replaced by synthetic seeds, so mismatch is not zero by design. Where page heights differ, the later bands compare against different content.
+
+| Page | Height, ours / reference (desktop) | Median band, desktop | Median band, phone |
+| --- | --- | --- | --- |
+| About | 1,938 / 1,901 | 4 % | 18 % |
+| 404 | 1,424 / 1,398 | 4 % | 25 % |
+| Album journal | 3,126 / 3,992 | 16 % | 22 % |
+| Artist | 2,249 / 2,478 | 16 % | 25 % |
+| Home | 7,421 / 7,344 | 19 % | 34 % |
+| Artists | 2,175 / 2,516 | 19 % | 22 % |
+| Albums | 2,567 / 2,950 | 20 % | 17 % |
+| Memory | 2,045 / 2,077 | 21 % | 29 % |
+| Memories | 2,203 / 5,443 | 28 % | 44 % |
+
+The two pages that depend least on data, About and the 404, match closely. The mismatch fixed this way:
+
+- On a phone, the memory's lined sheet kept the desktop's 680 px minimum; the reference fits it to the writing. The phone page went from 5,656 to 4,768 px against the reference's 4,560.
+- A memory without a photograph had its lined stand-in grow with a long title and cover its neighbour on the Home's board. It now keeps the photograph's shape, and a board caption keeps to three lines.
+
+**What remains is content.** The highest bands are:
+- the memory photographs (R5, R6) against our lined stand-ins;
+- the Home's three memories and three artists (ADR 0006 A6) against the reference's seven and its full cloud;
+- white-label covers while the cover switch is off.
+
+The comparison images and figures are local only; nothing from `reference/` is committed.
 
 ## Verification
 
