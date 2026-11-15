@@ -213,6 +213,9 @@ test("works without JavaScript: the lists, their links, and the footer", async (
 test("has no accessibility violations (WCAG 2.2 A and AA)", async ({
   page,
 }) => {
+  // Settled, as a reader with reduced motion sees it: axe never measures
+  // text halfway through an entrance.
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await openHome(page);
   const results = await new AxeBuilder({ page }).withTags(TAGS).analyze();
   expect(

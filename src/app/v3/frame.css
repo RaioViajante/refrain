@@ -452,3 +452,9 @@ body:has(> .pp) {
   min-height: 44px;
   vertical-align: middle;
 }
+/* D10 (ADR 0011, proposed): the reference's grey #6E6A63 is 4.44:1 on paper,
+   below WCAG AA for small text; #67635C (4.93:1) looks the same and passes.
+   Applied for accessibility, pending the owner's sign-off. */
+.pp {
+  --grey: #67635c;
+}
