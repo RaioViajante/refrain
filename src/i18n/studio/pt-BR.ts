@@ -1383,7 +1383,7 @@ export const studioPtBR: StudioDictionary = {
     musicCardHint:
       "Encontre um disco no MusicBrainz e adicione ao seu catálogo.",
     keepWritingEmpty:
-      "Nada fora do site. Tudo o que você escreveu está publicado.",
+      "Nada sem publicar: tudo o que você escreveu está publicado.",
     publishedEmpty: "Nada publicado ainda.",
     edited: (date: string) => `última edição em ${date}`,
   },

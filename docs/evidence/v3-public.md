@@ -107,6 +107,7 @@ The reference's centred box (`src/app/studio/sign-in/`):
 | Desk: "+ Memory" hint "A photo, a song and what happened." | "A song and what happened." | Memory photographs are R5 and R6, not built |
 | Desk: "+ Artist journal" card | "+ Add music" (the catalog's MusicBrainz search) | Artist journals are R7, not built; the card keeps the reference's three-card row with a screen that exists |
 | Desk: "On the site" with three figures, and the Music Story usage panel | Two figures (album journals, memories); no usage panel | Public artist counts need a Publication read, and Music Story is not connected |
+| Desk: "On the site" | The reference's label over the **published status** | It counts what the author has published, not what is served: while `REFRAIN_PUBLIC_READS_ENABLED` is off nothing is served. The independent security review noted this (Low, wording only); the empty-list line says "published", never "on the site" |
 | Desk: "Recently published" by publication time | Published entries by their last edit | No new query; the publication history is not read on the Desk yet |
 | Desk: 30 to 36 px buttons and rows | 44 px targets (a title's target reaches into the row's padding, so the rhythm is the reference's) | The repository's 44 px rule |
 | Sign-in: "We'll email you a link…", "Email me a sign-in link", "expires in 15 minutes" | The reference's box over the existing email and password form: "Only you have an account here." and "Sign in" | The emailed link is R10, blocked on the magic-link hazard (ADR 0012 § 3); the page must not promise an email |

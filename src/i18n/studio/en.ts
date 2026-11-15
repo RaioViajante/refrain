@@ -1370,8 +1370,7 @@ export const studioEn = {
     memoryCardHint: "A song and what happened.",
     musicCard: "Add music",
     musicCardHint: "Find a record on MusicBrainz and add it to your catalog.",
-    keepWritingEmpty:
-      "Nothing unpublished. Everything you wrote is on the site.",
+    keepWritingEmpty: "Nothing unpublished: everything you wrote is published.",
     publishedEmpty: "Nothing published yet.",
     edited: (date: string) => `edited ${date}`,
   },
