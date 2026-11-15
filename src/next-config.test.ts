@@ -8,6 +8,8 @@ import { pathToFileURL } from "node:url";
 import type { NextConfig } from "next";
 import { describe, expect, it } from "vitest";
 
+import { canonicalHostRedirects } from "@/canonical-host";
+
 // next.config.ts sits at the repository root, outside the `@/` alias; like
 // src/security-headers.test.ts, this test reads it by path.
 const { default: nextConfig } = (await import(
@@ -89,17 +91,7 @@ describe("next.config.ts header routes", () => {
   });
 });
 
-describe("the canonical-host redirect (Hosted Launch § 7, item 2)", async () => {
-  const { canonicalHostRedirects } = (await import(
-    pathToFileURL(resolve("next.config.ts")).href
-  )) as {
-    canonicalHostRedirects: (env: Record<string, string | undefined>) => {
-      source: string;
-      has: { type: string; value: string }[];
-      destination: string;
-      permanent: boolean;
-    }[];
-  };
+describe("the canonical-host redirect (Hosted Launch § 7, item 2)", () => {
   const CANONICAL = "https://refrain.raioviajante.com";
   // The framework matches a `has` value as a regular expression against the
   // whole header value.
