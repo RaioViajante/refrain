@@ -58,3 +58,20 @@ It served on `next start -H 127.0.0.1`, and was requested with each `Host`:
 | `pnpm build` listing the canonical host | **Stopped**: "must not name the canonical host" |
 | `pnpm build` (redirect off, the default) | Succeeded; no `has: host` rule |
 | `pnpm test:http` on the default build (database reset first) | 20 files, **783 passed** (unchanged: the redirect is off) |
+
+## Independent review
+
+One review, in a separate context, read-only: **GO**, with no Critical or High finding. It confirmed from the framework's source (`matchHas` in `prepare-destination.js`) that the host match is anchored at both ends, that the port is stripped and case ignored, and that the destination's host comes only from the configured string. It probed a build with the variable set:
+- **Hosts:** a forged `Host` with a port, `evil.com:refrain-chi.vercel.app`, look-alike hosts, and `X-Forwarded-Host`.
+- **Paths:** encoded slashes, backslashes, `@`, CRLF, unicode, dot segments, and `?u=//evil.com`.
+
+No `Location` left the canonical origin, apart from the framework's existing relative repeated-slash `308`. No variable name or hostname reached the client bundle.
+
+| Finding | What was done |
+| --- | --- |
+| **Medium:** the unit test re-implemented the framework's host matcher, and § 7 asks for HTTP tests | The unit test now calls the framework's own `matchHas`, so a change in how it matches hosts fails the test. The HTTP behaviour was probed on a build with the variable set (above, and by the review). An automated HTTP test needs a second build with the variable set, so it remains for the S4 checks on the host |
+| **Low:** a trailing-dot host (`refrain-chi.vercel.app.`) was served under its own name | Fixed: the pattern accepts the trailing dot; the test covers it, and `refrain-chi.vercel.app..` |
+| **Low:** the `308` has no `Cache-Control`, so a mistaken listing may stick in browsers after the variable is removed; the variable is read at build time | Recorded above as an owner decision; any change needs a rebuild |
+| **Info:** the redirect carries no `X-Robots-Tag` | The same as the framework's existing redirects |
+| **Info:** `src/indexing-policy.test.ts` checks the file's text only | Noted: `next.config.ts` reads the environment through `src/canonical-host.ts`, which touches no indexing value |
+| **Not verified by the review:** how Vercel applies a `has: host` value (anchoring, port, trailing dot) | Part of the S4 anonymous hostname checks on the host |

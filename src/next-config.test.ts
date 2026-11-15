@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import type { NextConfig } from "next";
+import { matchHas } from "next/dist/shared/lib/router/utils/prepare-destination";
 import { describe, expect, it } from "vitest";
 
 import { canonicalHostRedirects } from "@/canonical-host";
@@ -93,10 +94,15 @@ describe("next.config.ts header routes", () => {
 
 describe("the canonical-host redirect (Hosted Launch § 7, item 2)", () => {
   const CANONICAL = "https://refrain.raioviajante.com";
-  // The framework matches a `has` value as a regular expression against the
-  // whole header value.
+  // The framework's own matcher for a `has` condition, as it runs for
+  // `next start`; a change in how it matches hosts fails here.
   const matchesHost = (pattern: string, host: string) =>
-    new RegExp(`^${pattern}$`).test(host);
+    matchHas(
+      { headers: { host } } as unknown as Parameters<typeof matchHas>[0],
+      {},
+      [{ type: "host", value: pattern }],
+      [],
+    ) !== false;
 
   it("is off unless hostnames are listed, as in this configuration today", async () => {
     expect(canonicalHostRedirects({})).toEqual([]);
@@ -125,11 +131,21 @@ describe("the canonical-host redirect (Hosted Launch § 7, item 2)", () => {
       expect(rule.has[0]!.type).toBe("host");
     }
     const first = rules[0]!.has[0]!.value;
-    expect(matchesHost(first, "refrain-chi.vercel.app")).toBe(true);
+    for (const same of [
+      "refrain-chi.vercel.app",
+      "REFRAIN-CHI.vercel.app",
+      "refrain-chi.vercel.app:443",
+      // The fully qualified spelling, with its trailing dot.
+      "refrain-chi.vercel.app.",
+    ]) {
+      expect(matchesHost(first, same), same).toBe(true);
+    }
     for (const other of [
       "refrain-chiXvercel.app",
       "evil.refrain-chi.vercel.app",
       "refrain-chi.vercel.app.evil.com",
+      "refrain-chi.vercel.app..",
+      "evil.com:refrain-chi.vercel.app",
       "refrain.raioviajante.com",
       "refrain-v3-rc.vercel.app",
       "refrain-hktp7ar96-raioviajando.vercel.app",

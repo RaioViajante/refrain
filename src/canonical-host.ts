@@ -56,9 +56,13 @@ export function canonicalHostRedirects(
   }
   return [...new Set(hosts)].map((host) => ({
     source: "/:path*",
-    // `has` values are regular expressions matched against the whole value:
-    // the dots are escaped, so the host matches exactly.
-    has: [{ type: "host" as const, value: host.replaceAll(".", "\\.") }],
+    // `has` values are regular expressions matched against the whole value
+    // (the framework strips the port and ignores case): the dots are escaped,
+    // so the host matches exactly, with or without the trailing dot of a
+    // fully qualified name.
+    has: [
+      { type: "host" as const, value: `${host.replaceAll(".", "\\.")}\\.?` },
+    ],
     destination: `${canonical.origin}/:path*`,
     permanent: true,
   }));
