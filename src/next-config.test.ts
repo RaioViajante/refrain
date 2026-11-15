@@ -88,3 +88,106 @@ describe("next.config.ts header routes", () => {
     }
   });
 });
+
+describe("the canonical-host redirect (Hosted Launch § 7, item 2)", async () => {
+  const { canonicalHostRedirects } = (await import(
+    pathToFileURL(resolve("next.config.ts")).href
+  )) as {
+    canonicalHostRedirects: (env: Record<string, string | undefined>) => {
+      source: string;
+      has: { type: string; value: string }[];
+      destination: string;
+      permanent: boolean;
+    }[];
+  };
+  const CANONICAL = "https://refrain.raioviajante.com";
+  // The framework matches a `has` value as a regular expression against the
+  // whole header value.
+  const matchesHost = (pattern: string, host: string) =>
+    new RegExp(`^${pattern}$`).test(host);
+
+  it("is off unless hostnames are listed, as in this configuration today", async () => {
+    expect(canonicalHostRedirects({})).toEqual([]);
+    expect(
+      canonicalHostRedirects({ REFRAIN_CANONICAL_REDIRECT_HOSTS: "  " }),
+    ).toEqual([]);
+    expect(canonicalHostRedirects({ BETTER_AUTH_URL: CANONICAL })).toEqual([]);
+    expect(await nextConfig.redirects!()).toEqual(
+      canonicalHostRedirects(process.env),
+    );
+  });
+
+  it("sends each listed host, exactly, to the same path and query on the canonical origin with a 308", () => {
+    const rules = canonicalHostRedirects({
+      BETTER_AUTH_URL: CANONICAL,
+      REFRAIN_CANONICAL_REDIRECT_HOSTS:
+        "refrain-chi.vercel.app, Refrain-BryanAlvarenga-5889s-Projects.vercel.app,refrain-chi.vercel.app",
+    });
+    expect(rules).toHaveLength(2);
+    for (const rule of rules) {
+      expect(rule.source).toBe("/:path*");
+      // The destination is configured, never taken from the request.
+      expect(rule.destination).toBe(`${CANONICAL}/:path*`);
+      expect(rule.permanent).toBe(true);
+      expect(rule.has).toHaveLength(1);
+      expect(rule.has[0]!.type).toBe("host");
+    }
+    const first = rules[0]!.has[0]!.value;
+    expect(matchesHost(first, "refrain-chi.vercel.app")).toBe(true);
+    for (const other of [
+      "refrain-chiXvercel.app",
+      "evil.refrain-chi.vercel.app",
+      "refrain-chi.vercel.app.evil.com",
+      "refrain.raioviajante.com",
+      "refrain-v3-rc.vercel.app",
+      "refrain-hktp7ar96-raioviajando.vercel.app",
+    ]) {
+      expect(matchesHost(first, other), other).toBe(false);
+    }
+    expect(
+      matchesHost(
+        rules[1]!.has[0]!.value,
+        "refrain-bryanalvarenga-5889s-projects.vercel.app",
+      ),
+    ).toBe(true);
+  });
+
+  it.each([
+    [{}, "needs BETTER_AUTH_URL"],
+    [{ BETTER_AUTH_URL: "http://refrain.raioviajante.com" }, "https origin"],
+    [{ BETTER_AUTH_URL: `${CANONICAL}/studio` }, "https origin"],
+    [{ BETTER_AUTH_URL: `${CANONICAL}:8443` }, "https origin"],
+    [{ BETTER_AUTH_URL: `${CANONICAL}?x=1` }, "https origin"],
+  ])(
+    "refuses a canonical origin that is not exactly an https origin: %j",
+    (env, message) => {
+      expect(() =>
+        canonicalHostRedirects({
+          ...env,
+          REFRAIN_CANONICAL_REDIRECT_HOSTS: "refrain-chi.vercel.app",
+        }),
+      ).toThrow(message);
+    },
+  );
+
+  it.each([
+    "refrain.raioviajante.com",
+    "*.vercel.app",
+    "refrain-chi.vercel.app/path",
+    "refrain-chi.vercel.app:443",
+    "https://refrain-chi.vercel.app",
+    "a.com,,b.com",
+    ".*",
+    "localhost",
+  ])(
+    "refuses %j: only exact hostnames other than the canonical one",
+    (hosts) => {
+      expect(() =>
+        canonicalHostRedirects({
+          BETTER_AUTH_URL: CANONICAL,
+          REFRAIN_CANONICAL_REDIRECT_HOSTS: hosts,
+        }),
+      ).toThrow();
+    },
+  );
+});
