@@ -464,3 +464,8 @@ body:has(> .pp) {
 .pp .trow.off .tt {
   color: var(--grey);
 }
+/* The languages are 44px targets both ways (the reference's are 40px wide). */
+.pp .lang a,
+.pp .lang .lang-off {
+  min-width: 44px;
+}

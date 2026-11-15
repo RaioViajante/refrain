@@ -1,5 +1,4 @@
 import { execFile } from "node:child_process";
-import { mkdirSync } from "node:fs";
 import { promisify } from "node:util";
 
 import AxeBuilder from "@axe-core/playwright";
@@ -20,7 +19,6 @@ const graceSlug = env("E2E_PUBLIC_SLUG");
 const prefix = `${env("E2E_PUBLIC_SEED_PREFIX")}-pt`;
 const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 const WIDTHS = [320, 360, 390, 768, 1440];
-const SHOTS = "visual-review/i18n";
 const TEST_IMAGE = `<svg xmlns="http://www.w3.org/2000/svg" width="500" height="500"><rect width="500" height="500" fill="#c9b79c"/></svg>`;
 const execFileAsync = promisify(execFile);
 
@@ -69,92 +67,58 @@ async function serveTestImages(page: Page) {
   }
 }
 
-async function shot(page: Page, name: string) {
-  if (process.env.E2E_SCREENSHOTS !== "1") return;
-  mkdirSync(SHOTS, { recursive: true });
-  const width = page.viewportSize()?.width ?? 0;
-  await page.evaluate(() => document.fonts.ready);
-  await page.screenshot({
-    path: `${SHOTS}/${name}-${width}.png`,
-    fullPage: true,
-    animations: "disabled",
-  });
-}
+// v3 (docs/design-system.md, Part I, Navigation and language; evidence:
+// docs/evidence/v3-public.md): EN and PT are links, in the header and the
+// footer, to the same page in the other language; the URL is the only
+// language state (ADR 0008). The properties the V4.4 tests held: switching
+// keeps the page and its address; the keyboard works and the targets are
+// 44px; real links without JavaScript; untranslated writing marked with its
+// own language; every Portuguese page fits, passes axe, and keeps its links
+// in Portuguese; and the bilingual not-found view.
 
-const selectorButton = (page: Page) =>
-  page.locator("summary.public-language-button");
-const option = (page: Page, name: string) =>
-  page.locator(".public-language-option", { hasText: name });
+const languages = (page: Page, where: "header" | "footer") =>
+  page.locator(`${where} .lang`);
 
-test("switches the language from the footer, keeping the page and its address", async ({
+test("switches the language from the footer and the header, keeping the page and its address", async ({
   page,
 }) => {
   await serveTestImages(page);
   await page.goto(`${base}/albums/${graceSlug}`);
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
-  await expect(selectorButton(page)).toHaveText(/Language: English/);
-  await selectorButton(page).click();
-  await expect(option(page, "English")).toHaveAttribute("aria-current", "page");
-  await expect(page.getByText("Changes the interface only.")).toBeVisible();
-  await option(page, "Português (Brasil)").click();
+  await expect(
+    languages(page, "footer").getByRole("link", { name: "EN" }),
+  ).toHaveAttribute("aria-current", "true");
+  await languages(page, "footer").getByRole("link", { name: "PT" }).click();
   await page.waitForURL(`${base}/pt/albums/${graceSlug}`);
   await expect(page.locator("html")).toHaveAttribute("lang", "pt-BR");
   await expect(
-    page.getByRole("heading", { level: 2, name: "Faixa a faixa" }),
-  ).toBeVisible();
-  await expect(
     page.getByRole("navigation", { name: "Principal" }),
   ).toBeVisible();
-  await expect(selectorButton(page)).toHaveText(/Idioma: Português/);
-  await selectorButton(page).click();
-  await option(page, "English").click();
+  await expect(page.locator(".tk h2")).toContainText("faixa a faixa");
+  await languages(page, "header").getByRole("link", { name: "EN" }).click();
   await page.waitForURL(`${base}/albums/${graceSlug}`);
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
 });
 
-test("works by keyboard: the arrows move through the options, Escape closes and returns focus", async ({
-  page,
-}) => {
+test("works by keyboard, with 44px targets", async ({ page }) => {
   await page.goto(`${base}/pt`);
-  const button = selectorButton(page);
-  await button.focus();
-  await page.keyboard.press("ArrowUp");
-  await expect(page.locator("details.public-language")).toHaveAttribute(
-    "open",
-    "",
-  );
-  const options = page.locator(".public-language-option");
-  await expect(options.last()).toBeFocused();
-  await page.keyboard.press("ArrowDown");
-  await expect(options.first()).toBeFocused();
-  await page.keyboard.press("Escape");
-  await expect(page.locator("details.public-language")).not.toHaveAttribute(
-    "open",
-    "",
-  );
-  await expect(button).toBeFocused();
-  // Enter on the button opens it natively; Tab reaches the options.
+  const english = languages(page, "header").getByRole("link", { name: "EN" });
+  await english.focus();
+  await expect(english).toBeFocused();
+  await expectTouchTarget(english);
   await page.keyboard.press("Enter");
-  await page.keyboard.press("Tab");
-  await expect(options.first()).toBeFocused();
-  await expectTouchTarget(button);
-  for (const index of [0, 1]) {
-    await expectTouchTarget(options.nth(index));
-  }
+  await page.waitForURL(`${base}/`);
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
 });
 
-test("works without JavaScript: a native disclosure of real links", async ({
-  browser,
-}) => {
+test("works without JavaScript: real links", async ({ browser }) => {
+  // On a page rendered in one pass (the album journal still streams: issue
+  // #44, open before v3).
   const context = await browser.newContext({ javaScriptEnabled: false });
   const page = await context.newPage();
   await page.goto(`${base}/albums`);
-  await selectorButton(page).click();
-  await page
-    .locator(".public-language-option", { hasText: "Português" })
-    .click();
+  await languages(page, "footer").getByRole("link", { name: "PT" }).click();
   await page.waitForURL(`${base}/pt/albums`);
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Álbuns");
   await expect(page.locator("html")).toHaveAttribute("lang", "pt-BR");
   await context.close();
 });
@@ -164,55 +128,51 @@ test("shows the English writing of an untranslated journal in a Portuguese page,
 }) => {
   await serveTestImages(page);
   await page.goto(`${base}/pt/albums/${graceSlug}`);
-  await expect(page.locator(".pj-opening")).toHaveAttribute("lang", "en");
-  await expect(page.locator(".pj-body")).toHaveAttribute("lang", "en");
-  await expect(page.getByText("Escrito em inglês")).toBeVisible();
-  await expect(
-    page.getByText("Diário de álbum", { exact: true }),
-  ).toBeVisible();
+  await expect(page.locator("article")).toHaveAttribute("lang", "en");
+  await expect(page.locator(".review .fine2")).toContainText("EM INGLÊS");
+  await expect(page.locator(".gtop .k")).toContainText("DIÁRIO DE ÁLBUM");
 });
 
 test("every Portuguese page fits every width, has no axe violation, and keeps its links in Portuguese", async ({
   page,
 }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await serveTestImages(page);
   await page.goto(`${base}/artists`);
-  artistPath = (await page.locator(".px-row").first().getAttribute("href"))!;
+  artistPath = (await page
+    .locator(".az li a, .wall2 a")
+    .first()
+    .getAttribute("href"))!;
   const pages = [
-    ["home", "/pt"],
-    ["albums", "/pt/albums"],
-    ["artists", "/pt/artists"],
-    ["memories", "/pt/memories"],
-    ["album", `/pt/albums/${graceSlug}`],
-    ["artist", `/pt${artistPath}`],
-    ["memory", `/pt/memories/${memorySlug}`],
-  ] as const;
+    "/pt",
+    "/pt/albums",
+    "/pt/artists",
+    "/pt/memories",
+    "/pt/about",
+    `/pt/albums/${graceSlug}`,
+    `/pt${artistPath}`,
+    `/pt/memories/${memorySlug}`,
+  ];
   for (const width of WIDTHS) {
     await page.setViewportSize({ width, height: 900 });
-    for (const [name, path] of pages) {
+    for (const path of pages) {
       const response = await page.goto(`${base}${path}`);
       expect(response?.status(), path).toBe(200);
       await expect(page.locator("html")).toHaveAttribute("lang", "pt-BR");
       await expectNoHorizontalOverflow(page);
-      // The selector, opened, fits too.
-      await selectorButton(page).click();
-      await expect(page.locator(".public-language-menu")).toBeVisible();
-      await expectNoHorizontalOverflow(page);
-      const menu = await page.locator(".public-language-menu").boundingBox();
-      expect(menu!.x, `${path} at ${width}`).toBeGreaterThanOrEqual(0);
-      expect(menu!.x + menu!.width, `${path} at ${width}`).toBeLessThanOrEqual(
-        width,
-      );
-      await shot(page, `${name}-open`);
-      await selectorButton(page).click();
       if (width === 1440 || width === 320) {
         const results = await new AxeBuilder({ page }).withTags(TAGS).analyze();
-        expect(results.violations, `${path} at ${width}`).toEqual([]);
+        expect(
+          results.violations.map(
+            (v) =>
+              `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(" | ")}`,
+          ),
+          `${path} at ${width}`,
+        ).toEqual([]);
       }
-      await shot(page, name);
     }
   }
-  // Every link of a Portuguese page stays in Portuguese, but the selector's.
+  // Every link of a Portuguese page stays in Portuguese, but the two EN links.
   await page.goto(`${base}/pt/albums/${graceSlug}`);
   const hrefs = await page
     .locator("a[href^='/']")
@@ -220,29 +180,26 @@ test("every Portuguese page fits every width, has no axe violation, and keeps it
   const english = hrefs.filter(
     (href) => href !== "/pt" && !href.startsWith("/pt/"),
   );
-  expect(english).toEqual([`/albums/${graceSlug}`]);
+  expect(english).toEqual([`/albums/${graceSlug}`, `/albums/${graceSlug}`]);
 });
 
 test("answers an unknown Portuguese address with the shared view in both languages", async ({
   page,
 }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
   const response = await page.goto(`${base}/pt/albums/${prefix}-nothing`);
   expect(response?.status()).toBe(404);
-  await expect(
-    page.getByRole("heading", { level: 1, name: "Nothing here" }),
-  ).toBeVisible();
-  await expect(page.locator(".public-notfound-other")).toHaveAttribute(
-    "lang",
-    "pt-BR",
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(
+    "this track skipped",
   );
+  await expect(page.locator(".nf-other")).toHaveAttribute("lang", "pt-BR");
   await expect(
-    page.getByRole("link", { name: "Voltar ao início" }),
+    page.getByRole("link", { name: "Voltar pro começo" }),
   ).toHaveAttribute("href", "/pt");
   for (const width of [320, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await expectNoHorizontalOverflow(page);
     const results = await new AxeBuilder({ page }).withTags(TAGS).analyze();
-    expect(results.violations).toEqual([]);
-    await shot(page, "not-found");
+    expect(results.violations.map((v) => v.id)).toEqual([]);
   }
 });
