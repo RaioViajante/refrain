@@ -79,6 +79,7 @@ export const studioPtBR: StudioDictionary = {
     tooMany: "Tentativas demais. Espere um minuto e tente de novo.",
     refused: "Esta entrada foi recusada. Recarregue a página e tente de novo.",
     failed: "Não deu para entrar. Tente de novo.",
+    lead: "Só você tem conta aqui.",
   },
   signOut: {
     action: "Sair",

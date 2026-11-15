@@ -595,7 +595,9 @@ test("signs in and out in Portuguese, staying in Portuguese, with no callback pa
   );
   await page.getByRole("button", { name: "Sair" }).click();
   await page.waitForURL((url) => url.pathname === "/pt/studio/sign-in");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Entrar");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "Entre para escrever",
+  );
   await context.close();
 });
 

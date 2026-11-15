@@ -80,6 +80,9 @@ export const studioEn = {
     tooMany: "Too many attempts. Wait a minute, then try again.",
     refused: "This sign-in was refused. Reload the page and try again.",
     failed: "Couldn’t sign in. Try again.",
+    // The v3 sign-in's lead says only what is true today: there is no email
+    // link yet (R10, blocked on ADR 0012 § 3).
+    lead: "Only you have an account here.",
   },
   signOut: {
     action: "Sign out",

@@ -111,7 +111,8 @@
 /* The shell's languages are links (the URL is the only language state). */
 /* Each is a 44px target (the reference's are 30px), and the current one is
    the reference's filled ink chip. */
-.stu .side .seg a {
+.stu .side .seg a,
+.stu .login-foot .seg a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -121,7 +122,8 @@
   border-radius: 5px;
   color: var(--grey);
 }
-.stu .side .seg a[aria-current] {
+.stu .side .seg a[aria-current],
+.stu .login-foot .seg a[aria-current] {
   background: var(--ink);
   color: #fff;
 }
@@ -352,4 +354,40 @@
 .stu .studio-search-kinds a {
   min-width: 44px;
   justify-content: center;
+}
+/* The v3 sign-in: the reference's box, with 44px controls and its inputs'
+   boundary at 3:1 (#8C877E), as every Studio control. */
+.stu .login .in {
+  min-height: 44px;
+  border-color: var(--control-line);
+}
+.stu .login-title {
+  margin-top: 34px;
+  font-size: 22px;
+}
+.stu .login-submit {
+  width: 100%;
+  margin-top: 16px;
+}
+.stu .login-message {
+  min-height: 1.5em;
+  margin: 14px 0 0;
+  font-size: 14px;
+}
+.stu .login-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 28px;
+  font-size: 13px;
+  color: var(--grey);
+}
+.stu .login-foot > a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+.stu .login-foot > a:hover {
+  color: var(--ink);
 }

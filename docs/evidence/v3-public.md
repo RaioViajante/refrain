@@ -74,6 +74,14 @@ The v3 Desk (`src/app/studio/screen.tsx`), from the same queries as before and w
 - **Recently published;**
 - the Recently deleted link, "All memories", and the catalog line.
 
+### Sign-in
+
+The reference's centred box (`src/app/studio/sign-in/`):
+- the wordmark;
+- "Sign in to write";
+- the way back to the site and EN/PT;
+- the existing email and password form, which is unchanged in behaviour.
+
 ## Adaptations, each with its reason
 
 | Reference | Built | Why |
@@ -101,6 +109,7 @@ The v3 Desk (`src/app/studio/screen.tsx`), from the same queries as before and w
 | Desk: "On the site" with three figures, and the Music Story usage panel | Two figures (album journals, memories); no usage panel | Public artist counts need a Publication read, and Music Story is not connected |
 | Desk: "Recently published" by publication time | Published entries by their last edit | No new query; the publication history is not read on the Desk yet |
 | Desk: 30 to 36 px buttons and rows | 44 px targets (a title's target reaches into the row's padding, so the rhythm is the reference's) | The repository's 44 px rule |
+| Sign-in: "We'll email you a link…", "Email me a sign-in link", "expires in 15 minutes" | The reference's box over the existing email and password form: "Only you have an account here." and "Sign in" | The emailed link is R10, blocked on the magic-link hazard (ADR 0012 § 3); the page must not promise an email |
 | Studio content padding 32 px (16 px on a phone) plus V4.4's 17.6 px inset | The reference's padding only | The inset doubled the gutter; at 320 px a rating row wrapped |
 
 ## The About route
