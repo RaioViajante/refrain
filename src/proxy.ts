@@ -106,6 +106,21 @@ const UNKNOWN_ADDRESS = "/__refrain-unknown-address";
 
 const NO_STORE = "no-store";
 
+// The request the shared not-found view is rendered for, without the client's
+// `User-Agent`. Next.js renders a page differently for crawlers it treats as
+// unable to run scripts (link-preview bots such as Slackbot, Twitterbot, and
+// facebookexternalhit): their Flight data carries byte offsets that follow the
+// requested address's length. Rendered for no particular agent, the view of
+// an unknown address and of a hidden one is the same document for every
+// client, a crawler included (ADR 0006 D4, G1;
+// docs/evidence/self-proxy-and-g1.md). Only removed: nothing from the request
+// reaches the rewrite's destination, a fixed path on this request's origin.
+function notFoundRequestHeaders(request: NextRequest): Headers {
+  const headers = new Headers(request.headers);
+  headers.delete("user-agent");
+  return headers;
+}
+
 // The indexing policy (src/indexing-policy.ts), on every response this proxy
 // makes itself, as `Cache-Control` is: the same constant as the header rules
 // of next.config.ts. The rule for every address there already reaches these
@@ -201,6 +216,7 @@ export async function proxy(request: NextRequest) {
         : ARTIST_ADDRESS.test(decoded)
           ? ARTIST_SECURITY_HEADERS
           : PUBLIC_SECURITY_HEADERS,
+      request: { headers: notFoundRequestHeaders(request) },
     });
   }
 
@@ -222,6 +238,7 @@ export async function proxy(request: NextRequest) {
   ) {
     return NextResponse.rewrite(new URL(UNKNOWN_ADDRESS, request.url), {
       headers: STUDIO_SECURITY_HEADERS,
+      request: { headers: notFoundRequestHeaders(request) },
     });
   }
 
@@ -337,6 +354,7 @@ export async function proxy(request: NextRequest) {
       // but not those rules, and must answer exactly as an unknown one does.
       return NextResponse.rewrite(new URL(UNKNOWN_ADDRESS, request.url), {
         headers: isArtist ? ARTIST_SECURITY_HEADERS : PUBLIC_SECURITY_HEADERS,
+        request: { headers: notFoundRequestHeaders(request) },
       });
   }
 }
