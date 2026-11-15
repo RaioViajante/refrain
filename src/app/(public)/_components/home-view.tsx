@@ -1,7 +1,6 @@
 import Link from "next/link";
 
 import type {
-  PublicAlbumJournal,
   PublicArtistCard,
   PublicHome,
   PublicHomeEntry,
@@ -11,8 +10,7 @@ import type {
 
 import { Cover, labelLine } from "@/app/v3/cover";
 import { HOME_LAYOUT as layout } from "@/app/v3/home-layout";
-import { groupByYear, yearOf } from "@/app/v3/memory-shape";
-import { Attachment, PenRing, Vinyl } from "@/app/v3/objects";
+import { Attachment, Vinyl } from "@/app/v3/objects";
 import { dictionaryFor } from "@/i18n/dictionaries";
 import type { InterfaceLocale } from "@/i18n/locales";
 import { localizedHref } from "@/i18n/paths";
@@ -28,14 +26,15 @@ import { v3TemplatesFor } from "@/i18n/v3/templates";
 // Every list is read through the Publication module's reading entry point, so
 // the Home shows only what is served: while public reads are off, or with
 // nothing published, it is the page of an empty journal (ADR 0006 A4). The
-// Home's own lists keep their limits (A6). The sleeve's tracklist is the
-// newest journal's own public page, and the board and the voices are the
-// public archives' first entries: no new visibility rule. Memories have no
+// Home's own lists keep their limits (A6), and every value shown is one of
+// A4 and A6's closed lists, read in the Home's one snapshot: the sleeve is the
+// newest album's card (title, credits, year, rating, cover), so its back shows
+// no tracklist; the reference's tracklist and fuller board wait for an
+// amendment of A6 (ADR 0011, proposed). A memory's "when" is shown as written
+// and never read as a date, so the board has no year groups. Memories have no
 // photographs yet, so each shows lined paper with its title (Empty states).
 
 export interface HomeExtras {
-  /** The newest album journal's public page, for the back of the sleeve. */
-  latest: { slug: string; journal: PublicAlbumJournal } | null;
   /** The newest served memories, for the board. */
   memories: PublicMemoryCard[];
   /** Every public artist, for the voices. */
@@ -44,8 +43,6 @@ export interface HomeExtras {
 
 const STAR =
   "M50 2 L61 38 L98 38 L68 60 L79 97 L50 75 L21 97 L32 60 L2 38 L39 38 Z";
-const FAV_RING =
-  "M14.9 12.2 Q30.5 9.6 37.4 8.1 Q44.4 6.6 53.2 5.3 Q62.1 3.9 73 4.1 Q84 4.3 94.4 4.7 Q104.7 5.1 112.1 6.6 Q119.5 8.2 127.9 9.3 Q136.2 10.3 144 11.8 Q151.8 13.2 155.5 15.3 Q159.3 17.3 154 19.3 Q148.7 21.4 150 23.4 Q151.3 25.5 150.1 27.9 Q149 30.3 138.6 31.3 Q128.2 32.4 119.4 33.6 Q110.6 34.8 100.3 35.7 Q90.1 36.5 79.9 35.2 Q69.6 33.9 59.2 34 Q48.7 34.1 39.3 33.1 Q29.9 32.2 22 30.7 Q14 29.3 7.8 27.4 Q1.5 25.6 0.2 23.4 Q-1.1 21.2 2.4 19.1 Q5.9 17 8.3 15 Q10.7 13 16.1 11.2 Q21.6 9.4 29.4 7.9 Q37.3 6.5 47 5.6 Q56.8 4.7 67.4 4 L78 3.3";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -62,7 +59,7 @@ export function HomeView({
   locale: InterfaceLocale;
 }>) {
   const t = v3StringsFor(locale).home;
-  const latestSlug = extras.latest?.slug ?? home.albums[0]?.slug ?? null;
+  const latestSlug = home.albums[0]?.slug ?? null;
   return (
     <main id="main" tabIndex={-1}>
       <section className="hero" aria-labelledby="pp-h1">
@@ -120,7 +117,7 @@ export function HomeView({
         </p>
       ) : null}
       <Recent entries={home.recent} locale={locale} />
-      <Albums home={home} extras={extras} locale={locale} />
+      <Albums home={home} locale={locale} />
       <Board memories={extras.memories} locale={locale} />
       <FromTheJournal
         memory={extras.memories.find((m) => m.excerpt) ?? null}
@@ -250,19 +247,14 @@ function Recent({
 
 function Albums({
   home,
-  extras,
   locale,
 }: Readonly<{
   home: PublicHome;
-  extras: HomeExtras;
   locale: InterfaceLocale;
 }>) {
   const t = v3StringsFor(locale).home;
-  const tt = v3TemplatesFor(locale);
-  const latest = extras.latest;
-  const shelf = home.albums
-    .filter((card) => card.slug !== latest?.slug)
-    .slice(0, 3);
+  const latest = home.albums[0] ?? null;
+  const shelf = home.albums.slice(1, 4);
   if (!latest && shelf.length === 0) return null;
   return (
     <section id="ph-albums" className="albums wrap" aria-labelledby="pp-alb">
@@ -272,7 +264,7 @@ function Albums({
         </h2>
       </div>
       <div className="sleeves">
-        {latest ? <Sleeves latest={latest} locale={locale} /> : null}
+        {latest ? <Sleeves card={latest} locale={locale} /> : null}
         <div className="shelf">
           {shelf.map((card, i) => (
             <MiniSleeve
@@ -290,40 +282,35 @@ function Albums({
           {t.allA}
         </Link>
       </div>
-      <span className="sr">{tt.albumsCount(home.albums.length)}</span>
     </section>
   );
 }
 
 function Sleeves({
-  latest,
+  card,
   locale,
-}: Readonly<{
-  latest: { slug: string; journal: PublicAlbumJournal };
-  locale: InterfaceLocale;
-}>) {
+}: Readonly<{ card: PublicJournalCard; locale: InterfaceLocale }>) {
   const t = v3StringsFor(locale).home;
   const tt = v3TemplatesFor(locale);
-  const { journal, slug } = latest;
-  const artists = journal.credits.map((credit) => credit.name);
-  const year = journal.album.firstReleaseYear;
-  const href = localizedHref(locale, `/albums/${slug}`);
+  const artists = card.credits;
+  const year = card.firstReleaseYear;
+  const href = localizedHref(locale, `/albums/${card.slug}`);
   const rating =
-    journal.ratingHalfSteps !== null
-      ? v3Decimal(locale, journal.ratingHalfSteps / 2)
+    card.ratingHalfSteps !== null
+      ? v3Decimal(locale, card.ratingHalfSteps / 2)
       : null;
   return (
     <>
       <div className="sl front" data-a="sleeve" data-d="0">
         <Vinyl
           top={artists.join(", ").toLowerCase()}
-          bottom={journal.album.title}
+          bottom={card.albumTitle}
         />
         <Link className="card" href={href}>
-          <h3 className="ser">{`${journal.album.title}.`}</h3>
+          <h3 className="ser">{`${card.albumTitle}.`}</h3>
           <Cover
-            artwork={journal.album.artwork}
-            title={journal.album.title}
+            artwork={card.artwork}
+            title={card.albumTitle}
             line={labelLine(artists, year)}
             sizes="400px"
           />
@@ -344,38 +331,21 @@ function Sleeves({
           </span>
         </Link>
       </div>
-      <div className="sl back" data-a="sleeve" data-d="2">
+      {/* The back of the sleeve carries only the card's own fields (A4): the
+          title and credits where the reference prints the tracklist, which
+          is the album page's, not the Home's. */}
+      <div className="sl back" data-a="sleeve" data-d="2" aria-hidden="true">
         <Vinyl top={year ? String(year) : ""} bottom={t.side} />
         <div className="card">
-          <span className="mono ser" aria-hidden="true">
-            {journal.album.title.charAt(0)}
-          </span>
+          <span className="mono ser">{card.albumTitle.charAt(0)}</span>
           <div className="top pix">
             <span>{year ?? ""}</span>
             <span>{t.side}</span>
           </div>
-          <ol className="pix" aria-label={journal.album.title}>
-            {journal.tracks.slice(0, 14).map((track) => {
-              const favourite = track.reflection?.isFavourite ?? false;
-              return (
-                <li
-                  key={track.number}
-                  className={favourite ? "fav" : undefined}
-                >
-                  <span>{`${track.number}.`}</span>
-                  <Link href={href}>
-                    {track.title}
-                    {favourite ? (
-                      <>
-                        <span className="sr"> ({t.fav})</span>
-                        <PenRing d={FAV_RING} viewBox="0 0 160 40" />
-                      </>
-                    ) : null}
-                  </Link>
-                </li>
-              );
-            })}
-          </ol>
+          <p className="pix credit">
+            <span>{card.albumTitle}</span>
+            <span>{artists.join(", ")}</span>
+          </p>
           <div className="foot pix">
             {rating ? (
               <span>
@@ -441,18 +411,13 @@ function Board({
   const t = v3StringsFor(locale).home;
   const empty = v3StringsFor(locale).empty;
   const places = layout.pols;
-  const pinned = memories.slice(0, places.length);
-  const groups = groupByYear(pinned, (card) => yearOf(card.rememberedWhen), 1);
-  const yearLabels: { label: string; at: number }[] = [];
-  let at = 0;
-  for (const group of groups) {
-    yearLabels.push({
-      label: group.years.length ? String(group.years[0]) : t.undated,
-      at,
-    });
-    at += group.items.length;
-  }
-  const ordered = groups.flatMap((group) => group.items);
+  // The Memories archive's order, cut to the board's places. Each kraft label
+  // is a memory's "when" exactly as the author wrote it, never read as a date
+  // (A6, item 2), so nothing is grouped by year.
+  const ordered = memories.slice(0, places.length);
+  const yearLabels = ordered
+    .filter((card) => card.rememberedWhen)
+    .map((card) => ({ label: card.rememberedWhen!, lang: card.locale }));
   return (
     <section
       id={ordered.length > 0 ? "ph-memories" : undefined}
@@ -532,6 +497,7 @@ function Board({
                 return (
                   <span
                     key={`${year.label}-${i}`}
+                    lang={year.lang}
                     className="kr hand yr"
                     data-a="pop"
                     data-d="2"
@@ -629,7 +595,6 @@ function FromTheJournal({
 }: Readonly<{ memory: PublicMemoryCard | null; locale: InterfaceLocale }>) {
   if (!memory?.excerpt) return null;
   const t = v3StringsFor(locale).home;
-  const year = yearOf(memory.rememberedWhen);
   const song = memory.music[0];
   const href = localizedHref(locale, `/memories/${memory.slug}`);
   return (
@@ -649,10 +614,7 @@ function FromTheJournal({
           <span className="pg hand" aria-hidden="true" lang={memory.locale}>
             {memory.title}
           </span>
-          <figcaption className="fig pix">
-            {t.fig}
-            {year ? ` · ${year}` : ""}
-          </figcaption>
+          <figcaption className="fig pix">{t.fig}</figcaption>
           {/* eslint-disable-next-line @next/next/no-img-element -- decorative tape */}
           <img
             className="tp"

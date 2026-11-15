@@ -2,10 +2,8 @@ import type { Metadata } from "next";
 import { connection } from "next/server";
 
 import {
-  getPublicAlbumJournal,
   getPublicHome,
   publicReadsEnabled,
-  resolvePublicAlbumJournalSlug,
   type PublicHome,
 } from "@/modules/publication/public";
 
@@ -50,7 +48,7 @@ const NOTHING_PUBLISHED: PublicHome = {
   memories: [],
 };
 
-const NO_EXTRAS: HomeExtras = { latest: null, memories: [], artists: [] };
+const NO_EXTRAS: HomeExtras = { memories: [], artists: [] };
 
 /** What the Home lists, or null when the database could not answer. */
 async function load(
@@ -63,23 +61,12 @@ async function load(
     return { home: NOTHING_PUBLISHED, extras: NO_EXTRAS };
   }
   try {
+    // One read, in the Home's one snapshot (ADR 0006 A6, item 8): every
+    // section, the sleeve and the board included, comes from it.
     const home = await getPublicHome(locale);
-    // The sleeve's tracklist is the newest journal's own public page. The
-    // board and the voices are the Home's own A6 lists (three memories, three
-    // artists); the reference's fuller board waits for the owner's amendment
-    // (ADR 0011, proposed).
-    const newest = home.albums[0] ?? null;
-    let latest: HomeExtras["latest"] = null;
-    if (newest) {
-      const resolution = await resolvePublicAlbumJournalSlug(newest.slug);
-      if (resolution.outcome === "found") {
-        const journal = await getPublicAlbumJournal(resolution.entryId, locale);
-        latest = journal ? { slug: newest.slug, journal } : null;
-      }
-    }
     return {
       home,
-      extras: { latest, memories: home.memories, artists: home.artists },
+      extras: { memories: home.memories, artists: home.artists },
     };
   } catch {
     // Never logged: a driver message can carry connection details.
