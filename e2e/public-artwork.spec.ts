@@ -79,6 +79,13 @@ async function openJournal(page: Page) {
 const frameOf = (page: Page) => page.locator(".gtop .card");
 const cover = (page: Page) => page.locator(".gtop .card > img");
 
+/** The v3 sleeve slides in as the page opens. That entrance is not the cover
+ * arriving or failing, so the frame is measured with reduced motion, where
+ * nothing enters (on a slow runner it was once measured mid-slide). */
+async function withoutEntrances(page: Page) {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+}
+
 test("shows the chosen cover in its frame, with nothing moving as it loads", async ({
   page,
 }) => {
@@ -92,6 +99,7 @@ test("shows the chosen cover in its frame, with nothing moving as it loads", asy
     await serveTestImage(route);
   });
 
+  await withoutEntrances(page);
   await openJournal(page);
   const frame = frameOf(page);
   await expect(frame).toHaveAccessibleName("Album artwork for Grace");
@@ -134,6 +142,7 @@ test("keeps the fallback when the archive does not answer", async ({
   await page.route("https://coverartarchive.org/**", (route) =>
     route.abort("failed"),
   );
+  await withoutEntrances(page);
   await openJournal(page);
   const before = await frameOf(page).boundingBox();
   await expect(frameOf(page)).toHaveAccessibleName("Album artwork for Grace");
