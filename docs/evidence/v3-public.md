@@ -205,3 +205,14 @@ The Studio's language control is now the v3 sidebar's two links, which replace t
 - The Desk, Library, Settings, and States screens; share cards (R8).
 - Catalog wording (R9); magic link (R10); hosting (R11).
 - Music Story: blocked on access and licensing (MS-0, MS-1).
+
+- **The v3 album and memory editors** (AlbumEdit, Memory). Their panels depend on parts that are not built:
+  - the margin note and the Portuguese version (writers and translation authoring);
+  - "Show in recently written" (R2);
+  - one favourite (R2, blocked on ADR 0002);
+  - "Update" with pending changes (R4);
+  - the memory photograph (R5, R6);
+  - the Music Story panel (MS-0, MS-1).
+
+  Today's editors run on the v3 shell and theme, with their behaviour unchanged.
+- **Settings and the About page's own lines** (`site_settings`, R8), and the States catalogue (`/studio/system`).
