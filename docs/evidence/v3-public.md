@@ -167,7 +167,15 @@ A local, uncommitted script compared each public page with the reference screens
 | Memory | 2,045 / 2,077 | 21 % | 29 % |
 | Memories | 2,203 / 5,443 | 28 % | 44 % |
 
-The two pages that depend least on data, About and the 404, match closely. The mismatch fixed this way:
+The Studio screens built so far, measured the same way against their reference screens:
+
+| Screen | Bands, desktop | Bands, phone |
+| --- | --- | --- |
+| Desk | 2–4 % | 6–15 % |
+| Library | 3–5 % | 6–16 % |
+| Sign-in | 1–5 % | 0–7 % |
+
+The two public pages that depend least on data, About and the 404, also match closely. The mismatch fixed this way:
 
 - On a phone, the memory's lined sheet kept the desktop's 680 px minimum; the reference fits it to the writing. The phone page went from 5,656 to 4,768 px against the reference's 4,560.
 - A memory without a photograph had its lined stand-in grow with a long title and cover its neighbour on the Home's board. It now keeps the photograph's shape, and a board caption keeps to three lines.
