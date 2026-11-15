@@ -1,6 +1,6 @@
 # Evidence: v3 foundations, public pages, and the Studio shell
 
-**Status: on branch `feat/v3-foundations`, stacked on the R0 decision pack (draft PR #103). Not merged.**
+**Status: on branch `feat/v3-foundations`, stacked on the R0 decision pack (draft PR #103). Not merged.** It is assembled with the Music Story adapter (#105) into the v3 release candidate, verified as a whole, with the launch checklist: [Evidence: the v3 release candidate](v3-rc.md).
 
 The design is the owner-approved v3 reference. Its adoption is **proposed** in [ADR 0011](../decisions/0011-refrain-v3-identity-and-product.md) and is not accepted, so merging this work needs that acceptance.
 
