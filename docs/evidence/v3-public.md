@@ -49,12 +49,12 @@ This branch covers R1 (foundations) and the public-page part of R3 and R8, built
 ### Public pages
 
 All are drawn from the reference markup:
-- **Home:** hero, recently written, sleeves, memory board, lined excerpt, voices.
-- **Albums:** the orbit, and the list with four sorts.
+- **Home:** hero, recently written, sleeves, memory board, lined excerpt, voices. Every value on it is one of ADR 0006 A4 and A6's closed lists, read in the Home's one snapshot (see the adaptations).
+- **Albums:** the orbit (8, 12, and 16 covers, as the reference's rings hold), and the list with four orders, each a link to `?sort=`.
 - **Album journal:** sleeve, rating circle, margin note, native `<details>` track rows, the crate.
-- **Artists:** featured strips, the cloud, A to Z.
+- **Artists:** featured strips, the cloud, A to Z (a link to `?view=az`).
 - **Artist:** the torn portrait, labels, the shelf.
-- **Memories:** grouped by year.
+- **Memories:** the polaroid collage in the archive's order (newest publication first), with the year's margin empty.
 - **Memory:** print, lined sheet, the song record, labels, previous / all / next.
 - **About:** the liner notes.
 - **404:** the skipping record.
@@ -131,6 +131,13 @@ The reference's centred box (`src/app/studio/sign-in/`):
 
 | Reference | Built | Why |
 | --- | --- | --- |
+| The Albums list's four sorts and the Artists view switch as `aria-pressed` buttons that change component state | Links to `?sort=` and `?view=`, the chosen one `aria-current` and circled; the values are a closed list (anything else is the default) and are never written back | They work without JavaScript, and a sorted list can be reloaded or shared. Same look and rings |
+| The Home's sleeve back: the newest journal's tracklist with the favourite circled | The card's title and credits where the tracklist sits, the rating, "written track by track" | ADR 0006 A4 and A6 (accepted) allow the Home only the album card's fields, read in its one snapshot. The tracklist waits for an A6 amendment (ADR 0011, proposed) |
+| The Home's board: kraft labels with years, the memories grouped by year | Each label is the memory's "when" exactly as written, one line, cut with an ellipsis; no grouping | A6: the "when" is shown as written and never read as a date |
+| No count on the Home | No count (an earlier build had a hidden one) | A6, item 3: no section count |
+| The Memories archive in year sections ("2026 so far", "2023 & 2022", "undated"), its lead "Kept by year…" | One section in the archive's order, the year's margin empty; the owner's lead "Memories and the music woven through them." | The "when" is free text and never read as a date (owner decision, Part II; M3.8a; ADR 0006 A6). The year sections wait for the structured year (ADR 0011 § 4.2, R6). An earlier build parsed a year from the text, and its 150 px "undated" ran over the captions at 1440 px |
+| The memory page's "MEMORY · 2026" and "FIG. 01 · 2026" | "MEMORY" and "FIG. 01"; the "when" as written in the labels | The same rule |
+| A record label's lines at their natural length | Cut with an ellipsis inside the label | Long catalogue names ran off the red circle |
 | Language as `<button>`s that switch component state | Links to the same page in the other language | ADR 0008 § 6: the URL is the only language state |
 | `.ring` | `.penring` | A Tailwind utility collides with `.ring` |
 | Track rows as buttons | Native `<details>` drawn the same way | They open with the keyboard and without JavaScript |
@@ -165,7 +172,46 @@ The reference's centred box (`src/app/studio/sign-in/`):
 
 ## The About route
 
-`/about` and `/pt/about` are answered as the archives are: the proxy's identical unknown-address `404` while public reads are off, `GET` and `HEAD` only, `no-store`. They are classified in `src/app/public-surface.test.ts` and in the route-parity test. They read no journal.
+`/about` and `/pt/about` are answered as the archives are: the proxy's identical unknown-address `404` while public reads are off, `GET` and `HEAD` only, `no-store`. They are classified in `src/app/public-surface.test.ts` and in the route-parity test. They read no journal. **HTTP tests** (`src/testing/public-archives.http.test.ts`): About is in the archives' tables (every request form, from `GET` to the router's segment files and a percent-encoded spelling, is the unknown address while reads are off, on four servers whose switch is off; every answer `no-store`; a trailing slash is the no-store `308`; build-file names and case variants are the generic `404`), and a test of its own checks `GET` and `HEAD` `200`, `405` with `Allow: GET, HEAD` for `POST`, `PUT`, `PATCH`, `DELETE`, and `OPTIONS`, and the Portuguese forms while reads are off. About is not in the sitemap.
+
+## Review fixes after the independent audit (2026-11-15)
+
+An independent security review of `cd0b9a8` (a separate agent, read-only) asked for changes; a second one reviewed the fixes and answered **GO** (no Critical, High, or Medium finding). Its two Low findings are fixed too.
+
+| Finding | Severity | Fix | Proof |
+| --- | --- | --- | --- |
+| S1: the Home read the newest journal's whole page outside A6's snapshot, carried a section count, and read the "when" as a year | Medium | One read, `getPublicHome`; the sleeve shows the card's fields; no count; each board label is the "when" as written | `public-surface.test.ts` ("has the Home read only getPublicHome and the switch"); `public-home.http.test.ts` ("shows only the album card's fields…", `/` and `/pt`) |
+| S2: `/about` and `/pt/about` had no HTTP tests | Medium | Tests added (see The About route) | `public-archives.http.test.ts` |
+| S3: the Home's G2 browser test had been removed | Medium | Ported to the v3 Home, through its prefetching links | `e2e/home.spec.ts` ("a change is seen on the next navigation, and a stale link leads nowhere"), 1440 and 390 |
+| S4: the photograph guard no longer covered the artist page's own `<img>` | Low | A guard that only the artist page touches a `.photo` value | `public-surface.test.ts` ("draws an artist photograph only on the artist page", with a self-check) |
+| S5: all of `src/app/v3/` (shared with the Studio) could import the reading entry point | Low | Only `v3/cover.tsx` | `studio/no-publishing.test.ts` |
+| S6: the album page's previous and next had no HTTP test | Low | Test added: only served journals, each answering 200 | `public-album-journal.http.test.ts` |
+| S7: a test title promised more than it checked | Low | Title corrected; the whole-writing check stays in HTTP | `e2e/archives.spec.ts` |
+| Second review: the archive and the memory page still read the "when" as a year | Low | Removed (see the adaptations) | `public-surface.test.ts` ("never parses a memory's \"when\" on a public page"); `public-archives.http.test.ts` |
+| Second review: no regression guard for S1 | Low | The two S1 tests above | — |
+
+**Coverage restored** (dropped with the V4.4 specs, now written for v3):
+- G2 on the Home (above);
+- no layout shift while the Home loads, with and without reduced motion (`< 0.01`);
+- reflow at 320 px (200 % zoom of a 640 px window, 400 % of 1280 px) and with text at 200 %, on the Home and on the album page with a track open;
+- forced colours: the navy sheets drop their texture, the pen rings take the system's colours, focus is a 2 px system outline;
+- the pen ring drawn on a section link with keyboard focus;
+- sound: no `AudioContext` before the toggle (after scrolling and hovering), one running context after it, suspended when it is turned off;
+- entrances never flash: sampled every frame from the first paint, nothing on screen shows, vanishes, and returns;
+- without JavaScript: the Albums orders and the Artists views, as links.
+
+**Behaviour fixed:**
+- The Albums orders and the Artists views are links (`?sort=`, `?view=`), so they work without JavaScript (see the adaptations); HTTP tests check the same rows in every order and that odd values are the default and never written back into the markup.
+- **The reveal flash.** The runtime armed the entrances after hydration, so what was already on screen showed, vanished, and entered again. The page is now sent armed (`io`), with a `<noscript>` style (a static string, no data) that shows everything without JavaScript, and a CSS fail-safe that shows everything after three seconds if the runtime never marks the page ready. On a slow device whose runtime arrives after those three seconds, what is on screen may still blink once; not measured.
+- **The orbit.** The reference's rings hold 8, 12, and 16 covers at 19, 31, and 43 % (read from its markup); the third ring held 18. Fixed. A fourth ring past 36 journals holds 20 (D20, proposed).
+- Record labels cut long names with an ellipsis inside the label (they ran off it on a phone).
+- The approved favicon and touch icon are linked from both roots and the global 404, as plain `<head>` links: `metadata.icons` streams a marker whose row order differed between two answers of the same page, which the A6 parity check caught.
+
+**Remaining differences from the reference**, each waiting on a decision or a later milestone:
+- the Home's sleeve back shows the card, not the tracklist, and the board holds three memories (A6 amendment);
+- no year sections, and no "MEMORY · year" (R6);
+- photographs (R5, R6), album memories, translated-from (R2, R3), artist journals (R7), the About lines (R8);
+- white-label covers wherever the cover switch is off.
 
 ## Visual comparison
 
@@ -216,25 +262,32 @@ The comparison images and figures are local only; nothing from `reference/` is c
 
 ## Verification
 
-Each check was run on the branch on 2026-11-15, and its output was read. Database suites ran on a freshly reset disposable test database (`pnpm db:test:down && pnpm db:test:up`).
+Each check was run on the branch on 2026-11-15, at `a2321a4` (the review fixes), and its output was read. Database suites ran on a freshly reset disposable test database (`pnpm db:test:down && pnpm db:test:up`); no persistent or hosted database was touched.
 
 | Check | Result |
 | --- | --- |
 | `pnpm lint` | Clean |
 | `pnpm format:check` | Clean |
 | `pnpm typecheck` | Clean |
-| `pnpm test` | 57 files, 1,284 tests passed |
+| `pnpm test` | 57 files, 1,295 tests passed |
 | `pnpm test:integration` | 37 files, 805 tests passed |
-| `pnpm test:http` (production build) | 20 files, 705 tests passed |
-| `pnpm test:e2e` (production build, every project) | **343 passed, 0 failed, 4 skipped** |
+| `pnpm test:http` (production build) | 20 files, 782 tests passed |
+| `pnpm test:e2e` (production build, every project) | **357 passed, 0 failed, 4 skipped** |
+| Independent security review of the fixes (separate agent, read-only) | **GO**: no Critical, High, or Medium finding; its two Low findings fixed in `2dfb951` and `a2321a4` |
 
-The 4 skips are conditional:
-- two screenshot-only tests, which run with `E2E_SCREENSHOTS=1`;
-- the memories "empty" case, which runs only at desktop width on a database without memories.
+The 4 skips are conditional, and none hides a check:
+- `public-artwork.spec.ts` "screenshots with the cover, when asked for", at 1440 and 390 px, and `ratings.spec.ts` "captures the studio's rating in the named states": screenshot jobs that run only with `E2E_SCREENSHOTS=1`;
+- `memories.spec.ts` "shows an empty Memories page" at 390 px: it runs only at desktop width, on a database without memories.
+
+**One intermittent browser failure, not reproduced.** While the review fixes were made, one combined run of the archives, memory-page, Home, and i18n-public specs answered `500` instead of `404` for a draft memory's address at 1440 px (`memory-page.spec.ts`, "answers the shared not-found view for a memory that is not public…"). The same test passed at 390 px in that run, in three runs of the spec alone, in two more combined runs, and in the full run above. The server's message was not kept. If it recurs, keep `test-results/` and the server's output before rerunning.
 
 **A local visual run once left synthetic seed rows in the test database**, which broke 12 integration tests. Resetting it before each database suite avoids that.
 
-**One intermittent HTTP failure, not explained.** On 2026-11-15, one full `pnpm test:http` run failed one check in `src/testing/public-home.http.test.ts`: "with only hidden writing (A6) answers, with the switch on, exactly what the empty site answered, in every request form". It did not reproduce in three runs of the file alone or in two more full runs (708 passed each). Its detail was not captured. The same check once found a real nondeterministic stream ordering, fixed earlier on this branch, so this needs watching: if it recurs, capture the diff of the two responses before anything else.
+**One intermittent HTTP failure, not reproduced since.** On 2026-11-15, one full `pnpm test:http` run failed one check in `src/testing/public-home.http.test.ts`: "with only hidden writing (A6) answers, with the switch on, exactly what the empty site answered, in every request form". Its detail was not captured. Since then, during the independent audit, the file passed 8 runs out of 8 and a full run passed (709 of 709). Two related facts:
+- the one earlier failure of the same check whose detail was kept (during development) was a nondeterministic order of the Flight rows, fixed on this branch;
+- while these review fixes were made, `metadata.icons` made the same check fail every time: the framework streams an `IconMark` row whose position, and so every later row's number, differed between the two answers. The icons are now plain `<link>` tags in the roots' `<head>`, and the check passes.
+
+The cause of the single unexplained failure is **not proven**: the check is sensitive to any streamed row whose order varies, which fits it, but nothing was captured. If it recurs, capture the diff of the two responses first.
 
 ### What the browser tests found, and the fixes
 
@@ -268,7 +321,7 @@ The Studio's language control is now the v3 sidebar's two links, which replace t
 - Media (R5).
 - Memory year, month, and photograph (R6).
 - Public artist journals and stored artist slugs (R7).
-- The Desk, Library, Settings, and States screens; share cards (R8).
+- Settings and States screens; share cards (R8). The Desk, Library, and Bin are built here over the existing queries.
 - Catalog wording (R9); magic link (R10); hosting (R11).
 - Music Story: blocked on access and licensing (MS-0, MS-1).
 
