@@ -113,6 +113,20 @@ describe("an address that no route serves", () => {
     expect(words).toContain("Back to the start");
   });
 
+  // G2: the framework's own error routes were answered from the build's cache
+  // with `s-maxage=31536000`, and on the host an unknown address's prerendered
+  // view with `public, max-age=0, must-revalidate`. next.config.ts now makes
+  // every address no section rule names `no-store`.
+  it.each(["/_not-found", "/_global-error", "/no-such-address.rsc"])(
+    "%s is never stored, and never kept for a year",
+    async (path) => {
+      const answer = await request(base, path);
+      expect(answer.headers["cache-control"], path).toMatch(/\bno-store\b/);
+      expect(answer.headers["cache-control"], path).not.toMatch(/s-maxage/);
+      expect(answer.headers["cache-control"], path).not.toMatch(/\bpublic\b/);
+    },
+  );
+
   it("answers the router with the same view and the same status", async () => {
     const answer = await request(base, "/no-such-address", { rsc: true });
     expect(answer.status).toBe(404);

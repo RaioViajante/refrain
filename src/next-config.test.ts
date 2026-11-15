@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import type { NextConfig } from "next";
+import { getPathMatch } from "next/dist/shared/lib/router/utils/path-match";
 import { describe, expect, it } from "vitest";
 
 // next.config.ts sits at the repository root, outside the `@/` alias; like
@@ -79,6 +80,47 @@ describe("next.config.ts header routes", () => {
         expect(route.source.startsWith("/pt/studio"), route.source).toBe(false);
       }
     }
+  });
+
+  it("make every address that no section rule names `no-store`, except the immutable build files and the data-free assets (G2)", async () => {
+    const routes = await headerRoutes();
+    // Second, after the indexing policy and before every section rule, so
+    // that each section's own value is the last one set and wins.
+    const unnamed = routes[1]!;
+    expect(unnamed.cacheControl).toBe("no-store");
+    // Matched as the framework matches it, with its own path matcher.
+    const matches = getPathMatch(unnamed.source, {
+      removeUnnamedParams: true,
+      strict: true,
+    });
+    for (const path of [
+      "/",
+      "/no-such-address",
+      "/a/b/c",
+      "/no-such-address.rsc",
+      "/pt/no-such-address",
+      "/_not-found",
+      "/_global-error",
+      "/albums/a/b",
+      "/v3",
+      "/artworks/x",
+    ]) {
+      expect(matches(path), path).not.toBe(false);
+    }
+    for (const path of [
+      "/_next/static/chunks/main.js",
+      "/_next/static/media/font.woff2",
+      "/_next/image",
+      "/v3/paper.jpg",
+      "/artwork/refrain-404.webp",
+    ]) {
+      expect(matches(path), path).toBe(false);
+    }
+    // Every private rule comes after it, so the Studio keeps its own value.
+    const firstPrivate = routes.findIndex(
+      (route) => route.cacheControl === PRIVATE_NO_STORE,
+    );
+    expect(firstPrivate).toBeGreaterThan(1);
   });
 
   it("never touch the framework's immutable static assets", async () => {
