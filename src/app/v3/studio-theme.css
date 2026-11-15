@@ -391,3 +391,12 @@
 .stu .login-foot > a:hover {
   color: var(--ink);
 }
+/* A track's rating words take a fixed width that holds the longest state in
+   either language ("4,5 estrelas"), so whether the row wraps never depends
+   on what the words say or on a platform's font metrics (CI's Linux faces
+   once wrapped "No rating" where "3 stars" fitted, at 320px). */
+.stu .studio-rating[data-compact] .studio-rating-words {
+  flex: 0 0 6.5em;
+  min-width: 0;
+  white-space: nowrap;
+}
