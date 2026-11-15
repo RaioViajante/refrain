@@ -289,13 +289,24 @@ export async function startProductionServer(
   const logDirectory = mkdtempSync(join(tmpdir(), "refrain-http-"));
   const serverLog = join(logDirectory, "server.log");
   const logStream = createWriteStream(serverLog);
+  // `-H localhost`, resolved to 127.0.0.1 first: the server still listens on
+  // the IPv4 loopback address only, where every test connects, but the
+  // framework's own origin is then `http://localhost:<port>`. Next.js writes
+  // every loopback address in the request the proxy sees as `localhost`
+  // (`NextURL`), and treats a rewrite whose origin differs from its own as an
+  // external URL. With `-H 127.0.0.1` the proxy's rewrite to the shared
+  // not-found view was therefore sent back to this server over HTTP, and
+  // failed under load with `500` (docs/evidence/v3-rc.md). The origin never
+  // comes from a request: it is this fixed name. If the address were ever
+  // another one, the readiness check on 127.0.0.1 below fails loudly.
   const server = spawn(
     process.execPath,
     [
+      "--dns-result-order=ipv4first",
       "node_modules/next/dist/bin/next",
       "start",
       "-H",
-      "127.0.0.1",
+      "localhost",
       "-p",
       String(port),
     ],
