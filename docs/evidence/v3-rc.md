@@ -102,7 +102,7 @@ Checked with JavaScript disabled, at 1440 and 390 px, on the public server above
 
 **The same on the Preview** (JavaScript off, 1440 and 390 px): the album journal's main region holds 8 characters (the loading line), while the memory page (188), the Home, and Albums read in full.
 
-The v3 rebuild kept the M3.1 route's prerendered shell and Suspense boundary, so #44 is **still open** and still blocks a hosted public launch. The known fix is the one the Home, the artist page, and the memory page already use: `export const instant = false` on both route files and the read moved out of Suspense. It is not made here. The issue records that it changes the M3.1-approved route and the build-output tests that pin its shell (`public-build-output.http.test.ts`, `e2e/home.spec.ts`), so it needs its own decision and pull request.
+The v3 rebuild kept the M3.1 route's prerendered shell and Suspense boundary. **Fixed by PR #107** (`fix/album-journal-no-js`): the route renders per request in one pass (`instant = false`), as the memory and artist pages do. The build holds an empty fallback, and a browser test reads the journal with JavaScript off in EN and PT at 1440 and 390 px. The independent security review gave GO, with Low findings only, all addressed in the same PR.
 
 ## The protected Preview (2026-11-15)
 
@@ -204,7 +204,7 @@ The shortest path from this candidate to a public site at `refrain.raioviajante.
 | 7 | **G5 configuration on the host** | Partly (HTTPS `BETTER_AUTH_URL` in production) | The predicate and matrix tests against the hosted role; Deployment gate items 2, 4, and 5 over real HTTPS |
 | 8 | **G7 independent review** of the public surface as deployed | Not done | After 3 to 7 |
 | 9 | **G8 catalog wording** | A documented gap: catalog edits change public wording with no confirmation | The owner chooses a confirmation or a refusal while public (R9). No waiver |
-| 10 | **#44, the album journal without JavaScript** | Still open in v3 ([above](#without-javascript-issue-44)) | A PR applying `instant = false` to the album route, with the build-output tests rewritten to the memory page's properties |
+| 10 | **#44, the album journal without JavaScript** | **Fixed in draft PR #107**, not merged or deployed ([above](#without-javascript-issue-44)) | A PR applying `instant = false` to the album route, with the build-output tests rewritten to the memory page's properties |
 | 11 | **Album covers**, gate item 6 | The switch is off on every host, so the fallback shows | The owner's recorded rights review before setting `REFRAIN_COVER_DISPLAY_ENABLED=true` anywhere hosted. Launching **without** covers is allowed: the fallback is the safe state |
 | 12 | **Artist photographs**, gate item 7 | Studio-only locally; the Jeff Buckley photograph's rights are unverified | The per-photograph review, **or** launch with no photograph chosen |
 | 13 | **Initial indexing policy on the host** | In the code; not yet verified on a deployment | Verified with the owner's Vercel session before the protection change (S4 step 1) |

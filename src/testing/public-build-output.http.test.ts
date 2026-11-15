@@ -63,10 +63,16 @@ function visibleText(html: string): string {
 
 describe("what the build prerenders for the public routes", () => {
   it("prerenders no concrete album address", () => {
-    const concrete = Object.keys(manifest.routes).filter((route) =>
-      route.startsWith("/albums/"),
+    const concrete = Object.keys(manifest.routes).filter(
+      (route) =>
+        route.startsWith("/albums/") || route.startsWith("/pt/albums/"),
     );
     expect(concrete).toEqual([]);
+    expect(readdirSync(join(APP, "pt/albums")).sort()).toEqual([
+      "[slug].html",
+      "[slug].meta",
+      "[slug].segments",
+    ]);
     // Nothing under the build's album directory but the one parameterised
     // fallback and its segments: a file per address would be named for it.
     const names = readdirSync(join(APP, "albums"));
@@ -111,10 +117,10 @@ describe("what the build prerenders for the public routes", () => {
   });
 
   it("has transport payloads (segments, RSC, postponed state) that carry the parameter name and no value", () => {
-    const album = join(APP, "albums");
-    const payloads = files(album).filter((file) =>
-      /\.(rsc|meta|html)$/.test(file),
-    );
+    const payloads = [
+      ...files(join(APP, "albums")),
+      ...files(join(APP, "pt/albums")),
+    ].filter((file) => /\.(rsc|meta|html)$/.test(file));
     expect(payloads.length).toBeGreaterThanOrEqual(4);
     for (const file of payloads) {
       const body = text(file);

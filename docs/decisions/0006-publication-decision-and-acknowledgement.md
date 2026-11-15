@@ -461,6 +461,7 @@ An amendment clarifies how a decision is carried out. It does not change what th
   - Every marked response is empty or byte-identical to a build file, carries `no-store`, and is absent from every response rendered from the database (`public-cache-indicator.http.test.ts`).
   - Unknown and every non-visible state answer identically, in status, every header, and body, over GET, HEAD, RSC, prefetch, segment prefetch, cookie, and conditional forms, in a fresh process and after any request history (`public-cache-indicator.http.test.ts`, `public-album-journal.http.test.ts`, `public-request-forms.http.test.ts`).
   - The build output holds no concrete album address and only the generic shell and not-found view, whose visible text, links, and metadata are fixed (`public-build-output.http.test.ts`).
+    - *Implementation note (2026-11-15, issue #44, PR #107; not a change to this amendment):* the album route now renders in one pass and the build holds an **empty** fallback for it (EN and `/pt`), which the same test asserts. No shell is prerendered, so the shell allowance above is no longer used by any public route.
   - No file named for an address appears under `.next` after the requests (`public-cache-indicator.http.test.ts`).
   - Every trailing-slash `308` is `no-store` (`public-request-forms.http.test.ts`).
   - A search of the build output finds no journal data (`public-build-output.http.test.ts`, `public-transitions.http.test.ts`).
