@@ -1,3 +1,5 @@
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
@@ -20,6 +22,35 @@ const shelf = JSON.parse(env("E2E_PUBLIC_SHELF")) as {
   slug: string;
   entryId: string;
 }[];
+
+const execFileAsync = promisify(execFile);
+
+/** The public seed's commands, against the disposable test database. */
+async function seed(...args: string[]) {
+  await execFileAsync(
+    "pnpm",
+    [
+      "--silent",
+      "tsx",
+      "--conditions=react-server",
+      "src/testing/public-seed-cli.ts",
+      ...args,
+    ],
+    { env: process.env },
+  );
+}
+
+/** The publication dates the public seed gives the Home's shelf. */
+const SEEDED_DATES: Record<string, string> = {
+  grace: "2026-10-20T12:00:00Z",
+  "pink-moon": "2026-10-18T12:00:00Z",
+  "twin-fantasy": "2026-10-12T12:00:00Z",
+  cleopatra: "2026-10-05T12:00:00Z",
+};
+const seededDate = (slug: string) =>
+  SEEDED_DATES[
+    Object.keys(SEEDED_DATES).find((name) => slug.endsWith(`-${name}`))!
+  ]!;
 
 const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 const KEPT = "a music journal, kept by hand";
@@ -259,14 +290,148 @@ test("respects reduced motion: everything is in place, and nothing animates", as
   await context.close();
 });
 
-test("plays no sound until the reader turns it on", async ({ page }) => {
+test("plays no sound until the reader turns it on: no AudioContext before, suspended after", async ({
+  page,
+}) => {
+  // Every AudioContext the page makes is recorded, with its state.
+  await page.addInitScript(() => {
+    const made: AudioContext[] = [];
+    (window as unknown as { __audio: AudioContext[] }).__audio = made;
+    const Real = window.AudioContext;
+    window.AudioContext = class extends Real {
+      constructor(...args: ConstructorParameters<typeof AudioContext>) {
+        super(...args);
+        made.push(this);
+      }
+    } as typeof AudioContext;
+  });
+  const contexts = () =>
+    page.evaluate(() =>
+      (window as unknown as { __audio: AudioContext[] }).__audio.map(
+        (context) => context.state,
+      ),
+    );
   await openHome(page);
   const toggle = page.locator(".ftr .snd");
   await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  // Scrolling reveals sections, and hovering a link: still no sound engine.
+  await page.mouse.wheel(0, 2400);
+  await page.locator(".hdr nav a").first().hover();
+  expect(await contexts()).toEqual([]);
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(contexts).toEqual(["running"]);
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  // One engine, suspended, never a second one.
+  await expect.poll(contexts).toEqual(["suspended"]);
+});
+
+test("does not move as it loads", async ({ page }) => {
+  await serveTestCovers(page);
+  await page.addInitScript(() => {
+    const record = { total: 0, entries: [] as string[] };
+    (window as unknown as { __shifts: typeof record }).__shifts = record;
+    new PerformanceObserver((list) => {
+      for (const entry of list.getEntries() as (PerformanceEntry & {
+        value: number;
+        hadRecentInput: boolean;
+        sources?: { node?: Node | null }[];
+      })[]) {
+        if (!entry.hadRecentInput) {
+          record.total += entry.value;
+          record.entries.push(
+            `${entry.value.toFixed(4)} ${(entry.sources ?? [])
+              .map((source) => (source.node as Element | null)?.className)
+              .join(",")}`,
+          );
+        }
+      }
+    }).observe({ type: "layout-shift", buffered: true });
+  });
+  // The entrances move things on purpose (a transform, which is not a layout
+  // shift); measured as a reader with reduced motion would see it too.
+  for (const reducedMotion of ["no-preference", "reduce"] as const) {
+    await page.emulateMedia({ reducedMotion });
+    await openHome(page);
+    await page.waitForLoadState("networkidle");
+    const shifts = await page.evaluate(
+      () =>
+        (
+          window as unknown as {
+            __shifts: { total: number; entries: string[] };
+          }
+        ).__shifts,
+    );
+    // A web font replacing its fallback can nudge a line by a fraction of a
+    // pixel; anything a reader could see is far above this.
+    expect(
+      shifts.total,
+      `${reducedMotion}: ${shifts.entries.join("; ")}`,
+    ).toBeLessThan(0.01);
+  }
+});
+
+test("reflows at 320 px, which is 200% zoom of a 640 px window and 400% of 1280 px, and with text at 200%", async ({
+  page,
+}) => {
+  await openHome(page);
+  await page.setViewportSize({ width: 320, height: 700 });
+  expect(await overflow(page), "320 px").toBeLessThanOrEqual(0);
+  // Text resized on its own (WCAG 1.4.4), where the faces are set in rem.
+  await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+  expect(await overflow(page), "200% text").toBeLessThanOrEqual(0);
+});
+
+test("keeps its rings, its text, and focus in the system's colours in forced-colours mode", async ({
+  page,
+}) => {
+  await page.emulateMedia({ forcedColors: "active", colorScheme: "dark" });
+  await openHome(page);
+  const look = await page.evaluate(() => {
+    const css = (selector: string) =>
+      getComputedStyle(document.querySelector(selector)!);
+    return {
+      footerTexture: css(".ftr .sheet").backgroundImage,
+      boardTexture: css(".mem .sheet").backgroundImage,
+      ring: css(".hdr nav a .penring path").stroke,
+      language: css(".lang a[aria-current] .penring path").stroke,
+      text: css(".ftr .tg").color,
+    };
+  });
+  expect(look.footerTexture).toBe("none");
+  expect(look.boardTexture).toBe("none");
+  // The rings take system colours, never the pen's blue, which a dark system
+  // canvas would swallow.
+  expect(look.ring).not.toBe("rgb(43, 69, 196)");
+  expect(look.language).not.toBe("rgb(43, 69, 196)");
+  expect(look.ring).toBe(look.text);
+  // A keyboard reader still sees where focus is.
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Tab");
+  const outline = await page.evaluate(() => {
+    const css = getComputedStyle(document.activeElement!);
+    return { style: css.outlineStyle, width: css.outlineWidth };
+  });
+  expect(outline.style).toBe("solid");
+  expect(outline.width).toBe("2px");
+});
+
+test("draws the pen ring around a section link that has keyboard focus", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await openHome(page);
+  const link = page.locator(".hdr nav a").first();
+  const offset = () =>
+    link
+      .locator(".penring path")
+      .evaluate((path) => getComputedStyle(path).strokeDashoffset);
+  expect(await offset()).not.toBe("0px");
+  await page.keyboard.press("Tab"); // the skip link
+  await page.keyboard.press("Tab"); // the first section
+  await expect(link).toBeFocused();
+  await expect.poll(offset).toBe("0px");
 });
 
 test("with public reads off, it is the empty Home, whatever is published", async ({
@@ -277,4 +442,104 @@ test("with public reads off, it is the empty Home, whatever is published", async
   await expect(page.getByText("nothing pinned yet")).toBeVisible();
   await expect(page.locator("main a[href^='/albums/']")).toHaveCount(0);
   await expect(page.getByText("Grace")).toHaveCount(0);
+});
+
+// G2 on the Home (ADR 0006 A4: G2's checks, going back after an unpublish
+// included, apply to `/`). The v3 Home links through prefetching client
+// links, so this goes through them: a push navigation reads the lists again,
+// and a link from a Home loaded before the change leads to the not-found
+// view, never to the journal.
+test("a change is seen on the next navigation, and a stale link leads nowhere", async ({
+  page,
+}) => {
+  const pinkMoon = shelf.find((journal) =>
+    journal.slug.endsWith("-pink-moon"),
+  )!;
+  const address = `/albums/${pinkMoon.slug}`;
+  const heading = page.getByRole("heading", { level: 1 });
+  const notFound = "this track skipped";
+  await openHome(page);
+  await page.locator(`main a[href="${address}"]`).first().click();
+  await expect(page).toHaveURL(`${base}${address}`);
+  await expect(heading).toContainText("Pink Moon");
+  await seed("unpublish", pinkMoon.entryId);
+  try {
+    // A push navigation to the Home (the wordmark) reads the lists again.
+    await page.locator(".hdr .wm").click();
+    await expect(page).toHaveURL(`${base}/`);
+    await streamed(page);
+    expect(await addresses(page)).not.toContain(address);
+
+    // Back: the browser may show the page it was sent before. Recorded for
+    // the evidence; a reload asks the server again, and it is gone.
+    await page.goBack();
+    await expect(page).toHaveURL(`${base}${address}`);
+    console.log(
+      `back after unpublishing (${page.viewportSize()!.width}px): "${await heading.textContent()}"`,
+    );
+    await page.reload();
+    await expect(heading).toContainText(notFound);
+
+    // A Home loaded before the change still links it; following that stale
+    // link shows the not-found view, never the journal.
+    await seed("publish", pinkMoon.entryId, seededDate(pinkMoon.slug));
+    await openHome(page);
+    await expect(
+      page.locator(`main a[href="${address}"]`).first(),
+    ).toBeVisible();
+    await seed("unpublish", pinkMoon.entryId);
+    await page.locator(`main a[href="${address}"]`).first().click();
+    await expect(heading).toContainText(notFound);
+    await expect(page.getByText("[Test] A synthetic journal")).toHaveCount(0);
+  } finally {
+    await seed("publish", pinkMoon.entryId, seededDate(pinkMoon.slug));
+  }
+});
+
+// The entrances never flash: content on screen when the page arrives is sent
+// waiting (the page is armed on the server), so it enters once and never
+// shows, vanishes at hydration, and comes back.
+test("what is on screen when the page arrives enters once, and never vanishes after showing", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const samples: number[][] = [];
+    (window as unknown as { __samples: number[][] }).__samples = samples;
+    const sample = () => {
+      const watched = [
+        ...document.querySelectorAll(".hero [data-a], .hdr nav a"),
+      ].slice(0, 6);
+      if (watched.length > 0) {
+        samples.push(
+          watched.map((element) => Number(getComputedStyle(element).opacity)),
+        );
+      }
+      if (samples.length < 240) requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+  });
+  await openHome(page);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => (window as unknown as { __samples: number[][] }).__samples.length,
+      ),
+    )
+    .toBeGreaterThanOrEqual(240);
+  const samples = await page.evaluate(
+    () => (window as unknown as { __samples: number[][] }).__samples,
+  );
+  // Per element: once it has shown (opacity above 0.9), it never drops back
+  // under 0.1 in a later frame.
+  const columns = samples[0]!.length;
+  for (let column = 0; column < columns; column += 1) {
+    let shown = false;
+    for (const frame of samples) {
+      const value = frame[column] ?? 1;
+      if (shown) expect(value, `element ${column}`).toBeGreaterThan(0.1);
+      if (value > 0.9) shown = true;
+    }
+  }
+  // And everything ends in place.
+  expect(samples.at(-1)!.every((value) => value > 0.99)).toBe(true);
 });

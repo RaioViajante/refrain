@@ -105,6 +105,23 @@ test("uses only the four approved faces", async ({ page }) => {
   expect(strays).toEqual([]);
 });
 
+test("reflows at 320 px with a track open, and with text at 200%", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 700 });
+  await openJournal(page);
+  await page.locator("summary.trow").first().click();
+  const overflow = () =>
+    page.evaluate(
+      () =>
+        document.documentElement.scrollWidth -
+        document.documentElement.clientWidth,
+    );
+  expect(await overflow(), "320 px, a track open").toBeLessThanOrEqual(0);
+  await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+  expect(await overflow(), "200% text").toBeLessThanOrEqual(0);
+});
+
 test("fits the screen without sideways scrolling, at every width", async ({
   page,
 }) => {

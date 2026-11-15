@@ -147,12 +147,37 @@ test("the Albums archive shows each album once, with every other journal about i
   const orbit = page.locator(".orb2 .ri").first();
   await expect(orbit).toHaveAttribute("aria-hidden", "true");
   await expect(orbit).toHaveAttribute("tabindex", "-1");
-  // The four sorts, as pressed buttons.
-  for (const name of ["order written", "year", "artist", "my rating"]) {
-    const button = page.getByRole("button", { name, exact: true });
-    await button.click();
-    await expect(button).toHaveAttribute("aria-pressed", "true");
+  // The four orders are links to the address's `?sort=`: each becomes the
+  // current one, the list keeps every row, and the address can be shared.
+  const sorts = page.getByRole("group", { name: "sort by" });
+  for (const [name, query] of [
+    ["year", "?sort=year"],
+    ["artist", "?sort=artist"],
+    ["my rating", "?sort=rating"],
+    ["order written", ""],
+  ] as const) {
+    const link = sorts.getByRole("link", { name, exact: true });
+    await link.click();
+    await expect(page).toHaveURL(`${base}/albums${query}#pp-list`);
+    await expect(
+      sorts.getByRole("link", { name, exact: true }),
+    ).toHaveAttribute("aria-current", "true");
+    await expect(sorts.locator("[aria-current]")).toHaveCount(1);
+    expect(
+      await page
+        .locator(".alist li:not(.gh):not(.oj) a")
+        .evaluateAll((all) => all.map((link) => link.getAttribute("href"))),
+      name,
+    ).toHaveLength(rowLinks.length);
   }
+  // A to Z groups by letter, with the jump tabs; an unknown order is the
+  // order written.
+  await page.goto(`${base}/albums?sort=artist`);
+  await expect(page.locator(".alist .jump a").first()).toBeVisible();
+  await page.goto(`${base}/albums?sort=nonsense`);
+  await expect(
+    sorts.getByRole("link", { name: "order written", exact: true }),
+  ).toHaveAttribute("aria-current", "true");
 });
 
 test("the Artists archive lists the artists with a page, and no photograph", async ({
@@ -166,11 +191,17 @@ test("the Artists archive lists the artists with a page, and no photograph", asy
   }
   const photos = await page.locator("main img").count();
   expect(photos).toBe(0);
-  await page.getByRole("button", { name: "A to Z" }).click();
+  await page.getByRole("link", { name: "A to Z" }).click();
+  await expect(page).toHaveURL(`${base}/artists?view=az#pp-views`);
   await expect(page.locator(".az")).toBeVisible();
+  await expect(page.locator(".v-often")).toBeHidden();
+  await expect(page.getByRole("link", { name: "A to Z" })).toHaveAttribute(
+    "aria-current",
+    "true",
+  );
 });
 
-test("the Memories archive lists the served memories, and never their whole writing", async ({
+test("the Memories archive lists the served memories, and no hidden one", async ({
   page,
 }) => {
   await open(page, "memories");
@@ -218,6 +249,15 @@ test("every archive reads the same without JavaScript", async ({ browser }) => {
     );
     expect((await links(page, archive)).length, archive).toBeGreaterThan(0);
   }
+  // The orders and the views are links, so they work without JavaScript too.
+  await page.goto(`${base}/albums?sort=artist`);
+  await expect(page.locator(".alist .jump a").first()).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "artist", exact: true }),
+  ).toHaveAttribute("aria-current", "true");
+  await page.goto(`${base}/artists?view=az`);
+  await expect(page.locator(".az")).toBeVisible();
+  await expect(page.locator(".v-often")).toBeHidden();
   await context.close();
 });
 
@@ -245,7 +285,7 @@ test("every archive passes axe, and its controls are large enough to press", asy
             found.push(`${element.textContent?.trim()}: ${height}`);
         }
       };
-      check("header a, footer nav a, footer button, .pill, .sorts button", 44);
+      check("header a, footer nav a, footer button, .pill, .sorts a", 44);
       check(".alist li a, .az li a, .wall2 a, .yb .mi", 24);
       return found;
     });
