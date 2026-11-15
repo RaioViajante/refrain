@@ -8,6 +8,33 @@ Refrain is a single-author personal music journal. It keeps the author's relatio
 
 Refrain is not a streaming platform, social network, collaborative service, review aggregator, or multi-user SaaS.
 
+## Refrain v3 (proposed)
+
+The owner approved a new design as final on 2026-11-15: *the booklet of a record that belongs to you*. It is specified in [Design System, Part I](design-system.md#part-i--refrain-v3-specification). Adopting it, and the product changes below, is **proposed** in [ADR 0011](decisions/0011-refrain-v3-identity-and-product.md) and [ADR 0012](decisions/0012-external-services-music-story-email-media.md). Neither is accepted, and **none of this is built**. The rest of this document describes the product as accepted.
+
+**New pages and experiences**
+- **About:** the "liner notes".
+- **Public artist journals.**
+- **Motion and sound:** entrance motion that respects reduced motion, and short synthesized sounds that are off until the reader turns them on in the footer.
+
+**Changes to existing features**
+- **Album journals:** exactly one favourite track per album journal, circled in pen.
+- **Memories:**
+  - grouped by year, with a year and month or "undated";
+  - one song;
+  - a photograph, pinned or taped.
+- **Home:** a per-entry choice to show writing in "recently written".
+- **Translations:** a visible note and a link back to the original.
+- **Studio:**
+  - a Library with a Bin;
+  - Settings for the About page;
+  - pending changes, so edits to published writing reach the site only after **Update** and its confirmation;
+  - magic-link sign-in, blocked until a known account-deletion hazard is fixed ([ADR 0012 § 3](decisions/0012-external-services-music-story-email-media.md#3-the-better-auth-magic-link-account-deletion-hazard-a-mandatory-blocker)).
+- **Music data:** Music Story as the preferred unified provider of musical metadata and artwork, behind a licensing gate.
+
+**What does not change**
+- Every rule below still holds: visibility per language version, confirmation before publishing, recoverable deletion with no automatic purge, no machine translation, and no invented writing.
+
 ## People
 
 | Role | Count | Can do |
