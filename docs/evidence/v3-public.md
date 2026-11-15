@@ -80,6 +80,9 @@ The reference's sidebar, top bar, and thin-line controls (`src/app/v3/studio.css
 | The author's About lines, initials, thanks, "since" | Not shown | They have no storage yet; nothing is invented, and no bracket placeholder ever reaches HTML |
 | No sources row on About | A sources row | Attribution (D7) |
 | Album label (Columbia) on the page | Not shown | Not in the v3 design; catalog data only |
+| Grey text `#6E6A63` on paper (4.44:1) | `#67635C` (4.93:1) | WCAG AA; axe found it (D10, pending the owner's sign-off) |
+| "Not written yet" rows in `#9A958C` (about 2.8:1) | The page grey | WCAG AA; axe found it |
+| The fine print's link at 15 px | A 44 px target, set on the line's middle | The repository's 44 px rule |
 
 ## The About route
 

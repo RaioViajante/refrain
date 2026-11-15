@@ -458,3 +458,9 @@ body:has(> .pp) {
 .pp {
   --grey: #67635c;
 }
+/* "Not written yet" rows stay greyed, at a grey that reads (WCAG AA): the
+   reference's #9A958C is about 2.8:1 on the sleeve. */
+.pp .trow.off,
+.pp .trow.off .tt {
+  color: var(--grey);
+}
