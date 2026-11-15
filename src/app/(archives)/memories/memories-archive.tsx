@@ -3,7 +3,6 @@ import Link from "next/link";
 import type { PublicMemoryCard } from "@/modules/publication/public";
 
 import { V3_CONTENT_ID, V3Frame } from "@/app/v3/frame";
-import { groupByYear, yearOf } from "@/app/v3/memory-shape";
 import { dictionaryFor } from "@/i18n/dictionaries";
 import type { InterfaceLocale } from "@/i18n/locales";
 import { localizedHref } from "@/i18n/paths";
@@ -69,10 +68,12 @@ export function MemoriesArchive({
   const t = v3StringsFor(locale).memories;
   const list = memories ?? [];
   const numbered = list.map((card, i) => ({ card, n: i + 1 }));
-  const groups = groupByYear(numbered, ({ card }) =>
-    yearOf(card.rememberedWhen),
-  );
-  const undated = v3StringsFor(locale).home.undated;
+  // "When" is the author's free text and is never read as a date (owner
+  // decision, Design System Part II; M3.8a): the memories are not grouped by
+  // year, and the year's margin stays empty. They keep the archive's order,
+  // the newest publication first. The reference's year sections wait for a
+  // structured year (ADR 0011 § 4.2, R6, proposed).
+  const lead = dictionaryFor(locale).archives.memories.lead;
   return (
     <V3Frame
       locale={locale}
@@ -87,8 +88,10 @@ export function MemoriesArchive({
               {t.h1} <span className="ser">{t.h1b}</span>
             </h1>
           </div>
-          <p className="say" data-a="up" data-d="2">
-            {t.say}
+          {/* The owner's lead: the reference's "Kept by year…" would describe a
+              grouping this page does not make. */}
+          <p className="say" data-a="up" data-d="2" lang={lead.lang}>
+            {lead.text}
           </p>
           {memories === null ? (
             <p className="say" role="status">
@@ -104,65 +107,41 @@ export function MemoriesArchive({
               </Link>
             </div>
           ) : null}
-          {groups.map((group, g) => {
-            const side = g % 2 === 0 ? "left" : "right";
-            const label =
-              group.years.length === 0 ? undated : group.years.join(" · ");
-            return (
-              <section key={label} className="yb" aria-label={label}>
-                <h2
-                  className={group.years.length === 0 ? "yh word" : "yh"}
-                  style={{
-                    ["--yc" as string]:
-                      side === "left" ? "1 / span 4" : "9 / span 4",
-                  }}
-                  data-a={side}
-                  data-d="0"
-                >
-                  <b>{group.years[0] ?? undated}</b>
-                  <span className="ser">
-                    {group.years.length > 1
-                      ? `& ${group.years.slice(1).join(" & ")}`
-                      : g === 0 &&
-                          group.years[0] === new Date().getUTCFullYear()
-                        ? t.soFar
-                        : ""}
-                  </span>
-                </h2>
-                {group.items.map(({ card, n }, i) => {
-                  const song = songLine(card);
-                  return (
-                    <Link
-                      key={card.slug}
-                      className="mi"
-                      href={localizedHref(locale, `/memories/${card.slug}`)}
-                      data-a="place"
-                      data-d={String(i % 6)}
-                      style={place(side, i)}
+          {numbered.length > 0 ? (
+            <section className="yb" aria-labelledby="pp-h1">
+              {numbered.map(({ card, n }, i) => {
+                const song = songLine(card);
+                return (
+                  <Link
+                    key={card.slug}
+                    className="mi"
+                    href={localizedHref(locale, `/memories/${card.slug}`)}
+                    data-a="place"
+                    data-d={String(i % 6)}
+                    style={place("left", i)}
+                  >
+                    <span className="n pix">{`(${n})`}</span>
+                    <span
+                      className="pg hand"
+                      lang={card.locale}
+                      aria-hidden="true"
                     >
-                      <span className="n pix">{`(${n})`}</span>
-                      <span
-                        className="pg hand"
-                        lang={card.locale}
-                        aria-hidden="true"
-                      >
-                        {card.title}
+                      {card.title}
+                    </span>
+                    <span className="t hand" lang={card.locale}>
+                      {card.title}
+                    </span>
+                    {card.rememberedWhen ? (
+                      <span className="w pix" lang={card.locale}>
+                        {card.rememberedWhen}
                       </span>
-                      <span className="t hand" lang={card.locale}>
-                        {card.title}
-                      </span>
-                      {card.rememberedWhen ? (
-                        <span className="w pix" lang={card.locale}>
-                          {card.rememberedWhen}
-                        </span>
-                      ) : null}
-                      {song ? <span className="s pix">{song}</span> : null}
-                    </Link>
-                  );
-                })}
-              </section>
-            );
-          })}
+                    ) : null}
+                    {song ? <span className="s pix">{song}</span> : null}
+                  </Link>
+                );
+              })}
+            </section>
+          ) : null}
         </section>
       </main>
     </V3Frame>

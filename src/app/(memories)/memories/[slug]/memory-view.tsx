@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import type { PublicMemory } from "@/modules/publication/public";
 
 import { renderDocument } from "@/app/(public)/_components/rich-text";
-import { splitTitle, yearOf } from "@/app/v3/memory-shape";
+import { splitTitle } from "@/app/v3/memory-shape";
 import { Kraft, Vinyl } from "@/app/v3/objects";
 import type { InterfaceLocale } from "@/i18n/locales";
 import { localizedHref } from "@/i18n/paths";
@@ -40,12 +40,12 @@ export function MemoryView({
 }>) {
   const t = v3StringsFor(locale).memory;
   const tt = v3TemplatesFor(locale);
-  const year = yearOf(memory.rememberedWhen);
   const [titleA, titleB] = splitTitle(memory.title);
-  const kind = year
-    ? `${t.kind.split(" · ")[0]} · ${year}`
-    : t.kind.split(" · ")[0];
-  const figure = year ? `FIG. 01 · ${year}` : "FIG. 01";
+  // "When" is never read as a date (owner decision; M3.7): the reference's
+  // "MEMORY · 2026" and "FIG. 01 · 2026" keep their words without a year,
+  // and the "when" itself is shown as written, in the labels below.
+  const kind = t.kind.split(" · ")[0];
+  const figure = "FIG. 01";
   const song = memory.music[0] ?? null;
   const blocks = renderDocument(memory.body, 2);
   const paragraphs: ReactNode[] = Array.isArray(blocks)

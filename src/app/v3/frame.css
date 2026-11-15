@@ -563,20 +563,6 @@ body:has(> .pp) {
   }
 }
 
-/* The Memories archive: a year is four digits in the 150 px red the reference
-   sets in four columns; "undated" (or "sem data") is a word, which at that
-   size would run across the polaroids beside it. The word keeps the year's
-   face and colour at the size that fits its four columns. */
-.pp .yb .yh.word b {
-  font-size: 88px;
-  overflow-wrap: anywhere;
-}
-@media (max-width: 720px) {
-  .pp .yb .yh.word b {
-    font-size: 64px;
-  }
-}
-
 /* A record label's two lines are one line each, inside the label: a long
    artist or album name (real catalogue names can be long) is cut with an
    ellipsis instead of running off the red circle. The vinyl is decorative
