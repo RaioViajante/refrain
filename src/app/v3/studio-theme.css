@@ -493,3 +493,18 @@
 .stu .panel > .list {
   border-top: 1px solid var(--line);
 }
+/* The streaming placeholder: the v3 Studio's paper, face, and soft blocks,
+   still with no furniture before the request is authorized. */
+.stu .studio-loading {
+  margin: 0;
+  max-width: none;
+  min-height: 100vh;
+}
+.stu .studio-loading .studio-hint {
+  font-family: var(--f-archivo), system-ui, sans-serif;
+  font-size: 14px;
+  color: var(--grey);
+}
+.stu .studio-loading .studio-skeleton > span {
+  background: var(--soft);
+}
