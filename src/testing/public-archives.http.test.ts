@@ -22,12 +22,17 @@
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 
+import { sql } from "drizzle-orm";
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
 
 // eslint-disable-next-line no-restricted-imports
 import { unpublishLanguageVersion } from "@/modules/publication/commands";
-import { createTestAlbumJournal, testAuthor } from "@/testing/fixtures";
+import {
+  createTestAlbumJournal,
+  createTestMemory,
+  testAuthor,
+} from "@/testing/fixtures";
 import {
   startProductionServer,
   type ProductionServer,
@@ -100,6 +105,9 @@ let artists: SeededArtists;
 let memories: SeededMemories;
 /** A second, older published journal about Grace's album. */
 let secondGrace: string;
+/** A published memory whose "when" names a year, which is never read as one. */
+let datedMemory: string;
+const DATED_WHEN = "[Test] The summer of 2019, more or less";
 
 let on: ProductionServer;
 const offs: ProductionServer[] = [];
@@ -152,6 +160,24 @@ beforeAll(async () => {
       ],
     }),
   );
+  datedMemory = await db().transaction(async (tx) => {
+    const entryId = await createTestMemory(tx, {
+      slug: slug("dated-memory"),
+      versions: [
+        {
+          locale: "en",
+          status: "published",
+          title: "[Test] A memory whose when names a year",
+          text: "[Test] A memory whose when names a year.",
+          publishedAt: new Date("2020-02-02T00:00:00Z"),
+        },
+      ],
+    });
+    await tx.execute(sql`
+      update memories set remembered_when = ${DATED_WHEN}
+       where entry_id = ${entryId}`);
+    return entryId;
+  });
   on = await start("true");
   for (const value of [undefined, "TRUE", "1", "true "]) {
     offs.push(await start(value));
@@ -167,6 +193,10 @@ afterAll(async () => {
       secondGrace,
     ]);
     await client.query("delete from entries where id = $1", [secondGrace]);
+    await client.query("delete from entry_slugs where entry_id = $1", [
+      datedMemory,
+    ]);
+    await client.query("delete from entries where id = $1", [datedMemory]);
     await removeSeededMemories(client, memories, prefix);
     await removeSeededArtists(client, artists, prefix);
     await removeSeeded(client, seeded, prefix);
@@ -509,6 +539,26 @@ describe("with public reads on, the Artists archive's views", () => {
     expect((await page("/artists?view=az")).body).toContain('data-view="az"');
     expect((await page("/artists?view=AZ")).body).toContain(
       'data-view="often"',
+    );
+  });
+});
+
+describe('a memory\'s "when" that names a year', () => {
+  it("is shown as written and never read as a date, on the archive and on its page", async () => {
+    const archive = await page("/memories");
+    expect(visibleText(archive.body)).toContain(DATED_WHEN);
+    expect(archive.body).not.toMatch(/class="yh/);
+    // The year appears only inside the "when" itself.
+    expect(markup(archive).split("2019").length - 1).toBe(
+      markup(archive).split(DATED_WHEN).length - 1,
+    );
+    const memory = await page(`/memories/${slug("dated-memory")}`);
+    expect(memory.status).toBe(200);
+    const text = visibleText(memory.body);
+    expect(text).toContain(DATED_WHEN);
+    expect(text).not.toMatch(/MEMORY\s*·\s*2019|FIG\. 01\s*·\s*2019/i);
+    expect(markup(memory).split("2019").length - 1).toBe(
+      markup(memory).split(DATED_WHEN).length - 1,
     );
   });
 });

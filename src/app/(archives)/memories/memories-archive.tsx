@@ -9,13 +9,15 @@ import { localizedHref } from "@/i18n/paths";
 import { v3StringsFor } from "@/i18n/v3";
 
 // The public Memories archive (docs/design-system.md, Part I, Pages:
-// Memories): kept by year, each memory a picture with its title in hand and
-// the song that brings it back. Only served memories appear, newest first, as
-// the public archive reads them.
+// Memories): each memory a picture with its title in hand and the song that
+// brings it back. Only served memories appear, newest first, as the public
+// archive reads them, with the year's margin empty: the "when" is never read
+// as a date (owner decision; ADR 0006 A6), so nothing is grouped by year
+// until the structured year of ADR 0011 § 4.2 (R6, proposed).
 //
 // A memory has no photograph yet (media is proposed, ADR 0012 § 4), so each
 // one shows the reference's empty state, lined paper with the title written
-// large. Years come from the author's own "when" (memory-shape.ts).
+// large.
 
 /** Grid places from the reference, for a section whose year sits left or right. */
 const PLACES = {
@@ -108,7 +110,7 @@ export function MemoriesArchive({
             </div>
           ) : null}
           {numbered.length > 0 ? (
-            <section className="yb" aria-labelledby="pp-h1">
+            <div className="yb">
               {numbered.map(({ card, n }, i) => {
                 const song = songLine(card);
                 return (
@@ -140,7 +142,7 @@ export function MemoriesArchive({
                   </Link>
                 );
               })}
-            </section>
+            </div>
           ) : null}
         </section>
       </main>
