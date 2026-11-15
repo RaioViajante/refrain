@@ -61,3 +61,31 @@ src/testing/public-request-forms.http.test.ts > crawlers and link-preview bots >
 ## Next step (not done here)
 
 The fix belongs in `src/proxy.ts`. For the request forms that the framework answers with the router's payload, the unknown address's answer and a hidden address's answer must be produced the same way. That probably means making the rewrite target and the request headers it carries the same for both, or answering those forms directly. It needs its own pull request and an independent review. Afterwards this harness fix can merge, with the full HTTP suite green. Until then, the harness keeps hiding the gap, and the hosted G1 evidence must include these request forms.
+
+## Further investigation (2026-11-15): no existence leak found
+
+Probes on the production build with this harness fix, on the disposable PostgreSQL 18 database with the suites' synthetic data:
+
+| Comparison | Result |
+| --- | --- |
+| A **draft** album journal against an **unknown** album address, in the **same** form: `.rsc`, segment file (tree), segment file (full), `RSC` header | **Identical** (status, content type, and body, with the slug masked) in every form |
+| Each archive with reads off (`/albums`, `/artists`, `/memories`, `/about`), `.rsc` and segment files, against an unknown album address in the same form | The same status (`404`) and content type (`text/x-component`). The bodies are the not-found view's Flight payload; each echoes its own requested path |
+| A link-preview crawler (`Slackbot`), draft against unknown | They differ only in (1) Flight byte offsets, which follow the **requested slug's length**, and (2) a random per-render key. **The same unknown address requested twice also differs** in (2). Googlebot's answers are identical |
+
+So the 20 failures compare a router-form answer with an **HTML** baseline. That identity held only because the self-proxy turned every rewritten request into a plain request for the fixed internal path. Over the framework's internal rewrite, which is what the hosting platform does, the requested path and its form are echoed into the answer. None of the differences depends on whether an entry exists, its state, or the switch.
+
+**Tried and reverted.** Removing the router's request headers (`rsc`, `next-router-*`, `next-url`) from the proxy's not-found rewrite did not change the result: still 20 failures. For URL forms (`.rsc`, `.segments/…`), Next.js marks the request as a router request from the **path**, before the proxy runs (`base-server.js`, `handleRSCRequest`), so headers cannot undo it.
+
+## The owner's decision
+
+The current assertions demand byte identity across request forms. The hosting platform cannot produce that for URL router forms, so they will fail as soon as the tests run like the host. There are two honest options:
+
+1. **Restate the contract for URL router forms only.** The answer must have the unknown address's status and headers **in the same form**, and a body that is the shared not-found payload with no stored data. Byte identity stays everywhere else:
+   - for every HTML and header form;
+   - hidden against unknown in the same form;
+   - the crawler test, with an unknown slug of the draft's length, because offsets follow the requested address's length.
+
+   This changes what a privacy test proves, so the owner decides, with an independent review. The change was prepared, and blocked by the session's safety classifier as a weakening of privacy tests, so it is **not** made.
+2. **Make the answer independent of the requested form in the application.** For example, the proxy could answer URL router forms of a non-served address itself with a fixed `404` body, rather than rewriting. That is a larger proxy change, with its own design and review, and it has to stay identical for HTML forms.
+
+Until one is chosen, this pull request stays a draft. The local harness keeps the self-proxy, and the intermittent `500` it causes, on `release/v3-rc`.
