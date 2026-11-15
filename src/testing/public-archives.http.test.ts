@@ -80,8 +80,18 @@ const buildId = readFileSync(".next/BUILD_ID", "utf8").trim();
 const author = testAuthor();
 const ORIGIN = "https://refrain.example";
 
-const ARCHIVES = ["albums", "artists", "memories"] as const;
+// The About page (v3, ADR 0011 § 4.4, proposed) is answered as the archives
+// are: the same switch, the same methods, the same unknown address.
+const ARCHIVES = ["albums", "artists", "memories", "about"] as const;
 type Archive = (typeof ARCHIVES)[number];
+
+/** The route group a section's page sits in, as its segment paths name it. */
+const GROUP: Record<Archive, string> = {
+  albums: "!KGFyY2hpdmVzKQ", // (archives)
+  artists: "!KGFyY2hpdmVzKQ",
+  memories: "!KGFyY2hpdmVzKQ",
+  about: "!KGFib3V0KQ", // (about)
+};
 
 let client: Client;
 const db = () => fixtureDatabase(client);
@@ -169,7 +179,13 @@ afterAll(async () => {
 function archiveForms(
   archive: Archive,
 ): [string, string, RequestInit & { rsc?: boolean }, string][] {
-  const unknown = `/${archive}/${slug("nothing")}`;
+  // The proxy's unknown address in the same section; About has no addresses
+  // under it (`/about/<x>` is any unmatched path), so it is compared with an
+  // unknown album's, the proxy's same answer.
+  const unknown =
+    archive === "about"
+      ? `/albums/${slug("nothing")}`
+      : `/${archive}/${slug("nothing")}`;
   const rsc = { rsc: "1", "next-router-prefetch": "1" };
   return [
     ["GET", `/${archive}`, {}, unknown],
@@ -207,7 +223,7 @@ function archiveForms(
         rsc: true,
         headers: {
           ...rsc,
-          "next-router-segment-prefetch": `/!KGVuKQ/!KGFyY2hpdmVzKQ/${archive}/__PAGE__`,
+          "next-router-segment-prefetch": `/!KGVuKQ/${GROUP[archive]}/${archive}/__PAGE__`,
         },
       },
       unknown,
@@ -228,7 +244,7 @@ function archiveForms(
     ],
     [
       "segment file (page)",
-      `/${archive}.segments/!KGVuKQ/!KGFyY2hpdmVzKQ/${archive}/__PAGE__.segment.rsc`,
+      `/${archive}.segments/!KGVuKQ/${GROUP[archive]}/${archive}/__PAGE__.segment.rsc`,
       {},
       unknown,
     ],
@@ -397,6 +413,45 @@ describe("with public reads on, the Albums archive", () => {
     );
   });
 
+  it("lists the same served journals in every order of `?sort=`, and echoes nothing it is sent", async () => {
+    const written = hrefs(await page("/albums"), "albums");
+    for (const sort of ["year", "artist", "rating", "written"]) {
+      const sorted = await page(`/albums?sort=${sort}`);
+      expect(sorted.status, sort).toBe(200);
+      expect(sorted.headers["cache-control"], sort).toMatch(/no-store/);
+      expect(hrefs(sorted, "albums"), sort).toEqual(written);
+      // The chosen order is the current one.
+      expect(sorted.body, sort).toMatch(
+        new RegExp(
+          `aria-current="true" href="/albums(?:\\?sort=${sort})?#pp-list"`,
+        ),
+      );
+    }
+    // Anything else is the order written, and is never written back.
+    for (const odd of [
+      "?sort=%3Cscript%3Ex%3C%2Fscript%3E",
+      "?sort=year&sort=artist",
+      "?sort=YEAR",
+      `?sort=${"x".repeat(5000)}`,
+    ]) {
+      const got = await page(`/albums${odd}`);
+      expect(got.status, odd).toBe(200);
+      expect(hrefs(got, "albums"), odd).toEqual(written);
+      // Never as markup; the framework's router payload records the request's
+      // own address, escaped, inside its script, as on every page.
+      expect(got.body, odd).not.toContain("<script>x");
+      expect(markup(got), odd).not.toContain("x".repeat(100));
+      expect(markup(got), odd).not.toContain("script>x");
+      expect(got.body, odd).toContain(
+        'aria-current="true" href="/albums#pp-list"',
+      );
+    }
+    for (const hidden of [slug("draft"), slug("private"), slug("deleted")]) {
+      const sorted = await page(`/albums?sort=artist`);
+      expect(hrefs(sorted, "albums")).not.toContain(`/albums/${hidden}`);
+    }
+  });
+
   it("stops linking a journal on the next request after it is unpublished", async () => {
     const before = hrefs(await page("/albums"), "albums");
     expect(before).toContain(`/albums/${slug("grace-again")}`);
@@ -432,6 +487,28 @@ describe("with public reads on, the Artists archive", () => {
     // Every response under /artists/ keeps the artist pages' policy.
     expect(list.headers["content-security-policy"]).toBe(
       ARTIST_CONTENT_SECURITY_POLICY,
+    );
+  });
+});
+
+describe("with public reads on, the Artists archive's views", () => {
+  it("lists the same artists in both views of `?view=`, and echoes nothing it is sent", async () => {
+    const cloud = hrefs(await page("/artists"), "artists");
+    for (const query of [
+      "?view=az",
+      "?view=often",
+      "?view=%3Cb%3E",
+      "?view=AZ",
+    ]) {
+      const got = await page(`/artists${query}`);
+      expect(got.status, query).toBe(200);
+      expect(got.headers["cache-control"], query).toMatch(/no-store/);
+      expect(hrefs(got, "artists"), query).toEqual(cloud);
+      expect(markup(got), query).not.toContain("<b>");
+    }
+    expect((await page("/artists?view=az")).body).toContain('data-view="az"');
+    expect((await page("/artists?view=AZ")).body).toContain(
+      'data-view="often"',
     );
   });
 });
@@ -585,6 +662,70 @@ describe("every archive response", () => {
   });
 });
 
+describe("the About page, in both languages", () => {
+  const ABOUT = ["/about", "/pt/about"] as const;
+
+  it("answers 200 to GET and HEAD with reads on, never storable, naming no entry", async () => {
+    for (const path of ABOUT) {
+      for (const method of ["GET", "HEAD"]) {
+        const got = await request(on.baseURL, path, { method });
+        expect(got.status, `${method} ${path}`).toBe(200);
+        expect(got.headers["cache-control"], `${method} ${path}`).toMatch(
+          /no-store/,
+        );
+        expect(got.headers["x-nextjs-cache"], `${method} ${path}`).toBe(
+          undefined,
+        );
+        expect(got.body, `${method} ${path}`).not.toContain(prefix);
+        expect(got.body, `${method} ${path}`).not.toContain("[Test]");
+      }
+    }
+  });
+
+  it("refuses every other method with reads on: 405, GET and HEAD allowed, no-store", async () => {
+    for (const path of ABOUT) {
+      for (const method of ["POST", "PUT", "PATCH", "DELETE", "OPTIONS"]) {
+        const got = await request(on.baseURL, path, { method });
+        expect(got.status, `${method} ${path}`).toBe(405);
+        expect(got.headers.allow, `${method} ${path}`).toBe("GET, HEAD");
+        expect(got.headers["cache-control"], `${method} ${path}`).toBe(
+          "no-store",
+        );
+        expect(got.body, `${method} ${path}`).toBe("");
+      }
+    }
+  });
+
+  it("is the unknown address in Portuguese too while reads are off, in every method and transport form", async () => {
+    const unknown = `/pt/memories/${slug("nothing")}`;
+    const forms: [string, string, RequestInit & { rsc?: boolean }][] = [
+      ["GET", "/pt/about", {}],
+      ["HEAD", "/pt/about", { method: "HEAD" }],
+      ["POST", "/pt/about", { method: "POST" }],
+      ["PUT", "/pt/about", { method: "PUT" }],
+      ["DELETE", "/pt/about", { method: "DELETE" }],
+      ["OPTIONS", "/pt/about", { method: "OPTIONS" }],
+      ["RSC", "/pt/about", { rsc: true }],
+      [".rsc", "/pt/about.rsc", {}],
+      ["segment file", "/pt/about.segments/_tree.segment.rsc", {}],
+      ["percent-encoded", "/pt/%61bout", {}],
+    ];
+    for (const off of offs) {
+      for (const [name, path, init] of forms) {
+        const expected = masked(await request(off.baseURL, unknown, init), [
+          slug("nothing"),
+        ]);
+        const got = masked(await request(off.baseURL, path, init), []);
+        expect(got.status, name).toBe(404);
+        expect(
+          { ...got, body: got.body.replaceAll("SLUG", "") },
+          `${name} on a server whose switch is off`,
+        ).toEqual({ ...expected, body: expected.body.replaceAll("SLUG", "") });
+      }
+    }
+  });
+});
+
 describe("the shared navigation", () => {
   const navOf = (snapshot: Snapshot) => {
     const nav = markup(snapshot).match(
@@ -643,9 +784,11 @@ describe("the sitemap", () => {
   it("lists the archives with every served address while reads are on, and is unknown while they are off", async () => {
     const sitemap = await page("/sitemap.xml");
     expect(sitemap.status).toBe(200);
-    for (const archive of ARCHIVES) {
+    // The three archives; the About page is not listed in the sitemap.
+    for (const archive of ARCHIVES.filter((section) => section !== "about")) {
       expect(sitemap.body).toContain(`<loc>${ORIGIN}/${archive}</loc>`);
     }
+    expect(sitemap.body).not.toContain(`${ORIGIN}/about`);
     const albums = hrefs(await page("/albums"), "albums");
     const listedAlbums = [
       ...sitemap.body.matchAll(/<loc>[^<]*?(\/albums\/[^<]+)<\/loc>/g),

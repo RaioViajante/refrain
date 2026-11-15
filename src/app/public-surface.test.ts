@@ -1278,6 +1278,38 @@ describe("the Publication reading module", () => {
     }
   });
 
+  // The v3 artist page renders the photograph itself (the torn halves), from
+  // `PublicArtist.photo`, the one public value that carries it. Comments
+  // aside, only the artist page's own files may touch a `.photo` value or
+  // draw an image from one.
+  const PHOTO_VALUE =
+    /\.photo\b|\bphoto\.(?:src|srcSet|credit|alt|width|height)\b/;
+  const code = (file: string) =>
+    readFileSync(file, "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "");
+
+  it("draws an artist photograph only on the artist page", () => {
+    const pages = publicFiles().filter((file) => file.startsWith("src/app/"));
+    const touching = pages.filter((file) => PHOTO_VALUE.test(code(file)));
+    expect(touching.length).toBeGreaterThan(0);
+    for (const file of touching) {
+      expect(file, file).toMatch(
+        /^src\/app\/\((?:artists)\)\/|^src\/app\/\(public\)\/_components\/(?:artist-photograph|public-photo-image)\.tsx$/,
+      );
+    }
+    expect(touching).toContain(
+      "src/app/(artists)/artists/[slug]/artist-view.tsx",
+    );
+  });
+
+  it("would notice a photograph drawn outside the artist page", () => {
+    expect(PHOTO_VALUE.test("<img src={artist.photo.src} />")).toBe(true);
+    expect(PHOTO_VALUE.test("const p = artist.photo;")).toBe(true);
+    expect(PHOTO_VALUE.test("photo.srcSet")).toBe(true);
+    expect(PHOTO_VALUE.test("const photographs = []")).toBe(false);
+  });
+
   it("would notice a photo column read by a public file", () => {
     expect(PHOTO_WORDS.test("select a.photo_url from artists a")).toBe(true);
     expect(PHOTO_WORDS.test("artist.photoCredit")).toBe(true);

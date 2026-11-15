@@ -336,6 +336,40 @@ describe("public reads enabled: a published journal", () => {
     expect(body).not.toContain('href="/studio');
   });
 
+  it("links its previous and next journals only to served journals, at their current addresses", async () => {
+    // Each published journal's crate (`listPublicAlbumArchive`'s neighbours).
+    const servedHere = [slug("grace"), slug("new")];
+    const hiddenHere = [
+      slug("draft"),
+      slug("private"),
+      slug("deleted"),
+      slug("old"),
+      slug("hidden-old"),
+    ];
+    let linked = 0;
+    for (const address of servedHere) {
+      const { body } = await request(on.baseURL, `/albums/${address}`);
+      const crate =
+        /<nav[^>]*class="crate wrap"[\s\S]*?<\/nav>/.exec(body)?.[0] ?? "";
+      const hrefs = [...crate.matchAll(/href="(\/albums\/[^"#?]+)"/g)].map(
+        (match) => match[1]!,
+      );
+      for (const href of hrefs) {
+        linked += 1;
+        const answer = await request(on.baseURL, href);
+        expect(answer.status, `${address} -> ${href}`).toBe(200);
+        for (const hidden of hiddenHere) {
+          expect(href, `${address} -> ${href}`).not.toBe(`/albums/${hidden}`);
+        }
+      }
+      for (const hidden of hiddenHere) {
+        expect(crate, `${address}: ${hidden}`).not.toContain(hidden);
+      }
+    }
+    // The two served journals are each other's neighbours, at least.
+    expect(linked).toBeGreaterThan(0);
+  });
+
   it("has the title, description, and Open Graph tags of a public page only", async () => {
     const { body } = await request(on.baseURL, `/albums/${slug("grace")}`);
     expect(body).toContain("<title>Grace · Jeff Buckley · refrain</title>");
