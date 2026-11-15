@@ -176,7 +176,12 @@ The reference's centred box (`src/app/studio/sign-in/`):
 
 ## Review fixes after the independent audit (2026-11-15)
 
-An independent security review of `cd0b9a8` (a separate agent, read-only) asked for changes; a second one reviewed the fixes and answered **GO** (no Critical, High, or Medium finding). Its two Low findings are fixed too.
+Three independent security reviews, each by a separate agent with read-only access, none told the others' conclusions:
+1. of `cd0b9a8`: changes requested (S1 to S7 below);
+2. of the fixes, `cd0b9a8..b422653`: **GO** (no Critical, High, or Medium finding), with two Low findings, fixed in `2dfb951` and `a2321a4`;
+3. of those fixes and the last CSS change, `b422653..e7deaf7`: **GO**, with Low findings about the guards' strength, a test with a "when" that names a year, and this document's wording, fixed in `4171518` and here.
+
+The reviewers read code and ran no tests; the test results below are from the runs recorded in Verification.
 
 | Finding | Severity | Fix | Proof |
 | --- | --- | --- | --- |
@@ -189,6 +194,8 @@ An independent security review of `cd0b9a8` (a separate agent, read-only) asked 
 | S7: a test title promised more than it checked | Low | Title corrected; the whole-writing check stays in HTTP | `e2e/archives.spec.ts` |
 | Second review: the archive and the memory page still read the "when" as a year | Low | Removed (see the adaptations) | `public-surface.test.ts` ("never parses a memory's \"when\" on a public page"); `public-archives.http.test.ts` |
 | Second review: no regression guard for S1 | Low | The two S1 tests above | — |
+| Third review: the guards were regular expressions, easy to evade | Low | Both read the syntax tree: every `rememberedWhen` may only be rendered, tested for presence, or carried into a rendered property; the Home's whole tree (screen, view, both routes) imports only `getPublicHome` and the switch, no namespace import, and calls it once | `public-surface.test.ts`, with a self-check for each evasion it names |
+| Third review: no test used a "when" that names a year | Low | A published memory whose "when" is "[Test] The summer of 2019, more or less": the year appears only inside that text, on the archive and on its page | `public-archives.http.test.ts` ("a memory's \"when\" that names a year") |
 
 **Coverage restored** (dropped with the V4.4 specs, now written for v3):
 - G2 on the Home (above);
@@ -205,6 +212,16 @@ An independent security review of `cd0b9a8` (a separate agent, read-only) asked 
 - **The reveal flash.** The runtime armed the entrances after hydration, so what was already on screen showed, vanished, and entered again. The page is now sent armed (`io`), with a `<noscript>` style (a static string, no data) that shows everything without JavaScript, and a CSS fail-safe that shows everything after three seconds if the runtime never marks the page ready. On a slow device whose runtime arrives after those three seconds, what is on screen may still blink once; not measured.
 - **The orbit.** The reference's rings hold 8, 12, and 16 covers at 19, 31, and 43 % (read from its markup); the third ring held 18. Fixed. A fourth ring past 36 journals holds 20 (D20, proposed).
 - Record labels cut long names with an ellipsis inside the label (they ran off it on a phone).
+- A white label keeps its words on the sleeve; in the Albums orbit on a phone (covers about 35 px) it shows its ring only, as a blank label does, and the list below names every album. The title had run down over the neighbouring covers.
+
+**Measured after the fixes**, on the production build, at 1440 and 390 px:
+- the four Albums orders and the two Artists views: every link 44 px tall, inside the viewport, the chosen one `aria-current`; no sideways scrolling; A to Z shows the dividers and hides the cloud;
+- every record label's lines stay inside the label; a long one is cut, not spilled;
+- the Home board's label (a long "when") is one line cut with an ellipsis, inside the viewport at 390 px;
+- no orbit cover spills its text, at either width;
+- the Memories archive has no year heading.
+
+Side-by-sides of the corrected areas against the reference (Memories, the memory page on a phone, the Home's sleeve, the sorted Albums list on a phone) were inspected locally; the images are not committed.
 - The approved favicon and touch icon are linked from both roots and the global 404, as plain `<head>` links: `metadata.icons` streams a marker whose row order differed between two answers of the same page, which the A6 parity check caught.
 
 **Remaining differences from the reference**, each waiting on a decision or a later milestone:
@@ -262,24 +279,24 @@ The comparison images and figures are local only; nothing from `reference/` is c
 
 ## Verification
 
-Each check was run on the branch on 2026-11-15, at `a2321a4` (the review fixes), and its output was read. Database suites ran on a freshly reset disposable test database (`pnpm db:test:down && pnpm db:test:up`); no persistent or hosted database was touched.
+Each check was run on the branch on 2026-11-15, at `4171518` (the review fixes; the next commit changes only this document), and its output was read. Database suites ran on a freshly reset disposable test database (`pnpm db:test:down && pnpm db:test:up`); no persistent or hosted database was touched.
 
 | Check | Result |
 | --- | --- |
 | `pnpm lint` | Clean |
 | `pnpm format:check` | Clean |
 | `pnpm typecheck` | Clean |
-| `pnpm test` | 57 files, 1,295 tests passed |
+| `pnpm test` | 57 files, 1,296 tests passed |
 | `pnpm test:integration` | 37 files, 805 tests passed |
-| `pnpm test:http` (production build) | 20 files, 782 tests passed |
+| `pnpm test:http` (production build) | 20 files, 783 tests passed |
 | `pnpm test:e2e` (production build, every project) | **357 passed, 0 failed, 4 skipped** |
-| Independent security review of the fixes (separate agent, read-only) | **GO**: no Critical, High, or Medium finding; its two Low findings fixed in `2dfb951` and `a2321a4` |
+| Independent security reviews of the fixes (separate agents, read-only, no tests run) | **GO** twice (`cd0b9a8..b422653`, `b422653..e7deaf7`): no Critical, High, or Medium finding; their Low findings fixed in `2dfb951`, `a2321a4`, and `4171518` |
 
 The 4 skips are conditional, and none hides a check:
 - `public-artwork.spec.ts` "screenshots with the cover, when asked for", at 1440 and 390 px, and `ratings.spec.ts` "captures the studio's rating in the named states": screenshot jobs that run only with `E2E_SCREENSHOTS=1`;
 - `memories.spec.ts` "shows an empty Memories page" at 390 px: it runs only at desktop width, on a database without memories.
 
-**One intermittent browser failure, not reproduced.** While the review fixes were made, one combined run of the archives, memory-page, Home, and i18n-public specs answered `500` instead of `404` for a draft memory's address at 1440 px (`memory-page.spec.ts`, "answers the shared not-found view for a memory that is not public…"). The same test passed at 390 px in that run, in three runs of the spec alone, in two more combined runs, and in the full run above. The server's message was not kept. If it recurs, keep `test-results/` and the server's output before rerunning.
+**One intermittent browser failure, not reproduced.** While the review fixes were made, one combined run of the archives, memory-page, Home, and i18n-public specs answered `500` instead of `404` for a draft memory's address at 1440 px (`memory-page.spec.ts`, "answers the shared not-found view for a memory that is not public…"). The same test passed at 390 px in that run, in three runs of the spec alone, in two more combined runs, and in the full run above. The server's message was not kept. Three more combined runs, with `public-artwork.spec.ts` added and `E2E_KEEP_SERVER_LOG=1` to keep the server's output, passed (94 each); it has not recurred. If it does, keep `test-results/` and `test-results/server.log` before rerunning.
 
 **A local visual run once left synthetic seed rows in the test database**, which broke 12 integration tests. Resetting it before each database suite avoids that.
 
