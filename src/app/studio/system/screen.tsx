@@ -49,7 +49,7 @@ async function System({ locale }: { locale: InterfaceLocale }) {
           <p className="say" data-a="up" data-d="2">
             {t.say}
           </p>
-          <nav className="idxs" aria-label="{t.h1}" data-a="fade" data-d="4">
+          <nav className="idxs" aria-label={t.h1} data-a="fade" data-d="4">
             <a href="#pp-s1">
               <span className="n">01</span>
               {t.s1}
