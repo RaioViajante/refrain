@@ -1,18 +1,428 @@
 # Design System
 
-**Status:** visual identity approved (design V4.4, October 31, 2026). **Implemented for the Writing Studio** ([working specification](design/studio-visual-fidelity.md)), **since M3.1 for the first public page, the album journal** ([below](#public-album-journal-m31)), **since M3.4 for the Home** ([below](#public-home-m34)), **since M3.5 for the artist page** ([below](#public-artist-page-m35)), **since M3.6 for the studio's memory editor** ([below](#memories-studio-m36)), **since M3.7 for the public memory page** ([below](#public-memory-m37)), **and since M3.8a for the three public archives and the four-section navigation** ([below](#public-archives-m38a)); artist journals have no public page yet. This document summarizes the approved design for implementation. It does not redesign anything.
+**Status:**
+- **Part I** is the specification of **Refrain v3**, the design the owner approved as final on 2026-11-15. It replaces V4.4.
+  - Its authority over the code is **proposed** in [ADR 0011](decisions/0011-refrain-v3-identity-and-product.md), which is not accepted yet.
+  - **None of Part I is implemented.** It is built milestone by milestone in the [R track](roadmap.md#refrain-v3-rebuild-r-track).
+- **Part II** is the V4.4 specification, unchanged. It still describes, and governs, every surface on `main` until the R milestone that replaces that surface is merged.
+
+The two identities are named by their design files. "v3" (November 2026) is newer than "V4.4" (October 2026); the numbers are not a sequence ([ADR 0011, Context](decisions/0011-refrain-v3-identity-and-product.md#context)).
+
+# Part I — Refrain v3 specification
 
 ## Authority
 
+Once [ADR 0011](decisions/0011-refrain-v3-identity-and-product.md) is accepted, these sources rank as follows:
+
+1. **The approved v3 screens.** These are the full-page captures at 1440 px and at 390 px (2×) in the owner's local reference workspace (`reference/screens/public/`, `reference/screens/studio/`, `reference/screens/share/`).
+2. **The v3 source files.** One `.dc.html` per screen (`reference/source/public/`, `reference/source/studio/`), holding the HTML, CSS, copy (`const t = { en, pt }`), and logic (`renderVals()`).
+   - `support.js`, the canvas runtime the files reference, is not part of the design.
+   - Each `…Mobile` file is the same file at a 390 px preview; the phone layout is its `@media (max-width: 720px)` block.
+3. **`reference/code/tokens.css` and `reference/code/sfx.js`.**
+4. **This Part I.** It is a transcription. Where it disagrees with 1 to 3, this document is corrected.
+
+**The reference is local only.** These paths are descriptions, not links. Code, tests, CI, and committed documentation never load or link them ([`AGENTS.md` § 6](../AGENTS.md#6-design-system-boundaries)). The implementation must be possible from this document and the tracked assets.
+
+**Fidelity.**
+- The design is implemented as drawn. It is not restyled, it is not simplified into generic cards, and its interactions are not dropped.
+- Where a drawn behaviour conflicts with an accepted contract, the visual treatment is kept and the behaviour is adapted, as listed in [ADR 0011 § 3](decisions/0011-refrain-v3-identity-and-product.md#3-conflicts-between-the-drawn-design-and-accepted-contracts).
+- Bracketed text in the reference (`[Your opening sentence.]`, `[memory title]`, `[initials]`) marks the author's words before they exist. **On real pages an empty field is not rendered, and bracketed text never reaches public HTML.**
+- Some notes in the reference are designer notes (the `.pnote` blocks explaining placeholder covers, names, and years), not site copy.
+
+## Concept and principles
+
+**"The booklet of a record that belongs to you."** An intimate, nostalgic music journal made of physical things:
+- records and sleeves;
+- photographs, polaroids, and prints;
+- kraft tape;
+- lined paper;
+- a torn navy sheet;
+- the author's own handwriting in pen blue.
+
+Its principles, from the reference's own rules page:
+
+1. **Paper and ink, seven colours and no more.** Covers keep a soft colour; memory and artist photographs are black and white with grain. A photo appears once per page.
+2. **Four voices, one job each** (see [Type](#type)).
+3. **Placed, never thrown.** Things arrive, settle, and stay. Motion follows the reader's scroll. With reduced motion, nothing moves and everything is already in place.
+4. **Sound only for the moments.** Off until the reader turns it on.
+5. **The author's words are the author's.** Opinions, memories, and notes are never generated. No lyrics, ever: song titles yes, lyrics never.
+6. **Links are never underlined.** Hover draws a pen circle, leaving erases it, choosing keeps it. The current page and language stay circled.
+7. **Access.** A pen-blue focus outline, readable contrast, nothing hidden without a way back, reduced motion respected.
+8. **Space.** Things overlap a little, but text never sits on top of text.
+
+## Colour
+
+| Token | Value | Use |
+| --- | --- | --- |
+| `--paper` | `#ECE9E3` | Every page, with the paper texture multiplied on top (tiled at 1300 px wide) |
+| `--ink` | `#141311` | Text, records, headlines; never pure black |
+| `--burg` (record red) | `#8C2A22` | The name, record labels, the one main button, small labels |
+| `--pen` (pen blue) | `#2B45C4` | Everything written by hand, pen circles, focus |
+| `--navy` | `#1E2840` | The navy sheet: the memory board and the footer, with its texture (tiled at 900 px) |
+| `--kraft` | `#D6C29A` | Kraft tape, year labels, small tags |
+| `--sleeve` | `#F6F4EF` | Sleeves, polaroids, cards |
+| `--grey` | `#6E6A63` | Secondary text |
+| `--lined` | `#E9D2A6` | Lined paper, with its texture |
+
+**Secondary values** used by the source:
+
+| Value | Use |
+| --- | --- |
+| `#3A3732` | Secondary body text |
+| `#A39E95` | Placeholder rows, design only |
+| `#EDEAE3` | Text on navy |
+| `#9BA0AE` | Muted text on navy |
+| `#F7F6F2` | Polaroid |
+| `#FBFAF6` | Print |
+| `#2A241A` | Text on kraft |
+| `#F2E9DF` | Record-label text |
+
+**Contrast** (measured on the flat colours; the paper texture darkens the background a little):
+
+| Pair | Ratio | Result |
+| --- | --- | --- |
+| Ink on paper | 15.3:1 | Passes |
+| Red on paper | 7.0:1 | Passes |
+| Pen on paper | 6.3:1 | Passes |
+| Pen on lined | 5.2:1 | Passes |
+| `#EDEAE3` on navy | 12.2:1 | Passes |
+| **Grey on paper** | **4.44:1** | **Below WCAG AA for small text** |
+| **Grey on kraft** | **3.08:1** | **Below WCAG AA** |
+
+Proposed fix (ADR 0011, D10): small grey text uses `#67635C` (4.93:1), and grey text is never set on kraft.
+
+## Type
+
+| Face | Weights | Job | Notes |
+| --- | --- | --- | --- |
+| **Archivo** | 400, 500, 700, 800, and 400 italic | The name, headlines, body text | Body 17/1.5. The name is 800 with tracking −0.055em |
+| **Instrument Serif** | Italic, and roman | The voice that answers a headline | Roman for the album journal's `h1` and sleeve titles |
+| **Silkscreen** | — | Labels, tracklists, numbers, dates | "Like the back of a sleeve" |
+| **La Belle Aurore** | — | Anything the author writes | Margin notes, track notes, memories, kraft labels, signatures. It stays in the language it was written in |
+
+- **Scale samples:** 150 / 88 / 64 / 44 / 30 / 19 / 17 / 15 / 12 px.
+- **Loading:** the reference loads Archivo, Instrument Serif, and Silkscreen from Google Fonts, and La Belle Aurore from a local file. The implementation self-hosts all four with `next/font`, so there is no runtime request to Google.
+- **Checks before use:** compare La Belle Aurore with the reference's file (D11), and confirm the Brazilian Portuguese glyphs (ã, õ, ç, é, ê) in every face.
+
+## Grid and spacing
+
+| Property | Value |
+| --- | --- |
+| Columns | 12 |
+| `--max` | `1280px`, *including* the margins; `.wrap` is `max-width: 1280px; padding: 0 40px`, so the content is 1200 px |
+| `--gutter` | `24px` |
+| `--margin` | `40px` |
+| `--margin-phone` | `20px` |
+| Breakpoint | One, `max-width: 720px` |
+
+## Physical objects
+
+Each object is built with CSS and SVG as drawn, never with a component-library card. Its decorative parts are `aria-hidden` and sit behind real semantic elements.
+
+| Object | Construction |
+| --- | --- |
+| **Vinyl** | Grooves as a `repeating-radial-gradient(#0E0E0E 0 1.4px, #1B1B1B 1.9px, #101010 2.8px)`, plus inset rings. A fixed conic sheen with highlights near 22° and 204°. A record-red label at inset 33% (31% on the Home hero), with a paper-coloured spindle hole. The label holds a handwritten line and a pixel line. An optional ring text on an SVG `textPath` ("SOME SONGS TAKE YOU BACK · KEPT BY HAND · SIDE A · 33 RPM") turns once every 70 s |
+| **Sleeve front** | A sleeve-coloured card (padding 34 px) with the serif title, the cover (`sepia(.18) saturate(.85)`), the year in serif, and the artist in handwriting. The vinyl emerges to one side by `--vx` (−58% for a front, 58% for a back, −40% for the album-journal back, artist shelf, and About). Hover moves it 40 px more |
+| **Sleeve back** | A pixel tracklist, a faint serif monogram (250–380 px, ink at 5–7%), the favourite circled with "the one", "MY RATING [4.5]" in handwriting, "WRITTEN TRACK BY TRACK" |
+| **Polaroid** | `#F7F6F2`, padding 11 11 0, a handwritten title, the shadow `0 22px 30px -18px`, a slight rotation, a 6 px lift on hover. Attached by a **pin** (a 20 px red radial ball) or **tape** (a 110×28 kraft strip with a fibre gradient and a ragged 16-point polygon). On the Home, a pixel caption "♪ TITLE" |
+| **Kraft label** | Kraft with fibres, handwriting at 22 px, a ragged polygon clip (2–5% at each end). A link variant in Archivo 14 px |
+| **Tape** | The two tape images at 120 px, opacity .78, `saturate(.55) brightness(1.08)`, rotated |
+| **Print** | `#FBFAF6`, padding 14 14 40, rotated −3° to −4°, a pixel caption "FIG. 01 · year" |
+| **Lined sheet** | Lined colour and texture with a red margin line (`rgba(170,60,60,.35)` at 34 px). Handwriting at 30 px on a 56.7 px line height, matched to the ruling |
+| **Torn navy sheet** | The torn top edge image, the navy sheet, and the torn bottom edge image, with −2 px overlaps. The footer has only the top edge |
+| **Torn photo strip** | A rectangle clipped by a 27-point top edge and a 27-point bottom edge (about −0.8% to 5.3%, and 94.6% to 100.6%) |
+| **Pen ring** | An inline SVG (`viewBox 0 0 120 50`, or 80×50 for EN/PT, `preserveAspectRatio="none"`). The path has `pathLength=1` and `stroke-dasharray: 1`, with `vector-effect: non-scaling-stroke` and a pen-blue stroke of 1.4. Drawn on hover and focus in .45 s `cubic-bezier(.25,.6,.35,1)`; rewound in .5 s `cubic-bezier(.3,.15,.45,1)`; kept drawn for `aria-current="page"`, `aria-pressed="true"`, the favourite track, and the rating. **Each item's hand-drawn path is copied verbatim from the source** |
+| **Pill button** | Record red with a 999 px radius and at least 44 px tall, for the one main action. The ghost variant has a 1 px inset ink outline, for everything else |
+
+## Motion
+
+**Timing.** Elements carry `data-a` (the kind) and `data-d` (0 to 24, in steps of 110 ms). A single IntersectionObserver (threshold .12, `rootMargin: 0px 0px -6% 0px`) adds `.on` once, then stops observing the element. Default duration 1.1 s, easing `cubic-bezier(.2,.8,.2,1)`, fill `backwards`.
+
+| `data-a` | From | Duration and easing |
+| --- | --- | --- |
+| `up` | opacity 0, translate 0 46 px | 1.1 s |
+| `fade` | opacity 0 | 1.6 s |
+| `left` / `right` | translate ∓120 px | 1.4 s |
+| `drop` | translateY(−90 px) rotate(−12°), opacity 1 at 55% | 1.1 s `(.3,1.2,.4,1)` |
+| `place` | translateY(40 px) rotate(6°) scale(1.08) | 1.2 s |
+| `pop` | scale .2 | .7 s `(.3,1.5,.5,1)` |
+| `write` | `clip-path: inset(-10% 100% -10% 0)` → `inset(-10% -2% -10% 0)`, a left-to-right wipe | 3.2 s `(.45,.1,.4,1)` |
+| `rec` | translateY(−38%) rotate(−200°) | 2.2 s `(.16,1,.3,1)` |
+| `word` | translate 0 .6 em, blur 6 px | 1 s |
+| `sleeve` | The wrapper rises (`up`). The vinyl then pulls out (`translate: var(--vx) 0; rotate: -120deg`) | 1.6 s `(.16,1,.3,1)`, delayed `--d + .45s` |
+
+**Page motion**
+
+| Motion | Where | Behaviour |
+| --- | --- | --- |
+| Hero | The Home | A passive, rAF-throttled scroll listener sets `--hp` (0 to 1). "re" moves −180 px and "frain" +180 px, the label turns 320°, the record drops 140 px, and the subtitle and note fade out |
+| Orbit | `/albums` | Each ring spins (`spin`) while its covers counter-rotate (`unturn`). Covers grow in (`a-grow`, .9 s) with staggered delays |
+| Board path | The memory board | A dashed path revealed by a mask over 7 s |
+| Torn photo | The artist page | The two halves tear apart (`a-tl` / `a-tr`, 1.7 s `(.7,0,.2,1)`, from ±25%), then the labels rise in sequence |
+| Track leaf | The album journal | Unfolds in .5 s |
+| 404 record | The 404 | Skips: `rotate` 0 → 112 → 96 → 210 → 194 → 360°, 7 s, linear, infinite |
+| Sound toggle | The footer | The waves pulse (`sw`, 1.2 s) while sound is on |
+
+**Implementation rules**
+- **Without JavaScript or IntersectionObserver,** nothing is hidden: the class that arms the animations is added only by script, before first paint.
+- **`prefers-reduced-motion: reduce`:** every `[data-a]` is at opacity 1 with no animation or transition, the hero is static, and the scroll listener is not attached.
+- **Off-screen and reduced motion:** the orbit pauses.
+- **Teardown:** listeners and observers are removed on unmount and route change.
+
+## Sound
+
+Every sound is synthesized with Web Audio; there are no audio files. The reference's engine is `makeSfx`/`sfxReveal`.
+
+**Lifecycle**
+- The AudioContext is created only when the reader turns sound on with the footer toggle (a user gesture).
+- Master gain .45.
+- Turning sound on plays the needle; turning it off suspends the context.
+- At most 7 sounds per 400 ms.
+- Sound is off on every visit. The setting lasts for the tab and is not remembered (D21).
+- No loops, no ambient noise, no sound per word.
+
+| Moment | Sound |
+| --- | --- |
+| Sound turned on; a record arrives (`rec`) | Needle (`rec`) |
+| `sleeve` | Slide (`sleeve`) |
+| `drop` | Pin (`drop`) |
+| `place` | Paper (`place`) |
+| `pop` | Tape (`pop`) |
+| `write` | Pencil (`write`) |
+| `left` / `right` | Whoosh |
+| The orbit | `grow` for every sixth cover, plus `rec` |
+| The torn photo | Rip |
+| A track row | Page (`open` / `close`) |
+| Hover on nav, language, or sort (mouse only) | Pen (`scribble`), throttled to 160 ms overall and 600 ms per element. The only hover sound |
+| A click on a link or button | Click |
+
+Sounds defined in the reference but never triggered (tick, soft, line, hover, crackle) are not shipped.
+
+## Cursor
+
+| Where | Cursor | Hotspot |
+| --- | --- | --- |
+| Default | A small record (`cur-rec.svg`) | 14 14 |
+| Over anything that can be pressed | The record with a pen circle (`cur-link.svg`) | 20 20 |
+
+- Applied only under `pointer: fine`.
+- Never over text inputs.
+- The system cursors are the fallback.
+
+## Navigation and language
+
+**Home header**
+- A vertical stack of nav links (Albums, Artists, Memories) at the left.
+- EN / PT at the right.
+- No wordmark: the hero is the name.
+
+**Inner header**
+- The "refrain" wordmark (Archivo 800, 34 px, record red, −.06em) at the left.
+- The nav in a row (gap 30 px, 15 px) on the right.
+- Then EN / PT.
+- On the phone, the nav wraps to a full-width row below.
+
+**Footer**
+- The torn top edge over the navy sheet (padding 70/34).
+- The tagline "some songs take you back." in Instrument Serif italic, 96 px (58 px on the phone).
+- A row with the nav (Albums, Artists, Memories, About; rings stroked `#EDEAE3`, kraft on hover), the sound toggle (a 24 px speaker; "sound" / "som"), and EN / PT.
+- The fine print "refrain is written by raioviajante", linked and **the only underlined link**.
+
+**Rules**
+- About appears only in the footer.
+- The current page is circled with `aria-current="page"`.
+- The language buttons use `aria-pressed`.
+- Language is the URL only ([ADR 0008](decisions/0008-interface-localization.md)): English at its addresses, Portuguese under `/pt`.
+
+## Pages
+
+Route plan in [ADR 0011](decisions/0011-refrain-v3-identity-and-product.md). Data comes only through the Publication module's reading entry point. Every page exists in both languages.
+
+**Home** (`/`)
+- **Hero:** "re" (from the left) | a 600 px record coming out of the top of the page | "frain" (from the right), in Archivo 800 at 212 px, record red. Also the handwritten "( side A: the ones that stay )", the subtitle "a music journal, kept by hand", and a pill to the latest journal. The `h1` is visually hidden.
+- **"recently written":** a 1260 px collage of six cards of any kind (album journal, memory, artist journal), each with "[0n]", an image, a caption, and a handwritten kind tag. The scattered words "Some songs take you back." complete it.
+- **"album journals / track by track":** a front and a back sleeve (tracklist, favourite, rating), a shelf of three mini sleeves, and "All album journals".
+- **"memories":** a navy board of seven polaroids (alternating pin and tape, song captions) on a dashed path, with kraft year labels and "All memories".
+- **"from the journal":** a taped print, a lined sheet with the opening lines of one memory written by hand and a signature, kraft labels (memory, when, song), and "Read the memory".
+- **"the voices I keep going back to":** a cloud of artist names, and "All artists".
+- **Phone:** the record (330 px) sits above the words, the collage stacks, and the board is 1720 px tall with its own positions.
+
+**Albums** (`/albums`)
+- **Heading:** "album journals", with a count line.
+- **Orbit:** a central record and three rings (8, 12, and 16 covers at radii 19%, 29.9%, and 43.3%, spinning in 700, 1000, and 1400 s, alternating direction) in writing order, the first journal at the top of the inner ring. Beyond 36 journals, more rings by the same rule (D20).
+- **Covers** are `aria-hidden` and not focusable.
+- **The list** is the accessible path, with four sorts as `aria-pressed` buttons:
+
+  | Sort | Order | Grouping |
+  | --- | --- | --- |
+  | Order written | Writing order | None |
+  | Year | Oldest first | By decade |
+  | Artist | A–Z by sort name, ignoring "The" | Kraft letter tabs |
+  | My rating | Highest first | By rating |
+
+**Album journal** (`/albums/:slug`)
+- **Top:** a sleeve front whose static record shows the current track, "ALBUM JOURNAL · n TRACKS", the serif title, "artist, year", the rating in pen with its ring, and the opening sentence.
+- **Review:** the margin note in handwriting (written in), the body, and the line "WRITTEN · EDITED · IN ENGLISH". When a translation is shown, it reads "translated from … · read the original".
+- **"track by track":**
+  - A written track is a button (`aria-expanded`) that unfolds a lined leaf with the note and its date.
+  - A track without a public reflection in the shown language is greyed, "NOT WRITTEN YET", and cannot be opened.
+  - The one favourite is circled.
+  - "still writing" shows where recorded.
+- **"memories that came with this record":** polaroids on navy.
+- **"the one before / the one after":** previous and next by writing order, with a first-written state.
+
+**Artists** (`/artists`)
+- **Featured:** three artist journals as torn photo strips, with "ARTIST JOURNAL", the name (bold first word, serif rest), counts, and the journal's first line.
+- **View switch** ("by how often" / "A to Z"):
+  - the name cloud: sizes 40, 58, and 80 px by count (albums plus memories), joined by stars, with superscript counts;
+  - A–Z in kraft letter tabs, ignoring "The".
+
+**Artist** (`/artists/:slug`)
+- **The photograph:** one portrait torn in two (black and white), the halves tearing apart as the page opens.
+- **Between them:** "ARTIST JOURNAL" and the name.
+- **Labels:** "albums written", "the album", "the one", "in memories" (D13).
+- **Then:** the opening sentence, the body, the dates, and "on the shelf", their album journals.
+- **Phone:** shows the left half only.
+
+**Memories** (`/memories`)
+- One section per year: the year at 150 px in record red, on alternating sides.
+- A polaroid collage with "(n)", a photo, a handwritten title, and "♪ SONG, ARTIST".
+- Sparse years merge ("2023 & 2022"), and an "undated" group comes last (D20).
+
+**Memory** (`/memories/:slug`)
+- **Heading:** "MEMORY · year", and a two-part title.
+- **Body:** a taped print, then a lined sheet with the writing in handwriting, paragraph by paragraph, and a signature.
+- **"the song in this memory":** a turning record, song, artist, and album. It links to the album journal only if one is served, and to the artist.
+- **Navigation:** "Previous memory / All memories / Next memory".
+
+**About** (`/about`)
+- **"liner notes":**
+  - a sleeve back with a record sliding out;
+  - "why refrain exists" in serif, with the initials written in;
+  - "CREDITS · SIDE A": written by, languages, since, letters (each face in itself), sound, thanks, and a sources row (D7);
+  - "how to read it": three kraft links.
+
+**404** (`global-not-found` and `/pt`)
+- "ERROR 404 · SIDE B", "this track skipped" / "there's nothing on this part of the record."
+- "The link may be old, or the page moved. Pick the record up somewhere else:", "Back to the start", and three kraft links.
+- A 520 px record labelled "404 / SIDE B" skipping, with a scratch, and a pen arrow "it skips here".
+- Portuguese: "essa faixa pulou" / "não tem nada nessa parte do disco." / "Voltar pro começo" / "pula bem aqui".
+- The identical `404` for every reason (INV-5) is unchanged.
+
+## Empty states
+
+| State | Look |
+| --- | --- |
+| No cover, or the cover display switch off | A white-label sleeve with the title and artist · year. Never a grey square |
+| A track not written | A greyed row, "NOT WRITTEN YET" |
+| A memory without a photograph | A lined polaroid with the title written large |
+| An artist without a photograph | A torn kraft strip with the name in handwriting. It still tears in two |
+| An empty board | One pin, "nothing pinned yet", and "Meanwhile, the album journals →" |
+
+## Share and icons
+
+| Asset | Plan |
+| --- | --- |
+| Favicon | A record (`favicon.svg`) |
+| Apple touch icon | 180×180 |
+| Link preview (1200×630) and pin (1000×1500) | Built from the share layouts as **text-only cards**: the name, the tagline, and drawn objects. No cover and no placeholder text, until the cover licence allows otherwise |
+
+## Writing Studio
+
+The same language, calm and efficient.
+
+**Every screen except Login has:**
+- a sidebar: "refrain studio"; Desk; Library; Write (+ Album journal, + Memory, + Artist journal); Site (Settings & About page); and at the foot "View the site ↗", EN/PT, "raioviajante · Sign out";
+- a top bar with the breadcrumb, the save state, and the actions;
+- a toast (`role="status"`, 2.4 s).
+
+| Screen | Contents |
+| --- | --- |
+| Desk | "Good to see you."; quick create; drafts with progress ("tracks written 6/11"); counts on the site; music-data usage; recently published |
+| Library | Search; type (everything, album journals, memories, artists) and status (any, drafts, private, published, Bin) filters; language column (original first); Edit or Restore |
+| Album journal | The record (search or fill in by hand); the journal: rating, written in, opening sentence, margin note, the journal, an optional translation; track by track, with notes, a whole-step rating, and one favourite; the publish panel (address, home flag, Preview, Publish or Update with the review dialog, Back to draft, Delete) |
+| Memory | Title; what happened; year and month or undated; written in; translation; the song; the photo (pinned or taped, description for screen readers, replace, remove) |
+| Artist journal | The artist (search or by hand); the photo (provider picture with its credit, or the author's own); the journal; their albums |
+| Settings | About page; music data (status, usage, test the connection, no token field); site (home mode; sound always starts off) |
+| Login | "Sign in to write"; a magic link (single use, 15 minutes). Blocked until [ADR 0012 § 3](decisions/0012-external-services-music-story-email-media.md#3-the-better-auth-magic-link-account-deletion-hazard-a-mandatory-blocker) is closed |
+| States | No results; daily limit used up; provider unreachable ("Never block writing because of the API. Only search stops."); offline (after launch); deleting; unsaved changes on something published ("Changes not on the site yet"). **Every state offers "Fill it in by hand"** |
+
+**System catalogue.** `/studio/system` is a private route rendering the design system: colours, type, the objects, motion demos with "Play again", sound, rules, and the grid overlay. It is the living catalogue and the bed for visual tests.
+
+## Assets
+
+**Tracked today** (V4.4): [Assets (V4.4)](#assets-v44). The character illustration and the 404 artwork stay in `public/artwork/` **byte for byte**. v3 does not use them, and removing them needs the owner's decision.
+
+**To be promoted in R1** (byte for byte, with the SHA-256 of source and copy recorded; WebP re-encodings of the large textures only with the owner's approval, D11):
+
+| Group | Files |
+| --- | --- |
+| Textures | `paper.jpg` (1600×938), `lined.jpg` (1400×744), `navy.jpg` (900×900) |
+| Edges and tape | `torn-top.png`, `torn-bottom.png` (2880×170), `tape-a.png` (360×160), `tape-b.png` (360×198) |
+| Cursors and icons | `cur-rec.svg` (28×28), `cur-link.svg` (40×40), `favicon.svg` (64×64), `touch-icon.png` (180×180) |
+| Placeholder | `portrait-ph.jpg`, the artist-photo placeholder silhouette, only if a surface needs it |
+
+**Never committed:**
+- The reference's example covers and photographs: real album covers, placeholder covers, and memory photographs.
+- Real covers and photographs reach the site only through the catalog and media pipelines, under their licences ([ADR 0012](decisions/0012-external-services-music-story-email-media.md)).
+
+## Accessibility, performance, and verification
+
+**Accessibility**
+- Keyboard operation of every object: track rows, sorts, the view switch, sound, language.
+- A visible pen-blue focus ring.
+- Targets of at least 44 px.
+- Correct `lang` on authored text.
+- Decorative objects `aria-hidden`.
+- The orbit covers out of the tab order, with the list as the accessible path.
+- axe: zero serious or critical findings.
+
+**Performance budgets** (mobile, 4G)
+- LCP ≤ 2.5 s and CLS ≤ 0.05 on `/` and `/albums/:slug`.
+- Public client JavaScript ≤ 30 KB gzip.
+- Images below the fold load lazily.
+
+**Visual verification**, at 1440×900 and 390×844, in one pinned Linux browser:
+1. A DOM test of each page's section order.
+2. Computed styles of each text role against this document.
+3. The geometry of the key objects within ±2 px:
+
+   | Object | Size |
+   | --- | --- |
+   | Hero record | 600 / 330 px |
+   | Content width | 1200 px |
+   | Orbit | 1100 px square |
+   | Lined sheets | 640×340 and 640×680 |
+   | Footer tagline | 96 / 58 px |
+
+4. A local-only comparison against the reference screenshots, following the existing `VISUAL_REVIEW=1` pattern:
+   - the reference directory is given by an environment variable with no default;
+   - output goes to the ignored `visual-review/`;
+   - never run in CI;
+   - text and image regions masked;
+   - a per-section mismatch report with a proposed target of ≤ 8%.
+5. The owner's sign-off on the side-by-sides.
+
+# Part II — V4.4 specification
+
+*Kept unchanged as the specification of what is on `main` today. Each section is superseded when the R milestone that replaces its surface is merged, and is then marked so.*
+
+The original V4.4 status line:
+
+
+> **Status:** visual identity approved (design V4.4, October 31, 2026). **Implemented for the Writing Studio** ([working specification](design/studio-visual-fidelity.md)), **since M3.1 for the first public page, the album journal** ([below](#public-album-journal-m31)), **since M3.4 for the Home** ([below](#public-home-m34)), **since M3.5 for the artist page** ([below](#public-artist-page-m35)), **since M3.6 for the studio's memory editor** ([below](#memories-studio-m36)), **since M3.7 for the public memory page** ([below](#public-memory-m37)), **and since M3.8a for the three public archives and the four-section navigation** ([below](#public-archives-m38a)); artist journals have no public page yet. This document summarizes the approved design for implementation. It does not redesign anything.
+
+## Authority (V4.4)
+
 In order of precedence:
 
-1. **The approved screens:** the rendered V4.4 pages in `reference/refrain/pages/` and their captures in `reference/refrain/previews/`. These are the author's local design references and are not in the repository ([Assets](#assets)).
+1. **The approved screens:** the rendered V4.4 pages in `reference/refrain/pages/` and their captures in `reference/refrain/previews/`. These are the author's local design references and are not in the repository ([Assets](#assets-v44)).
 2. **The handoff's written rules** (`refrainV44-Handoff.dc.html`), where they agree with the screens. When the handoff text and the screens disagree, the screens win.
 3. **Exported CSS and markup are not authoritative.** The `.dc.html` files contain legacy rules from earlier design iterations, such as unused font families and header brand classes. Do not port legacy rules into the implementation.
 
 This document summarizes items 1 and 2. If it disagrees with them, correct this document. It is the tracked design specification: the implementation must be possible from this document and the tracked assets alone.
 
-## Assets
+## Assets (V4.4)
 
 | Location | Tracked | Contents |
 | --- | --- | --- |
@@ -70,7 +480,7 @@ From the handoff:
 | Metadata, dates, credits, hints | Alegreya Sans | 400 | 15.5–18px, never below 15px | 15–16.5px |
 | Rating values | Alegreya Sans, tabular numerals | 400 | 16–18px | 15–16px |
 
-Kalam and Alegreya Sans are the only approved typefaces. The pages load Kalam (300, 400, 700) and Alegreya Sans (400, 500, 700, italic 400). The exported CSS also declares *Atkinson Hyperlegible Next* and *Caveat*. Those are legacy rules: later rules override them and the fonts are never loaded, so they are not part of the design ([Authority](#authority)).
+Kalam and Alegreya Sans are the only approved typefaces. The pages load Kalam (300, 400, 700) and Alegreya Sans (400, 500, 700, italic 400). The exported CSS also declares *Atkinson Hyperlegible Next* and *Caveat*. Those are legacy rules: later rules override them and the fonts are never loaded, so they are not part of the design ([Authority](#authority-v44)).
 
 ## Color tokens
 
@@ -101,7 +511,7 @@ There is no other color anywhere, including status, error, and success states, w
 
 - **Header (public):** minimal, centered navigation: Home, Albums, Artists, Memories. The Home link is the way back to the homepage. There is no logo, wordmark, or site name in the header. The current page has a drawn underline. **Since M3.8a** all four are always links, the same in every state of the journal; the current section's link has the underline and is `aria-current="page"` on the section's own page (the Home, an archive) and `aria-current="true"` on a page inside it (an album journal, an artist, a memory). At 370px and below the links are 18px, as the phone screen has them, and 14px apart instead of its 16px (10px at 340px and below), so the four stay on one line down to 320px within the lateral contract's gutter ([Public archives](#public-archives-m38a)).
 - **Header (studio):** "Writing studio" label, centered Desk and Catalog navigation, and a "Public pages" link (the Studio shows "Sign out" there until public pages exist). Exactly two destinations; one row on a wide screen, and the reference's centered vertical composition at 720px and below. Artists, Albums, and Tracks are the Catalog's own navigation, in the margin column ([Studio visual fidelity § Navigation structure](design/studio-visual-fidelity.md#navigation-structure)).
-- **Character:** appears only on the public homepage, between the navigation and the introduction. Static, the original drawing served as its production copy (`public/artwork/refrain-home-character.webp`, made from `public/artwork/refrain-home-character.png` with its transparency kept bit for bit; [Assets](#assets)), with the approved alt text ("Ink drawing of a person with curly hair and headphones, sitting cross-legged on the floor and writing in a notebook while looking up, next to a stack of records, a mug, a cassette and a few crumpled pages."). It never appears on internal pages or as a header logo. The favicon kit and the Home's production copy (same drawing, same dimensions, re-encoded) are the only derived uses; the README uses the original file. **One narrow exception, approved by the owner (M3.1, PR #35):** the distinct, approved 404 artwork appears on the shared not-found view and nowhere else; it is a separate drawing, not this one, and it does not authorize the character on any other page.
+- **Character:** appears only on the public homepage, between the navigation and the introduction. Static, the original drawing served as its production copy (`public/artwork/refrain-home-character.webp`, made from `public/artwork/refrain-home-character.png` with its transparency kept bit for bit; [Assets](#assets-v44)), with the approved alt text ("Ink drawing of a person with curly hair and headphones, sitting cross-legged on the floor and writing in a notebook while looking up, next to a stack of records, a mug, a cassette and a few crumpled pages."). It never appears on internal pages or as a header logo. The favicon kit and the Home's production copy (same drawing, same dimensions, re-encoded) are the only derived uses; the README uses the original file. **One narrow exception, approved by the owner (M3.1, PR #35):** the distinct, approved 404 artwork appears on the shared not-found view and nowhere else; it is a separate drawing, not this one, and it does not authorize the character on any other page.
 - **Footer:** centered and understated. A single rule, then the closing line *some songs take you back.* in Kalam, then the language selector. The language selector exists **only** in the footer, opens upward, and offers English and Português (Brasil). Its note reads: "Changes the interface only. Writing stays in the language it was written in."
 
 ## Components
@@ -175,7 +585,7 @@ The cursor applies only under `@media (hover: hover) and (pointer: fine)`. Links
 
 ## Known reference inconsistencies
 
-Each of these is resolved by the [Authority](#authority) rules. The reference files themselves are left unchanged.
+Each of these is resolved by the [Authority](#authority-v44) rules. The reference files themselves are left unchanged.
 
 1. The handoff typography table lists a "Site name" (Kalam 700, 20px), and its responsive notes say the header "stacks name over navigation". The handoff CSS also defines `.brand` and `.mark` header classes. Every approved public screen shows navigation only. **Resolution:** no logo, wordmark, or site name in the public header.
 2. `reference/refrain-cursor/README.md` lists `refrain-pencil-64.png`, which does not exist. **Resolution:** reference only the assets listed in [Pencil cursor](#pencil-cursor).
