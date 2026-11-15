@@ -130,9 +130,14 @@ function readTrustedClientIpHeader(env: Env): TrustedClientIpHeader | null {
       "REFRAIN_TRUSTED_CLIENT_IP_HEADER may only be x-forwarded-for.",
     );
   }
-  if (env.VERCEL !== "1") {
+  // `VERCEL=1` alone also arrives in a pulled `.env.local`; a deployment on
+  // the platform also names its environment.
+  if (
+    env.VERCEL !== "1" ||
+    (env.VERCEL_ENV !== "production" && env.VERCEL_ENV !== "preview")
+  ) {
     throw new AuthConfigError(
-      "REFRAIN_TRUSTED_CLIENT_IP_HEADER is trusted only on Vercel (VERCEL=1), which overwrites it. Unset it elsewhere.",
+      "REFRAIN_TRUSTED_CLIENT_IP_HEADER is trusted only on Vercel (VERCEL=1 and VERCEL_ENV production or preview), which overwrites it. Unset it elsewhere.",
     );
   }
   return value;

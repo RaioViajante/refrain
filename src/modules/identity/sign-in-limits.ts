@@ -22,9 +22,11 @@ import type { AuthConfig } from "./config";
 // 2. Globally. Attempts that pass their client's bucket also count against
 //    one ceiling for every client together, so many clients cannot add up to
 //    unlimited guessing. An attempt its own bucket refuses is never counted
-//    here, so one client cannot use up the ceiling. Several clients still
-//    can, by design: a pause in sign-in is less harmful than unbounded
-//    guessing (ADR 0004 § 6).
+//    here, so one client cannot use up the ceiling. It is set high (300 a
+//    minute): locking every client out takes sixty clients rotating, while
+//    300 guesses a minute stay hopeless against a password of at least 15
+//    characters. Sixty clients still can, by design: a pause in sign-in is
+//    less harmful than unbounded guessing (ADR 0004 § 6).
 //
 // The counters live in PostgreSQL (`auth_rate_limits`, beside Better Auth's
 // own), are updated in one statement each, and fail closed: if they cannot be
@@ -32,7 +34,7 @@ import type { AuthConfig } from "./config";
 // after these, on the same per-client rule.
 
 /** The ceiling for every client together, per window. */
-export const SIGN_IN_GLOBAL_LIMIT = { window: 60, max: 30 } as const;
+export const SIGN_IN_GLOBAL_LIMIT = { window: 60, max: 300 } as const;
 
 /** The client's key when no trusted header names it. */
 export const UNKNOWN_CLIENT = "unknown";
@@ -50,7 +52,13 @@ function expandIPv6(address: string): string[] | null {
     return null;
   }
   // The URL parser writes an IPv6 address in one canonical, compressed form.
-  const host = new URL(`http://[${address}]`).hostname.slice(1, -1);
+  // It refuses a zone (`fe80::1%eth0`), which is then no client address.
+  let host: string;
+  try {
+    host = new URL(`http://[${address}]`).hostname.slice(1, -1);
+  } catch {
+    return null;
+  }
   const [head = "", tail] = host.split("::");
   const left = head ? head.split(":") : [];
   const right = tail !== undefined && tail !== "" ? tail.split(":") : [];
@@ -99,8 +107,8 @@ export function signInClient(request: Request, config: AuthConfig): string {
 }
 
 /**
- * Counts one attempt in a fixed window and says whether it is within the
- * limit. One statement: the row is created, or its window restarted, or its
+ * Counts one attempt in a fixed window and returns the window's count (the
+ * attempt is within the limit while it is at most the limit's maximum). One statement: the row is created, or its window restarted, or its
  * count raised, atomically under concurrent requests.
  */
 export async function consumeAttempt(
@@ -108,7 +116,7 @@ export async function consumeAttempt(
   key: string,
   limit: { window: number; max: number },
   now: number,
-): Promise<boolean> {
+): Promise<number> {
   const windowStart = now - limit.window * 1000;
   const result = await database.execute<{ count: number }>(sql`
     insert into auth_rate_limits (key, count, last_request)
@@ -124,8 +132,23 @@ export async function consumeAttempt(
       end
     returning count
   `);
-  const count = Number(result.rows[0]?.count);
-  return Number.isInteger(count) && count <= limit.max;
+  return Number(result.rows[0]?.count);
+}
+
+const within = (count: number, limit: { max: number }) =>
+  Number.isInteger(count) && count <= limit.max;
+
+/**
+ * Removes this module's per-client rows whose window has ended, so a client
+ * that never returns leaves no row behind. Run when the global window
+ * restarts: at most once a window while sign-ins arrive.
+ */
+async function pruneClients(database: DatabaseExecutor, now: number) {
+  await database.execute(sql`
+    delete from auth_rate_limits
+    where key like ${"refrain-client:%"}
+      and last_request <= ${now - SIGN_IN_RATE_LIMIT.window * 1000}
+  `);
 }
 
 export type SignInLimit = "allowed" | "client_limited" | "globally_limited";
@@ -138,19 +161,25 @@ export async function limitSignIn(
   now: number = Date.now(),
 ): Promise<SignInLimit> {
   const client = signInClient(request, config);
-  if (
-    !(await consumeAttempt(
-      database,
-      clientKey(client),
-      SIGN_IN_RATE_LIMIT,
-      now,
-    ))
-  ) {
+  const clientCount = await consumeAttempt(
+    database,
+    clientKey(client),
+    SIGN_IN_RATE_LIMIT,
+    now,
+  );
+  if (!within(clientCount, SIGN_IN_RATE_LIMIT)) {
     return "client_limited";
   }
-  if (
-    !(await consumeAttempt(database, GLOBAL_KEY, SIGN_IN_GLOBAL_LIMIT, now))
-  ) {
+  const globalCount = await consumeAttempt(
+    database,
+    GLOBAL_KEY,
+    SIGN_IN_GLOBAL_LIMIT,
+    now,
+  );
+  if (globalCount === 1) {
+    await pruneClients(database, now);
+  }
+  if (!within(globalCount, SIGN_IN_GLOBAL_LIMIT)) {
     return "globally_limited";
   }
   return "allowed";

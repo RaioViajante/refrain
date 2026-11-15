@@ -42,13 +42,14 @@ describe("consumeAttempt", () => {
       for (let i = 0; i < 5; i++) {
         results.push(await consumeAttempt(tx, "k", limit, T0 + i * 1000));
       }
-      expect(results).toEqual([true, true, true, false, false]);
-      // Still inside the window that started at T0: refused, and refusing
-      // never moves the window.
-      expect(await consumeAttempt(tx, "k", limit, T0 + 59_999)).toBe(false);
+      // The window's count: within the limit while at most its maximum.
+      expect(results).toEqual([1, 2, 3, 4, 5]);
+      // Still inside the window that started at T0: over the limit, and
+      // refusing never moves the window.
+      expect(await consumeAttempt(tx, "k", limit, T0 + 59_999)).toBe(6);
       // A full window after its start: a new window.
-      expect(await consumeAttempt(tx, "k", limit, T0 + 60_000)).toBe(true);
-      expect(await consumeAttempt(tx, "other", limit, T0)).toBe(true);
+      expect(await consumeAttempt(tx, "k", limit, T0 + 60_000)).toBe(1);
+      expect(await consumeAttempt(tx, "other", limit, T0)).toBe(1);
     });
   });
 
@@ -61,7 +62,7 @@ describe("consumeAttempt", () => {
           consumeAttempt(databases[i % databases.length]!, key, limit, T0),
         ),
       );
-      return outcomes.filter(Boolean).length;
+      return outcomes.filter((count) => count <= limit.max).length;
     });
     expect(allowed).toBe(7);
     const [row] = await getDb()
@@ -146,6 +147,31 @@ describe("limitSignIn", () => {
           T0 + SIGN_IN_GLOBAL_LIMIT.window * 1000,
         ),
       ).toBe("allowed");
+    });
+  });
+
+  it("removes the per-client rows of an ended window when the global window restarts", async () => {
+    await inRollbackTransaction(async (tx) => {
+      for (let c = 0; c < 4; c++) {
+        await limitSignIn(tx, signIn(`198.51.100.${c + 1}`), trusted, T0);
+      }
+      const clientRows = async () =>
+        (
+          await tx
+            .select()
+            .from(schema.authRateLimits)
+            .where(like(schema.authRateLimits.key, "refrain-client:%"))
+        ).length;
+      expect(await clientRows()).toBe(4);
+      // A window later, the next sign-in restarts the global window and
+      // leaves only its own client's row.
+      await limitSignIn(
+        tx,
+        signIn("203.0.113.9"),
+        trusted,
+        T0 + SIGN_IN_GLOBAL_LIMIT.window * 1000,
+      );
+      expect(await clientRows()).toBe(1);
     });
   });
 

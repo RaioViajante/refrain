@@ -20,6 +20,7 @@ beforeAll(async () => {
     withAuthor: false,
     env: {
       VERCEL: "1",
+      VERCEL_ENV: "preview",
       REFRAIN_TRUSTED_CLIENT_IP_HEADER: "x-forwarded-for",
     },
   });

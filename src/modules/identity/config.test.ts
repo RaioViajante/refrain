@@ -41,9 +41,24 @@ describe("readAuthConfig", () => {
           ...valid,
           REFRAIN_TRUSTED_CLIENT_IP_HEADER: " X-Forwarded-For ",
           VERCEL: "1",
+          VERCEL_ENV: "production",
         }).trustedClientIpHeader,
       ).toBe("x-forwarded-for");
     });
+
+    it.each([undefined, "development", "test", ""])(
+      "refuses it with VERCEL=1 but VERCEL_ENV=%j, as a pulled .env.local has it",
+      (vercelEnv) => {
+        expect(
+          refusal({
+            ...valid,
+            REFRAIN_TRUSTED_CLIENT_IP_HEADER: "x-forwarded-for",
+            VERCEL: "1",
+            VERCEL_ENV: vercelEnv,
+          }),
+        ).toContain("only on Vercel");
+      },
+    );
 
     it.each([undefined, "", "0", "true", "yes"])(
       "refuses it off Vercel (VERCEL=%j): there a client chooses the header",

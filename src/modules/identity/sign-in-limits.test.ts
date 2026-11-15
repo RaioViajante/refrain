@@ -73,6 +73,7 @@ describe("signInClient", () => {
     "[2001:db8::1]",
     "203.0.113.7:443",
     "refrain-global",
+    "fe80::1%eth0",
   ])("names nobody for %j: not exactly one address", (value) => {
     expect(signInClient(from({ "x-forwarded-for": value }), trusted)).toBe(
       UNKNOWN_CLIENT,
