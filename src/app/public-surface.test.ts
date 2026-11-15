@@ -1305,7 +1305,9 @@ describe("the Publication reading module", () => {
 
   // The Home reads one thing: the Home's own read model, called once, in its
   // one snapshot (ADR 0006 A6, item 8). No journal page, no slug resolution,
-  // in the Home's whole tree: its screen, its view, and its two route files.
+  // in the Home's own files: its screen, its view, and its two route files
+  // (the shared v3 components they import are covered by the reading
+  // allowlist in src/app/studio/no-publishing.test.ts).
   const HOME_TREE = [
     "src/app/home-screen.tsx",
     "src/app/(public)/_components/home-view.tsx",
@@ -1384,8 +1386,9 @@ describe("the Publication reading module", () => {
   // ADR 0006 A6). Every read of a `rememberedWhen` property on a public page
   // is checked in the syntax tree: it may only be rendered (a JSX child or
   // attribute), tested for presence (a condition, `&&`, `!`, a `.filter`
-  // callback), or carried as is into an object's property that is rendered.
-  // Anything else (a call, a method on it, a template, an alias) fails.
+  // callback), or carried as is into an object's property. Anything else (a
+  // call, a method on it, a template, an alias) fails. What a property is
+  // used for afterwards is not followed: reviewers check that by reading.
   function whenUses(source: string): string[] {
     const file = ts.createSourceFile(
       "x.tsx",
@@ -1437,9 +1440,7 @@ describe("the Publication reading module", () => {
   }
 
   it('never parses a memory\'s "when" on a public page', () => {
-    const pages = publicFiles().filter(
-      (file) => file.startsWith("src/app/") && !file.endsWith(".test.ts"),
-    );
+    const pages = publicFiles().filter((file) => file.startsWith("src/app/"));
     const parsing = pages.flatMap((file) =>
       whenUses(readFileSync(file, "utf8")).map((use) => `${file}: ${use}`),
     );

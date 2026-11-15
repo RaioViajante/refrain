@@ -179,7 +179,8 @@ The reference's centred box (`src/app/studio/sign-in/`):
 Three independent security reviews, each by a separate agent with read-only access, none told the others' conclusions:
 1. of `cd0b9a8`: changes requested (S1 to S7 below);
 2. of the fixes, `cd0b9a8..b422653`: **GO** (no Critical, High, or Medium finding), with two Low findings, fixed in `2dfb951` and `a2321a4`;
-3. of those fixes and the last CSS change, `b422653..e7deaf7`: **GO**, with Low findings about the guards' strength, a test with a "when" that names a year, and this document's wording, fixed in `4171518` and here.
+3. of those fixes and the last CSS change, `b422653..e7deaf7`: **GO**, with Low findings about the guards' strength, a test with a "when" that names a year, and this document's wording, fixed in `4171518` and here;
+4. of `e7deaf7..c864b09` (the last test and document changes): **GO**, with Low findings (a guard comment that promised more than it checks, a year count that could meet a build hash, this document's wording and layout), fixed in the commit after it.
 
 The reviewers read code and ran no tests; the test results below are from the runs recorded in Verification.
 
@@ -194,7 +195,7 @@ The reviewers read code and ran no tests; the test results below are from the ru
 | S7: a test title promised more than it checked | Low | Title corrected; the whole-writing check stays in HTTP | `e2e/archives.spec.ts` |
 | Second review: the archive and the memory page still read the "when" as a year | Low | Removed (see the adaptations) | `public-surface.test.ts` ("never parses a memory's \"when\" on a public page"); `public-archives.http.test.ts` |
 | Second review: no regression guard for S1 | Low | The two S1 tests above | — |
-| Third review: the guards were regular expressions, easy to evade | Low | Both read the syntax tree: every `rememberedWhen` may only be rendered, tested for presence, or carried into a rendered property; the Home's whole tree (screen, view, both routes) imports only `getPublicHome` and the switch, no namespace import, and calls it once | `public-surface.test.ts`, with a self-check for each evasion it names |
+| Third review: the guards were regular expressions, easy to evade | Low | Both read the syntax tree: every `rememberedWhen` may only be rendered, tested for presence, or carried into a rendered property; the Home's own files (screen, view, both routes) import only `getPublicHome` and the switch, no namespace import, and calls it once | `public-surface.test.ts`, with a self-check for each evasion it names |
 | Third review: no test used a "when" that names a year | Low | A published memory whose "when" is "[Test] The summer of 2019, more or less": the year appears only inside that text, on the archive and on its page | `public-archives.http.test.ts` ("a memory's \"when\" that names a year") |
 
 **Coverage restored** (dropped with the V4.4 specs, now written for v3):
@@ -214,15 +215,18 @@ The reviewers read code and ran no tests; the test results below are from the ru
 - Record labels cut long names with an ellipsis inside the label (they ran off it on a phone).
 - A white label keeps its words on the sleeve; in the Albums orbit on a phone (covers about 35 px) it shows its ring only, as a blank label does, and the list below names every album. The title had run down over the neighbouring covers.
 
+- The approved favicon and touch icon are linked from both roots and the global 404, as plain `<head>` links: `metadata.icons` streams a marker whose row order differed between two answers of the same page, which the A6 parity check caught.
+
 **Measured after the fixes**, on the production build, at 1440 and 390 px:
 - the four Albums orders and the two Artists views: every link 44 px tall, inside the viewport, the chosen one `aria-current`; no sideways scrolling; A to Z shows the dividers and hides the cloud;
-- every record label's lines stay inside the label; a long one is cut, not spilled;
+- every record label's lines stay inside the label; a long one is cut, not spilled (these measurements were scripted locally; the committed tests that hold the same properties are the 44 px and sideways-scrolling checks in the archive, Home, and memory specs);
 - the Home board's label (a long "when") is one line cut with an ellipsis, inside the viewport at 390 px;
 - no orbit cover spills its text, at either width;
 - the Memories archive has no year heading.
 
 Side-by-sides of the corrected areas against the reference (Memories, the memory page on a phone, the Home's sleeve, the sorted Albums list on a phone) were inspected locally; the images are not committed.
-- The approved favicon and touch icon are linked from both roots and the global 404, as plain `<head>` links: `metadata.icons` streams a marker whose row order differed between two answers of the same page, which the A6 parity check caught.
+
+The Artists view switch and the Home's board were also compared at 390 px: the switch matches the reference's control; the board's polaroids overlap as the reference's do (its second covers the end of the first one's song line), and the differences are its content (lined stand-ins, three memories on a board drawn for seven).
 
 **Remaining differences from the reference**, each waiting on a decision or a later milestone:
 - the Home's sleeve back shows the card, not the tracklist, and the board holds three memories (A6 amendment);

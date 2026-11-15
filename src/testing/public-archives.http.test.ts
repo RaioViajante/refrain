@@ -549,16 +549,17 @@ describe('a memory\'s "when" that names a year', () => {
     expect(visibleText(archive.body)).toContain(DATED_WHEN);
     expect(archive.body).not.toMatch(/class="yh/);
     // The year appears only inside the "when" itself.
-    expect(markup(archive).split("2019").length - 1).toBe(
-      markup(archive).split(DATED_WHEN).length - 1,
+    const archiveText = visibleText(archive.body);
+    expect(archiveText.split("2019").length - 1).toBe(
+      archiveText.split(DATED_WHEN).length - 1,
     );
     const memory = await page(`/memories/${slug("dated-memory")}`);
     expect(memory.status).toBe(200);
     const text = visibleText(memory.body);
     expect(text).toContain(DATED_WHEN);
     expect(text).not.toMatch(/MEMORY\s*·\s*2019|FIG\. 01\s*·\s*2019/i);
-    expect(markup(memory).split("2019").length - 1).toBe(
-      markup(memory).split(DATED_WHEN).length - 1,
+    expect(text.split("2019").length - 1).toBe(
+      text.split(DATED_WHEN).length - 1,
     );
   });
 });
