@@ -50,7 +50,7 @@
   --control-line: #8c877e;
 }
 .stu .studio-button {
-  min-height: 38px;
+  min-height: 44px;
   padding: 0 16px;
   border: 1px solid var(--control-line);
   border-radius: 7px;
@@ -135,4 +135,59 @@
   z-index: 20;
   padding: 8px 14px;
   background: #fff;
+}
+/* In the track panel the rating's label takes its own line in the v3 faces,
+   so the stars and the value never rewrap when a rating is set or cleared. */
+.stu .studio-rating[data-compact] > legend {
+  flex-basis: 100%;
+}
+/* A page with its own editor bar (the journal editor) uses that bar in place
+   of the shell's, so the two never overlap. */
+.stu:has(.studio-editorbar) .main > .bar {
+  display: none;
+}
+/* The session line keeps "Sign out" with the name. */
+.stu .side .foot span {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: baseline;
+}
+/* Track titles at the v3 Studio's quieter scale: Archivo is wider than V4.4's
+   Kalam, and at 22px a title rewrapped when the track's state line grew
+   ("edited"), moving the rating below it. */
+.stu .studio-track-title {
+  font-size: 17px;
+  line-height: 1.35;
+}
+.stu .studio-track-number {
+  font-family: var(--f-pixel), ui-monospace, monospace;
+  font-style: normal;
+  font-size: 13px;
+}
+/* In the v3 shell's narrower column the editor bar keeps one line, so a
+   changed save state never pushes the page down. */
+@media (min-width: 721px) {
+  .stu .studio-editorbar {
+    flex-wrap: nowrap;
+  }
+  .stu .studio-editorbar-start {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+/* The save hint sits beside Save, so the sticky bar keeps one height whether
+   or not there are unsaved changes. */
+@media (min-width: 721px) {
+  .stu .studio-editorbar-end {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+  .stu .studio-editorbar-end .studio-hint {
+    margin: 0;
+    white-space: nowrap;
+  }
 }

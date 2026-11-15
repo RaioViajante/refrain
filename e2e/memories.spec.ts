@@ -587,7 +587,7 @@ test("publishes a memory through its review, asks before a change to it, and unp
   expect(stored.tracks).toHaveLength(2);
   expect(await publicStatus()).toBe(404);
   await expect(
-    readerPage.getByRole("heading", { name: "Nothing here" }),
+    readerPage.getByRole("heading", { name: /this track skipped/ }),
   ).toBeVisible();
   await shot(
     readerPage,

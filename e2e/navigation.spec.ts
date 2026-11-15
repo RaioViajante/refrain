@@ -47,7 +47,7 @@ test("set up: an album and a journal", async ({ page }) => {
   journalUrl = page.url();
 });
 
-test("the header has exactly two destinations, Desk and Catalog, on every page", async ({
+test("the sidebar has the same destinations on every page (v3)", async ({
   page,
 }) => {
   for (const path of [
@@ -63,17 +63,24 @@ test("the header has exactly two destinations, Desk and Catalog, on every page",
     await page.goto(path);
     await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
     const links = primary(page).getByRole("link");
-    await expect(links, path).toHaveText(["Desk", "Catalog"]);
+    await expect(links, path).toHaveText([
+      "Desk",
+      "Library",
+      "Memories",
+      "+Album journal",
+      "+Memory",
+      "Catalog",
+    ]);
     // Sign out stays available, as a control of its own.
     await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
   }
 });
 
-test("Desk is current on the Desk and in the writing workflows, Catalog on the music library", async ({
+test("Desk is current on the Desk, the Library in the journal workflows, Catalog on the music library", async ({
   page,
 }) => {
-  const deskPaths = [
-    "/studio",
+  const deskPaths = ["/studio"];
+  const libraryPaths = [
     "/studio/journals",
     "/studio/journals/new",
     "/studio/journals/deleted",
@@ -92,6 +99,7 @@ test("Desk is current on the Desk and in the writing workflows, Catalog on the m
   ];
   for (const [paths, current, other] of [
     [deskPaths, "Desk", "Catalog"],
+    [libraryPaths, "Library", "Desk"],
     [catalogPaths, "Catalog", "Desk"],
   ] as const) {
     for (const path of paths) {

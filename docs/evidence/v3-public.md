@@ -120,15 +120,24 @@ Each check was run on the branch and its output was read:
 
 The Studio's control boundaries in the v3 theme use `#8C877E` (about 3.6:1) instead of the reference's `#E3DED5` (about 1.3:1), with a pen-blue border on focus. The contrast test found this (WCAG 1.4.11). It is listed for the owner with D10.
 
-**Full browser suite: not yet updated, and failing.** Its V4.4 specs read V4.4 markup and geometry. In the full run, each serial file stopped at its first failure:
+**Browser suite, rewritten on v3 (2026-11-15).**
 
-| Spec | Failed tests |
+| Group | Result |
 | --- | --- |
-| `public.spec.ts`, `public-artwork.spec.ts`, `i18n-public.spec.ts`, `home.spec.ts`, `artist.spec.ts`, `archives.spec.ts`, `memory-page.spec.ts` | 2 each (desktop and 390) |
-| `layout.spec.ts`, `navigation.spec.ts` | 1 each. Both measure the V4.4 Studio header and shell |
-| `ratings.spec.ts`, `publication.spec.ts`, `memories.spec.ts` | 1 each |
+| Public projects: Home, the album journal, archives, artist, memory, the public languages, artwork | **128 passed**, together, at desktop and 390 |
+| Studio: accessibility, navigation, memories, publication | Pass |
+| Studio: ratings | **1 failing.** "Clear hands focus to No rating" in a *track's* rating sees the rating row 25 px higher after Clear (the album's rating passes). The editor bar keeps its height (60 px both ways), and the track panel's elements keep theirs. The cause is not found; a scroll or a layout change inside the v3 shell is suspected |
+| `layout.spec.ts` | **Not rewritten yet.** It measures the V4.4 Studio header and shell |
+| Studio specs later in the `desktop` project (i18n-studio, academic, music, photos, recovery, and others) | Not yet run past the failures above |
 
-They need the same careful, property-preserving update the HTTP tests got. Until then, the browser suite is red on this branch, and nothing here claims otherwise.
+Each rewritten spec states the properties it keeps. The changes the specs drove:
+- a 44 px target for the fine-print link and 44 px-wide language links;
+- 44 px Studio buttons;
+- unwritten rows and grey text at AA;
+- axe measured on settled pages;
+- the journal editor's bar replacing the shell's own;
+- the editor bar on one line;
+- track titles at the v3 Studio's scale.
 
 ## Not built (later milestones)
 
