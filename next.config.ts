@@ -1,3 +1,6 @@
+import { readdirSync } from "node:fs";
+import { join } from "node:path";
+
 import type { NextConfig } from "next";
 
 // The Content-Security-Policies, as in src/security-headers.ts (this file
@@ -27,12 +30,18 @@ const ROBOTS_DIRECTIVE = "noindex, nofollow";
 const ROBOTS_HEADER = { key: "X-Robots-Tag", value: ROBOTS_DIRECTIVE };
 
 // G2: every response is `no-store` unless it is one of the framework's
-// content-hashed build files (`/_next/static`, `/_next/image`) or one of the
-// promoted, data-free assets in `public/` (`/v3/`, `/artwork/`). The pattern is
-// a fixed list; it never depends on the request.
+// content-hashed build files (`/_next/static/…`), its image optimizer (exactly
+// `/_next/image`), or one of the promoted, data-free files that exist in
+// `public/` (each named exactly, so that a missing file or another spelling
+// is the not-found view and is `no-store` too). The list is read from the
+// repository when the configuration loads; it never depends on a request.
 const NO_STORE_HEADER = { key: "Cache-Control", value: "no-store" };
-const UNNAMED_ADDRESSES =
-  "/:path((?!_next/static/|_next/image|v3/|artwork/).*)";
+const PUBLIC_ASSETS = ["v3", "artwork"].flatMap((folder) =>
+  readdirSync(join(process.cwd(), "public", folder)).map(
+    (name) => `${folder}/${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
+  ),
+);
+const UNNAMED_ADDRESSES = `/:path((?!_next/static/|_next/image$|(?:${PUBLIC_ASSETS.join("|")})$).*)`;
 
 const nextConfig: NextConfig = {
   // Data is dynamic unless it is explicitly cached with `use cache`, so nothing

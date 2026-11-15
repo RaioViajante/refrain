@@ -117,15 +117,28 @@ describe("an address that no route serves", () => {
   // with `s-maxage=31536000`, and on the host an unknown address's prerendered
   // view with `public, max-age=0, must-revalidate`. next.config.ts now makes
   // every address no section rule names `no-store`.
-  it.each(["/_not-found", "/_global-error", "/no-such-address.rsc"])(
-    "%s is never stored, and never kept for a year",
-    async (path) => {
+  it.each([
+    "/_not-found",
+    "/_global-error",
+    "/no-such-address.rsc",
+    "/v3/missing.jpg",
+    "/artwork/missing.webp",
+    "/_next/imagex",
+  ])("%s is never stored, and never kept for a year", async (path) => {
+    const answer = await request(base, path);
+    expect(answer.headers["cache-control"], path).toMatch(/\bno-store\b/);
+    expect(answer.headers["cache-control"], path).not.toMatch(/s-maxage/);
+    expect(answer.headers["cache-control"], path).not.toMatch(/\bpublic\b/);
+  });
+
+  it("leaves the Studio its private policy under the rule for every address (G2)", async () => {
+    for (const path of ["/studio/sign-in", "/pt/studio/sign-in"]) {
       const answer = await request(base, path);
-      expect(answer.headers["cache-control"], path).toMatch(/\bno-store\b/);
-      expect(answer.headers["cache-control"], path).not.toMatch(/s-maxage/);
-      expect(answer.headers["cache-control"], path).not.toMatch(/\bpublic\b/);
-    },
-  );
+      expect(answer.headers["cache-control"], path).toBe(
+        "private, no-store, max-age=0, must-revalidate",
+      );
+    }
+  });
 
   it("answers the router with the same view and the same status", async () => {
     const answer = await request(base, "/no-such-address", { rsc: true });

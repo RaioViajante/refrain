@@ -104,6 +104,13 @@ describe("next.config.ts header routes", () => {
       "/albums/a/b",
       "/v3",
       "/artworks/x",
+      // A missing promoted file, another spelling of one, or a path beside
+      // the optimizer is the not-found view, and never stored either.
+      "/v3/missing.jpg",
+      "/v3/paper.jpgx",
+      "/artwork/missing.webp",
+      "/_next/imagex",
+      "/_next/images/a",
     ]) {
       expect(matches(path), path).not.toBe(false);
     }
@@ -112,7 +119,13 @@ describe("next.config.ts header routes", () => {
       "/_next/static/media/font.woff2",
       "/_next/image",
       "/v3/paper.jpg",
+      "/v3/favicon.svg",
       "/artwork/refrain-404.webp",
+      // The framework matches header rules without regard to case
+      // (`caseSensitiveRoutes` is unset), so another case of an exact asset
+      // name is excluded too: on the host it is the generic not-found view,
+      // recorded in docs/evidence/g2-no-store.md.
+      "/V3/paper.jpg",
     ]) {
       expect(matches(path), path).toBe(false);
     }
