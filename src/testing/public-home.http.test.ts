@@ -751,6 +751,23 @@ describe("with journals in every state", () => {
     }
   });
 
+  it("shows only the album card's fields: no tracklist, no favourite, no section count (A4, A6)", async () => {
+    // Grace is the newest journal, and its own page lists these tracks; the
+    // Home reads only the card, in its one snapshot, so none reaches it, in
+    // the markup or in its payload, in either language.
+    for (const path of ["/", "/pt"]) {
+      const page = await request(on.baseURL, path);
+      expect(page.status, path).toBe(200);
+      for (const track of ["Mojo Pin", "Last Goodbye", "Lilac Wine"]) {
+        expect(page.body, `${path}: ${track}`).not.toContain(track);
+      }
+      expect(page.body, path).not.toMatch(/the one\b|a favorita|favourite\)/);
+      expect(page.body, path).not.toMatch(
+        /\d+ (?:records?|discos?), (?:track by track|faixa a faixa)/,
+      );
+    }
+  });
+
   it("answers every request form with no-store, and with the switch off as an empty site does", async () => {
     for (const [name, init] of FORMS) {
       const enabled = await home(on, init);

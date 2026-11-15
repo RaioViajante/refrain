@@ -1303,6 +1303,42 @@ describe("the Publication reading module", () => {
     );
   });
 
+  // The Home reads one thing: the Home's own read model, in its one
+  // snapshot (ADR 0006 A6, item 8). No journal page, no slug resolution.
+  it("has the Home read only getPublicHome and the switch", () => {
+    const imported = [
+      ...readFileSync("src/app/home-screen.tsx", "utf8").matchAll(
+        /import\s*(?:type\s*)?\{([^}]*)\}\s*from\s*"@\/modules\/publication\/public"/g,
+      ),
+    ]
+      .flatMap((match) => match[1]!.split(","))
+      .map((name) => name.replace(/\btype\b/, "").trim())
+      .filter(Boolean)
+      .sort();
+    expect(imported).toEqual([
+      "PublicHome",
+      "getPublicHome",
+      "publicReadsEnabled",
+    ]);
+  });
+
+  // A memory's "when" is free text, never read as a date (owner decision;
+  // ADR 0006 A6): no public file passes it to a function, so no year, month,
+  // or order is ever derived from it. It is rendered, or tested for presence.
+  const WHEN_PARSED = /[A-Za-z_$][\w$]*\s*\(\s*[\w$.!?]*rememberedWhen\b/;
+  it('never parses a memory\'s "when" on a public page', () => {
+    const pages = publicFiles().filter((file) => file.startsWith("src/app/"));
+    const parsing = pages.filter((file) => WHEN_PARSED.test(code(file)));
+    expect(parsing).toEqual([]);
+  });
+
+  it('would notice a "when" read as a year', () => {
+    expect(WHEN_PARSED.test("yearOf(card.rememberedWhen)")).toBe(true);
+    expect(WHEN_PARSED.test("Date.parse(memory.rememberedWhen)")).toBe(true);
+    expect(WHEN_PARSED.test("{memory.rememberedWhen}")).toBe(false);
+    expect(WHEN_PARSED.test("card.rememberedWhen ? (")).toBe(false);
+  });
+
   it("would notice a photograph drawn outside the artist page", () => {
     expect(PHOTO_VALUE.test("<img src={artist.photo.src} />")).toBe(true);
     expect(PHOTO_VALUE.test("const p = artist.photo;")).toBe(true);

@@ -518,10 +518,12 @@ describe("with public reads on, the Memories archive", () => {
     const list = await page("/memories");
     expect(list.status).toBe(200);
     const text = visibleText(list.body);
-    // v3: the reference's lead.
-    expect(text).toContain(
-      "Kept by year. Every photo is one memory and the song that brings it back.",
-    );
+    // The owner's lead: the reference's "Kept by year" would describe a
+    // grouping the page does not make, since the "when" is never read as a
+    // date. No year heading, and the "when" exactly as written.
+    expect(text).toContain("Memories and the music woven through them.");
+    expect(text).not.toContain("Kept by year");
+    expect(list.body).not.toMatch(/class="yh/);
     expect(text).not.toContain("Dated the way I remember");
     expect(text).toContain(PUBLIC_MEMORY.title);
     expect(text).toContain(PUBLIC_MEMORY.when);
