@@ -1373,5 +1373,17 @@ export const studioPtBR: StudioDictionary = {
     catalogEnd: ". ",
     openCatalog: "Abrir o catálogo",
     catalogClose: ".",
+    // The v3 Desk (ADR 0011, proposed); see the English dictionary.
+    greetingLead: "Continue um rascunho ou comece algo novo.",
+    journalCardHint:
+      "Escolha um disco do seu catálogo e escreva faixa por faixa.",
+    memoryCardHint: "Uma música e o que aconteceu.",
+    musicCard: "Adicionar música",
+    musicCardHint:
+      "Encontre um disco no MusicBrainz e adicione ao seu catálogo.",
+    keepWritingEmpty:
+      "Nada fora do site. Tudo o que você escreveu está publicado.",
+    publishedEmpty: "Nada publicado ainda.",
+    edited: (date: string) => `última edição em ${date}`,
   },
 };

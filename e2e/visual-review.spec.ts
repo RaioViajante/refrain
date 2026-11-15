@@ -339,12 +339,16 @@ test("stroke samples", async ({ page }) => {
   };
   await page.goto("/studio");
   await expect(
-    page.getByRole("heading", { level: 1, name: "Desk", exact: true }),
+    page.getByRole("heading", {
+      level: 1,
+      name: "Good to see you.",
+      exact: true,
+    }),
   ).toBeVisible();
   await expect(page.getByText("Loading…")).toHaveCount(0);
   await sample(
     "primary-button",
-    page.getByRole("link", { name: "Write a journal" }),
+    page.getByRole("link", { name: /^\+ Album journal/ }),
   );
   await sample(
     "nav-underline",

@@ -123,8 +123,12 @@ describe("the studio's prerendered files", () => {
       expect(body, address).not.toMatch(/session_token|__Secure-/);
       expect(body, address).not.toMatch(/[\w.+-]+@[\w-]+\.[a-z]{2,}/i);
       // The studio's data appears only behind its `Suspense` boundaries.
-      expect(body, address).not.toContain("Everything you are writing");
-      expect(body, address).not.toContain("Tudo o que você está escrevendo");
+      expect(body, address).not.toContain(
+        "Pick up a draft or start something new.",
+      );
+      expect(body, address).not.toContain(
+        "Continue um rascunho ou comece algo novo.",
+      );
     }
   });
 });

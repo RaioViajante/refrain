@@ -102,22 +102,28 @@
   box-shadow: 0 24px 60px -24px rgba(20, 19, 17, 0.35);
 }
 .stu .studio-main {
-  /* The reference's page column (.content): it stops growing at 1200px. */
+  /* The reference's page column (.content): it stops growing at 1200px, and
+     its own padding (32px, 16px on a phone) is the only gutter: V4.4's
+     narrower width would add 17.6px a side. */
+  width: auto;
   max-width: 1200px;
 }
 /* The shell's languages are links (the URL is the only language state). */
+/* Each is a 44px target (the reference's are 30px), and the current one is
+   the reference's filled ink chip. */
 .stu .side .seg a {
   display: inline-flex;
   align-items: center;
-  min-height: 30px;
-  padding: 0 10px;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 12px;
   border-radius: 5px;
+  color: var(--grey);
 }
 .stu .side .seg a[aria-current] {
-  background: #fff;
-  box-shadow: inset 0 0 0 1px var(--line);
-  color: var(--ink);
-  font-weight: 600;
+  background: var(--ink);
+  color: #fff;
 }
 .stu .side .foot button {
   padding: 0;
@@ -204,4 +210,146 @@
     transition: none !important;
     animation: none !important;
   }
+}
+/* In the track panel the rating's row has a line of its own (the label and
+   the hint take theirs), so it fills that line: its box keeps one width
+   whatever the words say ("No rating", "4.5 stars"), and setting or clearing
+   a rating moves nothing. */
+.stu .studio-rating[data-compact] .studio-rating-row {
+  flex: 1 1 auto;
+}
+/* On a phone the editing bar keeps one line too: "Unsaved changes" beside Save
+   wrapped it onto two in the v3 face, so clearing the last change moved the
+   whole page by a line. The way back shortens (its full name stays its
+   accessible name); a refusal, which needs its words, may still wrap. */
+@media (max-width: 720px) {
+  .stu .studio-editorbar[data-mode="edit"]:not(:has(.studio-problem)) {
+    flex-wrap: nowrap;
+    column-gap: 12px;
+  }
+  .stu
+    .studio-editorbar[data-mode="edit"]:not(:has(.studio-problem))
+    .studio-editorbar-start {
+    flex: 1 1 0;
+    flex-wrap: nowrap;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .stu
+    .studio-editorbar[data-mode="edit"]:not(:has(.studio-problem))
+    .studio-crumb {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 44px;
+  }
+  .stu
+    .studio-editorbar[data-mode="edit"]:not(:has(.studio-problem))
+    .studio-editorbar-end {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    margin-left: 0;
+  }
+  .stu .studio-editorbar[data-mode="edit"] .studio-editorbar-end .studio-hint {
+    margin: 0;
+    font-size: 14px;
+    white-space: nowrap;
+  }
+}
+/* On a phone a track's state line takes the chevron's column too (the chevron
+   sits on the title's line), at the v3 Studio's meta size, so "written ·
+   private · edited" keeps one line at 320 px and setting or clearing a rating
+   does not rewrap it. */
+@media (max-width: 720px) {
+  .stu .studio-track-state {
+    grid-column: 2 / -1;
+    font-size: 14px;
+  }
+}
+/* The v3 Desk. Its controls are 44px targets (the reference's are 30 to
+   36px): a list title's target reaches into the row's padding, so the rows
+   keep the reference's rhythm. */
+.stu .btn {
+  min-height: 44px;
+}
+.stu .list li .ti {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  margin-block: -11.5px;
+}
+.stu .quick a {
+  min-height: 44px;
+}
+.stu .lnk {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  text-underline-offset: 4px;
+}
+.stu .lnk:hover {
+  text-decoration-color: currentColor;
+}
+.stu .desk-first {
+  margin-top: 24px;
+}
+.stu .desk-steps {
+  margin: 10px 0 0;
+  padding-left: 20px;
+  list-style: decimal;
+}
+.stu .desk-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+/* "On the site" counts the published album journals and memories: two cells,
+   as artist pages and Music Story are not on this Desk yet. */
+.stu .desk-stat {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid var(--line);
+}
+.stu .desk-more {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin: 0;
+  padding: 0 4px;
+  font-size: 13px;
+}
+.stu .desk-published {
+  margin-top: 24px;
+}
+.stu .desk-catalog {
+  margin: 18px 0 0;
+  font-size: 13px;
+  color: var(--grey);
+}
+.stu .sec.hint {
+  margin: 0;
+  color: var(--grey);
+}
+@media (max-width: 720px) {
+  .stu .quick,
+  .stu .cols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .stu .list li {
+    padding-inline: 16px;
+  }
+}
+.stu .sec.hd {
+  align-items: center;
+  padding-block: 12px;
+}
+/* "Search for" Albums, Artists, Recordings: a short word is still a 44px
+   target in the v3 face. */
+.stu .studio-search-kinds a {
+  min-width: 44px;
+  justify-content: center;
 }

@@ -63,6 +63,17 @@ All are drawn from the reference markup:
 
 The reference's sidebar, top bar, and thin-line controls (`src/app/v3/studio.css`, `src/app/v3/studio-theme.css`, `src/app/studio/frame.tsx`). Every existing screen, editor, dialog, and confirmation is unchanged in behaviour.
 
+### The Desk
+
+The v3 Desk (`src/app/studio/screen.tsx`), from the same queries as before and with no new read. It has:
+
+- the greeting;
+- three quick-create cards;
+- **Keep writing:** every unpublished album journal and memory, most recently edited first, each opening its editor, with "x of y tracks written" kept;
+- **On the site:** the published album journals and memories, as PostgreSQL counts them;
+- **Recently published;**
+- the Recently deleted link, "All memories", and the catalog line.
+
 ## Adaptations, each with its reason
 
 | Reference | Built | Why |
@@ -83,6 +94,14 @@ The reference's sidebar, top bar, and thin-line controls (`src/app/v3/studio.css
 | Grey text `#6E6A63` on paper (4.44:1) | `#67635C` (4.93:1) | WCAG AA; axe found it (D10, pending the owner's sign-off) |
 | "Not written yet" rows in `#9A958C` (about 2.8:1) | The page grey | WCAG AA; axe found it |
 | The fine print's link at 15 px | A 44 px target, set on the line's middle | The repository's 44 px rule |
+| Desk: "Everything saves on its own." | Only "Pick up a draft or start something new." | Autosave is R4, not built; the page must not claim it |
+| Desk: "+ Album journal" hint "Find a record on Music Story…" | "Choose a record from your catalog…" | Music Story is not connected (MS-0, MS-1) |
+| Desk: "+ Memory" hint "A photo, a song and what happened." | "A song and what happened." | Memory photographs are R5 and R6, not built |
+| Desk: "+ Artist journal" card | "+ Add music" (the catalog's MusicBrainz search) | Artist journals are R7, not built; the card keeps the reference's three-card row with a screen that exists |
+| Desk: "On the site" with three figures, and the Music Story usage panel | Two figures (album journals, memories); no usage panel | Public artist counts need a Publication read, and Music Story is not connected |
+| Desk: "Recently published" by publication time | Published entries by their last edit | No new query; the publication history is not read on the Desk yet |
+| Desk: 30 to 36 px buttons and rows | 44 px targets (a title's target reaches into the row's padding, so the rhythm is the reference's) | The repository's 44 px rule |
+| Studio content padding 32 px (16 px on a phone) plus V4.4's 17.6 px inset | The reference's padding only | The inset doubled the gutter; at 320 px a rating row wrapped |
 
 ## The About route
 
@@ -100,7 +119,7 @@ Comparisons were made locally against the reference screenshots, at 1440 px and 
 
 ## Verification
 
-Each check was run on the branch and its output was read:
+Each check was run on the branch on 2026-11-15, and its output was read. Database suites ran on a freshly reset disposable test database (`pnpm db:test:down && pnpm db:test:up`).
 
 | Check | Result |
 | --- | --- |
@@ -108,36 +127,40 @@ Each check was run on the branch and its output was read:
 | `pnpm format:check` | Clean |
 | `pnpm typecheck` | Clean |
 | `pnpm test` | 57 files, 1,284 tests passed |
-| `pnpm test:integration` | 37 files, 805 tests passed, on a freshly reset disposable test database |
+| `pnpm test:integration` | 37 files, 805 tests passed |
+| `pnpm test:http` (production build) | 20 files, 705 tests passed |
+| `pnpm test:e2e` (production build, every project) | **343 passed, 0 failed, 4 skipped** |
 
-**A local visual run had left synthetic seed rows in the test database.** That broke 12 integration tests. After `pnpm db:test:down && pnpm db:test:up`, every test passed.
+The 4 skips are conditional:
+- two screenshot-only tests, which run with `E2E_SCREENSHOTS=1`;
+- the memories "empty" case, which runs only at desktop width on a database without memories.
 
-| Check | Result |
-| --- | --- |
-| `pnpm test:http` (production build) | 20 files, 705 passed |
-| `e2e/accessibility.spec.ts` | 18 passed: axe on the Studio, sign-in, and dialogs; forced colours; control boundaries at 3:1 |
-| Full `pnpm test:e2e` | 95 passed, 21 failed, 307 did not run (2026-11-15 run, before the contrast fix) |
+**A local visual run once left synthetic seed rows in the test database**, which broke 12 integration tests. Resetting it before each database suite avoids that.
 
-The Studio's control boundaries in the v3 theme use `#8C877E` (about 3.6:1) instead of the reference's `#E3DED5` (about 1.3:1), with a pen-blue border on focus. The contrast test found this (WCAG 1.4.11). It is listed for the owner with D10.
+### What the browser tests found, and the fixes
 
-**Browser suite, rewritten on v3 (2026-11-15).**
+Each rewritten spec states the properties it keeps; none was weakened. The changes the specs drove:
 
-| Group | Result |
-| --- | --- |
-| Public projects: Home, the album journal, archives, artist, memory, the public languages, artwork | **128 passed**, together, at desktop and 390 |
-| Studio: accessibility, navigation, memories, publication | Pass |
-| Studio: ratings | **1 failing.** "Clear hands focus to No rating" in a *track's* rating sees the rating row 25 px higher after Clear (the album's rating passes). The editor bar keeps its height (60 px both ways), and the track panel's elements keep theirs. The cause is not found; a scroll or a layout change inside the v3 shell is suspected |
-| `layout.spec.ts` | **Not rewritten yet.** It measures the V4.4 Studio header and shell |
-| Studio specs later in the `desktop` project (i18n-studio, academic, music, photos, recovery, and others) | Not yet run past the failures above |
+- **Targets and contrast:**
+  - 44 px targets: the fine-print link, the language links (public and Studio), Studio buttons, sidebar links, the Desk's rows and cards, and the "Search for" tabs;
+  - unwritten rows and grey text at AA;
+  - Studio control boundaries at `#8C877E` (about 3.6:1) instead of the reference's `#E3DED5` (about 1.3:1), with a pen-blue border on focus (WCAG 1.4.11; listed for the owner with D10).
+- **Layout stability:**
+  - the journal editor's bar replaces the shell's own, and stays on one line at every width, so "Unsaved changes" never moves the page;
+  - a track's state line keeps one line on a phone;
+  - the track rating's row fills its line, so its words never move it;
+  - the Studio's content padding is the reference's only. V4.4's inset doubled it, and at 320 px the album rating wrapped.
+- **Measuring:**
+  - axe and the cover's frame are measured on settled pages. On a slow CI runner the sleeve's entrance was once measured mid-slide;
+  - the Studio's track titles use the v3 Studio's scale.
 
-Each rewritten spec states the properties it keeps. The changes the specs drove:
-- a 44 px target for the fine-print link and 44 px-wide language links;
-- 44 px Studio buttons;
-- unwritten rows and grey text at AA;
-- axe measured on settled pages;
-- the journal editor's bar replacing the shell's own;
-- the editor bar on one line;
-- track titles at the v3 Studio's scale.
+The Studio's language control is now the v3 sidebar's two links, which replace the V4.4 footer menu. The Portuguese Studio spec checks:
+- the current language is marked;
+- the other link opens the same page;
+- keyboard operation;
+- 44 px targets;
+- the unsaved-writing guard;
+- both links stay on screen at every width.
 
 ## Not built (later milestones)
 

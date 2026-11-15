@@ -93,7 +93,7 @@ for (const width of WIDTHS) {
   test(`at ${width}px the shell is the sidebar and the page (v3), and nothing scrolls sideways`, async ({
     page,
   }) => {
-    await open(page, width, "/studio", "Desk");
+    await open(page, width, "/studio", "Good to see you.");
     const geometry = await page.evaluate(() => {
       const rect = (selector: string) => {
         const box = document.querySelector(selector)!.getBoundingClientRect();
@@ -131,7 +131,7 @@ for (const width of WIDTHS) {
     page,
   }) => {
     for (const [path, heading] of [
-      ["/studio", "Desk"],
+      ["/studio", "Good to see you."],
       ["/studio/catalog", "Catalog"],
       ["/studio/artists", "Artists"],
       ["/studio/artists/new", "Add an artist"],
@@ -174,7 +174,7 @@ test("on an ultrawide screen the writing keeps a reading measure", async ({
 test("the navigation is operable by keyboard, with a visible focus ring and tall targets", async ({
   page,
 }) => {
-  await open(page, 1280, "/studio", "Desk");
+  await open(page, 1280, "/studio", "Good to see you.");
   await page.keyboard.press("Tab"); // the skip link
   await expect(
     page.getByRole("link", { name: "Skip to the content" }),
@@ -201,7 +201,7 @@ test("the navigation is operable by keyboard, with a visible focus ring and tall
 
 test("reduced motion stops every transition", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await open(page, 1280, "/studio", "Desk");
+  await open(page, 1280, "/studio", "Good to see you.");
   const durations = await page.evaluate(() =>
     [...document.querySelectorAll<HTMLElement>(".studio a, .studio button")]
       .filter((element) => element.checkVisibility())
@@ -216,7 +216,7 @@ test("reduced motion stops every transition", async ({ page }) => {
 test("the skip link works after client-side navigation, with earlier routes still in the DOM", async ({
   page,
 }) => {
-  await open(page, 1280, "/studio", "Desk");
+  await open(page, 1280, "/studio", "Good to see you.");
   await page
     .getByRole("navigation", { name: "Writing studio" })
     .getByRole("link", { name: "Catalog", exact: true })
@@ -255,7 +255,7 @@ for (const width of [...WIDTHS, 360, 320, 720, 721]) {
   test(`at ${width}px the sidebar names the studio and keeps its destinations whole`, async ({
     page,
   }) => {
-    await open(page, width, "/studio", "Desk");
+    await open(page, width, "/studio", "Good to see you.");
     const side = page.locator(".stu .side");
     await expect(side.locator(".wm")).toContainText("refrain");
     await expect(side.locator(".wm")).toContainText("studio");

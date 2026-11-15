@@ -1358,6 +1358,19 @@ export const studioEn = {
     catalogEnd: ". ",
     openCatalog: "Open the catalog",
     catalogClose: ".",
+    // The v3 Desk (ADR 0011, proposed): its greeting and section names are
+    // the v3 strings; these say only what the Studio does today (no autosave,
+    // no photographs, no Music Story yet).
+    greetingLead: "Pick up a draft or start something new.",
+    journalCardHint:
+      "Choose a record from your catalog, then write it track by track.",
+    memoryCardHint: "A song and what happened.",
+    musicCard: "Add music",
+    musicCardHint: "Find a record on MusicBrainz and add it to your catalog.",
+    keepWritingEmpty:
+      "Nothing unpublished. Everything you wrote is on the site.",
+    publishedEmpty: "Nothing published yet.",
+    edited: (date: string) => `edited ${date}`,
   },
 };
 

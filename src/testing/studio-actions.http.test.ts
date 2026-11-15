@@ -243,12 +243,12 @@ describe("the minted session is a real session", () => {
     const withCookie = await get("/studio", { cookie: author.cookie });
     expect(withCookie.status).toBe(200);
     const html = await withCookie.text();
-    expect(html).toContain("Everything you are writing");
+    expect(html).toContain("Pick up a draft or start something new.");
     expect(html).toContain('name="robots" content="noindex, nofollow"');
     expect(withCookie.headers.get("cache-control")).toContain("no-store");
 
     const without = await (await get("/studio")).text();
-    expect(without).not.toContain("Everything you are writing");
+    expect(without).not.toContain("Pick up a draft or start something new.");
     expect(without).toContain("NEXT_REDIRECT;replace;/studio/sign-in;307;");
   });
 });
@@ -1054,7 +1054,7 @@ describe("the author's complete journey, through real HTTP and PostgreSQL", () =
   it("shows the desk and lists with figures computed by PostgreSQL", async () => {
     const desk = await (await get("/studio", { cookie: cookie() })).text();
     expect(desk).toContain("Your catalog");
-    expect(desk).toContain("Your journals");
+    expect(desk).toContain("Keep writing");
     const albums = await (
       await get("/studio/albums", { cookie: cookie() })
     ).text();

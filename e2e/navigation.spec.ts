@@ -187,7 +187,7 @@ test("every section is reachable by clicking, with no menu to open", async ({
   page,
 }) => {
   await page.goto("/studio");
-  await expect(heading(page, "Desk")).toBeVisible();
+  await expect(heading(page, "Good to see you.")).toBeVisible();
 
   // Desk to Catalog to each Catalog section and back.
   await primary(page)
@@ -214,22 +214,22 @@ test("every section is reachable by clicking, with no menu to open", async ({
 
   // Desk to the writing: a journal, its editor, all journals, Recently deleted.
   await primary(page).getByRole("link", { name: "Desk", exact: true }).click();
-  await expect(heading(page, "Desk")).toBeVisible();
+  await expect(heading(page, "Good to see you.")).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "Write a journal" }),
+    page.getByRole("link", { name: /^\+ Album journal/ }),
   ).toBeVisible();
+  // v3: an unpublished journal is under "Keep writing", and opens its editor.
   const row = page
-    .getByRole("list", { name: "Journals" })
+    .getByRole("list", { name: "Keep writing" })
     .getByRole("listitem")
     .filter({ hasText: ALBUM });
   await expect(row).toHaveCount(1);
-  await row.getByRole("link", { name: /^Edit/ }).click();
-  await expect(page).toHaveURL(/\/edit$/);
+  await row
+    .getByRole("link", { name: `Edit the journal about ${ALBUM}` })
+    .click();
+  await expect(page).toHaveURL(/\/studio\/journals\/[0-9a-f-]{36}\/edit$/);
   await page.goBack();
-  await row.getByRole("link", { name: ALBUM, exact: true }).click();
-  await expect(page).toHaveURL(/\/studio\/journals\/[0-9a-f-]{36}$/);
-  await page.goBack();
-  await page.getByRole("link", { name: /^All (\d+ )?journals$/ }).click();
+  await page.getByRole("link", { name: "All drafts", exact: true }).click();
   await expect(heading(page, "Journals")).toBeVisible();
   await page.goBack();
   await page.getByRole("link", { name: /^Recently deleted/ }).click();
@@ -248,7 +248,7 @@ test("browser history keeps working across the sections", async ({ page }) => {
   await page.goBack();
   await expect(heading(page, "Catalog")).toBeVisible();
   await page.goBack();
-  await expect(heading(page, "Desk")).toBeVisible();
+  await expect(heading(page, "Good to see you.")).toBeVisible();
   await page.goForward();
   await expect(heading(page, "Catalog")).toBeVisible();
 });
@@ -264,7 +264,7 @@ test("moving between sections is a client-side navigation", async ({
   });
 
   await page.goto("/studio");
-  await expect(heading(page, "Desk")).toBeVisible();
+  await expect(heading(page, "Good to see you.")).toBeVisible();
   await page.evaluate(() => {
     (window as unknown as { __documentMarker: string }).__documentMarker =
       "same-document";
@@ -282,7 +282,7 @@ test("moving between sections is a client-side navigation", async ({
     await expect(heading(page, section)).toBeVisible();
   }
   await primary(page).getByRole("link", { name: "Desk", exact: true }).click();
-  await expect(heading(page, "Desk")).toBeVisible();
+  await expect(heading(page, "Good to see you.")).toBeVisible();
 
   expect(documentRequests, "document requests during navigation").toEqual([]);
   expect(
@@ -308,7 +308,7 @@ test("keyboard navigation between sections raises no console, script, or hydrati
   page.on("pageerror", (error) => problems.push(`pageerror: ${error.message}`));
 
   await page.goto("/studio");
-  await expect(heading(page, "Desk")).toBeVisible();
+  await expect(heading(page, "Good to see you.")).toBeVisible();
   const steps: [() => ReturnType<Page["getByRole"]>, string][] = [
     [
       () => primary(page).getByRole("link", { name: "Catalog", exact: true }),
@@ -329,7 +329,7 @@ test("keyboard navigation between sections raises no console, script, or hydrati
     ],
     [
       () => primary(page).getByRole("link", { name: "Desk", exact: true }),
-      "Desk",
+      "Good to see you.",
     ],
   ];
   for (const [link, title] of steps) {
@@ -355,7 +355,7 @@ test("known limitation: after a section loads, focus is no longer on the link th
   page,
 }) => {
   await page.goto("/studio");
-  await expect(heading(page, "Desk")).toBeVisible();
+  await expect(heading(page, "Good to see you.")).toBeVisible();
   const link = primary(page).getByRole("link", {
     name: "Catalog",
     exact: true,

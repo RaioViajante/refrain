@@ -401,7 +401,7 @@ test("offers Draft, Private, and Publish…, and lists the memory on the Desk", 
 
   await page.goto("/studio");
   await expect(
-    page.getByRole("list", { name: "Memories" }).getByText(title.value),
+    page.getByRole("list", { name: "Keep writing" }).getByText(title.value),
   ).toBeVisible();
   await shot(page, info, "03b-desk");
 });
