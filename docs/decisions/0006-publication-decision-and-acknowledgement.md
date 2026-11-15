@@ -706,3 +706,20 @@ Archiving an artist removes it, which is a reduction. A5 still refuses every cat
 **A11. Artist journals may open artist pages.** A5 says an artist page opens only through a confirmed album-journal publication, "never because of … an artist journal". A11 adds a second way: a confirmed publication of an artist journal opens that artist's page. Its review discloses and binds the page it opens, and A5's photograph, credit, and restore guards extend to it. A5's residual windows and gates G1 and G8 stay as recorded.
 
 **A12. One favourite.** The reflection atoms keep the favourite mark; with [ADR 0002's proposed amendment](0002-domain-model-decisions.md#proposed-amendments-adr-0011), moving the one favourite between tracks of a public journal is a confirmed change that removes one mark and adds another.
+
+### A13. The router's URL forms of an address that is not served
+
+**Approved by the owner on 2026-11-15**, in these words: *"I authorize the narrowly scoped amendment to ADR 0006 D4/G1 described in docs/evidence/self-proxy-and-g1.md. This approval applies ONLY to Next.js URL-based router forms (.rsc and .segments)."* The numbering skips A8 to A12, which are proposed elsewhere (#102, #103) and not accepted.
+
+- **Scope.** Only the router's URL forms, `<address>.rsc` and `<address>.segments/…/*.segment.rsc`, of an address that is **not served**: a public address while the switch is off, or a hidden or unknown entry. Nothing else.
+- **Effect on the original text.** D4 and G1 require such an address to answer *"the same status, body, and headers as an unknown address"*. In these two forms, the **body** may be the framework's router payload of the shared not-found view, rather than byte for byte the HTML document an unknown address answers. Status, headers, and every other request form are unchanged.
+- **Why.** Next.js 16.4.3 rebuilds a request's URL from the original path after the proxy has rewritten it (`server/base-server.js`, around lines 585–606). It marks a `.rsc` or `.segments` path as a router request before it renders (`handleRSCRequest`). The proxy's rewrite cannot change that, so a rendered answer in these forms is always a router payload. The local test servers had hidden this by proxying their own rewrites over HTTP: an intermittent `500`, and not what the host does. The evidence measured that these payloads are byte-identical with any database contents and carry nothing stored ([Evidence](../evidence/self-proxy-and-g1.md)).
+- **What holds instead, in these forms:**
+  1. the status is `404`, and every header is exactly an unknown address's in the same form;
+  2. the body is the shared not-found payload (for a page segment, empty, as an unknown address's), **identical whatever the database holds**: no entry; or published, draft, private, deleted, and unpublished journals, memories in every state, and artist pages. Only the framework's per-render identifiers differ;
+  3. a hidden address and an unknown one answer the same bytes in each such form;
+  4. no stored text, metadata, private identifier, cookie, or unpublished content appears in a header or the body.
+- **What is unchanged.** Byte identity with an unknown address's answer for HTML documents, `HEAD`, every other method, header-driven router requests (`RSC` and prefetch headers), `_next/data`, `.json`, crawlers, and conditional, range, and percent-encoded requests. The publication predicate, D4's switch, § 11, A2, A4 to A7, and every gate. G1 stays open, and its hosted checks include these forms.
+- **Required tests.**
+  - `src/testing/public-router-forms.http.test.ts`: points 2 to 4, comparing an empty and a populated database, EN and `/pt`.
+  - `src/testing/public-archives.http.test.ts`: point 1 and point 4 for the sections and `/pt/about`, with a cookie sent.

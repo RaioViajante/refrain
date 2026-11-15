@@ -1,6 +1,6 @@
 # Evidence: the test servers' self-proxy, fixed, and what it was hiding (G1)
 
-**Status: on branch `fix/test-server-self-proxy`, a draft pull request. DO NOT MERGE until the owner decides on [the 17 remaining URL-form assertions](#the-owners-decision-meeting-the-17-assertions-as-written-is-infeasible). With the harness fixed, 20 HTTP tests failed. The application fix for the crawlers resolved 3 with no assertion changed. The other 17 are the router's URL forms, whose format the framework decides after the proxy. They reveal no stored data (measured below).** Recorded on 2026-11-15.
+**Status: on branch `fix/test-server-self-proxy`, a draft pull request, not merged. Resolved under [ADR 0006 A13](../decisions/0006-publication-decision-and-acknowledgement.md#a13-the-routers-url-forms-of-an-address-that-is-not-served), which the owner approved on 2026-11-15 (Option B below).** Recorded on 2026-11-15.
 
 ## The cause, confirmed
 
@@ -172,3 +172,25 @@ It verified the framework mechanics behind the 17 failures (`router-server.js:36
 | **Info:** a page's own `notFound()` (the publish/unpublish race) still renders in a crawler's mode | No new leak: that race is already distinguishable by its streamed `200` |
 | **Info:** the request-header override on the host is unproven | Part of the hosted G1 evidence |
 | **Overstated:** "cannot be fixed in the application" | Corrected above. The proxy could answer those forms itself, but not with what the assertions demand |
+
+## Option B applied (owner's approval, 2026-11-15)
+
+The owner approved Option B for the router's URL forms only, as [ADR 0006 A13](../decisions/0006-publication-decision-and-acknowledgement.md#a13-the-routers-url-forms-of-an-address-that-is-not-served).
+
+- **`src/testing/public-archives.http.test.ts`.** For the sections' and `/pt/about`'s `.rsc` and segment-file forms **only**, byte identity with an unknown address's HTML document is replaced by:
+  - `404`;
+  - headers **exactly equal** to an unknown address's in the **same form**;
+  - the shared not-found payload: it contains `/_not-found`, or, for a page segment, is empty, as the unknown address's is;
+  - none of the private markers, memory markers, `[Test]`, titles, the run's prefix, or the cookie sent with the request, in a header or the body.
+
+  Every other form in that file (17 per section and in `/pt/about`, from `GET` to percent-encoded) keeps byte identity unchanged.
+- **`src/testing/public-router-forms.http.test.ts` (new).** On the production build:
+  - **Empty against populated.** It requires the database to start with no entry and no album, records every URL form of:
+    - the sections with the switch off (EN and `/pt`);
+    - unknown journal, memory, and artist addresses with it on.
+
+    Then it seeds a **published, a draft, a private, a deleted, and an unpublished journal** (published, then unpublished by the real command), **memories in every state**, and **artist pages**, records them again, and requires **every answer byte-identical** (with per-render identifiers masked). Thirty answers.
+  - **The payload.** Every answer is a `404`, `text/x-component`, `no-store`, the shared not-found payload, with no marker, no `[Test]`, no title or name, and no cookie.
+  - **Hidden against unknown, per form.** A draft, private, deleted, and unpublished journal's address, EN and `/pt`, and every hidden memory's address, each against an unknown address of the same length, in each URL form: **byte-identical** (the slug masked).
+
+Nothing in the application changed for Option B. The proxy and harness changes above are the same.
