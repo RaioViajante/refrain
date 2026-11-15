@@ -12,7 +12,9 @@ import { soundEngine } from "@/app/v3/sfx";
 
 export function TrackRuntime() {
   useEffect(() => {
-    const rows = Array.from(document.querySelectorAll<HTMLDetailsElement>(".pp .tk details.trw"));
+    const rows = Array.from(
+      document.querySelectorAll<HTMLDetailsElement>(".pp .tk details.trw"),
+    );
     const label = document.querySelector<HTMLElement>(".pp .gtop .vinyl .t2");
     const onToggle = (event: Event) => {
       const row = event.currentTarget as HTMLDetailsElement;
@@ -20,7 +22,8 @@ export function TrackRuntime() {
       if (row.open && label && row.dataset.n) label.textContent = row.dataset.n;
     };
     rows.forEach((row) => row.addEventListener("toggle", onToggle));
-    return () => rows.forEach((row) => row.removeEventListener("toggle", onToggle));
+    return () =>
+      rows.forEach((row) => row.removeEventListener("toggle", onToggle));
   }, []);
   return null;
 }

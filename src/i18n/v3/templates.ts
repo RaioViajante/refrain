@@ -35,7 +35,8 @@ const LANGUAGE_UPPER_PT: Readonly<Record<InterfaceLocale, string>> = {
 const en: Templates = {
   albumKind: (n) => `ALBUM JOURNAL · ${n} ${n === 1 ? "TRACK" : "TRACKS"}`,
   written: (date) => `WRITTEN ${date}`,
-  translatedFrom: (original) => `TRANSLATED FROM ${LANGUAGE_UPPER_EN[original]}`,
+  translatedFrom: (original) =>
+    `TRANSLATED FROM ${LANGUAGE_UPPER_EN[original]}`,
   inLanguage: (language) => `IN ${LANGUAGE_UPPER_EN[language]}`,
   readOriginal: "READ THE ORIGINAL",
   alsoIn: (other) => `ALSO IN ${LANGUAGE_UPPER_EN[other]}`,
@@ -46,7 +47,8 @@ const en: Templates = {
   artistCounts: (albums, memories) =>
     `${albums} ${albums === 1 ? "ALBUM" : "ALBUMS"} · ${memories} ${memories === 1 ? "MEMORY" : "MEMORIES"}`,
   entries: (n) => `, ${n} ${n === 1 ? "entry" : "entries"}`,
-  memoryOn: (album, year) => `ON ${album.toUpperCase()}${year ? `, ${year}` : ""}`,
+  memoryOn: (album, year) =>
+    `ON ${album.toUpperCase()}${year ? `, ${year}` : ""}`,
   noAlbumJournal: "NO ALBUM JOURNAL YET",
   artistInArtists: (name) => `${name} in the artists`,
 };
@@ -54,8 +56,7 @@ const en: Templates = {
 const ptBR: Templates = {
   albumKind: (n) => `DIÁRIO DE ÁLBUM · ${n} ${n === 1 ? "FAIXA" : "FAIXAS"}`,
   written: (date) => `ESCRITO EM ${date}`,
-  translatedFrom: (original) =>
-    `TRADUZIDO DO ${LANGUAGE_UPPER_PT[original]}`,
+  translatedFrom: (original) => `TRADUZIDO DO ${LANGUAGE_UPPER_PT[original]}`,
   inLanguage: (language) => `EM ${LANGUAGE_UPPER_PT[language]}`,
   readOriginal: "LER O ORIGINAL",
   alsoIn: (other) => `TAMBÉM EM ${LANGUAGE_UPPER_PT[other]}`,
@@ -66,7 +67,8 @@ const ptBR: Templates = {
   artistCounts: (albums, memories) =>
     `${albums} ${albums === 1 ? "ÁLBUM" : "ÁLBUNS"} · ${memories} ${memories === 1 ? "MEMÓRIA" : "MEMÓRIAS"}`,
   entries: (n) => `, ${n} ${n === 1 ? "entrada" : "entradas"}`,
-  memoryOn: (album, year) => `EM ${album.toUpperCase()}${year ? `, ${year}` : ""}`,
+  memoryOn: (album, year) =>
+    `EM ${album.toUpperCase()}${year ? `, ${year}` : ""}`,
   noAlbumJournal: "AINDA SEM DIÁRIO DE ÁLBUM",
   artistInArtists: (name) => `${name} nos artistas`,
 };

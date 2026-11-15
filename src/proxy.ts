@@ -52,6 +52,9 @@ export const config = {
     "/albums",
     "/artists",
     "/memories",
+    // The About page (v3, ADR 0011 § 4.4, proposed): answered as the archives
+    // are, so it is the unknown address while public reads are off.
+    "/about",
     "/sitemap.xml",
     "/robots.txt",
     // The Portuguese forms (ADR 0008; ADR 0006 A7, item 2): the same
@@ -65,6 +68,7 @@ export const config = {
     "/pt/albums",
     "/pt/artists",
     "/pt/memories",
+    "/pt/about",
     // The Portuguese Studio (PR 3), only so that an encoded spelling of the
     // prefix (`/%70t/studio`, which the framework matches decoded) reaches
     // this proxy and gets the unknown address's answer, as before the
@@ -147,7 +151,7 @@ const STUDIO_SECURITY_HEADERS = {
 // transport forms: an album, artist, or memory address, an archive, the
 // sitemap, `robots.txt`.
 const PUBLIC_ADDRESS =
-  /^(?:\/_next\/data\/[^/]+)?\/(?:(?:albums|artists|memories)(?:[/.]|$)|sitemap\.xml|robots\.txt)/;
+  /^(?:\/_next\/data\/[^/]+)?\/(?:(?:albums|artists|memories|about)(?:[/.]|$)|sitemap\.xml|robots\.txt)/;
 const ARTIST_ADDRESS = /^(?:\/_next\/data\/[^/]+)?\/artists(?:[/.]|$)/;
 const MEMORY_ADDRESS = /^(?:\/_next\/data\/[^/]+)?\/memories(?:[/.]|$)/;
 const STUDIO_ADDRESS = /^(?:\/_next\/data\/[^/]+)?\/studio(?:[/.]|$)/;
@@ -155,7 +159,7 @@ const STUDIO_ADDRESS = /^(?:\/_next\/data\/[^/]+)?\/studio(?:[/.]|$)/;
 // `/albums.segments/…`, `/_next/data/<build>/albums.json`. Not an address
 // inside the section: `/albums/<slug>` has a slash after the section's name.
 const ARCHIVE_ADDRESS =
-  /^(?:\/_next\/data\/[^/]+)?\/(?:albums|artists|memories)(?:\.[^/]*(?:\/.*)?)?$/;
+  /^(?:\/_next\/data\/[^/]+)?\/(?:albums|artists|memories|about)(?:\.[^/]*(?:\/.*)?)?$/;
 
 // The literal Portuguese prefix, in every transport form: `/pt`, `/pt.rsc`,
 // `/pt.segments/…`, `/pt/<section>…`, `/_next/data/<build>/pt…`. Only the

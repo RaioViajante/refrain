@@ -4,8 +4,8 @@ import { otherLocale, type InterfaceLocale } from "@/i18n/locales";
 import { localizedHref } from "@/i18n/paths";
 import { v3StringsFor } from "@/i18n/v3";
 
-import { V3_CONTENT_ID, V3Frame } from "./v3/frame";
-import { Kraft, Vinyl } from "./v3/objects";
+import { V3_CONTENT_ID, V3Frame } from "@/app/v3/frame";
+import { Kraft, Vinyl } from "@/app/v3/objects";
 
 // The not-found view (docs/design-system.md, Part I, Pages: 404): a scratched
 // record that skips, one way back to the start, and the three sections. It is
@@ -23,7 +23,9 @@ const KRAFT_CLIPS = [
 ];
 const KRAFT_TILTS = ["-1.5deg", "1deg", "-0.5deg"];
 
-export function NotFoundView({ locale }: Readonly<{ locale: InterfaceLocale }>) {
+export function NotFoundView({
+  locale,
+}: Readonly<{ locale: InterfaceLocale }>) {
   const t = v3StringsFor(locale).notFound;
   const second = otherLocale(locale);
   const other = v3StringsFor(second).notFound;
@@ -72,9 +74,16 @@ export function NotFoundView({ locale }: Readonly<{ locale: InterfaceLocale }>) 
           </div>
           <div className="disc" aria-hidden="true" data-a="rec" data-d="2">
             <span className="spin">
-              <Vinyl top="404" bottom={locale === "pt-BR" ? "LADO B" : "SIDE B"} />
+              <Vinyl
+                top="404"
+                bottom={locale === "pt-BR" ? "LADO B" : "SIDE B"}
+              />
               <svg className="scr" viewBox="0 0 100 100" aria-hidden="true">
-                <path d="M58 16 C70 19 79 26 85 36" strokeWidth=".45" strokeOpacity=".75" />
+                <path
+                  d="M58 16 C70 19 79 26 85 36"
+                  strokeWidth=".45"
+                  strokeOpacity=".75"
+                />
                 <path
                   d="M60 18.5 C70.5 21.5 77.5 27.5 82.6 36.4"
                   strokeWidth=".25"

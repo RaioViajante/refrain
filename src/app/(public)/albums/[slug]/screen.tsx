@@ -125,6 +125,9 @@ async function neighboursOf(
   slug: string,
   locale: InterfaceLocale,
 ): Promise<JournalNeighbours> {
+  if (!publicReadsEnabled()) {
+    return { before: null, after: null };
+  }
   let cards: PublicAlbumCard[];
   try {
     cards = await listPublicAlbumArchive(locale);

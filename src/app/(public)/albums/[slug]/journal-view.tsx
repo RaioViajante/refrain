@@ -38,7 +38,9 @@ const FAVOURITE_RING =
 const pad = (n: number) => String(n).padStart(2, "0");
 
 /** The track the sleeve's record shows first: the favourite, else the first written. */
-function firstShown(tracks: readonly PublicJournalTrack[]): PublicJournalTrack | null {
+function firstShown(
+  tracks: readonly PublicJournalTrack[],
+): PublicJournalTrack | null {
   return (
     tracks.find((track) => track.reflection?.isFavourite) ??
     tracks.find((track) => track.reflection !== null) ??
@@ -70,10 +72,16 @@ export function JournalView({
   const year = album.firstReleaseYear;
   const shown = firstShown(journal.tracks);
   const rating =
-    journal.ratingHalfSteps !== null ? v3Decimal(locale, journal.ratingHalfSteps / 2) : null;
+    journal.ratingHalfSteps !== null
+      ? v3Decimal(locale, journal.ratingHalfSteps / 2)
+      : null;
   const body = renderDocument(journal.body, 2);
-  const firstArtist = journal.credits.find((credit) => credit.artistAddress !== null);
-  const titleLine = [album.title, year ? String(year) : null].filter(Boolean).join(", ");
+  const firstArtist = journal.credits.find(
+    (credit) => credit.artistAddress !== null,
+  );
+  const titleLine = [album.title, year ? String(year) : null]
+    .filter(Boolean)
+    .join(", ");
   const written = journal.locale;
   return (
     <main id="main" tabIndex={-1}>
@@ -82,7 +90,10 @@ export function JournalView({
           <div className="sl front" data-a="sleeve" data-d="0">
             <Vinyl top={t.nowT} bottom={shown ? pad(shown.number) : ""} />
             <div className="card">
-              <p className="gt ser" lang={locale === journal.locale ? undefined : journal.locale}>
+              <p
+                className="gt ser"
+                lang={locale === journal.locale ? undefined : journal.locale}
+              >
                 {album.title}.
               </p>
               <Cover
@@ -175,8 +186,16 @@ export function JournalView({
             </h2>
             <p>{t.trHint}</p>
           </div>
-          <div className="bw" data-a="sleeve" data-d="2" style={{ ["--vx" as string]: "-40%" }}>
-            <Vinyl top={locale === "pt-BR" ? "lado a" : "side a"} bottom={year ? String(year) : ""} />
+          <div
+            className="bw"
+            data-a="sleeve"
+            data-d="2"
+            style={{ ["--vx" as string]: "-40%" }}
+          >
+            <Vinyl
+              top={locale === "pt-BR" ? "lado a" : "side a"}
+              bottom={year ? String(year) : ""}
+            />
             <div className="back">
               <span className="mono ser" aria-hidden="true">
                 {album.title.charAt(0)}
@@ -202,12 +221,18 @@ export function JournalView({
             {firstArtist?.artistAddress ? (
               <Link
                 className="pill"
-                href={localizedHref(locale, `/artists/${firstArtist.artistAddress}`)}
+                href={localizedHref(
+                  locale,
+                  `/artists/${firstArtist.artistAddress}`,
+                )}
               >
                 {tt.moreAbout(firstArtist.name)}
               </Link>
             ) : null}
-            <Link className="pill ghost" href={localizedHref(locale, "/albums")}>
+            <Link
+              className="pill ghost"
+              href={localizedHref(locale, "/albums")}
+            >
               {t.all}
             </Link>
           </div>
@@ -251,7 +276,9 @@ function TrackRow({
     );
   }
   const rating =
-    reflection.ratingHalfSteps !== null ? v3Decimal(locale, reflection.ratingHalfSteps / 2) : null;
+    reflection.ratingHalfSteps !== null
+      ? v3Decimal(locale, reflection.ratingHalfSteps / 2)
+      : null;
   return (
     <li>
       <details className="trw" open={open} data-n={pad(track.number)}>
@@ -260,14 +287,24 @@ function TrackRow({
           <span className="nm">
             <span className="tt">
               {track.title}
-              {reflection.isFavourite ? <PenRing d={FAVOURITE_RING} viewBox="0 0 160 40" /> : null}
+              {reflection.isFavourite ? (
+                <PenRing d={FAVOURITE_RING} viewBox="0 0 160 40" />
+              ) : null}
             </span>
-            {reflection.isFavourite ? <span className="note hand">{t.fav}</span> : null}
-            {reflection.isStillWriting ? <span className="note hand">{t.draft}</span> : null}
+            {reflection.isFavourite ? (
+              <span className="note hand">{t.fav}</span>
+            ) : null}
+            {reflection.isStillWriting ? (
+              <span className="note hand">{t.draft}</span>
+            ) : null}
             {credit ? <span className="cr">{credit}</span> : null}
           </span>
           {rating ? (
-            <span className="rv hand" role="img" aria-label={tt.ratingAria(rating)}>
+            <span
+              className="rv hand"
+              role="img"
+              aria-label={tt.ratingAria(rating)}
+            >
               [{rating}]
             </span>
           ) : (
@@ -278,7 +315,12 @@ function TrackRow({
         {text ? (
           <div className="leaf2" lang={journalLocale}>
             {/* eslint-disable-next-line @next/next/no-img-element -- decorative tape */}
-            <img className="tp" src="/v3/tape-a.png" alt="" aria-hidden="true" />
+            <img
+              className="tp"
+              src="/v3/tape-a.png"
+              alt=""
+              aria-hidden="true"
+            />
             <div className="hand leaf-text">{text}</div>
           </div>
         ) : null}
@@ -297,11 +339,16 @@ function Crate({
   const sleeve = (card: PublicAlbumCard, label: string) => {
     const year = card.firstReleaseYear;
     return (
-      <Link className="cr1" href={localizedHref(locale, `/albums/${card.slug}`)}>
+      <Link
+        className="cr1"
+        href={localizedHref(locale, `/albums/${card.slug}`)}
+      >
         <span>
           <span className="pix">{label}</span>
           <span className="nm ser">{card.albumTitle}</span>
-          <span className="ar">{[card.credits.join(", "), year].filter(Boolean).join(", ")}</span>
+          <span className="ar">
+            {[card.credits.join(", "), year].filter(Boolean).join(", ")}
+          </span>
         </span>
         <span className="cv" aria-hidden="true">
           <Vinyl
@@ -319,7 +366,13 @@ function Crate({
     );
   };
   return (
-    <nav className="crate wrap" aria-label={t.crateA} data-a="up" data-d="0" lang={locale}>
+    <nav
+      className="crate wrap"
+      aria-label={t.crateA}
+      data-a="up"
+      data-d="0"
+      lang={locale}
+    >
       {before ? (
         sleeve(before, t.before)
       ) : (

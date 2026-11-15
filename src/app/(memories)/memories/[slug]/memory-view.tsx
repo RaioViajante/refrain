@@ -1,187 +1,235 @@
 import Link from "next/link";
-import { Fragment } from "react";
+import type { ReactNode } from "react";
 
-import type {
-  PublicMemory,
-  PublicMemoryMusic,
-} from "@/modules/publication/public";
+import type { PublicMemory } from "@/modules/publication/public";
 
-import { ClosingLinks } from "@/app/(public)/_components/closing-links";
-import { NoteIcon } from "@/app/(public)/_components/note-icon";
-import { PUBLIC_CONTENT_ID } from "@/app/(public)/_components/public-frame";
-import { RecordIcon } from "@/app/(public)/_components/record-icon";
 import { renderDocument } from "@/app/(public)/_components/rich-text";
-import { dictionaryFor } from "@/i18n/dictionaries";
-import { formatDate } from "@/i18n/format";
+import { splitTitle, yearOf } from "@/app/v3/memory-shape";
+import { Kraft, Vinyl } from "@/app/v3/objects";
 import type { InterfaceLocale } from "@/i18n/locales";
 import { localizedHref } from "@/i18n/paths";
+import { v3StringsFor } from "@/i18n/v3";
+import { v3TemplatesFor } from "@/i18n/v3/templates";
 
-// The public memory (M3.7; the approved V4.4 `Memory` screen): the notebook
-// layout, a 220px margin beside one writing column. The margin holds when it
-// was, when it was published, the language it is written in, and "The music";
-// the column holds the kind, the title in Kalam, and the writing. On a phone
-// the writing comes first and the margin follows it.
+// A public memory (docs/design-system.md, Part I, Pages: memory): a print
+// taped to the page, the writing in the author's hand on lined paper, the song
+// on a turning record with its links, and the way to the memories before and
+// after it.
 //
-// It renders only what the Publication read model returned, which is already
-// limited to what a reader may see. It has no author control, no draft
-// marker, no private metadata, no rating, no favourite, and no artwork (none
-// is shown with a memory in this milestone): each song sits in the empty
-// frame with the record mark. A song links nowhere by itself; its album links
-// to that album's journal only when that journal is public, and a credited
-// artist links to the artist's page only when it already has one.
+// Everything comes from the Publication module's read of this one public
+// version. A link goes to an album journal or an artist only when that page is
+// itself public. The memory has no photograph yet, so the print holds the
+// reference's empty state, lined paper with the title. No signature is shown:
+// the author's initials are a setting that does not exist yet.
 
-function Artists({
-  song,
-  locale,
-}: Readonly<{ song: PublicMemoryMusic; locale: InterfaceLocale }>) {
-  return (
-    <>
-      {song.artists.map((artist, index) => (
-        <Fragment key={index}>
-          {index > 0 ? ", " : null}
-          {artist.address ? (
-            <Link
-              className="pm-song-link"
-              href={localizedHref(locale, `/artists/${artist.address}`)}
-            >
-              {artist.name}
-            </Link>
-          ) : (
-            artist.name
-          )}
-        </Fragment>
-      ))}
-    </>
-  );
+export interface MemoryNeighbours {
+  previous: string | null;
+  next: string | null;
 }
 
-function Song({
-  song,
-  locale,
-}: Readonly<{ song: PublicMemoryMusic; locale: InterfaceLocale }>) {
-  // For an album link the title is the album's own, so it is not repeated.
-  const album = song.kind === "recording" ? song.album : null;
-  const albumOwnJournal = song.kind === "album" ? song.album : null;
-  return (
-    <li className="pm-song">
-      <span className="ph-art pm-song-art" aria-hidden="true">
-        <span className="ph-art-fallback">
-          <RecordIcon className="ph-art-icon" size={22} />
-        </span>
-      </span>
-      <span className="pm-song-text">
-        <span className="pm-song-title">
-          {albumOwnJournal?.journalSlug ? (
-            <Link
-              className="pm-song-link"
-              href={localizedHref(
-                locale,
-                `/albums/${albumOwnJournal.journalSlug}`,
-              )}
-            >
-              {song.title}
-            </Link>
-          ) : (
-            song.title
-          )}
-        </span>
-        {song.kind === "album" ? (
-          // A whole album, not one recording: said in words, as the
-          // reference's quiet line names the release ("Single").
-          <span className="pm-song-line">
-            {dictionaryFor(locale).memory.album}
-          </span>
-        ) : null}
-        {song.artists.length > 0 ? (
-          <span
-            className={`pm-song-line${song.artists.some((artist) => artist.address) ? " pm-song-line-links" : ""}`}
-          >
-            <Artists song={song} locale={locale} />
-          </span>
-        ) : null}
-        {album ? (
-          <span
-            className={`pm-song-line${album.journalSlug ? " pm-song-line-links" : ""}`}
-          >
-            {album.journalSlug ? (
-              <Link
-                className="pm-song-link"
-                href={localizedHref(locale, `/albums/${album.journalSlug}`)}
-              >
-                {album.title}
-              </Link>
-            ) : (
-              album.title
-            )}
-          </span>
-        ) : null}
-      </span>
-    </li>
-  );
-}
+const WRITE_DELAYS = [10, 16, 21, 23, 24];
 
 export function MemoryView({
   memory,
   locale,
-}: Readonly<{ memory: PublicMemory; locale: InterfaceLocale }>) {
-  const dictionary = dictionaryFor(locale);
-  const t = dictionary.memory;
-  const body = renderDocument(memory.body, 2);
+  neighbours,
+}: Readonly<{
+  memory: PublicMemory;
+  locale: InterfaceLocale;
+  neighbours: MemoryNeighbours;
+}>) {
+  const t = v3StringsFor(locale).memory;
+  const tt = v3TemplatesFor(locale);
+  const year = yearOf(memory.rememberedWhen);
+  const [titleA, titleB] = splitTitle(memory.title);
+  const kind = year
+    ? `${t.kind.split(" · ")[0]} · ${year}`
+    : t.kind.split(" · ")[0];
+  const figure = year ? `FIG. 01 · ${year}` : "FIG. 01";
+  const song = memory.music[0] ?? null;
+  const blocks = renderDocument(memory.body, 2);
+  const paragraphs: ReactNode[] = Array.isArray(blocks)
+    ? blocks
+    : blocks
+      ? [blocks]
+      : [];
   return (
-    <main className="public-shell pm" id={PUBLIC_CONTENT_ID} tabIndex={-1}>
-      <div className="pm-grid">
-        <article className="pm-article" aria-labelledby="pm-title">
-          <p className="pj-kind pm-kind">
-            <NoteIcon />
-            {t.kind}
+    <main id="main" tabIndex={-1}>
+      <article lang={memory.locale}>
+        <header className="mtop wrap">
+          <p className="k pix" data-a="fade" data-d="0" lang={locale}>
+            {kind}
           </p>
-          <h1 className="pm-title" id="pm-title" lang={memory.locale}>
-            {memory.title}
+          <h1 id="pp-h1" data-a="up" data-d="1">
+            {titleA}
+            {titleB ? <span className="ser">{titleB}</span> : null}
           </h1>
-          {body ? (
-            <div className="pm-body" lang={memory.locale}>
-              {body}
+        </header>
+        <div className="mbd wrap">
+          <figure
+            className="print"
+            style={{ margin: 0 }}
+            data-a="drop"
+            data-d="3"
+          >
+            <span className="pg hand" aria-hidden="true">
+              {memory.title}
+            </span>
+            <figcaption className="fig pix">{figure}</figcaption>
+            {/* eslint-disable-next-line @next/next/no-img-element -- decorative tape */}
+            <img
+              className="tp"
+              src="/v3/tape-b.png"
+              alt=""
+              aria-hidden="true"
+              style={{ left: "50%", top: -30, marginLeft: -60, rotate: "4deg" }}
+            />
+          </figure>
+          <div className="sheet" data-a="place" data-d="5">
+            {/* eslint-disable-next-line @next/next/no-img-element -- decorative tape */}
+            <img
+              className="tp"
+              src="/v3/tape-a.png"
+              alt=""
+              aria-hidden="true"
+              style={{ left: -40, top: -24, rotate: "-30deg" }}
+            />
+            {/* eslint-disable-next-line @next/next/no-img-element -- decorative tape */}
+            <img
+              className="tp"
+              src="/v3/tape-b.png"
+              alt=""
+              aria-hidden="true"
+              style={{ right: -40, top: -22, rotate: "26deg" }}
+            />
+            {paragraphs.map((paragraph, i) => (
+              <div
+                key={i}
+                className="hand para"
+                data-a="write"
+                data-d={String(
+                  WRITE_DELAYS[Math.min(i, WRITE_DELAYS.length - 1)],
+                )}
+              >
+                {paragraph}
+              </div>
+            ))}
+          </div>
+          {song ? (
+            <div className="np" data-a="up" data-d="4" lang={locale}>
+              <Vinyl
+                top={song.artists
+                  .map((a) => a.name)
+                  .join(", ")
+                  .toLowerCase()}
+                bottom={song.album?.title.toUpperCase() ?? ""}
+              />
+              <span className="tx">
+                <span className="pix">{t.np}</span>
+                <span className="s ser" lang={memory.locale}>
+                  {song.title}
+                </span>
+                <span className="a">
+                  {song.artists.map((a) => a.name).join(", ")}
+                </span>
+                {song.album ? (
+                  <span className="on pix">
+                    {song.album.journalSlug ? (
+                      <Link
+                        href={localizedHref(
+                          locale,
+                          `/albums/${song.album.journalSlug}`,
+                        )}
+                      >
+                        {tt.memoryOn(song.album.title, null)}
+                      </Link>
+                    ) : (
+                      <>
+                        {tt.memoryOn(song.album.title, null)} ·{" "}
+                        {tt.noAlbumJournal}
+                      </>
+                    )}
+                  </span>
+                ) : null}
+                {song.artists
+                  .filter((artist) => artist.address !== null)
+                  .slice(0, 1)
+                  .map((artist) => (
+                    <Kraft
+                      key={artist.address}
+                      seed={`more-${artist.address}`}
+                      link
+                      href={localizedHref(locale, `/artists/${artist.address}`)}
+                      rotate="-2deg"
+                    >
+                      {tt.artistInArtists(artist.name)}
+                    </Kraft>
+                  ))}
+              </span>
             </div>
           ) : null}
-        </article>
-
-        <aside className="pm-margin" aria-label={t.about}>
-          <p className="pm-facts">
+          <dl data-a="up" data-d="6" lang={locale}>
+            <dt className="pix">{t.lMemory}</dt>
+            <dd>
+              <Kraft seed={`m-${memory.slug}`} lang={memory.locale}>
+                {memory.title}
+              </Kraft>
+            </dd>
             {memory.rememberedWhen ? (
-              <span className="pm-when" lang={memory.locale}>
-                {memory.rememberedWhen}
-              </span>
+              <>
+                <dt className="pix">{t.lWhen}</dt>
+                <dd>
+                  <Kraft seed={`w-${memory.slug}`} lang={memory.locale}>
+                    {memory.rememberedWhen}
+                  </Kraft>
+                </dd>
+              </>
             ) : null}
-            <span>
-              {t.published}{" "}
-              <time dateTime={memory.publishedAt.toISOString()}>
-                {formatDate(locale, memory.publishedAt, "long")}
-              </time>
-            </span>
-            <span>
-              {dictionary.writtenIn(dictionary.writingLanguages[memory.locale])}
-            </span>
-          </p>
-          {memory.music.length > 0 ? (
-            <section aria-labelledby="pm-music">
-              <h2 className="pm-music-title" id="pm-music">
-                {t.music}
-              </h2>
-              <ol className="pm-songs" role="list">
-                {memory.music.map((song) => (
-                  <Song key={song.number} song={song} locale={locale} />
-                ))}
-              </ol>
-            </section>
-          ) : null}
-        </aside>
-      </div>
-      <ClosingLinks
-        locale={locale}
-        archive="/memories"
-        label={t.allMemories}
-        layout="notebook"
-      />
+            {song ? (
+              <>
+                <dt className="pix">{t.lSong}</dt>
+                <dd>
+                  <Kraft seed={`s-${memory.slug}`}>{song.title}</Kraft>
+                </dd>
+              </>
+            ) : null}
+          </dl>
+        </div>
+        <nav className="mnav2 wrap" aria-label={t.all} lang={locale}>
+          {neighbours.previous ? (
+            <Kraft
+              seed="prev"
+              link
+              rotate="-2deg"
+              href={localizedHref(locale, `/memories/${neighbours.previous}`)}
+            >
+              {t.prev}
+            </Kraft>
+          ) : (
+            <span />
+          )}
+          <Kraft
+            seed="all"
+            link
+            rotate="1deg"
+            href={localizedHref(locale, "/memories")}
+          >
+            {t.all}
+          </Kraft>
+          {neighbours.next ? (
+            <Kraft
+              seed="next"
+              link
+              rotate="-1deg"
+              href={localizedHref(locale, `/memories/${neighbours.next}`)}
+            >
+              {t.next}
+            </Kraft>
+          ) : (
+            <span />
+          )}
+        </nav>
+      </article>
     </main>
   );
 }

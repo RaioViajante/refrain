@@ -45,7 +45,12 @@ const LANGUAGE_SHORT: Readonly<Record<InterfaceLocale, "EN" | "PT">> = {
 
 function Ring({ ring }: Readonly<{ ring: { viewBox: string; d: string } }>) {
   return (
-    <svg className="penring" viewBox={ring.viewBox} preserveAspectRatio="none" aria-hidden="true">
+    <svg
+      className="penring"
+      viewBox={ring.viewBox}
+      preserveAspectRatio="none"
+      aria-hidden="true"
+    >
       <path pathLength={1} d={ring.d} />
     </svg>
   );
@@ -59,7 +64,10 @@ function Languages({
 }: Readonly<{
   locale: InterfaceLocale;
   path: string | null;
-  rings: { en: { viewBox: string; d: string }; pt: { viewBox: string; d: string } };
+  rings: {
+    en: { viewBox: string; d: string };
+    pt: { viewBox: string; d: string };
+  };
   label: string;
 }>) {
   const pair = path === null ? null : addressPair(path);
@@ -82,7 +90,11 @@ function Languages({
                 {ring}
               </a>
             ) : (
-              <span className="lang-off" lang={option} data-current={option === locale}>
+              <span
+                className="lang-off"
+                lang={option}
+                data-current={option === locale}
+              >
                 {short}
               </span>
             )}
@@ -155,7 +167,12 @@ export function V3Frame({
       {children}
       <footer className="ftr">
         {/* eslint-disable-next-line @next/next/no-img-element -- a fixed decorative edge */}
-        <img className="edge" src="/v3/torn-top.png" alt="" aria-hidden="true" />
+        <img
+          className="edge"
+          src="/v3/torn-top.png"
+          alt=""
+          aria-hidden="true"
+        />
         <div className="sheet">
           <div className="wrap">
             <p className="tg ser" data-a="up" data-d="0">
@@ -167,7 +184,9 @@ export function V3Frame({
                   <Link
                     key={section}
                     href={localizedHref(locale, SECTION_PATHS[section])}
-                    aria-current={current === section && !inside ? "page" : undefined}
+                    aria-current={
+                      current === section && !inside ? "page" : undefined
+                    }
                   >
                     {label(section)}
                     <Ring ring={FOOTER_RINGS[section]} />

@@ -1,4 +1,9 @@
-import { Archivo, Instrument_Serif, La_Belle_Aurore, Silkscreen } from "next/font/google";
+import {
+  Archivo,
+  Instrument_Serif,
+  La_Belle_Aurore,
+  Silkscreen,
+} from "next/font/google";
 
 // The four approved v3 faces (docs/design-system.md, Part I, Type), self-hosted
 // by next/font so the browser never contacts Google Fonts. Each defines one

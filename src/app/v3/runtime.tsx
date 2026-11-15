@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 
 import { REVEAL_SOUNDS, soundEngine } from "./sfx";
 
@@ -66,13 +66,17 @@ export function V3Runtime() {
         unsubscribe();
       });
     } else {
-      root.querySelectorAll(OBSERVED).forEach((element) => element.classList.add("on"));
+      root
+        .querySelectorAll(OBSERVED)
+        .forEach((element) => element.classList.add("on"));
     }
 
     function reveal(element: HTMLElement) {
       if (!sfx.isOn()) return;
       const kind = element.getAttribute("data-a");
-      const delay = (Number.parseInt(element.getAttribute("data-d") ?? "0", 10) || 0) * 0.11;
+      const delay =
+        (Number.parseInt(element.getAttribute("data-d") ?? "0", 10) || 0) *
+        0.11;
       if (kind) {
         const sound = REVEAL_SOUNDS[kind];
         if (sound) sfx.play(sound, delay);
@@ -81,7 +85,11 @@ export function V3Runtime() {
       if (element.classList.contains("orb2")) {
         element.querySelectorAll(".ri img, .ri .wl").forEach((_, i) => {
           if (i % 6 === 0) {
-            sfx.play("grow", 0.7 + Math.floor(i / 8) * 0.45 + (i % 16) * 0.045, true);
+            sfx.play(
+              "grow",
+              0.7 + Math.floor(i / 8) * 0.45 + (i % 16) * 0.045,
+              true,
+            );
           }
         });
         sfx.play("rec", 0, true);
@@ -98,28 +106,40 @@ export function V3Runtime() {
       if (target.getAttribute("aria-pressed") === "true") return;
       if (target.getAttribute("aria-current")) return;
       const n = performance.now();
-      if (n - lastPen < 160 || (target === lastElement && n - lastPen < 600)) return;
+      if (n - lastPen < 160 || (target === lastElement && n - lastPen < 600))
+        return;
       lastPen = n;
       lastElement = target;
       sfx.play("scribble", 0, true);
     };
-    const penElements = Array.from(root.querySelectorAll<HTMLElement>(PEN_TARGETS));
-    penElements.forEach((element) => element.addEventListener("pointerenter", onPen));
+    const penElements = Array.from(
+      root.querySelectorAll<HTMLElement>(PEN_TARGETS),
+    );
+    penElements.forEach((element) =>
+      element.addEventListener("pointerenter", onPen),
+    );
     cleanups.push(() =>
-      penElements.forEach((element) => element.removeEventListener("pointerenter", onPen)),
+      penElements.forEach((element) =>
+        element.removeEventListener("pointerenter", onPen),
+      ),
     );
 
     const onClick = (event: MouseEvent) => {
-      const target = (event.target as Element | null)?.closest?.("a, button, [role='button']");
+      const target = (event.target as Element | null)?.closest?.(
+        "a, button, [role='button']",
+      );
       if (!target || !root.contains(target)) return;
-      if (target.classList.contains("snd") || target.classList.contains("trow")) return;
+      if (target.classList.contains("snd") || target.classList.contains("trow"))
+        return;
       sfx.play("click", 0, true);
     };
     root.addEventListener("click", onClick);
     cleanups.push(() => root.removeEventListener("click", onClick));
 
     const hero = root.querySelector<HTMLElement>(".hero");
-    const still = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const still = window.matchMedia?.(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
     if (hero && !still) {
       let busy = false;
       const onScroll = () => {
@@ -128,13 +148,21 @@ export function V3Runtime() {
         requestAnimationFrame(() => {
           busy = false;
           const box = hero.getBoundingClientRect();
-          const progress = Math.min(1, Math.max(0, -box.top / Math.max(1, box.height)));
+          const progress = Math.min(
+            1,
+            Math.max(0, -box.top / Math.max(1, box.height)),
+          );
           hero.style.setProperty("--hp", progress.toFixed(3));
         });
       };
-      window.addEventListener("scroll", onScroll, { passive: true, capture: true });
+      window.addEventListener("scroll", onScroll, {
+        passive: true,
+        capture: true,
+      });
       onScroll();
-      cleanups.push(() => window.removeEventListener("scroll", onScroll, { capture: true }));
+      cleanups.push(() =>
+        window.removeEventListener("scroll", onScroll, { capture: true }),
+      );
     }
 
     return () => cleanups.forEach((cleanup) => cleanup());
@@ -144,12 +172,11 @@ export function V3Runtime() {
 
 /** The footer's sound control: off until the reader turns it on. */
 export function SoundToggle({ label }: Readonly<{ label: string }>) {
-  const [on, setOn] = useState(false);
-  useEffect(() => {
-    const sfx = soundEngine();
-    setOn(sfx.isOn());
-    return sfx.subscribe(setOn);
-  }, []);
+  const on = useSyncExternalStore(
+    (notify) => soundEngine().subscribe(notify),
+    () => soundEngine().isOn(),
+    () => false,
+  );
   return (
     <button
       type="button"
@@ -169,5 +196,6 @@ export function SoundToggle({ label }: Readonly<{ label: string }>) {
 
 /** A disclosure that plays the page sound as it opens and closes. */
 export function useTrackSound() {
-  return (open: boolean) => soundEngine().play(open ? "open" : "close", 0, true);
+  return (open: boolean) =>
+    soundEngine().play(open ? "open" : "close", 0, true);
 }

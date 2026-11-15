@@ -45,7 +45,10 @@ export function Cover({
 }
 
 /** "NICK DRAKE · 1972", the label's line. */
-export function labelLine(artists: readonly string[], year: number | null): string {
+export function labelLine(
+  artists: readonly string[],
+  year: number | null,
+): string {
   const names = artists.join(", ").toUpperCase();
   return [names, year ? String(year) : ""].filter(Boolean).join(" · ");
 }

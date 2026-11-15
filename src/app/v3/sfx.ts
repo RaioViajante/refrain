@@ -83,7 +83,8 @@ export function createSoundEngine(
     const filter = ctx.createBiquadFilter();
     filter.type = o.type ?? "bandpass";
     filter.frequency.setValueAtTime(o.f ?? 1200, t0);
-    if (o.f2) filter.frequency.exponentialRampToValueAtTime(o.f2, t0 + duration);
+    if (o.f2)
+      filter.frequency.exponentialRampToValueAtTime(o.f2, t0 + duration);
     filter.Q.value = o.q ?? 0.8;
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(0.0001, t0);
@@ -118,13 +119,15 @@ export function createSoundEngine(
       noise(0.08, { t, f: 2600, q: 0.6, g: 0.32 });
       tone(55, 0.55, { t, g: 0.3, f2: 36 });
     },
-    whoosh: (t) => noise(0.85, { t, f: 330, f2: 2400, q: 1.1, g: 0.13, a: 0.38 }),
+    whoosh: (t) =>
+      noise(0.85, { t, f: 330, f2: 2400, q: 1.1, g: 0.13, a: 0.38 }),
     drop: (t) => {
       noise(0.32, { t, f: 2800, q: 0.7, g: 0.09, a: 0.03 });
       noise(0.04, { t: t + 0.45, f: 4200, q: 1.5, g: 0.28 });
       tone(1500, 0.06, { t: t + 0.45, g: 0.05, type: "triangle" });
     },
-    place: (t) => noise(0.45, { t, f: 1500, f2: 760, q: 0.6, g: 0.11, a: 0.08 }),
+    place: (t) =>
+      noise(0.45, { t, f: 1500, f2: 760, q: 0.6, g: 0.11, a: 0.08 }),
     pop: (t) => {
       noise(0.1, { t, f: 1000, q: 1.2, g: 0.2 });
       tone(240, 0.08, { t, g: 0.06 });
@@ -163,7 +166,10 @@ export function createSoundEngine(
       for (let i = 0; i < 30; i++) {
         const x = i / 30;
         const swell =
-          0.35 + 0.65 * Math.sin(Math.PI * x) * (0.75 + 0.25 * Math.sin(x * Math.PI * 4));
+          0.35 +
+          0.65 *
+            Math.sin(Math.PI * x) *
+            (0.75 + 0.25 * Math.sin(x * Math.PI * 4));
         noise(0.03 + random() * 0.025, {
           t: t + x * loop + random() * 0.012,
           f: 3000 + random() * 2200,
@@ -180,7 +186,8 @@ export function createSoundEngine(
       noise(0.012, { t: t + 0.075, f: 5200, q: 2.6, g: 0.08, a: 0.001 });
       tone(3100, 0.016, { t: t + 0.075, g: 0.015, type: "triangle" });
     },
-    open: (t) => noise(0.38, { t, f: 1200, f2: 2300, q: 0.7, g: 0.09, a: 0.05 }),
+    open: (t) =>
+      noise(0.38, { t, f: 1200, f2: 2300, q: 0.7, g: 0.09, a: 0.05 }),
     close: (t) => noise(0.26, { t, f: 1800, f2: 900, q: 0.7, g: 0.06 }),
   };
 

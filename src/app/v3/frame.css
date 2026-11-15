@@ -196,3 +196,191 @@ body:has(> .pp) {
     stroke-dashoffset: 0;
   }
 }
+/* Albums orbit: each cover sits in a wrapper that carries its tilt and its
+   delay, so a missing cover's white label grows in like an image. */
+.pp .orb2 .ri .ric {
+  display: block;
+}
+.pp.io .orb2:not(.on) .ri .ric {
+  opacity: 0;
+}
+.pp.io .orb2.on .ri .ric {
+  animation: a-grow 0.9s cubic-bezier(0.3, 1.4, 0.5, 1) var(--gd, 0ms) backwards;
+}
+.pp .orb2 .ri .covx {
+  aspect-ratio: 1;
+  height: auto;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pp.io .orb2:not(.on) .ri .ric {
+    opacity: 1;
+  }
+}
+/* Artists: the kraft "no photo" strip with the name in hand (Empty states). */
+.pp .feat .tear.kp,
+.pp .torn.no-photo .half {
+  background: #d6c29a;
+  background-image: repeating-linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.07) 0 2px,
+    transparent 2px 5px
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pp .feat .tear.kp .knm {
+  font-size: 40px;
+  color: #2a241a;
+  rotate: -3deg;
+}
+.pp .torn.no-photo .half .knm {
+  font-size: 56px;
+  color: #2a241a;
+  rotate: -4deg;
+}
+/* A real portrait is shown in black and white, with a little grain. */
+.pp .torn.has-photo .half {
+  filter: grayscale(1) contrast(1.06);
+}
+.pp .torn .lab .lab-k {
+  font-size: 12px;
+  color: var(--grey);
+}
+.pp .pcredit {
+  margin: 14px 0 0;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--grey);
+}
+.pp .pcredit a {
+  color: var(--pen);
+}
+.pp .board0.lone {
+  margin: 80px auto 0;
+  padding: 60px 0;
+  background: #1e2840 url(/v3/navy.jpg) repeat;
+  background-size: 900px auto;
+}
+@media (max-width: 720px) {
+  .pp .torn.no-photo .half.r {
+    display: none;
+  }
+}
+/* Memories without a photograph: lined paper with the title (Empty states). */
+.pp .yb .mi .pg,
+.pp .mbd .print .pg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 0.86;
+  padding: 14px;
+  background: #e9d2a6 url(/v3/lined.jpg) 0 0 / 300px auto;
+  color: var(--pen);
+  font-size: 30px;
+  line-height: 1.1;
+  text-align: center;
+  box-shadow: 0 12px 20px -14px rgba(0, 0, 0, 0.45);
+}
+.pp .yb .mi .pg {
+  font-size: 26px;
+}
+.pp .mbd .print .pg {
+  aspect-ratio: 0.8;
+  font-size: 44px;
+}
+/* The memory's writing may be longer than the reference's three lines: the
+   sheet grows, and the song and labels follow it. */
+.pp .mbd {
+  display: grid;
+  grid-template-columns: 540px minmax(0, 640px);
+  column-gap: 20px;
+  row-gap: 40px;
+  height: auto;
+}
+.pp .mbd > .print,
+.pp .mbd > .sheet,
+.pp .mbd > .np,
+.pp .mbd > dl {
+  position: relative;
+  left: auto;
+  top: auto;
+}
+.pp .mbd > .print {
+  grid-column: 1;
+  grid-row: 1;
+  margin-left: 20px !important;
+  margin-top: 30px !important;
+}
+.pp .mbd > .sheet {
+  grid-column: 2;
+  grid-row: 1;
+  height: auto;
+  min-height: 680px;
+  padding-bottom: 40px;
+}
+.pp .mbd > .np {
+  grid-column: 1;
+  grid-row: 2;
+  margin-left: 70px;
+}
+.pp .mbd > dl {
+  grid-column: 2;
+  grid-row: 2;
+  margin-left: 80px;
+}
+.pp .mbd .sheet .para > * {
+  margin: 0;
+  font-size: 30px;
+  line-height: 56.7px;
+  color: var(--pen);
+}
+.pp .mbd .np .on a {
+  color: var(--pen);
+}
+@media (max-width: 720px) {
+  .pp .mbd {
+    display: flex;
+  }
+  .pp .mbd > * {
+    margin-left: 0 !important;
+  }
+  .pp .mbd .sheet .para > * {
+    font-size: 23px;
+    line-height: 34px;
+  }
+}
+/* Home: memories without a photograph, and covers that fall back to the label. */
+.pp .recent .it .pg,
+.pp .board .pol .pg,
+.pp .jr .print .pg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 14px;
+  background: #e9d2a6 url(/v3/lined.jpg) 0 0 / 300px auto;
+  color: var(--pen);
+  font-size: 26px;
+  line-height: 1.1;
+  text-align: center;
+}
+.pp .jr .print .pg {
+  aspect-ratio: 1.35;
+  font-size: 40px;
+}
+.pp .recent .it .covx {
+  margin-top: 0;
+  aspect-ratio: 1;
+}
+.pp .front .card .covx {
+  aspect-ratio: 1.45;
+}
+.pp .mini .s .covx {
+  position: relative;
+  z-index: 1;
+}
+.pp .board0.home {
+  height: 420px;
+  margin-top: 60px;
+}

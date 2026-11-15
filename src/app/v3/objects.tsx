@@ -64,12 +64,19 @@ export function Vinyl({
   style?: CSSProperties;
 }>) {
   return (
-    <span className={`vinyl ${className}`.trim()} aria-hidden="true" style={style}>
+    <span
+      className={`vinyl ${className}`.trim()}
+      aria-hidden="true"
+      style={style}
+    >
       <span className="sheen" />
       {ringText ? (
         <svg className="rtxt" viewBox="0 0 600 600" aria-hidden="true">
           <defs>
-            <path id="pp-rtxt" d="M300 300 m-270 0 a270 270 0 1 1 540 0 a270 270 0 1 1 -540 0" />
+            <path
+              id="pp-rtxt"
+              d="M300 300 m-270 0 a270 270 0 1 1 540 0 a270 270 0 1 1 -540 0"
+            />
           </defs>
           <text>
             <textPath href="#pp-rtxt">{ringText}</textPath>
@@ -123,7 +130,10 @@ export function Kraft({
 }
 
 /** A pin or a strip of tape on a polaroid. */
-export function Attachment({ kind, seed }: Readonly<{ kind: "pin" | "tape"; seed: string }>) {
+export function Attachment({
+  kind,
+  seed,
+}: Readonly<{ kind: "pin" | "tape"; seed: string }>) {
   return kind === "pin" ? (
     <span className="pin" aria-hidden="true" />
   ) : (
@@ -136,9 +146,17 @@ export function Attachment({ kind, seed }: Readonly<{ kind: "pin" | "tape"; seed
 }
 
 /** The pen circle drawn around a favourite or a rating. */
-export function PenRing({ d, viewBox = "0 0 120 50" }: Readonly<{ d?: string; viewBox?: string }>) {
+export function PenRing({
+  d,
+  viewBox = "0 0 120 50",
+}: Readonly<{ d?: string; viewBox?: string }>) {
   return (
-    <svg className="penring" viewBox={viewBox} preserveAspectRatio="none" aria-hidden="true">
+    <svg
+      className="penring"
+      viewBox={viewBox}
+      preserveAspectRatio="none"
+      aria-hidden="true"
+    >
       <path
         pathLength={1}
         d={

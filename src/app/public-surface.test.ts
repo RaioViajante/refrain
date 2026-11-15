@@ -64,6 +64,10 @@ function publicFiles(): string[] {
       file.startsWith("src/app/(memories)/") ||
       // M3.8a: the archives, in a route group of their own.
       file.startsWith("src/app/(archives)/") ||
+      // v3 (ADR 0011, proposed): the About page, and the shared frame,
+      // objects, and motion and sound islands that every public page uses.
+      file.startsWith("src/app/(about)/") ||
+      file.startsWith("src/app/v3/") ||
       // The thin English routes, which only delegate (route-structure.test.ts).
       (file.startsWith("src/app/(en)/") &&
         !file.startsWith("src/app/(en)/studio/")) ||
@@ -143,9 +147,15 @@ const ALLOWED_IMPORTS = [
   /^@\/app\/(public\.css|globals\.css|public-fonts|not-found-view|home-screen)$/,
   // The interface's dictionaries, formats, and links (ADR 0008 § 4).
   /^@\/i18n\/(authored|dictionaries|format|locales|paths)$/,
+  // v3: its interface copy and templates (src/i18n/v3).
+  /^@\/i18n\/v3(\/[a-z-]+)?$/,
+  // v3: the shared frame, objects, covers, and islands (src/app/v3), and the
+  // stylesheets they import.
+  /^@\/app\/v3\/[a-z-]+$/,
+  /^\.\/[a-z0-9-]+\.css$/,
   /^\.\/pt-BR$/,
   // The thin English routes name their implementation, and nothing else.
-  /^@\/app\/\((public|artists|memories|archives)\)\/([a-z-]+\/|\[slug\]\/)*(screen|section-layout)$/,
+  /^@\/app\/\((public|artists|memories|archives|about)\)\/([a-z-]+\/|\[slug\]\/)*(screen|section-layout)$/,
   /^@\/app\/\(public\)\/_components\/[a-z-]+$/,
   // M3.8a: the archives' shared frame, metadata, and lines.
   /^@\/app\/\(archives\)\/_components\/[a-z-]+$/,
@@ -608,6 +618,8 @@ describe("the public surface", () => {
       "/albums",
       "/artists",
       "/memories",
+      // v3: the About page, answered as the archives are.
+      "/about",
       "/sitemap.xml",
       "/robots.txt",
       // The Portuguese Home, sections, and archives (ADR 0006 A7, item 2).
@@ -618,6 +630,7 @@ describe("the public surface", () => {
       "/pt/albums",
       "/pt/artists",
       "/pt/memories",
+      "/pt/about",
       // The Portuguese Studio, only so that its encoded prefix is refused
       // (PR 3); a literal address goes back to the framework.
       "/pt/studio",
@@ -647,6 +660,8 @@ describe("the public surface", () => {
       /^src\/app\/\(memories\)\//,
       // M3.8a: the archives, scanned above.
       /^src\/app\/\(archives\)\//,
+      // v3: the About page, scanned above.
+      /^src\/app\/\(about\)\//,
       /^src\/app\/sitemap\.xml\/route\.ts$/,
       /^src\/app\/robots\.txt\/route\.ts$/,
       // The not-found views: the address-level one and the English root's.
@@ -654,7 +669,7 @@ describe("the public surface", () => {
       /^src\/app\/\(en\)\/not-found\.tsx$/,
       // The English routes: public ones are scanned above, and each Studio
       // route delegates to an authorized screen (route-structure.test.ts).
-      /^src\/app\/\(en\)\/(\(public\)|\(artists\)|\(memories\)|\(archives\)|studio)\//,
+      /^src\/app\/\(en\)\/(\(public\)|\(artists\)|\(memories\)|\(archives\)|\(about\)|studio)\//,
       // The Home (M3.4), scanned above as a public file.
       /^src\/app\/\(en\)\/page\.tsx$/,
       // The English root layout, which reads nothing.
@@ -662,7 +677,7 @@ describe("the public surface", () => {
       // The Portuguese public routes (ADR 0006 A7, item 9), scanned above as
       // public files, its root layout, which reads nothing, and its
       // not-found view.
-      /^src\/app\/pt\/(\(public\)|\(artists\)|\(memories\)|\(archives\))\//,
+      /^src\/app\/pt\/(\(public\)|\(artists\)|\(memories\)|\(archives\)|\(about\))\//,
       /^src\/app\/pt\/(page|layout|not-found)\.tsx$/,
       // The Portuguese Studio's routes (PR 3): each delegates to an authorized
       // screen (route-structure.test.ts), as the English ones do.
@@ -1232,7 +1247,9 @@ describe("the Publication reading module", () => {
     /photo_url|photo_credit|photo_license|photo_source_url|photo_file_|photo_chosen_at|photoUrl|photoCredit|photoLicense|photoSourceUrl|photoFile|photoChosenAt|wikimedia/i;
   const PHOTO_READERS = [
     "src/modules/publication/public-artist.ts",
-    "src/app/(artists)/artists/[slug]/artist-view.tsx",
+    // v3: the About page names the photographs' source in its credits; it
+    // reads no photograph.
+    "src/app/(about)/about/screen.tsx",
     "src/app/(public)/_components/artist-photograph.tsx",
     "src/app/(public)/_components/public-photo-image.tsx",
   ];
@@ -1654,6 +1671,9 @@ describe("the Home's components", () => {
     "next/server",
     // The language selector's keyboard island, and nothing else of React.
     "react",
+    // v3: the page runtime reads the router's pathname, to set itself up
+    // again after a client navigation.
+    "next/navigation",
   ]);
 
   /** A local specifier as a file, or null for a package or a stylesheet. */
@@ -1749,16 +1769,16 @@ describe("the Home's components", () => {
   it("are all server components, down to every component they import", () => {
     const { files, packages } = appImports("src/app/home-screen.tsx");
     expect([...files]).toContain("src/app/(public)/_components/home-view.tsx");
-    expect([...files]).toContain("src/app/(public)/_components/arrow-icon.tsx");
-    // The language selector's keyboard island is the only client component
-    // (ADR 0008 § 6). It receives the server-rendered selector as children,
-    // and imports nothing but React, so no read model reaches the client.
-    expect([...files].filter(isClient)).toEqual([
-      "src/app/(public)/_components/language-keys.tsx",
-    ]);
+    expect([...files]).toContain("src/app/v3/frame.tsx");
+    // v3: the page runtime (the reveal observer, the hero's scroll, the pen's
+    // sounds) and the footer's sound control are the only client component.
+    // It receives a label string as its only prop, and imports nothing but
+    // React, the router's pathname, and the synthesized sound engine, so no
+    // read model reaches the client.
+    expect([...files].filter(isClient)).toEqual(["src/app/v3/runtime.tsx"]);
     const island = parse(
-      readFileSync("src/app/(public)/_components/language-keys.tsx", "utf8"),
-      "src/app/(public)/_components/language-keys.tsx",
+      readFileSync("src/app/v3/runtime.tsx", "utf8"),
+      "src/app/v3/runtime.tsx",
     );
     expect(
       island.statements
@@ -1766,7 +1786,12 @@ describe("the Home's components", () => {
         .map(
           (statement) => (statement.moduleSpecifier as ts.StringLiteral).text,
         ),
-    ).toEqual(["react"]);
+    ).toEqual(["next/navigation", "react", "./sfx"]);
+    const engine = parse(
+      readFileSync("src/app/v3/sfx.ts", "utf8"),
+      "src/app/v3/sfx.ts",
+    );
+    expect(engine.statements.filter(ts.isImportDeclaration)).toEqual([]);
     expect([...packages].filter((name) => !HOME_PACKAGES.has(name))).toEqual(
       [],
     );
