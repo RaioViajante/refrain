@@ -207,7 +207,7 @@ Music Story is the preferred unified provider (ADR 0011, AR-16; ADR 0012 § 1). 
 | --- | --- | --- |
 | **MS-0 — Access** | The owner confirms the token in the Metadata Monitor and its plan (trial: 15 days, 200 calls a day). The token is set only as a server environment variable. One counted test call returns a known album | A recorded result, with no token in any log or file |
 | **MS-1 — Licensing** | Request the written terms for displaying cover art and artist pictures on a public site, for caching or rehosting, for attribution, and for the quota | Terms the owner accepts in writing, or **stop for the owner's decision** (D16, D22). The provider is never changed silently |
-| **MS-2 — Adapter** | `src/integrations/music-story/`, built against sanitized captured responses where the terms allow; usage counter; the Studio's search and "fill it in by hand" | The adapter tests; no writing is ever sent |
+| **MS-2 — Adapter** (built on `feat/music-story-adapter`, not wired to any screen, tested only against synthetic responses in the documented shapes; no live call made) | `src/integrations/music-story/`, built against sanitized captured responses where the terms allow; usage counter; the Studio's search and "fill it in by hand" | The adapter tests; no writing is ever sent |
 | **MS-3 — Mapping** | `ms_*` identifier columns; an approved linking review that fills identifiers only and keeps every MusicBrainz identifier; Grace's tracklist completed | No duplicate albums; every journal keeps its album |
 | **MS-4 — Artwork** | Covers and artist pictures from Music Story on hosted pages, under the accepted licence, with `img-src` widened only then | The licence recorded as a Deployment gate item |
 
