@@ -174,6 +174,11 @@ export default async function setup() {
   process.env.E2E_RUN_ID = randomUUID().slice(0, 8);
 
   return async () => {
+    // The public servers' logs too: a failure on a public page (such as the
+    // intermittent 500 in docs/evidence/v3-public.md) is in their logs, not
+    // the studio's. Copied before they are stopped, which removes them.
+    keepServerLog(pub.serverLog, "public-server.log");
+    keepServerLog(coversOff.serverLog, "covers-off-server.log");
     try {
       await seedPublic(["remove", seededPublic, publicPrefix]).catch(() => {});
       await pub.stop().catch(() => {});
@@ -189,19 +194,26 @@ export default async function setup() {
         await removeSyntheticRecords();
       }
     } finally {
-      // For diagnosis on one's own machine: the log can hold a stack trace
-      // but, by the application's logging rules, no writing or credentials.
-      if (process.env.E2E_KEEP_SERVER_LOG) {
-        try {
-          mkdirSync("test-results", { recursive: true });
-          copyFileSync(server.serverLog, "test-results/server.log");
-        } catch {
-          // Diagnosis only: it must never stop the server from being stopped.
-        }
-      }
+      keepServerLog(server.serverLog, "server.log");
       await server.stop();
     }
   };
+}
+
+// For diagnosis on one's own machine (E2E_KEEP_SERVER_LOG=1): copies a
+// server's log into `test-results/`, which Git ignores. The log can hold a
+// stack trace but, by the application's logging rules, no writing or
+// credentials.
+function keepServerLog(source: string, name: string): void {
+  if (!process.env.E2E_KEEP_SERVER_LOG) {
+    return;
+  }
+  try {
+    mkdirSync("test-results", { recursive: true });
+    copyFileSync(source, `test-results/${name}`);
+  } catch {
+    // Diagnosis only: it must never stop the server from being stopped.
+  }
 }
 
 // Removes only the records whose names start with the E2E prefix, from the

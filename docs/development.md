@@ -398,7 +398,7 @@ pnpm exec playwright show-report           # the HTML report of the last local r
 
 There is no `sleep`: each test waits for something the application shows (a heading, a message, a URL). A flaky test is a bug, so there are no retries.
 
-**Running one file or one project:** `pnpm exec playwright test e2e/recovery.spec.ts --project=desktop` (the `setup` project runs first by itself). Within a file, tests share state and run in order, so a single test of a file may need its predecessors. A failure prints Playwright's own call log; `E2E_KEEP_SERVER_LOG=1` copies the server log to `test-results/server.log`.
+**Running one file or one project:** `pnpm exec playwright test e2e/recovery.spec.ts --project=desktop` (the `setup` project runs first by itself). Within a file, tests share state and run in order, so a single test of a file may need its predecessors. A failure prints Playwright's own call log; `E2E_KEEP_SERVER_LOG=1` copies the Studio server's log to `test-results/server.log`, and the public servers' logs to `test-results/public-server.log` and `test-results/covers-off-server.log`.
 
 **Not covered:** real HTTPS, Firefox and WebKit, and any hosted configuration or CDN. CI runs Chromium only.
 
