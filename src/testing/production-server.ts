@@ -7,6 +7,7 @@ import {
   readFileSync,
   rmSync,
 } from "node:fs";
+import { lookup } from "node:dns/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -227,6 +228,16 @@ export async function startProductionServer(
 
   const target = effectiveTarget(connectionString, "TEST_DATABASE_URL");
   const databaseTarget = `${target.host}:${target.port}/${target.database}`;
+  // The server is started on `localhost`, resolved IPv4 first (below), so it
+  // listens on 127.0.0.1, where every test connects. On a machine where
+  // `localhost` has no IPv4 address it would listen elsewhere, and a process
+  // that took 127.0.0.1:<port> could answer the tests: refuse to start.
+  const loopback = await lookup("localhost", { order: "ipv4first" });
+  if (loopback.address !== "127.0.0.1") {
+    throw new Error(
+      `localhost resolves first to ${loopback.address}, not 127.0.0.1; the test server would not listen where the tests connect.`,
+    );
+  }
   const port = await choosePort(options.port);
   const baseURL = `http://127.0.0.1:${port}`;
   const commandEnv = {

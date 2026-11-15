@@ -196,6 +196,45 @@ function hiddenAddresses() {
 }
 
 describe("public reads enabled: an address that is not served answers as an unknown one", () => {
+  // The proxy's not-found rewrite overrides the request's headers (it
+  // forwards them without the User-Agent). The framework carries those as
+  // `x-middleware-request-*` copies, which hold the cookie's value; none may
+  // reach the client.
+  it("returns none of the request's headers, its cookie included", async () => {
+    for (const path of [
+      `/albums/${slug("draft")}`,
+      `/albums/${slug("nothing")}`,
+      `/pt/albums/${slug("draft")}`,
+    ]) {
+      const response = await request(on.baseURL, path, {
+        headers: {
+          cookie: "probe=refrain-private-cookie-value",
+          "user-agent": "Slackbot-LinkExpanding 1.0",
+        },
+      });
+      expect(response.status, path).toBe(404);
+      const names = Object.keys(response.headers);
+      // Only the framework's own rewrite marker, the same fixed path for every
+      // address that is not served, may appear: no request-header copy and no
+      // override list.
+      expect(
+        names.filter(
+          (name) =>
+            name.startsWith("x-middleware-request-") ||
+            name === "x-middleware-override-headers",
+        ),
+        path,
+      ).toEqual([]);
+      expect(response.headers["x-middleware-rewrite"] ?? "", path).toMatch(
+        /^(\/__refrain-unknown-address)?$/,
+      );
+      expect(JSON.stringify(response.headers), path).not.toContain(
+        "refrain-private-cookie-value",
+      );
+      expect(response.body, path).not.toContain("refrain-private-cookie-value");
+    }
+  });
+
   it.each(hiddenAddresses())(
     "%s: the same 404, byte for byte",
     async (_n, s) => {
