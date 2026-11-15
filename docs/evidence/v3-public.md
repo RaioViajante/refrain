@@ -105,6 +105,20 @@ The author's writing is not listed; an HTTP test now asserts that.
 
 An HTTP test holds the privacy, the titles in both languages, and the absence of brackets and of the reference's sample values. Axe passes at 1280 and 390 px.
 
+### The editors' panels
+
+The journal and memory editors are drawn in the reference's panels, styling only (`src/app/v3/studio-theme.css`):
+- the record, the writing with Track by track under a rule, and the aside are white panels;
+- the reference's 1fr + 320 px grid, with the aside sticky beside the writing;
+- field labels in the reference's 13 px semibold.
+
+Not changed:
+- the document order, the controls, and what they do;
+- the 760 px reading measure, which the layout test holds;
+- the album rating's single line at 320 px. Below 360 px the writing panel drops its frame to keep it.
+
+The panels the reference adds around unbuilt parts are not drawn: the record search, "Written in", the margin note, the Portuguese version, Publish with "Show in recently written", and Music Story.
+
 ### Sign-in
 
 The reference's centred box (`src/app/studio/sign-in/`):
@@ -258,7 +272,7 @@ The Studio's language control is now the v3 sidebar's two links, which replace t
 - Catalog wording (R9); magic link (R10); hosting (R11).
 - Music Story: blocked on access and licensing (MS-0, MS-1).
 
-- **The v3 album and memory editors** (AlbumEdit, Memory). Their panels depend on parts that are not built:
+- **The rest of the v3 album and memory editors** (AlbumEdit, Memory). The panels are drawn; what they hold in the reference depends on parts that are not built:
   - the margin note and the Portuguese version (writers and translation authoring);
   - "Show in recently written" (R2);
   - one favourite (R2, blocked on ADR 0002);

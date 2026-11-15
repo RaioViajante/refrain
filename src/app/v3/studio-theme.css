@@ -559,3 +559,85 @@
     justify-content: flex-start;
   }
 }
+/* The journal editor in the reference's panels (AlbumEdit): the record, the
+   journal with its tracks under a rule, and the aside, each a white panel,
+   with the reference's 1fr + 320px grid. Only the drawing changes: the
+   document order, the controls, and what they do are as before. */
+.stu .studio-editor-head-album {
+  padding: 22px 24px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+@media (min-width: 1100px) {
+  .stu .studio-columns {
+    grid-template-columns: minmax(0, 1fr) 320px;
+    column-gap: 24px;
+    margin-top: 24px;
+  }
+}
+.stu .studio-writing-column,
+.stu .studio-margin {
+  padding: 22px 24px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+.stu .studio-writing-column > .studio-tracks {
+  margin: 0 -24px;
+  padding: 22px 24px 0;
+  border-top: 1px solid var(--line);
+}
+.stu .studio-margin {
+  gap: 14px;
+}
+@media (min-width: 1100px) {
+  .stu .studio-margin {
+    position: sticky;
+    top: 88px;
+  }
+}
+.stu .studio-margin .studio-margin-title {
+  font-size: 16px;
+}
+.stu .studio-writing-column label.studio-label,
+.stu .studio-writing-column legend.studio-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+@media (max-width: 720px) {
+  .stu .studio-writing-column,
+  .stu .studio-margin,
+  .stu .studio-editor-head-album {
+    padding: 18px 16px;
+  }
+  .stu .studio-writing-column > .studio-tracks {
+    margin: 0 -16px;
+    padding: 18px 16px 0;
+  }
+}
+/* On the narrowest phones (the reference's phone is 390px) the writing panel
+   gives its frame back, so the album rating's stars, words, and Clear keep one
+   line. */
+@media (max-width: 360px) {
+  .stu .studio-writing-column {
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+  .stu .studio-writing-column > .studio-tracks {
+    margin: 0;
+    padding: 18px 0 0;
+  }
+}
+/* The record panel lines up with the journal panel, and Track by track is a
+   panel's heading, as in the reference. */
+/* Both keep the writing's reading measure: 760px at most, frame included. */
+.stu .studio-editor-head-album,
+.stu .studio-writing-column {
+  max-width: 760px;
+}
+.stu .studio-writing-column > .studio-tracks > .studio-section-title {
+  font-size: 18px;
+  letter-spacing: -0.01em;
+}
