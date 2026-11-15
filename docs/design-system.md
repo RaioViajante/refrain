@@ -10,6 +10,13 @@ The two identities are named by their design files. "v3" (November 2026) is newe
 
 # Part I — Refrain v3 specification
 
+**Implementation status.** Part I is implemented on draft PR #104, which is not merged, for the parts that need no decision. The [evidence](evidence/v3-public.md) lists:
+- each built page and screen;
+- every deliberate difference from the reference, with its reason;
+- the per-band comparison with the reference at 1440 and 390 px.
+
+The parts that wait on ADR 0011, 0012, and the R-track decisions are listed there too.
+
 ## Authority
 
 Once [ADR 0011](decisions/0011-refrain-v3-identity-and-product.md) is accepted, these sources rank as follows:

@@ -122,7 +122,20 @@ Rule 7 is enforced at build time. A Client Component that reaches a module impor
 - **Raw SQL:** queries whose exact SQL matters (the publication predicate, the academic queries) are written with Drizzle's `sql` template. The node-postgres driver returns `timestamptz` values from raw SQL as text, so those projections convert them to `Date`.
 - **Tests:** integration tests use their own disposable database and never `DATABASE_URL` ([Development § Test database](development.md#test-database)).
 
-## Writing Studio interface (M1.3B)
+## The v3 presentation layer (proposed, draft PR #104)
+
+On the branch `feat/v3-foundations` (not merged; [evidence](evidence/v3-public.md)), presentation follows the v3 design ([Design System, Part I](design-system.md#part-i--refrain-v3-specification)), with no change to the modules or the schema:
+
+- **`src/app/v3/`** holds the shared presentation:
+  - the stylesheets: generated `v3.css` and `studio.css`, and hand-written `frame.css` and `studio-theme.css`;
+  - the fonts and the page frame;
+  - the objects (vinyl, kraft, tape, pen circle, cover);
+  - the client islands: reveals, pen, and sound, off until the footer toggle.
+- **Strings.** The reference's strings live in `src/i18n/v3`, without its sample values. Words the Studio adds stay in `src/i18n/studio`.
+- **Public pages** read only through the Publication module's reading entry point, as before. The Studio's pages still start with `authorizeAuthor`.
+- **The Library** (`/studio/journals`) lists album journals and memories together. Its filters live in the address and are validated with Zod.
+- **`/studio/system`**, the design catalogue, is a private Studio route in both trees.
+
 
 - **Screens.** `/studio` (the desk), `/studio/artists`, `/studio/albums`, `/studio/tracks`, and `/studio/journals`, each with `new` and `[id]` routes; a journal also has `[id]/edit`. Every page is a Server Component that starts with `authorizeAuthor` inside a `Suspense` boundary, so the static shell holds only a loading line and every figure and every word of writing is streamed after authorization.
 - **Mutations are Server Actions only**, in `actions.ts` files next to each section. There are no administrative route handlers, so there is one implementation of each mutation. Each exported action starts with `await authorizeAuthor(await headers())`, then calls one domain command through `perform` ([`src/app/studio/perform.ts`](../src/app/studio/perform.ts)), which returns the deliberately small [`ActionResult`](../src/app/studio/results.ts): a fixed failure code, the names of invalid fields, and what blocks a deletion. **Publishing (M2.3, on its branch)** is two requests and the author's act: `previewPublicationAction` and `previewPublicChangeAction` (each alone in its own file) read and return a review with a confirmation token, and `publishJournalVersionAction` or `saveJournalAction` consume a token that the confirmation dialog sends from its confirm control; the Journals module's wrappers check the entry's kind and call the Publication engine. Nothing re-addresses or permanently deletes, and no file under `src/app` names a Publication command: [`no-publishing.test.ts`](../src/app/studio/no-publishing.test.ts) proves that, and also that each wrapper, the token, and each preview action stay in their own files. The studio asks Next.js to drop cached data in one place ([`revalidation.ts`](../src/app/studio/revalidation.ts)); nothing public is cached ([ADR 0006 § 11](decisions/0006-publication-decision-and-acknowledgement.md#11-public-reads-and-caches)).
