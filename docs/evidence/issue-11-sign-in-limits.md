@@ -66,3 +66,7 @@ One review, in a separate context, read-only: **GO for the release candidate as 
 | **Info:** an IPv6 zone (`fe80::1%eth0`) answered `503` | It is the `unknown` client now; tested |
 | **Info:** with the header trusted, Better Auth records the author's address in `auth_sessions.ip_address` | To be stated in the privacy notice before the variable is set |
 | **Missing tests:** the global ceiling over HTTP, and sign-out while it is reached | Integration covers the ceiling. Over HTTP the suite's servers share one database, so filling the ceiling there would throttle other files' sign-ins; left out on purpose. Sign-out is never routed through the limits (handler test) |
+
+**Re-review of the fixes (`ec23bef..52e2cc0`), in a separate context: GO.** The prune deletes only this module's ended rows, and no race could allow an attempt. A missing count is refused. The zone fix works.
+
+**Low:** `vercel env pull --environment=preview` writes `VERCEL=1` and `VERCEL_ENV` into a local file, so a local server with the variable set would trust its own client's header. That is a local-only bypass; `.env.example` now says never to set it in a local environment file.
