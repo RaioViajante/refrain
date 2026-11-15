@@ -11,7 +11,7 @@ import { localizedHref } from "@/i18n/paths";
 import { v3StringsFor } from "@/i18n/v3";
 import { v3TemplatesFor } from "@/i18n/v3/templates";
 
-import { ArtistViews } from "./artist-views";
+import { ArtistViews, type ArtistView } from "./artist-views";
 
 // The public Artists archive (docs/design-system.md, Part I, Pages: Artists):
 // three artists on torn strips, then everyone, either as a cloud of names
@@ -40,9 +40,11 @@ function splitName(name: string): [string, string] {
 
 export function ArtistsArchive({
   artists,
+  view,
   locale,
 }: Readonly<{
   artists: readonly PublicArtistCard[] | null;
+  view: ArtistView;
   locale: InterfaceLocale;
 }>) {
   const t = v3StringsFor(locale).artists;
@@ -113,6 +115,8 @@ export function ArtistsArchive({
           ) : null}
           {list.length > 0 ? (
             <ArtistViews
+              view={view}
+              base={localizedHref(locale, "/artists")}
               labels={{ show: t.show, often: t.v_often, az: t.v_az }}
               often={
                 <>

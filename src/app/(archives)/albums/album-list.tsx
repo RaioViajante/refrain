@@ -1,6 +1,4 @@
-"use client";
-
-import { useState } from "react";
+import Link from "next/link";
 
 import { HEADER_RINGS } from "@/app/v3/rings";
 
@@ -8,8 +6,9 @@ import { HEADER_RINGS } from "@/app/v3/rings";
 // with the reference's four orders: the order written (no groups); the year,
 // oldest first, grouped by decade; the artist, A to Z, ignoring a leading
 // "The", grouped by letter, with kraft tabs to jump to a letter; and the
-// rating, highest first, grouped by rating. Without JavaScript the list is in
-// the order written, and every row is a link.
+// rating, highest first, grouped by rating. The order is the address's
+// `?sort=` (validated by the screen), so each order is a link that works the
+// same without JavaScript, and a sorted list can be shared or reloaded.
 
 export interface AlbumListRow {
   n: number;
@@ -24,8 +23,13 @@ export interface AlbumListRow {
   others: { href: string; label: string; about: string }[];
 }
 
-type Sort = "written" | "year" | "artist" | "rating";
-const SORTS: readonly Sort[] = ["written", "year", "artist", "rating"];
+export const ALBUM_SORTS = ["written", "year", "artist", "rating"] as const;
+export type AlbumSort = (typeof ALBUM_SORTS)[number];
+type Sort = AlbumSort;
+const SORTS = ALBUM_SORTS;
+
+/** Where the list starts, so that choosing an order keeps the reader there. */
+export const ALBUM_LIST_ID = "pp-list";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -58,9 +62,15 @@ const RING_PATHS = [
 
 export function AlbumList({
   rows,
+  sort,
+  base,
   strings,
 }: Readonly<{
   rows: AlbumListRow[];
+  /** The order chosen in the address. */
+  sort: Sort;
+  /** The archive's own address in the reader's language. */
+  base: string;
   strings: {
     listS: string;
     sortBy: string;
@@ -70,7 +80,6 @@ export function AlbumList({
     sorts: Record<Sort, string>;
   };
 }>) {
-  const [sort, setSort] = useState<Sort>("written");
   const sorted = [...rows].sort(ORDER[sort]);
   const items: React.ReactNode[] = [];
   const jump: { label: string; id: string }[] = [];
@@ -112,7 +121,7 @@ export function AlbumList({
     }
   }
   return (
-    <div className="alist" data-a="up" data-d="0">
+    <div className="alist" id={ALBUM_LIST_ID} data-a="up" data-d="0">
       <div className="top pix">
         <span>{strings.titles[sort]}</span>
         <span>{strings.listS}</span>
@@ -122,11 +131,11 @@ export function AlbumList({
           {strings.sortBy}
         </span>
         {SORTS.map((option, i) => (
-          <button
+          <Link
             key={option}
-            type="button"
-            aria-pressed={sort === option ? "true" : "false"}
-            onClick={() => setSort(option)}
+            href={`${base}${option === "written" ? "" : `?sort=${option}`}#${ALBUM_LIST_ID}`}
+            aria-current={sort === option ? "true" : undefined}
+            prefetch={false}
           >
             {strings.sorts[option]}
             <svg
@@ -137,7 +146,7 @@ export function AlbumList({
             >
               <path pathLength={1} d={RING_PATHS[i]} />
             </svg>
-          </button>
+          </Link>
         ))}
       </div>
       {jump.length > 0 ? (

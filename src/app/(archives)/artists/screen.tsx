@@ -13,7 +13,15 @@ import { notFoundMetadata } from "@/app/(public)/_components/page-metadata";
 import { dictionaryFor } from "@/i18n/dictionaries";
 import type { InterfaceLocale } from "@/i18n/locales";
 
+import type { ArchiveSearchParams } from "@/app/(archives)/albums/screen";
+
+import { ARTIST_VIEWS, type ArtistView } from "./artist-views";
 import { ArtistsArchive } from "./artists-archive";
+
+/** The view from the address: exactly "az", else the cloud. */
+export function artistViewOf(value: string | string[] | undefined): ArtistView {
+  return ARTIST_VIEWS.find((view) => view === value) ?? "often";
+}
 
 // The public Artists archive (M3.8a; the approved V4.4 `Artists` screen),
 // anonymous, read through the Publication module's reading entry point alone.
@@ -55,14 +63,17 @@ export async function artistsArchiveMetadata(
 
 export async function ArtistsArchiveScreen({
   locale,
-}: Readonly<{ locale: InterfaceLocale }>) {
+  searchParams,
+}: Readonly<{ locale: InterfaceLocale; searchParams: ArchiveSearchParams }>) {
   const loaded = await load();
   if (loaded.kind === "not_found") {
     notFound();
   }
+  const view = artistViewOf((await searchParams).view);
   return (
     <ArtistsArchive
       artists={loaded.kind === "list" ? loaded.artists : null}
+      view={view}
       locale={locale}
     />
   );

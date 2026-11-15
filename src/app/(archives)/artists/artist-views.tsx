@@ -1,30 +1,39 @@
-"use client";
-
-import { useState, type ReactNode } from "react";
+import Link from "next/link";
+import type { ReactNode } from "react";
 
 import { HEADER_RINGS } from "@/app/v3/rings";
 
 // The Artists archive's switch between the cloud of names and the A to Z
-// dividers. Both lists are rendered; the switch shows one. Without JavaScript
-// the cloud shows, and every name in it is a link.
+// dividers. The view is the address's `?view=` (validated by the screen), so
+// each view is a link that works the same without JavaScript; both lists are
+// in the page, and the other one is hidden.
 
-type View = "often" | "az";
+export const ARTIST_VIEWS = ["often", "az"] as const;
+export type ArtistView = (typeof ARTIST_VIEWS)[number];
+
+/** Where the views start, so that switching keeps the reader there. */
+const VIEWS_ID = "pp-views";
 
 export function ArtistViews({
+  view,
+  base,
   labels,
   often,
   az,
 }: Readonly<{
+  /** The view chosen in the address. */
+  view: ArtistView;
+  /** The archive's own address in the reader's language. */
+  base: string;
   labels: { show: string; often: string; az: string };
   often: ReactNode;
   az: ReactNode;
 }>) {
-  const [view, setView] = useState<View>("often");
-  const button = (value: View, label: string, d: string) => (
-    <button
-      type="button"
-      aria-pressed={view === value ? "true" : "false"}
-      onClick={() => setView(value)}
+  const link = (value: ArtistView, label: string, d: string) => (
+    <Link
+      href={`${base}${value === "often" ? "" : `?view=${value}`}#${VIEWS_ID}`}
+      aria-current={view === value ? "true" : undefined}
+      prefetch={false}
     >
       {label}
       <svg
@@ -35,16 +44,21 @@ export function ArtistViews({
       >
         <path pathLength={1} d={d} />
       </svg>
-    </button>
+    </Link>
   );
   return (
     <>
-      <div className="sorts vsw" role="group" aria-label={labels.show}>
+      <div
+        className="sorts vsw"
+        id={VIEWS_ID}
+        role="group"
+        aria-label={labels.show}
+      >
         <span className="sb hand" aria-hidden="true">
           {labels.show}
         </span>
-        {button("often", labels.often, HEADER_RINGS.artists.d)}
-        {button("az", labels.az, HEADER_RINGS.albums.d)}
+        {link("often", labels.often, HEADER_RINGS.artists.d)}
+        {link("az", labels.az, HEADER_RINGS.albums.d)}
       </div>
       <div className="views" data-view={view}>
         <div className="v-often">{often}</div>

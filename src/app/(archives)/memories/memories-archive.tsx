@@ -111,7 +111,7 @@ export function MemoriesArchive({
             return (
               <section key={label} className="yb" aria-label={label}>
                 <h2
-                  className="yh"
+                  className={group.years.length === 0 ? "yh word" : "yh"}
                   style={{
                     ["--yc" as string]:
                       side === "left" ? "1 / span 4" : "9 / span 4",

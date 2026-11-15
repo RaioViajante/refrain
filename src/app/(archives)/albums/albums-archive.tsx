@@ -14,7 +14,7 @@ import { localizedHref } from "@/i18n/paths";
 import { v3Decimal, v3StringsFor } from "@/i18n/v3";
 import { v3TemplatesFor } from "@/i18n/v3/templates";
 
-import { AlbumList, type AlbumListRow } from "./album-list";
+import { AlbumList, type AlbumListRow, type AlbumSort } from "./album-list";
 
 // The public Albums archive (docs/design-system.md, Part I, Pages: Albums):
 // the album journals as covers turning around a record, the first ones in the
@@ -45,16 +45,18 @@ const RINGS = [
     size: 8.8,
   },
   {
-    count: 18,
+    count: 16,
     radius: 43,
     start: 6,
     period: 1400,
     direction: "normal",
     size: 7.4,
   },
-  // Past the reference's 38 places, a further ring by the same rule (ADR 0011, D20).
+  // Past the reference's 36 places (8, 12, 16), a further ring by the same
+  // rule, four covers more (ADR 0011, D20, proposed). The reference's radius
+  // step (12%) would set it outside the orbit's square, so it closes in.
   {
-    count: 24,
+    count: 20,
     radius: 52,
     start: 4,
     period: 1800,
@@ -178,8 +180,13 @@ function Orbit({
 
 export function AlbumsArchive({
   albums,
+  sort,
   locale,
-}: Readonly<{ albums: PublicAlbumCard[] | null; locale: InterfaceLocale }>) {
+}: Readonly<{
+  albums: PublicAlbumCard[] | null;
+  sort: AlbumSort;
+  locale: InterfaceLocale;
+}>) {
   const t = v3StringsFor(locale).albums;
   const tt = v3TemplatesFor(locale);
   const lists = dictionaryFor(locale).archives;
@@ -225,6 +232,8 @@ export function AlbumsArchive({
           ) : (
             <AlbumList
               rows={rows}
+              sort={sort}
+              base={localizedHref(locale, "/albums")}
               strings={{
                 listS: String(ordered.length),
                 sortBy: t.sortBy,
