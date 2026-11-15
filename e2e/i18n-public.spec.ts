@@ -112,8 +112,8 @@ test("works by keyboard, with 44px targets", async ({ page }) => {
 });
 
 test("works without JavaScript: real links", async ({ browser }) => {
-  // On a page rendered in one pass (the album journal still streams: issue
-  // #44, open before v3).
+  // On a page rendered in one pass (every public page since issue #44; the
+  // album journal's own case is in public.spec.ts).
   const context = await browser.newContext({ javaScriptEnabled: false });
   const page = await context.newPage();
   await page.goto(`${base}/albums`);

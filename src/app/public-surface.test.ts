@@ -559,9 +559,12 @@ describe("the public surface", () => {
     ).toHaveLength(1);
   });
 
-  it("renders the Home, the artist pages, the memory pages, and the archives on the server before sending them, so they need no client JavaScript", () => {
+  it("renders the Home, the album journals, the artist pages, the memory pages, and the archives on the server before sending them, so they need no client JavaScript", () => {
     for (const file of [
       "src/app/(en)/page.tsx",
+      // Issue #44: the album journal, in one pass like the memory pages.
+      "src/app/(en)/(public)/albums/[slug]/page.tsx",
+      "src/app/pt/(public)/albums/[slug]/page.tsx",
       "src/app/(en)/(artists)/artists/[slug]/page.tsx",
       "src/app/(en)/(memories)/memories/[slug]/page.tsx",
       "src/app/(en)/(archives)/albums/page.tsx",

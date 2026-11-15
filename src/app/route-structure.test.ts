@@ -63,6 +63,7 @@ const ONE_PASS = [
   "/",
   "/about",
   "/albums",
+  "/albums/[slug]",
   "/artists",
   "/artists/[slug]",
   "/memories",

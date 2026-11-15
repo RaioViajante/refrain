@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
 import { connection } from "next/server";
-import { cache, Suspense } from "react";
+import { cache } from "react";
 
 import {
   getPublicAlbumJournal,
@@ -16,7 +16,7 @@ import {
   notFoundMetadata,
   publicPageMetadata,
 } from "@/app/(public)/_components/page-metadata";
-import { V3_CONTENT_ID, V3Frame } from "@/app/v3/frame";
+import { V3Frame } from "@/app/v3/frame";
 import { dictionaryFor } from "@/i18n/dictionaries";
 import { OPEN_GRAPH_LOCALE, type InterfaceLocale } from "@/i18n/locales";
 import { localizedHref } from "@/i18n/paths";
@@ -29,9 +29,12 @@ import { JournalView, type JournalNeighbours } from "./journal-view";
 // through the proxy, and because the state can change in between. In that
 // narrow case it can only stream a not-found view, never publish anything.
 //
-// Nothing is cached: the data is read per request after `connection()`, behind
-// a Suspense boundary, so the static shell holds a loading line and no data,
-// and the response is `no-store` (docs/evidence/m3-1.md).
+// The page is rendered on the server per request, in one pass, and sent
+// complete (`instant = false`, as the Home, the artist pages, and the memory
+// pages are): it reads the same without client JavaScript (issue #44), and the
+// build prerenders nothing of it. Nothing is cached: the data is read per
+// request after `connection()`, and every response is `no-store`
+// (next.config.ts; docs/evidence/m3-1.md).
 
 // The interface language reaches the read only as the reader's locale, which
 // selects among versions that are already public (ADR 0002, D1.2; ADR 0006
@@ -91,27 +94,32 @@ export async function albumJournalMetadata(
   });
 }
 
-export function AlbumJournalScreen({
+export async function AlbumJournalScreen({
   params,
   locale,
 }: Readonly<{ params: Promise<{ slug: string }>; locale: InterfaceLocale }>) {
-  // The frame waits for the journal: its languages link to the journal's own
-  // address, which is known only once the journal is found to be served.
+  const { slug } = await params;
+  const loaded = await load(slug, locale);
+  if (loaded.kind === "redirect") {
+    permanentRedirect(localizedHref(locale, `/albums/${loaded.currentSlug}`));
+  }
+  if (loaded.kind !== "page") {
+    notFound();
+  }
+  const neighbours = await neighboursOf(loaded.slug, locale);
   return (
-    <Suspense fallback={<AlbumJournalLoading locale={locale} />}>
-      <AlbumJournal params={params} locale={locale} />
-    </Suspense>
-  );
-}
-
-function AlbumJournalLoading({
-  locale,
-}: Readonly<{ locale: InterfaceLocale }>) {
-  return (
-    <V3Frame locale={locale} path={null} page="album" current="albums" inside>
-      <main className="wrap" id={V3_CONTENT_ID} tabIndex={-1} aria-busy="true">
-        <p className="say">{dictionaryFor(locale).loading}</p>
-      </main>
+    <V3Frame
+      locale={locale}
+      path={`/albums/${loaded.slug}`}
+      page="album"
+      current="albums"
+      inside
+    >
+      <JournalView
+        journal={loaded.journal}
+        locale={locale}
+        neighbours={neighbours}
+      />
     </V3Frame>
   );
 }
@@ -147,34 +155,4 @@ async function neighboursOf(
     before: ordered[index - 1] ?? null,
     after: ordered[index + 1] ?? null,
   };
-}
-
-async function AlbumJournal({
-  params,
-  locale,
-}: Readonly<{ params: Promise<{ slug: string }>; locale: InterfaceLocale }>) {
-  const { slug } = await params;
-  const loaded = await load(slug, locale);
-  if (loaded.kind === "redirect") {
-    permanentRedirect(localizedHref(locale, `/albums/${loaded.currentSlug}`));
-  }
-  if (loaded.kind !== "page") {
-    notFound();
-  }
-  const neighbours = await neighboursOf(loaded.slug, locale);
-  return (
-    <V3Frame
-      locale={locale}
-      path={`/albums/${loaded.slug}`}
-      page="album"
-      current="albums"
-      inside
-    >
-      <JournalView
-        journal={loaded.journal}
-        locale={locale}
-        neighbours={neighbours}
-      />
-    </V3Frame>
-  );
 }
