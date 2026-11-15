@@ -119,13 +119,13 @@ test("empty states", async ({ page }) => {
     existing,
     "the disposable database already has a record named like the review sample",
   ).toBe(0);
-  await visit(page, "/studio", "Desk");
+  await visit(page, "/studio", "Good to see you.");
   await shoot(page, "02-desk-empty");
   await visit(page, "/studio/artists", "Artists");
   await shoot(page, "03-artists-empty");
   await visit(page, "/studio/albums", "Albums");
   await shoot(page, "04-albums-empty");
-  await visit(page, "/studio/journals", "Journals");
+  await visit(page, "/studio/journals", "Library");
   await shoot(page, "05-journals-empty");
 });
 
@@ -219,9 +219,9 @@ test("journal: write, read, edit", async ({ page }) => {
       await expect(page.getByText("Now private.")).toBeVisible();
     }
   }
-  await visit(page, "/studio", "Desk");
+  await visit(page, "/studio", "Good to see you.");
   await shoot(page, "16-desk-populated");
-  await visit(page, "/studio/journals", "Journals");
+  await visit(page, "/studio/journals", "Library");
   await shoot(page, "17-journals-list");
 });
 
@@ -355,7 +355,7 @@ test("stroke samples", async ({ page }) => {
     page.getByRole("navigation", { name: "Writing studio" }),
   );
   // A strip of a list with its drawn dividers.
-  const list = page.getByRole("list", { name: "Journals" });
+  const list = page.getByRole("table", { name: "Library" });
   const box = (await list.boundingBox())!;
   await page.screenshot({
     path: join(directory, "rule.png"),

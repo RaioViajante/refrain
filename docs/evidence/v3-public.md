@@ -74,6 +74,19 @@ The v3 Desk (`src/app/studio/screen.tsx`), from the same queries as before and w
 - **Recently published;**
 - the Recently deleted link, "All memories", and the catalog line.
 
+### The Library
+
+The v3 Library at `/studio/journals`, the sidebar's "Library" (`src/app/studio/journals/screen.tsx`). It reads the same queries as before, with no new read. It has:
+
+- album journals and memories together, newest edit first;
+- a title search, and type and status filters. They are links and a GET form, so the address is the only state and nothing needs JavaScript. Each value is validated with Zod, and an unknown value falls back to the default;
+- the Bin link with its count;
+- "N shown";
+- the reference's table: title with artist or song, type, language, status, edited, and Edit;
+- below the table, the Recently deleted note in the INV-4 wording ("not erased", "nothing removes it automatically").
+
+The author's writing is not listed; an HTTP test now asserts that.
+
 ### Sign-in
 
 The reference's centred box (`src/app/studio/sign-in/`):
@@ -111,6 +124,11 @@ The reference's centred box (`src/app/studio/sign-in/`):
 | Desk: "Recently published" by publication time | Published entries by their last edit | No new query; the publication history is not read on the Desk yet |
 | Desk: 30 to 36 px buttons and rows | 44 px targets (a title's target reaches into the row's padding, so the rhythm is the reference's) | The repository's 44 px rule |
 | Sign-in: "We'll email you a link…", "Email me a sign-in link", "expires in 15 minutes" | The reference's box over the existing email and password form: "Only you have an account here." and "Sign in" | The emailed link is R10, blocked on the magic-link hazard (ADR 0012 § 3); the page must not promise an email |
+| Library: "Artists" type filter, "Bin (2)" | No Artists filter; "Recently deleted (n)" | Artist journals are R7; the Studio's word for the bin is "Recently deleted" everywhere |
+| Library: "Things stay in the bin for 30 days, then they are deleted for good." | The INV-4 note: kept, never removed automatically, no permanent deletion yet | No purge exists, and none may be promised (AGENTS.md § 4; ADR 0011 § 3, C2) |
+| Library: Language "EN + PT" | The original language only | The list query gives the original version; translations have no authoring yet |
+| Library: a "Private" status filter | Added beside Drafts and Published | The domain has a private state the reference does not show |
+| Library and Desk: type, language, and date columns on a phone | Hidden below 1024 px, not only on a phone | Beside the sidebar there is too little room for them |
 | Studio content padding 32 px (16 px on a phone) plus V4.4's 17.6 px inset | The reference's padding only | The inset doubled the gutter; at 320 px a rating row wrapped |
 
 ## The About route

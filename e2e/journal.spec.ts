@@ -77,11 +77,12 @@ test("creates a private draft with several paragraphs, and finds the exact text 
 
   // Leave for another page and come back through the list.
   await page.goto("/studio/journals");
+  // v3: the Library's table, every kind of entry; the title opens the journal.
   await page
-    .getByRole("list", { name: "Journals" })
-    .getByRole("listitem")
+    .getByRole("table", { name: "Library" })
+    .getByRole("row")
     .filter({ hasText: names.album })
-    .getByRole("link", { name: names.album })
+    .getByRole("link", { name: names.album, exact: true })
     .click();
   await expect(page).toHaveURL(journalUrl);
 

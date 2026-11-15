@@ -83,7 +83,7 @@ test("a wrong password is refused in words, the right one opens the studio, and 
   // The studio is open to this session.
   await page.goto("/studio/journals");
   await expect(
-    page.getByRole("heading", { level: 1, name: "Journals" }),
+    page.getByRole("heading", { level: 1, name: "Library" }),
   ).toBeVisible();
 
   // Sign out: back at sign-in, the cookie gone, and the page cannot be
@@ -96,7 +96,7 @@ test("a wrong password is refused in words, the right one opens the studio, and 
   await page.goBack();
   await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
   await expect(
-    page.getByRole("heading", { level: 1, name: "Journals" }),
+    page.getByRole("heading", { level: 1, name: "Library" }),
   ).toHaveCount(0);
   for (const path of PRIVATE_PATHS) {
     await page.goto(path);

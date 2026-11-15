@@ -29,6 +29,13 @@ const journalRows = (page: Page, list: string) =>
     .getByRole("listitem")
     .filter({ hasText: names.album });
 
+// v3: the live entries are rows of the Library's table.
+const libraryRows = (page: Page) =>
+  page
+    .getByRole("table", { name: "Library" })
+    .getByRole("row")
+    .filter({ hasText: names.album });
+
 async function writeJournal(page: Page) {
   await page.goto(`/studio/journals/new?album=${albumId}`);
   await page.getByLabel("Opening sentence (optional)").fill(opening);
@@ -94,7 +101,7 @@ test("moves the journal to Recently deleted: it leaves the lists and is kept", a
   await moveToRecentlyDeleted(page, journalUrl);
 
   // Gone from the normal listing ...
-  await expect(journalRows(page, "Journals")).toHaveCount(0);
+  await expect(libraryRows(page)).toHaveCount(0);
   // ... and counted in Recently deleted, which says plainly what that means.
   await expect(
     page.getByRole("heading", { name: /^Recently deleted \(\d+\)$/ }),
@@ -192,7 +199,7 @@ test("restores the journal with its text intact, still private", async ({
 
   // It is among the journals again, and out of Recently deleted.
   await page.goto("/studio/journals");
-  await expect(journalRows(page, "Journals")).toHaveCount(1);
+  await expect(libraryRows(page)).toHaveCount(1);
   await page.goto("/studio/journals/deleted");
   await expect(journalRows(page, "Recently deleted journals")).toHaveCount(0);
 

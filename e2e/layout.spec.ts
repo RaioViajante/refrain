@@ -142,7 +142,7 @@ for (const width of WIDTHS) {
       ["/studio/tracks", "Tracks"],
       ["/studio/tracks/new", "Add a track"],
       [trackUrl, TRACK],
-      ["/studio/journals", "Journals"],
+      ["/studio/journals", "Library"],
       ["/studio/journals/new", "Write a journal"],
       [`/studio/journals/new?album=${albumId}`, `Write about ${ALBUM}`],
       [journalUrl, ALBUM],

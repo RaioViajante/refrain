@@ -400,3 +400,96 @@
   min-width: 0;
   white-space: nowrap;
 }
+/* The v3 Library: the reference's head, filters, and table, with 44px
+   targets (its filter buttons are 30px) and the filters as links, so the
+   address is the only state and every filter works without JavaScript. */
+.stu .lib-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+.stu .lib-search {
+  flex: 1 1 220px;
+  max-width: 280px;
+}
+.stu .lib-search .in {
+  max-width: none;
+  min-height: 44px;
+  border-color: var(--control-line);
+}
+/* A filter group wraps rather than overflow (the Portuguese names are long). */
+.stu .filters .seg {
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+.stu .filters .seg a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 5px;
+  color: var(--grey);
+  white-space: nowrap;
+}
+.stu .filters .seg a:hover {
+  color: var(--ink);
+}
+.stu .filters .seg a[aria-current] {
+  background: var(--ink);
+  color: #fff;
+}
+.stu .lib-count {
+  margin: 0 0 0 auto;
+}
+.stu .lib-panel {
+  margin-top: 16px;
+  overflow: hidden;
+}
+/* A 44px target that changes no layout: the padding is taken back by the
+   margin, so a long title that wraps never covers the line under it. */
+.stu .tbl .lib-title {
+  display: inline-block;
+  padding-block: 11.5px;
+  margin-block: -11.5px;
+  overflow-wrap: anywhere;
+}
+.stu .tbl .lib-context {
+  display: block;
+  white-space: normal;
+}
+.stu .lib-bin {
+  margin-top: 24px;
+}
+.stu .lib-bin h2 {
+  margin: 0;
+  font-size: 16px;
+}
+.stu .lib-bin .hint {
+  max-width: 62ch;
+  color: var(--grey);
+}
+/* The type, language, and date columns give way below 1024px, where the
+   sidebar leaves the table too little room (the reference hides them on a
+   phone). */
+@media (max-width: 1024px) {
+  .stu .tbl .hide-m {
+    display: none;
+  }
+}
+@media (max-width: 720px) {
+  .stu .tbl th,
+  .stu .tbl td {
+    padding: 11px 12px;
+  }
+  .stu .lib-search {
+    max-width: none;
+    flex-basis: 100%;
+  }
+}
+/* A panel's list starts under a rule, as in the reference. */
+.stu .panel > .list {
+  border-top: 1px solid var(--line);
+}

@@ -818,6 +818,14 @@ export const studioEn = {
     deletedHint:
       "Moved there, not erased: the writing stays in the database, and nothing removes it automatically. You can restore a journal from there; permanent deletion is not offered yet.",
     openDeleted: "Open Recently deleted",
+    // The v3 Library (ADR 0011, proposed): what the v3 strings lack.
+    status: "Status",
+    statusFilter: "Status",
+    privateFilter: "Private",
+    searchLabel: "Search titles",
+    searchSubmit: "Search",
+    clearSearch: "Clear the search",
+    tableLabel: "Library",
     rowDates: (started: string, edited: string, wordCount: number) =>
       `started ${started} · edited ${edited} · ${counted("en", wordCount, "word", "words")}`,
   },

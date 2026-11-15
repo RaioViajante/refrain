@@ -827,6 +827,13 @@ export const studioPtBR: StudioDictionary = {
     deletedHint:
       "Levados para lá, não apagados: o texto fica no banco de dados, e nada o remove sozinho. Você pode restaurar um diário de lá; a exclusão definitiva ainda não existe.",
     openDeleted: "Abrir Excluídos recentemente",
+    status: "Situação",
+    statusFilter: "Situação",
+    privateFilter: "Privados",
+    searchLabel: "Buscar títulos",
+    searchSubmit: "Buscar",
+    clearSearch: "Limpar a busca",
+    tableLabel: "Biblioteca",
     rowDates: (started: string, edited: string, wordCount: number) =>
       `começado em ${started} · editado em ${edited} · ${counted("pt-BR", wordCount, "palavra", "palavras")}`,
   },

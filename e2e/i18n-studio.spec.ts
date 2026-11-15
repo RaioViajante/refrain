@@ -692,7 +692,7 @@ test("every Portuguese Studio page fits 320 to 1440 px, its selector too, with n
       path: "/pt/studio/tracks/new",
       heading: "Adicionar uma faixa",
     },
-    { name: "journals", path: "/pt/studio/journals", heading: "Diários" },
+    { name: "journals", path: "/pt/studio/journals", heading: "Biblioteca" },
     { name: "journal", path: journalPath, heading: names.album },
     {
       name: "journal-edit",

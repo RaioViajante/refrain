@@ -118,7 +118,7 @@ async function Desk({ locale }: { locale: InterfaceLocale }) {
     .slice(0, DESK_MEMORY_LIMIT);
 
   return (
-    <StudioFrame locale={locale} path="/studio" current="desk">
+    <StudioFrame locale={locale} path="/studio" current="desk" layout="wide">
       <h1 className="t1">{v3.s19}</h1>
       <p className="sub">{w.greetingLead}</p>
 

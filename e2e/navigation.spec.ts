@@ -230,7 +230,7 @@ test("every section is reachable by clicking, with no menu to open", async ({
   await expect(page).toHaveURL(/\/studio\/journals\/[0-9a-f-]{36}\/edit$/);
   await page.goBack();
   await page.getByRole("link", { name: "All drafts", exact: true }).click();
-  await expect(heading(page, "Journals")).toBeVisible();
+  await expect(heading(page, "Library")).toBeVisible();
   await page.goBack();
   await page.getByRole("link", { name: /^Recently deleted/ }).click();
   await expect(heading(page, "Recently deleted")).toBeVisible();
