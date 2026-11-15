@@ -13,10 +13,11 @@ import { REVEAL_SOUNDS, soundEngine } from "./sfx";
 // - a pen click for links and buttons (sound on only);
 // - the Home hero's scroll variable `--hp`, not under reduced motion.
 //
-// Everything is visible without JavaScript: the class that arms the entrance
-// animations (`io`) is added only here, or by the pre-paint script in the
-// frame, which also releases every element if this island never arrives.
-// Listeners and the observer are removed when the page changes.
+// Everything is visible without JavaScript: the page is sent armed (`io`, in
+// frame.tsx) with a <noscript> style that releases every waiting element, and
+// frame.css releases them too if this island never marks the page ready.
+// Without IntersectionObserver every element is shown at once. Listeners and
+// the observer are removed when the page changes.
 
 const OBSERVED = ".pp [data-io], .pp [data-a]";
 const PEN_TARGETS =
@@ -31,7 +32,6 @@ export function V3Runtime() {
     const sfx = soundEngine();
 
     if ("IntersectionObserver" in window) {
-      root.classList.add("io");
       const observer = new IntersectionObserver(
         (entries) => {
           for (const entry of entries) {

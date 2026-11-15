@@ -14,6 +14,15 @@ export const metadata = notFoundMetadata("en");
 export default function GlobalNotFound() {
   return (
     <html lang="en">
+      <head>
+        {/* The same icons as the two roots' layouts, which do not reach here. */}
+        <link rel="icon" href="/v3/favicon.svg" type="image/svg+xml" />
+        <link
+          rel="apple-touch-icon"
+          href="/v3/touch-icon.png"
+          sizes="180x180"
+        />
+      </head>
       <body>
         <NotFoundView locale="en" />
       </body>

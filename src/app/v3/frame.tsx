@@ -105,6 +105,33 @@ function Languages({
   );
 }
 
+// The entrances (docs/design-system.md, Part I, Motion). The page is sent
+// already armed (`io`), so content that is on screen when it arrives never
+// paints, disappears at hydration, and comes back: it waits, hidden, and
+// enters once, as the reference's page does. Nothing depends on the script:
+// - without JavaScript, this style (inside <noscript>, a static string with
+//   no data) shows everything in place;
+// - if the runtime never arrives, frame.css releases everything after three
+//   seconds (`.pp.io:not([data-runtime="ready"])`);
+// - under reduced motion, v3.css and frame.css show everything in place.
+// Every rule that hides an element before its entrance is listed here.
+const NO_SCRIPT_RELEASE = [
+  ".pp.io [data-a]:not(.on)",
+  '.pp.io [data-a="sleeve"]:not(.on) .vinyl',
+  ".pp.io .orb2:not(.on) .ri img",
+  ".pp.io .orb2:not(.on) .ri .ric",
+  ".pp.io .orb2:not(.on) > .vinyl",
+  ".pp.io .torn:not(.on) .half",
+  ".pp.io .torn:not(.on) .mid",
+  ".pp.io .torn:not(.on) .lab",
+  ".pp.io .torn:not(.on) .phl",
+]
+  .join(",")
+  .concat(
+    "{opacity:1!important}",
+    ".pp.io .board:not(.on) .path mask path{stroke-dashoffset:0!important}",
+  );
+
 export function V3Frame({
   locale,
   path,
@@ -133,7 +160,11 @@ export function V3Frame({
   const ariaCurrent = (section: V3Section) =>
     current === section ? (inside ? "true" : "page") : undefined;
   return (
-    <div className={`pp pg-${page} ${v3FontClasses}`}>
+    <div className={`pp io pg-${page} ${v3FontClasses}`}>
+      {/* Without JavaScript nothing is waiting to be revealed (see below). */}
+      <noscript>
+        <style>{NO_SCRIPT_RELEASE}</style>
+      </noscript>
       <a href={`#${V3_CONTENT_ID}`} className="skip">
         {locale === "pt-BR" ? "Pular para o conteúdo" : "Skip to content"}
       </a>
