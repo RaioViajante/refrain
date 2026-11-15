@@ -87,6 +87,11 @@ The v3 Library at `/studio/journals`, the sidebar's "Library" (`src/app/studio/j
 
 The author's writing is not listed; an HTTP test now asserts that.
 
+### The Bin and the loading placeholder
+
+- **The Bin** (Recently deleted, `src/app/studio/journals/deleted/screen.tsx`) uses the reference's panels and lists, with its "In the bin" tag. Each row still says what a restore will do: each version's status (ADR 0005). It keeps the writing's first words, so the author knows what they restore, and the restore dialogs are unchanged.
+- **The streaming placeholder** is on the v3 Studio's paper and in its face. It still shows no Studio furniture before authorization.
+
 ### Sign-in
 
 The reference's centred box (`src/app/studio/sign-in/`):

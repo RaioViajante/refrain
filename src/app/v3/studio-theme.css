@@ -508,3 +508,54 @@
 .stu .studio-loading .studio-skeleton > span {
   background: var(--soft);
 }
+/* The v3 Bin (Recently deleted): the reference's panels and lists, with what
+   a restore will do on each row. */
+.stu .bin-back {
+  margin: 0 0 8px;
+}
+.stu .bin-hint {
+  max-width: 62ch;
+}
+.stu .bin-panel {
+  margin-top: 24px;
+}
+.stu .bin-empty {
+  margin: 0;
+  font-weight: 600;
+}
+.stu .list li.bin-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+.stu .bin-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.stu .bin-body .ti {
+  display: inline-block;
+  padding-block: 11.5px;
+  margin-block: -11.5px;
+  white-space: normal;
+}
+.stu .bin-excerpt {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stu .bin-end {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 12px;
+}
+@media (max-width: 720px) {
+  .stu .list li.bin-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .stu .bin-end {
+    justify-content: flex-start;
+  }
+}
