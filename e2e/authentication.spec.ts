@@ -17,6 +17,7 @@ const PRIVATE_PATHS = [
   "/studio/journals",
   "/studio/journals/deleted",
   "/studio/journals/new",
+  "/studio/system",
 ];
 
 test("a visitor is sent to sign-in from every studio page, and sees nothing private", async ({

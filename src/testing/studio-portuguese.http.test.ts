@@ -448,3 +448,53 @@ describe("a Server Action called from either tree", () => {
     expect(created.rows[0].n).toBe(0);
   });
 });
+
+// The design-system catalogue is drawn in the reference's own page frame, not
+// the Studio's sidebar, so it is held here rather than in the list above: an
+// authorized page in both languages, private, and the visitor's sign-in
+// otherwise.
+describe("the System catalogue", () => {
+  it("is the author's, in each language, private and unindexed", async () => {
+    for (const [prefix, lang, words, system] of [
+      ["", "en", studioEn, v3En.system],
+      ["/pt", "pt-BR", studioPtBR, v3PtBR.system],
+    ] as const) {
+      const where = `${prefix}/studio/system`;
+      const page = await request(base, where, {
+        headers: { cookie: author.cookie },
+      });
+      expect(page.status, where).toBe(200);
+      expect(page.body, where).toMatch(
+        new RegExp(`<html[^>]*\\blang="${lang}"`),
+      );
+      expect(title(page.body), where).toBe(words.meta.system);
+      expect(page.body, where).toMatch(
+        /<meta name="robots" content="noindex, nofollow"/,
+      );
+      expect(page.headers["cache-control"], where).toBe(
+        "private, no-store, max-age=0, must-revalidate",
+      );
+      const text = visibleText(page.body);
+      expect(text, where).toContain(system.h1);
+      expect(text, where).toContain(words.system.yourWords);
+      // No bracket placeholder and none of the reference's sample values.
+      expect(text, where).not.toMatch(/\[[^\]]*\]/);
+      expect(page.body, where).not.toMatch(/buckley|lilac wine|c-grace|bm-/i);
+    }
+  });
+
+  it("sends anyone else to the sign-in page of its language", async () => {
+    for (const [prefix, signIn] of [
+      ["", "/studio/sign-in"],
+      ["/pt", "/pt/studio/sign-in"],
+    ] as const) {
+      const answer = await request(base, `${prefix}/studio/system`);
+      expect(answer.body).toContain(`NEXT_REDIRECT;replace;${signIn};307;`);
+      expect(answer.body).not.toContain(v3En.system.h1b);
+      expect(answer.body).not.toContain(v3PtBR.system.h1b);
+      expect(answer.headers["cache-control"]).toBe(
+        "private, no-store, max-age=0, must-revalidate",
+      );
+    }
+  });
+});

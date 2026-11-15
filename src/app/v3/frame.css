@@ -492,3 +492,22 @@ body:has(> .pp) {
 .pp .lang .lang-off {
   min-width: 44px;
 }
+/* The System catalogue's stand-ins: the lined paper where the reference
+   shows its example photographs. */
+.pp .stage .pol .pg,
+.pp .stage .print .pg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 0.8;
+  padding: 14px;
+  background: #e9d2a6 url(/v3/lined.jpg) 0 0 / 300px auto;
+  color: var(--pen);
+  font-size: 24px;
+  line-height: 1.1;
+  text-align: center;
+}
+.pp .stage .print .pg {
+  aspect-ratio: 1.35;
+}

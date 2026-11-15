@@ -113,6 +113,7 @@ describe("studio access without a valid session", () => {
     "/studio/journals",
     "/studio/journals/deleted",
     "/studio/journals/new",
+    "/studio/system",
   ])("never renders %s for an anonymous request", async (path) => {
     await expectNoStudio(await get(path));
   });

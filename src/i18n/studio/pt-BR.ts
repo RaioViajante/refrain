@@ -15,6 +15,7 @@ const after = (n: number, one: string, other: string) =>
 export const studioPtBR: StudioDictionary = {
   meta: {
     studio: "Estúdio de escrita · refrain",
+    system: "Sistema · refrain",
     signIn: "Entrar · refrain",
     catalog: "Catálogo · refrain",
     addMusic: "Adicionar música · refrain",
@@ -1324,6 +1325,10 @@ export const studioPtBR: StudioDictionary = {
     lead: (note: string) =>
       `Esta memória está publicada, então salvar muda o que os leitores veem. Aqui está exatamente o que muda. Nada é salvo até você apertar o botão abaixo, e cancelar deixa o seu texto no editor. Isto atualiza o que está marcado como publicado nos seus registros. ${note}`,
     takenAway: "Tirado da memória publicada",
+  },
+  system: {
+    yourWords:
+      "Opiniões, memórias e notas são sempre suas. Um campo que você não escreveu simplesmente não aparece.",
   },
   desk: {
     title: "Mesa",

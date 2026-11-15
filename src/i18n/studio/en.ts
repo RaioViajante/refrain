@@ -15,6 +15,7 @@ export type WritingKind = "journal" | "memory";
 export const studioEn = {
   meta: {
     studio: "Writing studio · refrain",
+    system: "System · refrain",
     signIn: "Sign in · refrain",
     catalog: "Catalog · refrain",
     addMusic: "Add music · refrain",
@@ -1313,6 +1314,13 @@ export const studioEn = {
     lead: (note: string) =>
       `This memory is published, so saving changes what readers see. Here is exactly what changes. Nothing is saved until you press the button below, and cancelling leaves your text in the editor. This updates what is marked as published in your records. ${note}`,
     takenAway: "Taken away from the published memory",
+  },
+  // The private design-system catalogue (/studio/system). Its other words are
+  // the v3 strings; this rule replaces the reference's, which showed unwritten
+  // fields as [brackets] (AGENTS.md § 5: a field not written is not shown).
+  system: {
+    yourWords:
+      "Opinions, memories, and ratings are only ever yours. A field you have not written is simply not shown.",
   },
   desk: {
     title: "Desk",

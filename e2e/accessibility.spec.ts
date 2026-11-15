@@ -94,6 +94,7 @@ for (const width of [1280, 390]) {
       ["a new track", "/studio/tracks/new"],
       ["a track", trackUrl],
       ["journals", "/studio/journals"],
+      ["the System catalogue", "/studio/system"],
       ["choosing an album for a journal", "/studio/journals/new"],
       ["a new journal", `/studio/journals/new?album=${albumId}`],
       ["a journal", journalUrl],

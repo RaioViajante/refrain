@@ -100,6 +100,7 @@ function pages(): string[] {
     "/studio/journals",
     `/studio/journals/${ids.entryId}`,
     "/studio/journals/deleted",
+    "/studio/system",
     "/studio/sign-in",
     // Not found, below the studio.
     "/studio/no-such-page",

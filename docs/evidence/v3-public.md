@@ -92,6 +92,19 @@ The author's writing is not listed; an HTTP test now asserts that.
 - **The Bin** (Recently deleted, `src/app/studio/journals/deleted/screen.tsx`) uses the reference's panels and lists, with its "In the bin" tag. Each row still says what a restore will do: each version's status (ADR 0005). It keeps the writing's first words, so the author knows what they restore, and the restore dialogs are unchanged.
 - **The streaming placeholder** is on the v3 Studio's paper and in its face. It still shows no Studio furniture before authorization.
 
+### The System catalogue
+
+`/studio/system` and `/pt/studio/system` hold the reference's System screen (`src/app/studio/system/`), private to the author. It is:
+- **Authorized first, private:** `no-store`, `noindex`, and the visitor's sign-in otherwise.
+- **Drawn in the reference's own page frame**, with the same classes as the public pages.
+- **Seven sections:** paper and ink, the four faces, the objects, motion (with "Play again"), sound, the rules, and the grid.
+- **Without example content:**
+  - the polaroid, the print, and the sleeve use the lined stand-in and the white label, not the reference's photographs or the Grace cover;
+  - its sample words are catalogue words ("your hand", "refrain", "undated"), never names or the author's writing;
+  - the reference's rule that unwritten fields "show as [brackets]" is replaced by this project's rule: a field not written is not shown.
+
+An HTTP test holds the privacy, the titles in both languages, and the absence of brackets and of the reference's sample values. Axe passes at 1280 and 390 px.
+
 ### Sign-in
 
 The reference's centred box (`src/app/studio/sign-in/`):
@@ -207,6 +220,8 @@ The 4 skips are conditional:
 
 **A local visual run once left synthetic seed rows in the test database**, which broke 12 integration tests. Resetting it before each database suite avoids that.
 
+**One intermittent HTTP failure, not explained.** On 2026-11-15, one full `pnpm test:http` run failed one check in `src/testing/public-home.http.test.ts`: "with only hidden writing (A6) answers, with the switch on, exactly what the empty site answered, in every request form". It did not reproduce in three runs of the file alone or in two more full runs (708 passed each). Its detail was not captured. The same check once found a real nondeterministic stream ordering, fixed earlier on this branch, so this needs watching: if it recurs, capture the diff of the two responses before anything else.
+
 ### What the browser tests found, and the fixes
 
 Each rewritten spec states the properties it keeps; none was weakened. The changes the specs drove:
@@ -252,4 +267,4 @@ The Studio's language control is now the v3 sidebar's two links, which replace t
   - the Music Story panel (MS-0, MS-1).
 
   Today's editors run on the v3 shell and theme, with their behaviour unchanged.
-- **Settings and the About page's own lines** (`site_settings`, R8), and the States catalogue (`/studio/system`).
+- **Settings and the About page's own lines** (`site_settings`, R8).
