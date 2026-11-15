@@ -109,7 +109,23 @@ Each check was run on the branch and its output was read:
 
 **A local visual run had left synthetic seed rows in the test database.** That broke 12 integration tests. After `pnpm db:test:down && pnpm db:test:up`, every test passed.
 
-The HTTP suite and the browser suite are reported in the pull request.
+| Check | Result |
+| --- | --- |
+| `pnpm test:http` (production build) | 20 files, 705 passed |
+| `e2e/accessibility.spec.ts` | 18 passed: axe on the Studio, sign-in, and dialogs; forced colours; control boundaries at 3:1 |
+| Full `pnpm test:e2e` | 95 passed, 21 failed, 307 did not run (2026-11-15 run, before the contrast fix) |
+
+The Studio's control boundaries in the v3 theme use `#8C877E` (about 3.6:1) instead of the reference's `#E3DED5` (about 1.3:1), with a pen-blue border on focus. The contrast test found this (WCAG 1.4.11). It is listed for the owner with D10.
+
+**Full browser suite: not yet updated, and failing.** Its V4.4 specs read V4.4 markup and geometry. In the full run, each serial file stopped at its first failure:
+
+| Spec | Failed tests |
+| --- | --- |
+| `public.spec.ts`, `public-artwork.spec.ts`, `i18n-public.spec.ts`, `home.spec.ts`, `artist.spec.ts`, `archives.spec.ts`, `memory-page.spec.ts` | 2 each (desktop and 390) |
+| `layout.spec.ts`, `navigation.spec.ts` | 1 each. Both measure the V4.4 Studio header and shell |
+| `ratings.spec.ts`, `publication.spec.ts`, `memories.spec.ts` | 1 each |
+
+They need the same careful, property-preserving update the HTTP tests got. Until then, the browser suite is red on this branch, and nothing here claims otherwise.
 
 ## Not built (later milestones)
 

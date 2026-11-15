@@ -176,9 +176,34 @@ test("the journal editor's three inputs and its Save button are drawn at 3:1 or 
       const image = decodeURIComponent(
         getComputedStyle(element).backgroundImage,
       );
-      return [...image.matchAll(/stroke='(#[0-9a-fA-F]{6})'/g)].map(
+      const drawn = [...image.matchAll(/stroke='(#[0-9a-fA-F]{6})'/g)].map(
         (m) => m[1]!,
       );
+      // v3: a control's boundary is a real CSS border; every side that is
+      // drawn counts, as a hex colour, held to the same 3:1.
+      const style = getComputedStyle(element);
+      const sides = ["Top", "Right", "Bottom", "Left"] as const;
+      const borders = sides
+        .filter(
+          (side) =>
+            parseFloat(
+              style.getPropertyValue(`border-${side.toLowerCase()}-width`),
+            ) > 0 &&
+            style.getPropertyValue(`border-${side.toLowerCase()}-style`) !==
+              "none",
+        )
+        .map((side) =>
+          style.getPropertyValue(`border-${side.toLowerCase()}-color`),
+        )
+        .map((rgb) => {
+          const [r, g, b] = (rgb.match(/\d+/g) ?? []).map(Number);
+          return `#${[r, g, b].map((v) => (v ?? 0).toString(16).padStart(2, "0")).join("")}`;
+        })
+        .filter(
+          (hex) =>
+            hex !== "#000000" || style.borderTopColor !== "rgba(0, 0, 0, 0)",
+        );
+      return [...drawn, ...borders];
     });
   }
   for (const control of controls) {
