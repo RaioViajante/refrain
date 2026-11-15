@@ -47,8 +47,7 @@ const en: Templates = {
   artistCounts: (albums, memories) =>
     `${albums} ${albums === 1 ? "ALBUM" : "ALBUMS"} · ${memories} ${memories === 1 ? "MEMORY" : "MEMORIES"}`,
   entries: (n) => `, ${n} ${n === 1 ? "entry" : "entries"}`,
-  memoryOn: (album, year) =>
-    `ON ${album}${year ? `, ${year}` : ""}`,
+  memoryOn: (album, year) => `ON ${album}${year ? `, ${year}` : ""}`,
   noAlbumJournal: "NO ALBUM JOURNAL YET",
   artistInArtists: (name) => `${name} in the artists`,
 };
@@ -67,8 +66,7 @@ const ptBR: Templates = {
   artistCounts: (albums, memories) =>
     `${albums} ${albums === 1 ? "ÁLBUM" : "ÁLBUNS"} · ${memories} ${memories === 1 ? "MEMÓRIA" : "MEMÓRIAS"}`,
   entries: (n) => `, ${n} ${n === 1 ? "entrada" : "entradas"}`,
-  memoryOn: (album, year) =>
-    `EM ${album}${year ? `, ${year}` : ""}`,
+  memoryOn: (album, year) => `EM ${album}${year ? `, ${year}` : ""}`,
   noAlbumJournal: "AINDA SEM DIÁRIO DE ÁLBUM",
   artistInArtists: (name) => `${name} nos artistas`,
 };
