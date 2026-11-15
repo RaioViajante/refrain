@@ -102,7 +102,8 @@
   box-shadow: 0 24px 60px -24px rgba(20, 19, 17, 0.35);
 }
 .stu .studio-main {
-  max-width: none;
+  /* The reference's page column (.content): it stops growing at 1200px. */
+  max-width: 1200px;
 }
 /* The shell's languages are links (the URL is the only language state). */
 .stu .side .seg a {
@@ -189,5 +190,18 @@
   .stu .studio-editorbar-end .studio-hint {
     margin: 0;
     white-space: nowrap;
+  }
+}
+/* The sidebar's destinations are 44px targets (the reference's are 36px). */
+.stu .side nav a {
+  min-height: 44px;
+}
+/* Reduced motion stops every transition in the Studio. */
+@media (prefers-reduced-motion: reduce) {
+  .stu *,
+  .stu *::before,
+  .stu *::after {
+    transition: none !important;
+    animation: none !important;
   }
 }

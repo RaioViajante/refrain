@@ -13,8 +13,6 @@ import {
 
 test.describe.configure({ mode: "serial" });
 
-const SHELL_MAX = 1320;
-const GUTTER_TOTAL = 35.2;
 const WIDTHS = [390, 768, 1280, 1440, 2560];
 
 // Long names on purpose: they are what breaks a layout first.
@@ -92,30 +90,40 @@ test("set up: an artist, an album, a track and a journal to look at", async ({
 });
 
 for (const width of WIDTHS) {
-  test(`at ${width}px the shell is min(100% - 35.2px, 1320px), centered, and header, content and footer share its edges`, async ({
+  test(`at ${width}px the shell is the sidebar and the page (v3), and nothing scrolls sideways`, async ({
     page,
   }) => {
     await open(page, width, "/studio", "Desk");
-    const expected = Math.min(width - GUTTER_TOTAL, SHELL_MAX);
-    for (const selector of [
-      ".studio-header-bar",
-      ".studio-main",
-      ".studio-footer",
-    ]) {
-      const measured = await box(page, selector);
-      expect(measured.width, `${selector} width`).toBeCloseTo(
-        Math.min(measured.viewport - GUTTER_TOTAL, SHELL_MAX),
-        0,
+    const geometry = await page.evaluate(() => {
+      const rect = (selector: string) => {
+        const box = document.querySelector(selector)!.getBoundingClientRect();
+        return {
+          left: box.left,
+          right: box.right,
+          top: box.top,
+          bottom: box.bottom,
+          width: box.width,
+        };
+      };
+      return {
+        viewport: document.documentElement.clientWidth,
+        side: rect(".stu .side"),
+        main: rect(".stu .main"),
+        content: rect(".stu .content"),
+      };
+    });
+    if (width > 720) {
+      // The sidebar on the left, the page beside it.
+      expect(geometry.side.left).toBeCloseTo(0, 0);
+      expect(geometry.side.width).toBeCloseTo(236, 0);
+      expect(geometry.main.left).toBeGreaterThanOrEqual(
+        geometry.side.right - 1,
       );
-      expect(measured.left, `${selector} is centered`).toBeCloseTo(
-        (measured.viewport - measured.width) / 2,
-        0,
-      );
-      expect(measured.width, `${selector} matches the contract`).toBeCloseTo(
-        expected,
-        0,
-      );
+    } else {
+      // On a phone the sidebar is a block above the page.
+      expect(geometry.side.bottom).toBeLessThanOrEqual(geometry.main.top + 1);
     }
+    expect(geometry.content.right).toBeLessThanOrEqual(geometry.viewport + 0.5);
     await expectNoHorizontalOverflow(page);
   });
 
@@ -155,8 +163,9 @@ test("on an ultrawide screen the writing keeps a reading measure", async ({
   // 62ch of 21px Alegreya Sans is well under 800px; it never follows the
   // width of the display.
   expect(reading.width).toBeLessThan(800);
+  // v3: the page column stops growing (the reference's .content, 1200px).
   const shell = await box(page, ".studio-main");
-  expect(shell.width).toBeCloseTo(SHELL_MAX, 0);
+  expect(shell.width).toBeLessThanOrEqual(1200);
   await open(page, 2560, `${journalUrl}/edit`, ALBUM);
   const writing = await box(page, ".studio-writing-column");
   expect(writing.width).toBeLessThanOrEqual(760);
@@ -170,6 +179,7 @@ test("the navigation is operable by keyboard, with a visible focus ring and tall
   await expect(
     page.getByRole("link", { name: "Skip to the content" }),
   ).toBeFocused();
+  await page.keyboard.press("Tab"); // the name, which leads to the Desk
   await page.keyboard.press("Tab");
   const first = page
     .getByRole("navigation", { name: "Writing studio" })
@@ -242,82 +252,22 @@ test("the skip link works after client-side navigation, with earlier routes stil
 // two destinations centered, and the session control, quiet, at the right. The
 // two destinations never wrap, at any width.
 for (const width of [...WIDTHS, 360, 320, 720, 721]) {
-  test(`at ${width}px the header follows the reference, with two destinations that never wrap`, async ({
+  test(`at ${width}px the sidebar names the studio and keeps its destinations whole`, async ({
     page,
   }) => {
     await open(page, width, "/studio", "Desk");
-    const geometry = await page.evaluate(() => {
-      const rect = (element: Element) => {
-        const box = element.getBoundingClientRect();
-        return {
-          left: box.left,
-          right: box.right,
-          top: box.top,
-          bottom: box.bottom,
-          cx: box.left + box.width / 2,
-          cy: box.top + box.height / 2,
-        };
-      };
-      const visible = <T extends Element>(selector: string) =>
-        [...document.querySelectorAll<T>(selector)].find((element) =>
-          element.checkVisibility(),
-        )!;
-      return {
-        viewport: document.documentElement.clientWidth,
-        label: rect(visible(".studio-header-label")),
-        links: [...visible(".studio-nav").querySelectorAll("a")].map(rect),
-        nav: rect(visible(".studio-nav")),
-        end: rect(visible(".studio-header-end")),
-        labelText: visible(".studio-header-label").textContent,
-        labelWordsWidth: visible(
-          ".studio-header-label-text",
-        ).getBoundingClientRect().width,
-      };
-    });
-    expect(geometry.links).toHaveLength(2);
-    const [first, second] = geometry.links as [
-      (typeof geometry.links)[number],
-      (typeof geometry.links)[number],
-    ];
-    expect(
-      Math.abs(first.cy - second.cy),
-      "the two destinations share a row",
-    ).toBeLessThan(4);
-    expect(geometry.labelText, "the identity stays visible as words").toContain(
-      "Writing studio",
-    );
-    // Text clipped to a pixel is still in the DOM, so measure the words.
-    expect(
-      geometry.labelWordsWidth,
-      "the words are shown, not hidden",
-    ).toBeGreaterThan(60);
-    const middle = geometry.viewport / 2;
-    if (width <= 720) {
-      // Stacked: label, then the destinations, then the session control.
-      expect(geometry.label.bottom).toBeLessThanOrEqual(geometry.nav.top + 1);
-      expect(geometry.nav.bottom).toBeLessThanOrEqual(geometry.end.top + 1);
-      expect(
-        Math.abs(geometry.label.cx - middle),
-        "label centered",
-      ).toBeLessThan(8);
-      expect(
-        Math.abs(geometry.nav.cx - middle),
-        "destinations centered",
-      ).toBeLessThan(8);
-      expect(geometry.end.right, "Sign out at the right").toBeGreaterThan(
-        geometry.viewport - 40,
+    const side = page.locator(".stu .side");
+    await expect(side.locator(".wm")).toContainText("refrain");
+    await expect(side.locator(".wm")).toContainText("studio");
+    for (const link of await side.locator("nav a").all()) {
+      const target = await link.boundingBox();
+      expect(target!.height, await link.innerText()).toBeGreaterThanOrEqual(
+        43.5,
       );
-    } else {
-      // One row: label, destinations, session control, in that order.
-      expect(Math.abs(geometry.label.cy - first.cy)).toBeLessThan(14);
-      expect(Math.abs(geometry.end.cy - first.cy)).toBeLessThan(14);
-      expect(geometry.label.right).toBeLessThanOrEqual(first.left + 1);
-      expect(second.right).toBeLessThanOrEqual(geometry.end.left + 1);
-      expect(
-        Math.abs(geometry.nav.cx - middle),
-        "destinations centered",
-      ).toBeLessThan(8);
+      // One line: a destination never wraps.
+      expect(target!.height).toBeLessThan(60);
     }
+    await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
     await expectNoHorizontalOverflow(page);
   });
 }
