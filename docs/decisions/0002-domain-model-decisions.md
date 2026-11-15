@@ -1,6 +1,6 @@
 # ADR 0002: Domain Model Decisions
 
-- **Status:** Accepted
+- **Status:** Accepted **Proposed amendments pending** ([ADR 0011](0011-refrain-v3-identity-and-product.md), not accepted): see [Proposed amendments](#proposed-amendments-adr-0011).
 - **Date:** 2026-10-31 (proposed and accepted the same day, during the M0 review)
 - **Scope:** Journals, music catalog, translations, publication, deletion, track reflections, editor storage, and public URLs.
 
@@ -112,3 +112,12 @@ These do not affect the accepted decisions. They are settled during M1 and M2.
 - Whether a slug is released when an entry is permanently deleted.
 - How enum values are represented in PostgreSQL: `text` with `CHECK` constraints, or native enums.
 - Whether published language versions return as private when a deleted entry is restored.
+
+## Proposed amendments (ADR 0011)
+
+**Status: Proposed, not accepted.** The decisions above stay in force until the owner accepts [ADR 0011](0011-refrain-v3-identity-and-product.md). Each item would change binding text, so it needs the owner's explicit acceptance; it is not a clarification.
+
+1. **D5. One favourite per album journal.** Replaces "the favourite flag … independent of each other" only as far as the count: at most one track reflection of an album journal carries the favourite mark. It stays independent of ratings, "still writing", and the album rating. Enforced in PostgreSQL with a deferrable exclusion constraint on (`album_journal_id`) where `is_favourite`, so the mark can move inside one save. `docs/data-model.md` ("with no limit on how many tracks carry it") changes with the migration. Before the migration, existing rows with more than one favourite are listed and resolved by the author. INV-2 and INV-3 are unchanged: the mark is shown only on a published reflection with text in the shown language.
+2. **D7. Stored artist addresses.** Artist pages get a stored slug with history and `308` redirects, like entries' slugs (ADR 0003), instead of an address derived from the name. This closes the gate G1 item on name-derived artist addresses.
+3. **Memories.** The free-text "when" becomes a year and an optional month, or "undated", by a data migration; a memory names one song (`memory_music` is kept and limited to one row by its command); a memory may carry a photograph with alt text per language ([ADR 0012 § 4](0012-external-services-music-story-email-media.md#4-media-is-stored-in-postgresql-and-served-through-the-predicate)).
+4. **About.** A singleton entry kind `about` holds the About page's authored text per language and is published through ADR 0006.

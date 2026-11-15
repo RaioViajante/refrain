@@ -1,6 +1,6 @@
 # ADR 0005: Restoring Deleted Journals
 
-- **Status:** Accepted. The owner accepted the policy in § 1 at the M1.3B merge (PR #16), and accepted the implementation decisions in §§ 2 and 3, the interface, and the M2 condition in § 5 in the M1.3C review of PR #19 (see [the table](#what-the-owner-approved)).
+- **Status:** Accepted. The owner accepted the policy in § 1 at the M1.3B merge (PR #16), and accepted the implementation decisions in §§ 2 and 3, the interface, and the M2 condition in § 5 in the M1.3C review of PR #19 (see [the table](#what-the-owner-approved)). **Proposed amendment pending** ([ADR 0011](0011-refrain-v3-identity-and-product.md), not accepted): [the Bin wording](#proposed-amendment-adr-0011-the-bin-wording).
 - **Date:** 2026-11-01. Proposed with M1.3C (issue #18, pull request #19) and accepted the same day.
 - **Scope:** What it means to restore an album journal from Recently deleted, and how the restore is built. It settles the open question in [ADR 0003 § 5](0003-relational-schema-conventions.md#5-deferred-restore-behavior-and-purge) and [ADR 0002](0002-domain-model-decisions.md#still-open-after-this-adr) ("whether published language versions return as private when a deleted entry is restored"). It changes none of ADR 0002's decisions or invariants.
 
@@ -105,3 +105,9 @@ Remaining trade-offs and risks: until the M2 condition is built, nothing in the 
 - any operation other than `saveAlbumJournal` changes a journal's text (translations, the editor, revisions): it must keep a version and concurrency check, because a restore deliberately does not bump `entries.version`;
 - memories and artist journals get studio screens;
 - automatic purge is designed, which must not remove anything a restore could still recover without an explicit rule.
+
+## Proposed amendment (ADR 0011): the Bin wording
+
+**Status: Proposed, not accepted.** The policy above is unchanged.
+
+The v3 Studio calls Recently deleted "the Bin" and draws the copy "Things stay in the bin for 30 days, then they are deleted for good." Automatic purge stays off ([`AGENTS.md` § 4](../../AGENTS.md#4-database-integrity)), so the copy would say instead that a deleted entry is kept until the author deletes it for good. "Delete now" stays an explicit, confirmed action, enabled only when backups and a tested restore exist ([ADR 0007](0007-hosted-backups-and-retention.md)). Restoring from the Bin never publishes anything (§ 1).
