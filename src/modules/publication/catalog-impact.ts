@@ -8,17 +8,36 @@ import { locales, type DatabaseExecutor, type Locale } from "@/db";
 import {
   getPublicAlbumJournal,
   type PublicAlbumJournal,
+  type PublicCredit,
+  type PublicJournalTrack,
 } from "./public-album-journal";
 import {
   listPublicAlbumArchive,
   listPublicArtistArchive,
   listPublicMemoryArchive,
+  type PublicAlbumCard,
   type PublicArtistCard,
   type PublicMemoryCard,
+  type PublicMemorySong,
 } from "./public-archives";
-import { getPublicArtist, type PublicArtist } from "./public-artist";
-import { getPublicHome, type PublicJournalCard } from "./public-home";
-import { getPublicMemory, type PublicMemory } from "./public-memory";
+import {
+  getPublicArtist,
+  type PublicArtist,
+  type PublicArtistAlbum,
+  type PublicArtistTrack,
+} from "./public-artist";
+import {
+  getPublicHome,
+  type PublicHome,
+  type PublicHomeMemory,
+  type PublicJournalCard,
+} from "./public-home";
+import {
+  getPublicMemory,
+  type PublicMemory,
+  type PublicMemoryArtist,
+  type PublicMemoryMusic,
+} from "./public-memory";
 import {
   publicArtistAddresses,
   servedAlbumJournalAddresses,
@@ -54,10 +73,14 @@ import {
 //   copies with everything written to them;
 // - the copies are created `on commit drop` as well, and are written only
 //   through names qualified with `pg_temp`, so a write can never reach a
-//   permanent table; and the computation refuses to start if a copy already
-//   exists in the session, and checks afterwards that none is left.
+//   permanent table; the computation refuses to start if a copy already
+//   exists in the session, puts `pg_temp` first in the search path and checks
+//   that every name resolves to its copy, and, inside a caller's transaction,
+//   checks after the rollback that no copy is left.
 // - Called on its own, it reads one REPEATABLE READ snapshot. Called inside a
-//   caller's transaction (ADR 0013 § 4.2), it reads under the caller's locks.
+//   caller's transaction, it reads in that transaction: the caller must hold
+//   ADR 0013 § 4.1's locks (step 3 does), or use REPEATABLE READ, so that no
+//   commit can fall between the two renders.
 
 /** The catalog tables the public reads use; each one is copied. */
 export const CATALOG_TABLES = [
@@ -73,11 +96,14 @@ export const CATALOG_TABLES = [
 
 const id = z.uuid();
 const title = z.string().trim().min(1).max(500);
-const year = z.number().int().min(1).max(9999).nullable();
+// The catalog's own bounds (src/modules/catalog/input.ts).
+const year = z.number().int().min(1800).max(2100).nullable();
 const optionalText = z.string().trim().max(500).nullable();
 
 const credit = z
-  .object({ artistId: id, creditedAs: optionalText.default(null) })
+  // Required: the catalog keeps a stored `credited_as` when a credit leaves it
+  // out, so the caller states the value the credit will have.
+  .object({ artistId: id, creditedAs: optionalText })
   .strict();
 const tracklistItem = z
   .object({ trackId: id, discNumber: z.number().int().min(1).max(99) })
@@ -241,6 +267,7 @@ export async function catalogPublicImpact(
     await assertNoShadow(tx);
     const before = await renderServedCatalog(tx);
     await createShadow(tx);
+    await assertShadowResolves(tx);
     for (const operation of operations) {
       await applyOperation(tx, operation);
     }
@@ -284,6 +311,29 @@ async function inRolledBackScope(
   throw new Error("unreachable: the impact scope always rolls back");
 }
 
+// The copies must be what an unqualified name finds. PostgreSQL searches the
+// temporary schema first unless `search_path` names it later (a hardening
+// some setups use); then the "after" render would read the permanent tables
+// and report no change. So the scope puts `pg_temp` first, for this
+// transaction or savepoint only (undone by its rollback), and then checks
+// that each name resolves to the copy, failing closed otherwise.
+async function assertShadowResolves(tx: DatabaseExecutor): Promise<void> {
+  const resolved = await tx.execute<{ count: string }>(sql`
+    select count(*) as count
+      from unnest(array[${sql.join(
+        CATALOG_TABLES.map((table) => sql`${table}`),
+        sql`, `,
+      )}]::text[]) as name
+      join pg_class c on c.oid = to_regclass(name)
+     where c.relnamespace = pg_my_temp_schema()`);
+  if (Number(resolved.rows[0]!.count) !== CATALOG_TABLES.length) {
+    throw new CatalogImpactError(
+      "shadow_conflict",
+      "The temporary catalog copies are not what the reads would find.",
+    );
+  }
+}
+
 async function assertNoShadow(tx: DatabaseExecutor): Promise<void> {
   const found = await tx.execute<{ name: string }>(sql`
     select c.relname as name
@@ -304,23 +354,40 @@ async function assertNoShadow(tx: DatabaseExecutor): Promise<void> {
 // Each copy is created by its own literal statement, and every write below
 // names its table as `pg_temp.<table>`, so a reader (and the publication
 // scans) can see that only the copies are ever written.
+// `including all` keeps each table's defaults, NOT NULL, CHECK, and unique
+// constraints (not its foreign keys), so a change the catalog would refuse for
+// those reasons fails here too, instead of describing an impossible state.
 const CREATE_COPIES = [
-  sql`create temporary table artists on commit drop as table public.artists`,
-  sql`create temporary table albums on commit drop as table public.albums`,
-  sql`create temporary table album_artists on commit drop
-        as table public.album_artists`,
-  sql`create temporary table album_editions on commit drop
-        as table public.album_editions`,
-  sql`create temporary table tracks on commit drop as table public.tracks`,
-  sql`create temporary table track_artists on commit drop
-        as table public.track_artists`,
-  sql`create temporary table album_tracks on commit drop
-        as table public.album_tracks`,
-  sql`create temporary table edition_tracks on commit drop
-        as table public.edition_tracks`,
+  sql`create temporary table artists (like public.artists including all)
+        on commit drop`,
+  sql`insert into pg_temp.artists select * from public.artists`,
+  sql`create temporary table albums (like public.albums including all)
+        on commit drop`,
+  sql`insert into pg_temp.albums select * from public.albums`,
+  sql`create temporary table album_artists (like public.album_artists including all)
+        on commit drop`,
+  sql`insert into pg_temp.album_artists select * from public.album_artists`,
+  sql`create temporary table album_editions (like public.album_editions including all)
+        on commit drop`,
+  sql`insert into pg_temp.album_editions select * from public.album_editions`,
+  sql`create temporary table tracks (like public.tracks including all)
+        on commit drop`,
+  sql`insert into pg_temp.tracks select * from public.tracks`,
+  sql`create temporary table track_artists (like public.track_artists including all)
+        on commit drop`,
+  sql`insert into pg_temp.track_artists select * from public.track_artists`,
+  sql`create temporary table album_tracks (like public.album_tracks including all)
+        on commit drop`,
+  sql`insert into pg_temp.album_tracks select * from public.album_tracks`,
+  sql`create temporary table edition_tracks (like public.edition_tracks including all)
+        on commit drop`,
+  sql`insert into pg_temp.edition_tracks select * from public.edition_tracks`,
 ] as const;
 
 async function createShadow(tx: DatabaseExecutor): Promise<void> {
+  await tx.execute(sql`
+    select set_config('search_path',
+                      'pg_temp, ' || current_setting('search_path'), true)`);
   for (const statement of CREATE_COPIES) {
     await tx.execute(statement);
   }
@@ -541,6 +608,144 @@ function flatten(value: unknown, prefix: string, out: Atoms): Atoms {
 
 const atomsOf = (value: Record<string, unknown>) =>
   flatten(value, "", new Map());
+
+// Every field of every public read model, classified: an "atom" is projected
+// below; "excluded" is writing, a rating, a date, a version's language, an
+// image, or an address the catalog cannot change. The `satisfies` checks make
+// a field added to a read model fail to compile until it is classified here,
+// so the projection cannot silently fall behind the pages.
+type Classified<Model> = {
+  readonly [Field in keyof Model]-?: "atom" | "excluded";
+};
+type Album = PublicAlbumJournal["album"];
+
+export const FIELD_CLASSIFICATION = {
+  albumJournal: {
+    entryId: "excluded",
+    locale: "excluded",
+    isOriginal: "excluded",
+    publishedAt: "excluded",
+    opening: "excluded",
+    body: "excluded",
+    marginNote: "excluded",
+    ratingHalfSteps: "excluded",
+    album: "atom",
+    credits: "atom",
+    tracks: "atom",
+  } satisfies Classified<PublicAlbumJournal>,
+  album: {
+    title: "atom",
+    firstReleaseYear: "atom",
+    label: "atom",
+    artwork: "excluded",
+  } satisfies Classified<Album>,
+  credit: {
+    name: "atom",
+    artistAddress: "atom",
+  } satisfies Classified<PublicCredit>,
+  journalTrack: {
+    number: "atom",
+    title: "atom",
+    credit: "atom",
+    reflection: "excluded",
+  } satisfies Classified<PublicJournalTrack>,
+  memory: {
+    slug: "excluded",
+    locale: "excluded",
+    isOriginal: "excluded",
+    publishedAt: "excluded",
+    title: "excluded",
+    body: "excluded",
+    rememberedWhen: "excluded",
+    music: "atom",
+  } satisfies Classified<PublicMemory>,
+  memoryMusic: {
+    number: "atom",
+    kind: "atom",
+    title: "atom",
+    artists: "atom",
+    album: "atom",
+  } satisfies Classified<PublicMemoryMusic>,
+  memoryArtist: {
+    name: "atom",
+    address: "atom",
+  } satisfies Classified<PublicMemoryArtist>,
+  artist: {
+    address: "atom",
+    name: "atom",
+    photo: "excluded",
+    albums: "atom",
+    tracks: "atom",
+  } satisfies Classified<PublicArtist>,
+  artistAlbum: {
+    slug: "atom",
+    title: "atom",
+    firstReleaseYear: "atom",
+    artwork: "excluded",
+    trackCount: "atom",
+    writtenTrackCount: "atom",
+  } satisfies Classified<PublicArtistAlbum>,
+  artistTrack: {
+    title: "atom",
+    albumTitle: "atom",
+    slug: "atom",
+    number: "atom",
+  } satisfies Classified<PublicArtistTrack>,
+  journalCard: {
+    slug: "atom",
+    albumTitle: "atom",
+    credits: "atom",
+    firstReleaseYear: "atom",
+    ratingHalfSteps: "excluded",
+    artwork: "excluded",
+    publishedAt: "excluded",
+  } satisfies Classified<PublicJournalCard>,
+  albumCard: {
+    slug: "atom",
+    albumTitle: "atom",
+    credits: "atom",
+    firstReleaseYear: "atom",
+    ratingHalfSteps: "excluded",
+    artwork: "excluded",
+    publishedAt: "excluded",
+    trackCount: "atom",
+    writtenTrackCount: "atom",
+    otherJournals: "atom",
+  } satisfies Classified<PublicAlbumCard>,
+  artistCard: {
+    address: "atom",
+    name: "atom",
+    albumCount: "atom",
+    journalCount: "atom",
+  } satisfies Classified<PublicArtistCard>,
+  memoryCard: {
+    slug: "atom",
+    locale: "excluded",
+    title: "excluded",
+    rememberedWhen: "excluded",
+    publishedAt: "excluded",
+    excerpt: "excluded",
+    music: "atom",
+  } satisfies Classified<PublicMemoryCard>,
+  memorySong: {
+    title: "atom",
+    artists: "atom",
+  } satisfies Classified<PublicMemorySong>,
+  homeMemory: {
+    kind: "atom",
+    slug: "atom",
+    locale: "excluded",
+    title: "excluded",
+    firstSong: "atom",
+    publishedAt: "excluded",
+  } satisfies Classified<PublicHomeMemory>,
+  home: {
+    recent: "atom",
+    albums: "atom",
+    artists: "atom",
+    memories: "atom",
+  } satisfies Classified<PublicHome>,
+} as const;
 
 // Each projection keeps only catalog wording and the links between pages.
 // Writing, ratings, dates, languages of versions, and images are left out.

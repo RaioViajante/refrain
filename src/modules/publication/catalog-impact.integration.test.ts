@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { getDb, type Transaction } from "@/db";
 // The real catalog commands are the oracle: what they do to the pages is what
@@ -450,6 +450,39 @@ describe("what a change affects", () => {
     });
   });
 
+  it("predicts a credit's stored wording, as the command keeps it", async () => {
+    await inSnapshotTest(async (tx) => {
+      const world = await servedWorld(tx);
+      const albumId = world.album.albumId;
+      await tx.execute(sql`
+        update album_artists set credited_as = '[Test] A, credited'
+         where album_id = ${albumId}`);
+      const impact = await impactOf(
+        tx,
+        [
+          {
+            op: "update_album",
+            albumId,
+            title: "[Test] Credit kept",
+            credits: [
+              { artistId: world.artistA.id, creditedAs: "[Test] A, credited" },
+            ],
+          },
+        ],
+        // The command keeps the stored `credited_as` of a credit that leaves
+        // it out; the change states it.
+        () =>
+          catalog.updateAlbum(tx, author, albumId, {
+            title: "[Test] Credit kept",
+            credits: [{ artistId: world.artistA.id }],
+          }),
+      );
+      expect(
+        atomsOf(impact, world.journalId)[0]?.changes.map((c) => c.atom),
+      ).toEqual(["album.title"]);
+    });
+  });
+
   it("reports an artist page that would open, and one that closes", async () => {
     await inSnapshotTest(async (tx) => {
       const world = await servedWorld(tx);
@@ -690,14 +723,6 @@ describe("what is never counted", () => {
 });
 
 describe("how it reads", () => {
-  afterEach(async () => {
-    // A copy can only live inside a transaction; none outlives a test.
-    const left = await getDb().execute<{ count: string }>(sql`
-      select count(*) as count from pg_class
-       where relnamespace = pg_my_temp_schema()`);
-    expect(Number(left.rows[0]!.count)).toBe(0);
-  });
-
   it("writes nothing: every table is unchanged, and the caller's writes still reach the catalog", async () => {
     await inSnapshotTest(async (tx) => {
       const world = await servedWorld(tx);
@@ -739,6 +764,24 @@ describe("how it reads", () => {
       const stored = await tx.execute<{ name: string }>(sql`
         select name from public.artists where id = ${world.artistA.id}`);
       expect(stored.rows[0]!.name).toBe("[Test] After");
+    });
+  });
+
+  it("finds its copies even when the search path names pg_temp last, and restores the path", async () => {
+    await inSnapshotTest(async (tx) => {
+      const world = await servedWorld(tx);
+      const change: CatalogChange = [
+        { op: "update_artist", artistId: world.artistA.id, name: "[Test] P" },
+      ];
+      const usual = await catalogPublicImpact(tx, change);
+      expect(pagesOf(usual, world.journalId)).toHaveLength(2);
+
+      await tx.execute(sql`set local search_path = public, pg_temp`);
+      const hardened = await catalogPublicImpact(tx, change);
+      expect(hardened).toEqual(usual);
+      const path = await tx.execute<{ path: string }>(sql`
+        select current_setting('search_path') as path`);
+      expect(path.rows[0]!.path).toBe("public, pg_temp");
     });
   });
 

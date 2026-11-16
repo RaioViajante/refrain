@@ -31,7 +31,7 @@ describe("the change", () => {
           title: "[Test] B",
           firstReleaseYear: null,
           label: null,
-          credits: [{ artistId: OTHER }],
+          credits: [{ artistId: OTHER, creditedAs: null }],
         },
         { op: "delete_album", albumId: ID },
         { op: "create_album", albumId: ID, title: "[Test] C" },
@@ -57,6 +57,14 @@ describe("the change", () => {
       [{ op: "set_tracklist", albumId: ID, tracks: [{ trackId: ID }] }],
     ],
     ["not a list", { op: "delete_album", albumId: ID }],
+    [
+      "a credit that leaves out credited_as",
+      [{ op: "update_album", albumId: ID, credits: [{ artistId: OTHER }] }],
+    ],
+    [
+      "a year outside the catalog's bounds",
+      [{ op: "update_album", albumId: ID, firstReleaseYear: 1700 }],
+    ],
   ])("refuses %s", (_name, input) => {
     expect(() => parseCatalogChange(input)).toThrow(CatalogImpactError);
   });
@@ -188,11 +196,20 @@ describe("what the computation may write", () => {
     ]);
     const copies = [
       ...source.matchAll(
-        /create temporary table (\w+) on commit drop\s+as table public\.(\w+)/g,
+        /create temporary table (\w+) \(like public\.(\w+) including all\)\s+on commit drop/g,
       ),
     ];
     expect(copies.map(([, copy]) => copy)).toEqual([...CATALOG_TABLES]);
     for (const [, copy, original] of copies) {
+      expect(original).toBe(copy);
+    }
+    const fills = [
+      ...source.matchAll(
+        /insert into pg_temp\.(\w+) select \* from public\.(\w+)/g,
+      ),
+    ];
+    expect(fills.map(([, copy]) => copy)).toEqual([...CATALOG_TABLES]);
+    for (const [, copy, original] of fills) {
       expect(original).toBe(copy);
     }
   });
