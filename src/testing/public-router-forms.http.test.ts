@@ -23,6 +23,8 @@ import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
 
 // eslint-disable-next-line no-restricted-imports
+import { artistAddressBase } from "@/modules/publication/artist-address";
+// eslint-disable-next-line no-restricted-imports
 import { unpublishLanguageVersion } from "@/modules/publication/commands";
 import { testAuthor } from "@/testing/fixtures";
 import {
@@ -30,6 +32,7 @@ import {
   type ProductionServer,
 } from "@/testing/production-server";
 import {
+  ARTIST_MARKERS,
   PRIVATE_ARTIST_MARKER_LIST,
   removeSeededArtists,
   seedArtistPages,
@@ -214,6 +217,12 @@ describe("the router's URL forms of an address that is not served (ADR 0006 A13)
       // Scanned as received: masking could hide a token of an ID's length.
       const answer = raw.get(key)!;
       expect(withoutRenderIds(answer), key).toBe(masked);
+      // Apart from the address it was asked for, no answer names anything
+      // this run created (every seeded slug begins with the run's prefix).
+      const address = [...OFF_ADDRESSES, ...ON_ADDRESSES]
+        .filter((a) => key.split(" ")[1]!.startsWith(a))
+        .sort((a, b) => b.length - a.length)[0]!;
+      expect(answer.split(address).join("").includes(prefix), key).toBe(false);
       const parsed = JSON.parse(answer) as {
         status: number;
         headers: Record<string, string>;
@@ -298,4 +307,40 @@ describe("the router's URL forms of an address that is not served (ADR 0006 A13)
       }
     }
   });
+  it.each([
+    "catalogOnly",
+    "draftOnly",
+    "privateOnly",
+    "deletedOnly",
+    "translationOnly",
+    "archived",
+  ] as const)(
+    "answer a hidden artist's address (%s) as an unknown one in each form, EN and /pt",
+    async (state) => {
+      const hidden = artistAddressBase(ARTIST_MARKERS[state]);
+      const unknown = "z".repeat(hidden.length);
+      for (const section of ["/artists", "/pt/artists"]) {
+        const unknownForms = urlForms(`${section}/${unknown}`);
+        for (const [i, path] of urlForms(`${section}/${hidden}`).entries()) {
+          const got = comparable(
+            await request(on.baseURL, path, { headers: { cookie: COOKIE } }),
+          );
+          const expected = comparable(
+            await request(on.baseURL, unknownForms[i]!, {
+              headers: { cookie: COOKIE },
+            }),
+          );
+          expect(got.status, path).toBe(404);
+          expect(
+            withoutRenderIds(JSON.stringify(got).split(hidden).join("SLUG")),
+            path,
+          ).toBe(
+            withoutRenderIds(
+              JSON.stringify(expected).split(unknown).join("SLUG"),
+            ),
+          );
+        }
+      }
+    },
+  );
 });

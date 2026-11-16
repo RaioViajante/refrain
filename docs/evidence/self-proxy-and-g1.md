@@ -224,3 +224,12 @@ Nothing in the application changed for Option B. The proxy and harness changes a
 | **Low:** A13 said A7 was unchanged and mislocated A8 to A12 | A13 now states that it narrows A7 item 2 for these two forms, and where A8 to A12 are proposed |
 | **Low:** the memory comparison sent no cookie and covered no `/pt` | Both added |
 | **Low/Info:** markers were scanned after per-render IDs were masked | Now scanned on the raw answers |
+
+### Re-review of the fixes (`a2fdd67..b8a3ebe`)
+
+**GO**, with no Medium or High finding: the body check is now a byte-equality check, scoped to every URL form and nothing else, and the three Lows are fixed. Two residual Lows, both fixed in the next commit:
+
+- **The empty-against-populated comparison runs on masked text.** A seeded slug of 21 characters could hide under the render-ID mask. Fixed: every raw answer is also scanned for the run's prefix, which begins every seeded slug, after removing the address that was asked for.
+- **Hidden artist addresses were not compared per URL form.** Fixed: every hidden artist state (catalog-only, draft-only, private-only, deleted-only, translation-only, archived), EN and `/pt`, with a cookie, against an unknown artist address of the same length, in each URL form: byte-identical.
+
+`public-router-forms.http.test.ts` after these: **13 passed**.
