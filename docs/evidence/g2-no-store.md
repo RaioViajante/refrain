@@ -33,6 +33,8 @@ Any other address got no `Cache-Control` from the configuration.
 
 The list is read from the repository when the configuration loads, never from a request. A **missing** file under `/v3/` or `/artwork/`, a near-miss (`/v3/paper.jpgx`), and a path beside the optimizer (`/_next/imagex`) are the not-found view, and are `no-store` too. The independent review found that the first version, which excluded the whole `/v3/` and `/artwork/` prefixes, left those without `no-store`.
 
+**Exception (recorded, Hosted Launch § 7 item 2):** a redirect from the framework's own `redirects()` (the canonical-host `308`, off unless its variable lists hosts) carries neither this rule's `no-store` nor the indexing header: under `next start` the framework returns a configured redirect before any header rule applies. Whether the host attaches header rules to it is part of the hosted G2 check.
+
 **Residual (recorded):** the framework matches header rules without regard to case, so an uppercase spelling of an exact asset name (`/V3/paper.jpg`) is excluded as well. On the host's case-sensitive file system that address is a `404` with the generic not-found view and no data, and without the configured `no-store`. Each section rule still comes later and sets its own value, which wins as the last rule set. The Studio and authentication keep `private, no-store, max-age=0, must-revalidate`. Nothing about the publication predicate, the proxy, or any page changes.
 
 ## Measured on the production build (`next start`, disposable database)

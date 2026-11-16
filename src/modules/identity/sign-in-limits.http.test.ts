@@ -80,6 +80,67 @@ describe("sign-in limits where the platform names the client", () => {
   });
 });
 
+describe("the refusals themselves", () => {
+  it("are never stored, never indexed, and say nothing but their code", async () => {
+    const client = "192.0.2.91";
+    let refused: Response | undefined;
+    for (let i = 0; i < 7 && !refused; i++) {
+      const response = await fetch(
+        `${platform.baseURL}/api/auth/sign-in/email`,
+        {
+          method: "POST",
+          headers: {
+            origin: platform.baseURL,
+            "content-type": "application/json",
+            "x-forwarded-for": client,
+            cookie: "probe=refrain-private-cookie-value",
+          },
+          body: JSON.stringify({
+            email: SYNTHETIC_AUTHOR_EMAIL,
+            password: "[Test] a wrong password for the limits",
+          }),
+        },
+      );
+      if (response.status === 429) {
+        refused = response;
+      } else {
+        await response.body?.cancel();
+      }
+    }
+    expect(refused?.status).toBe(429);
+    expect(refused!.headers.get("cache-control")).toContain("no-store");
+    expect(refused!.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+    const text = await refused!.text();
+    expect(JSON.parse(text)).toEqual({ code: "TOO_MANY_REQUESTS" });
+    for (const value of [client, "refrain-private-cookie-value", "refrain-"]) {
+      expect(text.includes(value), value).toBe(false);
+      expect(JSON.stringify([...refused!.headers]).includes(value), value).toBe(
+        false,
+      );
+    }
+
+    const unavailable = await fetch(
+      `${offPlatform.baseURL}/api/auth/sign-in/email`,
+      {
+        method: "POST",
+        headers: {
+          origin: offPlatform.baseURL,
+          "content-type": "application/json",
+          "x-forwarded-for": client,
+        },
+        body: JSON.stringify({
+          email: SYNTHETIC_AUTHOR_EMAIL,
+          password: "[Test] a wrong password for the limits",
+        }),
+      },
+    );
+    expect(unavailable.status).toBe(503);
+    expect(unavailable.headers.get("cache-control")).toContain("no-store");
+    expect(unavailable.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+    expect(await unavailable.json()).toEqual({ code: "AUTH_UNAVAILABLE" });
+  });
+});
+
 describe("the header configured off the platform", () => {
   it("fails closed: no sign-in is attempted, and no client chooses its bucket", async () => {
     for (const client of ["192.0.2.81", "192.0.2.82"]) {
