@@ -52,6 +52,9 @@ export const config = {
     "/albums",
     "/artists",
     "/memories",
+    // The About page (v3, ADR 0011 § 4.4, proposed): answered as the archives
+    // are, so it is the unknown address while public reads are off.
+    "/about",
     "/sitemap.xml",
     "/robots.txt",
     // The Portuguese forms (ADR 0008; ADR 0006 A7, item 2): the same
@@ -65,6 +68,7 @@ export const config = {
     "/pt/albums",
     "/pt/artists",
     "/pt/memories",
+    "/pt/about",
     // The Portuguese Studio (PR 3), only so that an encoded spelling of the
     // prefix (`/%70t/studio`, which the framework matches decoded) reaches
     // this proxy and gets the unknown address's answer, as before the
@@ -101,6 +105,21 @@ export const config = {
 const UNKNOWN_ADDRESS = "/__refrain-unknown-address";
 
 const NO_STORE = "no-store";
+
+// The request the shared not-found view is rendered for, without the client's
+// `User-Agent`. Next.js renders a page differently for crawlers it treats as
+// unable to run scripts (link-preview bots such as Slackbot, Twitterbot, and
+// facebookexternalhit): their Flight data carries byte offsets that follow the
+// requested address's length. Rendered for no particular agent, the view of
+// an unknown address and of a hidden one is the same document for every
+// client, a crawler included (ADR 0006 D4, G1;
+// docs/evidence/self-proxy-and-g1.md). Only removed: nothing from the request
+// reaches the rewrite's destination, a fixed path on this request's origin.
+function notFoundRequestHeaders(request: NextRequest): Headers {
+  const headers = new Headers(request.headers);
+  headers.delete("user-agent");
+  return headers;
+}
 
 // The indexing policy (src/indexing-policy.ts), on every response this proxy
 // makes itself, as `Cache-Control` is: the same constant as the header rules
@@ -147,7 +166,7 @@ const STUDIO_SECURITY_HEADERS = {
 // transport forms: an album, artist, or memory address, an archive, the
 // sitemap, `robots.txt`.
 const PUBLIC_ADDRESS =
-  /^(?:\/_next\/data\/[^/]+)?\/(?:(?:albums|artists|memories)(?:[/.]|$)|sitemap\.xml|robots\.txt)/;
+  /^(?:\/_next\/data\/[^/]+)?\/(?:(?:albums|artists|memories|about)(?:[/.]|$)|sitemap\.xml|robots\.txt)/;
 const ARTIST_ADDRESS = /^(?:\/_next\/data\/[^/]+)?\/artists(?:[/.]|$)/;
 const MEMORY_ADDRESS = /^(?:\/_next\/data\/[^/]+)?\/memories(?:[/.]|$)/;
 const STUDIO_ADDRESS = /^(?:\/_next\/data\/[^/]+)?\/studio(?:[/.]|$)/;
@@ -155,7 +174,7 @@ const STUDIO_ADDRESS = /^(?:\/_next\/data\/[^/]+)?\/studio(?:[/.]|$)/;
 // `/albums.segments/…`, `/_next/data/<build>/albums.json`. Not an address
 // inside the section: `/albums/<slug>` has a slash after the section's name.
 const ARCHIVE_ADDRESS =
-  /^(?:\/_next\/data\/[^/]+)?\/(?:albums|artists|memories)(?:\.[^/]*(?:\/.*)?)?$/;
+  /^(?:\/_next\/data\/[^/]+)?\/(?:albums|artists|memories|about)(?:\.[^/]*(?:\/.*)?)?$/;
 
 // The literal Portuguese prefix, in every transport form: `/pt`, `/pt.rsc`,
 // `/pt.segments/…`, `/pt/<section>…`, `/_next/data/<build>/pt…`. Only the
@@ -197,6 +216,7 @@ export async function proxy(request: NextRequest) {
         : ARTIST_ADDRESS.test(decoded)
           ? ARTIST_SECURITY_HEADERS
           : PUBLIC_SECURITY_HEADERS,
+      request: { headers: notFoundRequestHeaders(request) },
     });
   }
 
@@ -218,6 +238,7 @@ export async function proxy(request: NextRequest) {
   ) {
     return NextResponse.rewrite(new URL(UNKNOWN_ADDRESS, request.url), {
       headers: STUDIO_SECURITY_HEADERS,
+      request: { headers: notFoundRequestHeaders(request) },
     });
   }
 
@@ -333,6 +354,7 @@ export async function proxy(request: NextRequest) {
       // but not those rules, and must answer exactly as an unknown one does.
       return NextResponse.rewrite(new URL(UNKNOWN_ADDRESS, request.url), {
         headers: isArtist ? ARTIST_SECURITY_HEADERS : PUBLIC_SECURITY_HEADERS,
+        request: { headers: notFoundRequestHeaders(request) },
       });
   }
 }

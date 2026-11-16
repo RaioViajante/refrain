@@ -3,8 +3,12 @@ import {
   albumsArchiveMetadata,
 } from "@/app/(archives)/albums/screen";
 
-export default function Page() {
-  return <AlbumsArchiveScreen locale="en" />;
+export default function Page({
+  searchParams,
+}: Readonly<{
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}>) {
+  return <AlbumsArchiveScreen locale="en" searchParams={searchParams} />;
 }
 
 export function generateMetadata() {

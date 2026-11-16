@@ -304,7 +304,19 @@ async function clearFromTheKeyboard(
   await star.focus();
   await page.keyboard.press("Space");
   await expect(star).toBeChecked();
-  const before = await row.boundingBox();
+  // Where the row sits in the document: a focus change may scroll the page
+  // under the v3 Studio's sticky bar, which is not a layout shift.
+  const place = () =>
+    row.evaluate((element) => {
+      const box = element.getBoundingClientRect();
+      return {
+        x: box.x + window.scrollX,
+        y: box.y + window.scrollY,
+        width: box.width,
+        height: box.height,
+      };
+    });
+  const before = await place();
   await page.keyboard.press("Tab");
   await expect(clear).toBeFocused();
   await page.keyboard.press(key);
@@ -316,7 +328,7 @@ async function clearFromTheKeyboard(
   expect(await focusPlace(rating)).toBe("inside");
   await expect(words).toHaveCSS("outline-style", "solid");
   await expect(words).toHaveCSS("outline-width", "2px");
-  expect(await row.boundingBox()).toEqual(before);
+  expect(await place()).toEqual(before);
 
   await page.keyboard.press("Tab");
   expect(await focusPlace(rating)).toBe("after");

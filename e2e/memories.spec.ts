@@ -401,7 +401,7 @@ test("offers Draft, Private, and Publish…, and lists the memory on the Desk", 
 
   await page.goto("/studio");
   await expect(
-    page.getByRole("list", { name: "Memories" }).getByText(title.value),
+    page.getByRole("list", { name: "Keep writing" }).getByText(title.value),
   ).toBeVisible();
   await shot(page, info, "03b-desk");
 });
@@ -587,7 +587,7 @@ test("publishes a memory through its review, asks before a change to it, and unp
   expect(stored.tracks).toHaveLength(2);
   expect(await publicStatus()).toBe(404);
   await expect(
-    readerPage.getByRole("heading", { name: "Nothing here" }),
+    readerPage.getByRole("heading", { name: /this track skipped/ }),
   ).toBeVisible();
   await shot(
     readerPage,

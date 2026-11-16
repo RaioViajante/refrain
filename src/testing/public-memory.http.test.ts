@@ -222,23 +222,20 @@ describe("a public memory's page, with public reads on", () => {
     // Rendered in one pass: nothing waits in hidden markup for a script.
     expect(page.body).not.toMatch(/<div hidden id="S:/);
     expect(page.body).not.toContain("Loading…");
-    expect(page.body).toMatch(
-      new RegExp(
-        `<h1[^>]*>${PUBLIC_MEMORY.title.replace(/[[\]]/g, "\\$&")}</h1>`,
-      ),
-    );
+    expect(
+      visibleText(page.body.match(/<h1[^>]*>[\s\S]*?<\/h1>/)![0]).trim(),
+    ).toBe(PUBLIC_MEMORY.title);
     const text = visibleText(page.body);
+    // v3: the label, the title, the writing on the lined sheet, the songs on
+    // the record, then the labels (memory, when, song).
     const order = [
-      "Memory",
+      "MEMORY",
       PUBLIC_MEMORY.title,
       PUBLIC_MEMORY.paragraphs[0],
       PUBLIC_MEMORY.paragraphs[1],
-      PUBLIC_MEMORY.when,
-      "Published October 28, 2026",
-      "Written in English",
-      "The music",
       PUBLIC_MEMORY.firstSong,
       PUBLIC_MEMORY.secondSong,
+      PUBLIC_MEMORY.when,
     ];
     let at = 0;
     for (const words of order) {
@@ -253,18 +250,19 @@ describe("a public memory's page, with public reads on", () => {
     // The header marks Memories as the current section: since M3.8a its link
     // leads to the Memories archive, as a page inside that section.
     expect(page.body).toMatch(
-      /<a class="public-link" (?:aria-current="true" href="\/memories"|href="\/memories" aria-current="true")>Memories<\/a>/,
+      /<a (?:aria-current="true" href="\/memories"|href="\/memories" aria-current="true")>Memories<svg/,
     );
     // No rating, favourite, artwork, or administrative control.
     expect(text).not.toMatch(
       /My rating|Favourite|Publish…|Unpublish|Writing studio|\bEdit\b/,
     );
-    expect(page.body).not.toContain("<img");
+    // The only images are the frame's own (tape, the torn edge).
+    expect(page.body).not.toMatch(/<img\b(?![^>]*src="\/v3\/)/);
     // The untranslated version is never shown or mentioned (INV-3). The
     // footer's language selector names the two interface languages on every
     // page alike (ADR 0008 § 7), so it is set aside here; the Portuguese
     // tests show that it is the same whether or not a translation exists.
-    const selector = /<details class="public-language"[\s\S]*?<\/details>/;
+    const selector = /<div class="lang"[\s\S]*?<\/div>/g;
     expect(page.body).toMatch(selector);
     expect(visibleText(page.body.replace(selector, ""))).not.toMatch(
       /Português|Brazilian/,
@@ -273,9 +271,21 @@ describe("a public memory's page, with public reads on", () => {
 
   it("links the album journal and the artist only where their pages are public, and nothing else", async () => {
     const page = await request(on.baseURL, `/memories/${seeded!.shown.slug}`);
-    const links = [...page.body.matchAll(/href="(\/[^"]*)"/g)]
+    // The way to the memories before and after (v3) leads only to served
+    // memories; it is checked below, and set aside here.
+    const crate = /<nav class="mnav2[\s\S]*?<\/nav>/.exec(page.body)?.[0] ?? "";
+    for (const href of [...crate.matchAll(/href="(\/memories\/[^"]+)"/g)].map(
+      (match) => match[1]!,
+    )) {
+      expect((await request(on.baseURL, href)).status, href).toBe(200);
+    }
+    const links = [
+      ...page.body.replace(crate, "").matchAll(/href="(\/[^"]*)"/g),
+    ]
       .map((match) => match[1]!)
-      .filter((href) => !href.startsWith("/_next/"));
+      .filter(
+        (href) => !href.startsWith("/_next/") && !href.startsWith("/v3/"),
+      );
     expect(new Set(links)).toEqual(
       new Set([
         // The navigation's four sections (M3.8a).
@@ -283,6 +293,8 @@ describe("a public memory's page, with public reads on", () => {
         "/albums",
         "/artists",
         "/memories",
+        // v3: the footer's About.
+        "/about",
         `/albums/${seeded!.albumJournal.slug}`,
         "/artists/test-memory-artist",
         // The language selector: this page, in each interface language.
@@ -327,10 +339,12 @@ describe("a public memory's page, with public reads on", () => {
     const quiet = await request(on.baseURL, `/memories/${seeded!.quiet.slug}`);
     expect(quiet.status).toBe(200);
     expect(visibleText(quiet.body)).toContain(PUBLIC_MEMORY.quietTitle);
-    expect(visibleText(quiet.body)).not.toContain("The music");
+    expect(visibleText(quiet.body)).not.toContain("THE SONG IN THIS MEMORY");
     const long = await request(on.baseURL, `/memories/${seeded!.long.slug}`);
     expect(long.status).toBe(200);
-    expect(long.body).toContain(`${PUBLIC_MEMORY.longTitle}</h1>`);
+    expect(
+      visibleText(long.body.match(/<h1[^>]*>[\s\S]*?<\/h1>/)![0]).trim(),
+    ).toBe(PUBLIC_MEMORY.longTitle);
   });
 
   it("is no-store, with the public headers and no cache indicator", async () => {

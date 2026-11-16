@@ -6,7 +6,11 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import type { NextConfig } from "next";
+import { getPathMatch } from "next/dist/shared/lib/router/utils/path-match";
+import { matchHas } from "next/dist/shared/lib/router/utils/prepare-destination";
 import { describe, expect, it } from "vitest";
+
+import { canonicalHostRedirects } from "@/canonical-host";
 
 // next.config.ts sits at the repository root, outside the `@/` alias; like
 // src/security-headers.test.ts, this test reads it by path.
@@ -81,10 +85,172 @@ describe("next.config.ts header routes", () => {
     }
   });
 
+  it("make every address that no section rule names `no-store`, except the immutable build files and the data-free assets (G2)", async () => {
+    const routes = await headerRoutes();
+    // Second, after the indexing policy and before every section rule, so
+    // that each section's own value is the last one set and wins.
+    const unnamed = routes[1]!;
+    expect(unnamed.cacheControl).toBe("no-store");
+    // Matched as the framework matches it, with its own path matcher.
+    const matches = getPathMatch(unnamed.source, {
+      removeUnnamedParams: true,
+      strict: true,
+    });
+    for (const path of [
+      "/",
+      "/no-such-address",
+      "/a/b/c",
+      "/no-such-address.rsc",
+      "/pt/no-such-address",
+      "/_not-found",
+      "/_global-error",
+      "/albums/a/b",
+      "/v3",
+      "/artworks/x",
+      // A missing promoted file, another spelling of one, or a path beside
+      // the optimizer is the not-found view, and never stored either.
+      "/v3/missing.jpg",
+      "/v3/paper.jpgx",
+      "/artwork/missing.webp",
+      "/_next/imagex",
+      "/_next/images/a",
+    ]) {
+      expect(matches(path), path).not.toBe(false);
+    }
+    for (const path of [
+      "/_next/static/chunks/main.js",
+      "/_next/static/media/font.woff2",
+      "/_next/image",
+      "/v3/paper.jpg",
+      "/v3/favicon.svg",
+      "/artwork/refrain-404.webp",
+      // The framework matches header rules without regard to case
+      // (`caseSensitiveRoutes` is unset), so another case of an exact asset
+      // name is excluded too: on the host it is the generic not-found view,
+      // recorded in docs/evidence/g2-no-store.md.
+      "/V3/paper.jpg",
+    ]) {
+      expect(matches(path), path).toBe(false);
+    }
+    // Every private rule comes after it, so the Studio keeps its own value.
+    const firstPrivate = routes.findIndex(
+      (route) => route.cacheControl === PRIVATE_NO_STORE,
+    );
+    expect(firstPrivate).toBeGreaterThan(1);
+  });
+
   it("never touch the framework's immutable static assets", async () => {
     const routes = await headerRoutes();
     for (const route of routes) {
       expect(route.source.startsWith("/_next"), route.source).toBe(false);
     }
   });
+});
+
+describe("the canonical-host redirect (Hosted Launch § 7, item 2)", () => {
+  const CANONICAL = "https://refrain.raioviajante.com";
+  // The framework's own matcher for a `has` condition, as it runs for
+  // `next start`; a change in how it matches hosts fails here.
+  const matchesHost = (pattern: string, host: string) =>
+    matchHas(
+      { headers: { host } } as unknown as Parameters<typeof matchHas>[0],
+      {},
+      [{ type: "host", value: pattern }],
+      [],
+    ) !== false;
+
+  it("is off unless hostnames are listed, as in this configuration today", async () => {
+    expect(canonicalHostRedirects({})).toEqual([]);
+    expect(
+      canonicalHostRedirects({ REFRAIN_CANONICAL_REDIRECT_HOSTS: "  " }),
+    ).toEqual([]);
+    expect(canonicalHostRedirects({ BETTER_AUTH_URL: CANONICAL })).toEqual([]);
+    expect(await nextConfig.redirects!()).toEqual(
+      canonicalHostRedirects(process.env),
+    );
+  });
+
+  it("sends each listed host, exactly, to the same path and query on the canonical origin with a 308", () => {
+    const rules = canonicalHostRedirects({
+      BETTER_AUTH_URL: CANONICAL,
+      REFRAIN_CANONICAL_REDIRECT_HOSTS:
+        "refrain-chi.vercel.app, Refrain-BryanAlvarenga-5889s-Projects.vercel.app,refrain-chi.vercel.app",
+    });
+    expect(rules).toHaveLength(2);
+    for (const rule of rules) {
+      expect(rule.source).toBe("/:path*");
+      // The destination is configured, never taken from the request.
+      expect(rule.destination).toBe(`${CANONICAL}/:path*`);
+      expect(rule.permanent).toBe(true);
+      expect(rule.has).toHaveLength(1);
+      expect(rule.has[0]!.type).toBe("host");
+    }
+    const first = rules[0]!.has[0]!.value;
+    for (const same of [
+      "refrain-chi.vercel.app",
+      "REFRAIN-CHI.vercel.app",
+      "refrain-chi.vercel.app:443",
+      // The fully qualified spelling, with its trailing dot.
+      "refrain-chi.vercel.app.",
+    ]) {
+      expect(matchesHost(first, same), same).toBe(true);
+    }
+    for (const other of [
+      "refrain-chiXvercel.app",
+      "evil.refrain-chi.vercel.app",
+      "refrain-chi.vercel.app.evil.com",
+      "refrain-chi.vercel.app..",
+      "evil.com:refrain-chi.vercel.app",
+      "refrain.raioviajante.com",
+      "refrain-v3-rc.vercel.app",
+      "refrain-hktp7ar96-raioviajando.vercel.app",
+    ]) {
+      expect(matchesHost(first, other), other).toBe(false);
+    }
+    expect(
+      matchesHost(
+        rules[1]!.has[0]!.value,
+        "refrain-bryanalvarenga-5889s-projects.vercel.app",
+      ),
+    ).toBe(true);
+  });
+
+  it.each([
+    [{}, "needs BETTER_AUTH_URL"],
+    [{ BETTER_AUTH_URL: "http://refrain.raioviajante.com" }, "https origin"],
+    [{ BETTER_AUTH_URL: `${CANONICAL}/studio` }, "https origin"],
+    [{ BETTER_AUTH_URL: `${CANONICAL}:8443` }, "https origin"],
+    [{ BETTER_AUTH_URL: `${CANONICAL}?x=1` }, "https origin"],
+  ])(
+    "refuses a canonical origin that is not exactly an https origin: %j",
+    (env, message) => {
+      expect(() =>
+        canonicalHostRedirects({
+          ...env,
+          REFRAIN_CANONICAL_REDIRECT_HOSTS: "refrain-chi.vercel.app",
+        }),
+      ).toThrow(message);
+    },
+  );
+
+  it.each([
+    "refrain.raioviajante.com",
+    "*.vercel.app",
+    "refrain-chi.vercel.app/path",
+    "refrain-chi.vercel.app:443",
+    "https://refrain-chi.vercel.app",
+    "a.com,,b.com",
+    ".*",
+    "localhost",
+  ])(
+    "refuses %j: only exact hostnames other than the canonical one",
+    (hosts) => {
+      expect(() =>
+        canonicalHostRedirects({
+          BETTER_AUTH_URL: CANONICAL,
+          REFRAIN_CANONICAL_REDIRECT_HOSTS: hosts,
+        }),
+      ).toThrow();
+    },
+  );
 });

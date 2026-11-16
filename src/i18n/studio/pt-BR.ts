@@ -15,6 +15,7 @@ const after = (n: number, one: string, other: string) =>
 export const studioPtBR: StudioDictionary = {
   meta: {
     studio: "Estúdio de escrita · refrain",
+    system: "Sistema · refrain",
     signIn: "Entrar · refrain",
     catalog: "Catálogo · refrain",
     addMusic: "Adicionar música · refrain",
@@ -79,6 +80,7 @@ export const studioPtBR: StudioDictionary = {
     tooMany: "Tentativas demais. Espere um minuto e tente de novo.",
     refused: "Esta entrada foi recusada. Recarregue a página e tente de novo.",
     failed: "Não deu para entrar. Tente de novo.",
+    lead: "Só você tem conta aqui.",
   },
   signOut: {
     action: "Sair",
@@ -826,6 +828,13 @@ export const studioPtBR: StudioDictionary = {
     deletedHint:
       "Levados para lá, não apagados: o texto fica no banco de dados, e nada o remove sozinho. Você pode restaurar um diário de lá; a exclusão definitiva ainda não existe.",
     openDeleted: "Abrir Excluídos recentemente",
+    status: "Situação",
+    statusFilter: "Situação",
+    privateFilter: "Privados",
+    searchLabel: "Buscar títulos",
+    searchSubmit: "Buscar",
+    clearSearch: "Limpar a busca",
+    tableLabel: "Biblioteca",
     rowDates: (started: string, edited: string, wordCount: number) =>
       `começado em ${started} · editado em ${edited} · ${counted("pt-BR", wordCount, "palavra", "palavras")}`,
   },
@@ -1317,6 +1326,10 @@ export const studioPtBR: StudioDictionary = {
       `Esta memória está publicada, então salvar muda o que os leitores veem. Aqui está exatamente o que muda. Nada é salvo até você apertar o botão abaixo, e cancelar deixa o seu texto no editor. Isto atualiza o que está marcado como publicado nos seus registros. ${note}`,
     takenAway: "Tirado da memória publicada",
   },
+  system: {
+    yourWords:
+      "Opiniões, memórias e notas são sempre suas. Um campo que você não escreveu simplesmente não aparece.",
+  },
   desk: {
     title: "Mesa",
     lead: "Tudo o que você está escrevendo. Tudo aqui é privado.",
@@ -1373,5 +1386,17 @@ export const studioPtBR: StudioDictionary = {
     catalogEnd: ". ",
     openCatalog: "Abrir o catálogo",
     catalogClose: ".",
+    // The v3 Desk (ADR 0011, proposed); see the English dictionary.
+    greetingLead: "Continue um rascunho ou comece algo novo.",
+    journalCardHint:
+      "Escolha um disco do seu catálogo e escreva faixa por faixa.",
+    memoryCardHint: "Uma música e o que aconteceu.",
+    musicCard: "Adicionar música",
+    musicCardHint:
+      "Encontre um disco no MusicBrainz e adicione ao seu catálogo.",
+    keepWritingEmpty:
+      "Nada sem publicar: tudo o que você escreveu está publicado.",
+    publishedEmpty: "Nada publicado ainda.",
+    edited: (date: string) => `última edição em ${date}`,
   },
 };

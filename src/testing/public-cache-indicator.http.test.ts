@@ -354,9 +354,11 @@ describe("the marker never accompanies entry-specific content", () => {
   });
 
   it("is on a served address's prefetch only as bytes the build itself wrote", async () => {
-    // A router prefetch of a served address is answered from the prerendered
-    // shell (navigation, "Loading…", footer), which holds no entry data. The
-    // marker is therefore on a response for a SERVED address, and the question
+    // A router prefetch of a served address is answered from the build's
+    // prerendered files: since #44 the album route's fallback is empty (it
+    // renders in one pass), and its segment files hold the route's generic
+    // tree, never entry data. The marker is therefore on a response for a
+    // SERVED address, and the question
     // is whether it can accompany anything the entry wrote. It cannot: the
     // body is exactly a file from the build, or empty.
     const artifacts = [...buildArtifacts().values()];

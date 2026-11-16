@@ -152,7 +152,7 @@ Each is its own reviewed PR, with tests, before S4. None changes production when
 1. **Client-aware sign-in protection (#11).** Key the sign-in rate limit by a client address that the host sets and the client cannot forge, keeping a global ceiling.
    - Vercel sets client-address headers. Confirm which one is trustworthy on Vercel before configuring Better Auth's `ipAddressHeaders`.
    - Without this, a public site lets anyone lock the author out of sign-in.
-2. **Canonical-host redirect.** In `src/proxy.ts`, for any request whose host is a production hostname other than the one in `BETTER_AUTH_URL`, answer `308` to the same path on the canonical origin.
+2. **Canonical-host redirect.** **Built, off by default** (PR #109, combined on `release/v3-integration`, draft PR #112; [evidence](evidence/canonical-host.md)): `REFRAIN_CANONICAL_REDIRECT_HOSTS` in `next.config.ts` rather than `src/proxy.ts`, whose matcher covers only the public sections. As planned: for any request whose host is a listed production hostname other than the one in `BETTER_AUTH_URL`, answer `308` to the same path on the canonical origin.
    - Preview and generated deployment URLs stay as they are; they are protected.
    - Never redirect on an attacker-supplied value: compare the request host with a fixed list derived from the configuration.
    - HTTP tests cover `GET`, `HEAD`, a `POST` (which must not be followed), and the Studio.

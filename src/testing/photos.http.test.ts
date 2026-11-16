@@ -328,7 +328,7 @@ describe("artist photographs with the author's session", () => {
       author.cookie,
     );
     // Under Cache Components the not-found view streams with a 200 (M3.1).
-    expect(invalid.html).toContain("This page is not available.");
+    expect(invalid.html).toContain("this track skipped");
     expect(invalid.html).not.toContain("Credit shown");
   });
 

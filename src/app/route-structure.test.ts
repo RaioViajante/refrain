@@ -21,6 +21,7 @@ const PORTUGUESE = join(APP, "pt");
 // Every page address, written out: moving a route must not add or lose one.
 const PAGES = [
   "/",
+  "/about",
   "/albums",
   "/albums/[slug]",
   "/artists",
@@ -51,6 +52,7 @@ const PAGES = [
   "/studio/memories/[id]",
   "/studio/memories/new",
   "/studio/sign-in",
+  "/studio/system",
   "/studio/tracks",
   "/studio/tracks/[id]",
   "/studio/tracks/new",
@@ -59,7 +61,9 @@ const PAGES = [
 // The routes that render in one pass, without client JavaScript.
 const ONE_PASS = [
   "/",
+  "/about",
   "/albums",
+  "/albums/[slug]",
   "/artists",
   "/artists/[slug]",
   "/memories",
@@ -322,10 +326,10 @@ describe("the route trees", () => {
   });
 
   it("finds the routes, so the checks below are not vacuous", () => {
-    expect(englishPages).toHaveLength(34);
-    expect(portuguesePages).toHaveLength(34);
-    expect(englishPages.filter(isStudio)).toHaveLength(27);
-    expect(portuguesePages.filter(isStudio)).toHaveLength(27);
+    expect(englishPages).toHaveLength(36);
+    expect(portuguesePages).toHaveLength(36);
+    expect(englishPages.filter(isStudio)).toHaveLength(28);
+    expect(portuguesePages.filter(isStudio)).toHaveLength(28);
     // The Studio's layout in each tree; the public pages draw their own frame.
     expect(nestedLayouts).toEqual([
       `${ENGLISH}/studio/layout.tsx`,
@@ -374,7 +378,7 @@ describe("the route trees", () => {
     const implementations = allFiles(APP).filter((file) =>
       /(^|\/)(screen|home-screen|studio-layout)\.tsx$/.test(file),
     );
-    expect(implementations).toHaveLength(35);
+    expect(implementations).toHaveLength(37);
     for (const file of implementations) {
       expect(readFileSync(file, "utf8"), file).not.toMatch(SEGMENT_SETTINGS);
     }

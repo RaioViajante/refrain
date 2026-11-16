@@ -17,6 +17,7 @@ const PRIVATE_PATHS = [
   "/studio/journals",
   "/studio/journals/deleted",
   "/studio/journals/new",
+  "/studio/system",
 ];
 
 test("a visitor is sent to sign-in from every studio page, and sees nothing private", async ({
@@ -27,7 +28,7 @@ test("a visitor is sent to sign-in from every studio page, and sees nothing priv
     await expect(page, path).toHaveURL(/\/studio\/sign-in$/);
     await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "Desk", exact: true }),
+      page.getByRole("heading", { name: "Good to see you.", exact: true }),
     ).toHaveCount(0);
     await expect(
       page.getByRole("navigation", { name: "Writing studio" }),
@@ -62,7 +63,11 @@ test("a wrong password is refused in words, the right one opens the studio, and 
   await page.getByLabel("Password").fill(env("E2E_AUTHOR_PASSWORD"));
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(
-    page.getByRole("heading", { level: 1, name: "Desk", exact: true }),
+    page.getByRole("heading", {
+      level: 1,
+      name: "Good to see you.",
+      exact: true,
+    }),
   ).toBeVisible();
   await expect(page).toHaveURL(/\/studio$/);
 
@@ -79,7 +84,7 @@ test("a wrong password is refused in words, the right one opens the studio, and 
   // The studio is open to this session.
   await page.goto("/studio/journals");
   await expect(
-    page.getByRole("heading", { level: 1, name: "Journals" }),
+    page.getByRole("heading", { level: 1, name: "Library" }),
   ).toBeVisible();
 
   // Sign out: back at sign-in, the cookie gone, and the page cannot be
@@ -92,7 +97,7 @@ test("a wrong password is refused in words, the right one opens the studio, and 
   await page.goBack();
   await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
   await expect(
-    page.getByRole("heading", { level: 1, name: "Journals" }),
+    page.getByRole("heading", { level: 1, name: "Library" }),
   ).toHaveCount(0);
   for (const path of PRIVATE_PATHS) {
     await page.goto(path);

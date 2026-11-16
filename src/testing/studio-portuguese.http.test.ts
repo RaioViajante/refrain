@@ -6,6 +6,8 @@
 // never decides what is read, and a Server Action answers the same from either
 // tree. The cache policy of every request form is held by
 // studio-private-cache.http.test.ts, for both trees. Synthetic data only.
+import { v3En } from "@/i18n/v3/en";
+import { v3PtBR } from "@/i18n/v3/pt-BR";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 
@@ -193,9 +195,7 @@ function title(body: string): string {
 /** The two addresses the footer's language selector links to. */
 function selectorLinks(body: string): string[] {
   return [
-    ...body.matchAll(
-      /<a class="studio-language-option" href="([^"]+)" hrefLang="[^"]+"/gi,
-    ),
+    ...body.matchAll(/<a href="([^"]+)" hrefLang="[^"]+" lang="[^"]+"/gi),
   ].map((match) => match[1]!);
 }
 
@@ -213,8 +213,9 @@ describe("each Portuguese Studio page, for the author", () => {
         /<meta name="robots" content="noindex, nofollow"/,
       );
       const words = visibleText(pt.body);
-      expect(words, where).toContain(studioPtBR.frame.studio);
-      expect(words, where).toContain(studioPtBR.frame.closingLine);
+      // v3: the sidebar's name and its link to the site, in Portuguese.
+      expect(words, where).toContain("refrain");
+      expect(words, where).toContain(v3PtBR.desk.s46);
       expect(words, where).not.toContain(studioEn.frame.studio);
       expect(words, where).not.toContain(studioEn.signOut.action);
       if (marker) {
@@ -245,8 +246,9 @@ describe("each Portuguese Studio page, for the author", () => {
       expect(en.body, path).toMatch(/<html[^>]*\blang="en"/);
       expect(title(en.body), path).toBe(studioEn.meta[key]);
       const words = visibleText(en.body);
-      expect(words, path).toContain(studioEn.frame.studio);
-      expect(words, path).not.toContain(studioPtBR.frame.studio);
+      // v3: the sidebar's link to the site, in English.
+      expect(words, path).toContain(v3En.desk.s46);
+      expect(words, path).not.toContain(v3PtBR.desk.s46);
       if (marker) {
         expect(en.body, path).toContain(marker);
       }
@@ -444,5 +446,55 @@ describe("a Server Action called from either tree", () => {
       "select count(*)::int as n from artists where name = ''",
     );
     expect(created.rows[0].n).toBe(0);
+  });
+});
+
+// The design-system catalogue is drawn in the reference's own page frame, not
+// the Studio's sidebar, so it is held here rather than in the list above: an
+// authorized page in both languages, private, and the visitor's sign-in
+// otherwise.
+describe("the System catalogue", () => {
+  it("is the author's, in each language, private and unindexed", async () => {
+    for (const [prefix, lang, words, system] of [
+      ["", "en", studioEn, v3En.system],
+      ["/pt", "pt-BR", studioPtBR, v3PtBR.system],
+    ] as const) {
+      const where = `${prefix}/studio/system`;
+      const page = await request(base, where, {
+        headers: { cookie: author.cookie },
+      });
+      expect(page.status, where).toBe(200);
+      expect(page.body, where).toMatch(
+        new RegExp(`<html[^>]*\\blang="${lang}"`),
+      );
+      expect(title(page.body), where).toBe(words.meta.system);
+      expect(page.body, where).toMatch(
+        /<meta name="robots" content="noindex, nofollow"/,
+      );
+      expect(page.headers["cache-control"], where).toBe(
+        "private, no-store, max-age=0, must-revalidate",
+      );
+      const text = visibleText(page.body);
+      expect(text, where).toContain(system.h1);
+      expect(text, where).toContain(words.system.yourWords);
+      // No bracket placeholder and none of the reference's sample values.
+      expect(text, where).not.toMatch(/\[[^\]]*\]/);
+      expect(page.body, where).not.toMatch(/buckley|lilac wine|c-grace|bm-/i);
+    }
+  });
+
+  it("sends anyone else to the sign-in page of its language", async () => {
+    for (const [prefix, signIn] of [
+      ["", "/studio/sign-in"],
+      ["/pt", "/pt/studio/sign-in"],
+    ] as const) {
+      const answer = await request(base, `${prefix}/studio/system`);
+      expect(answer.body).toContain(`NEXT_REDIRECT;replace;${signIn};307;`);
+      expect(answer.body).not.toContain(v3En.system.h1b);
+      expect(answer.body).not.toContain(v3PtBR.system.h1b);
+      expect(answer.headers["cache-control"]).toBe(
+        "private, no-store, max-age=0, must-revalidate",
+      );
+    }
   });
 });

@@ -1,175 +1,278 @@
 import Link from "next/link";
 
-import type {
-  PublicArtist,
-  PublicArtistAlbum,
-  PublicArtistTrack,
-} from "@/modules/publication/public";
+import type { PublicArtist } from "@/modules/publication/public";
 
-import {
-  ArtistPhotoCredit,
-  ArtistPhotoFrame,
-} from "@/app/(public)/_components/artist-photograph";
-import { Artwork } from "@/app/(public)/_components/home-view";
-import { ClosingLinks } from "@/app/(public)/_components/closing-links";
-import { PersonIcon } from "@/app/(public)/_components/person-icon";
-import { PUBLIC_CONTENT_ID } from "@/app/(public)/_components/public-frame";
-import { RecordIcon } from "@/app/(public)/_components/record-icon";
-import { dictionaryFor } from "@/i18n/dictionaries";
+import { Cover, labelLine } from "@/app/v3/cover";
+import { Vinyl } from "@/app/v3/objects";
+import { TORN_HALVES } from "@/app/v3/rings";
 import type { InterfaceLocale } from "@/i18n/locales";
 import { localizedHref } from "@/i18n/paths";
+import { dictionaryFor } from "@/i18n/dictionaries";
+import { v3StringsFor } from "@/i18n/v3";
 
-import { longestWordLength } from "./title-fit";
-
-// The public artist page (M3.5; the approved V4.4 `Artist` screen). It renders
-// only what the Publication read model returned: the artist's name, the
-// photograph the author chose with its attribution, and the album journals
-// and track reflections that are already public. It has no author control.
+// The public artist page (docs/design-system.md, Part I, Pages: artist): the
+// portrait torn in two as the page opens, the name between the halves with
+// what the journal knows about the artist, and their album journals on the
+// shelf.
 //
-// The approved screen is an artist *journal*: an opening sentence, an essay,
-// "Last edited", "Written in", and a facts line about the artist. Artist
-// journals have no public reading contract yet, and the catalog holds no
-// biography, so the page shows less, never something invented: the name, the
-// photograph, and "In this journal" (docs/design-system.md § Public artist
-// page).
+// The photograph is the one the author chose, with the credit its licence
+// asks for, under the portrait (Deployment gate item 7 still governs a hosted
+// page). It is shown in black and white and torn in two, and the credit says
+// so. Without a photograph the halves are kraft with the name in hand (Empty
+// states). Labels appear only for what the public page can say: the number of
+// public album journals, and the album when there is exactly one. Artist
+// journals are not public yet (ADR 0011 § 4.3, proposed), so the page quotes no
+// journal of its own.
 
-const albumAddress = (locale: InterfaceLocale, slug: string) =>
-  localizedHref(locale, `/albums/${slug}`);
+const LABEL_TOPS = [330, 430, 530, 630];
 
-function AlbumRow({
-  album,
-  locale,
-}: Readonly<{ album: PublicArtistAlbum; locale: InterfaceLocale }>) {
-  const t = dictionaryFor(locale).artist;
-  const year = album.firstReleaseYear ? String(album.firstReleaseYear) : null;
-  return (
-    <li>
-      <Link className="pa-album" href={albumAddress(locale, album.slug)}>
-        <Artwork
-          artwork={album.artwork}
-          className="ph-art pa-album-art"
-          sizes="120px"
-          fallback={<RecordIcon className="ph-art-icon" size={22} />}
-        />
-        <span className="pa-album-text">
-          <span className="pa-album-title">{album.title}</span>{" "}
-          <span className="pa-album-facts">
-            {year ? `${year}` : null}
-            {year && album.trackCount > 0 ? " · " : null}
-            {album.trackCount > 0 ? (
-              <>
-                <span aria-hidden="true">
-                  {t.trackShare(album.writtenTrackCount, album.trackCount)}
-                </span>
-                <span className="pj-visually-hidden">
-                  {t.trackShareSpoken(
-                    album.writtenTrackCount,
-                    album.trackCount,
-                  )}
-                </span>
-              </>
-            ) : null}
-          </span>
-        </span>
-      </Link>
-    </li>
-  );
-}
-
-function TrackRow({
-  track,
-  locale,
-}: Readonly<{ track: PublicArtistTrack; locale: InterfaceLocale }>) {
-  const inAlbum = dictionaryFor(locale).artist.inAlbum(track.albumTitle);
-  const where =
-    track.number === null
-      ? inAlbum
-      : `${inAlbum} · ${String(track.number).padStart(2, "0")}`;
-  return (
-    <li className="pa-track-item">
-      <Link
-        className="pa-track"
-        href={`${albumAddress(locale, track.slug)}#tracks`}
-      >
-        <span className="pa-track-title">{track.title}</span>{" "}
-        <span className="pa-track-where">{where}</span>
-      </Link>
-    </li>
-  );
-}
+const COPY = {
+  en: {
+    shelfH: "the albums here",
+    shelfB: "on the shelf",
+    allR: "All artists",
+    shown: "Shown in black and white, torn in two.",
+    photo: "Photograph",
+    license: "License",
+    source: "Source",
+  },
+  "pt-BR": {
+    shelfH: "os álbuns aqui",
+    shelfB: "na estante",
+    allR: "Todos os artistas",
+    shown: "Mostrada em preto e branco, rasgada em duas.",
+    photo: "Fotografia",
+    license: "Licença",
+    source: "Fonte",
+  },
+} as const;
 
 export function ArtistView({
   artist,
   locale,
 }: Readonly<{ artist: PublicArtist; locale: InterfaceLocale }>) {
-  const t = dictionaryFor(locale).artist;
+  const t = v3StringsFor(locale).artist;
+  const c = COPY[locale];
+  const d = dictionaryFor(locale);
+  const words = artist.name.trim().split(/\s+/);
+  const first = words.length > 1 ? words.slice(0, -1).join(" ") : artist.name;
+  const rest = words.length > 1 ? words[words.length - 1] : "";
+  const only = artist.albums.length === 1 ? artist.albums[0]! : null;
+  const labels: { label: string; value: string }[] = [
+    { label: t.l1, value: String(artist.albums.length) },
+  ];
+  if (only) {
+    labels.push({
+      label: t.l2,
+      value: [only.title, only.firstReleaseYear].filter(Boolean).join(", "),
+    });
+  }
+  const photo = artist.photo;
+  const halfStyle = (side: "left" | "right") => ({
+    clipPath: TORN_HALVES[side],
+  });
+  // The portrait is a real image in each half, so the archive never learns
+  // which page a reader was on (no referrer), as before.
+  const portrait = (side: "left" | "right") =>
+    photo ? (
+      // eslint-disable-next-line @next/next/no-img-element -- Commons thumbnails, sized by srcSet
+      <img
+        className={`hp ${side}`}
+        src={photo.src}
+        srcSet={photo.srcSet}
+        sizes="(max-width: 720px) 100vw, 1200px"
+        alt=""
+        referrerPolicy="no-referrer"
+        decoding="async"
+      />
+    ) : null;
   return (
-    <main className="public-shell pj pa" id={PUBLIC_CONTENT_ID} tabIndex={-1}>
-      <article className="pj-grid pa-grid">
-        <figure className="pa-figure">
-          <ArtistPhotoFrame
-            name={artist.name}
-            photo={artist.photo}
-            locale={locale}
-          />
-          {artist.photo ? (
-            <figcaption>
-              <ArtistPhotoCredit photo={artist.photo} locale={locale} />
-            </figcaption>
-          ) : null}
-        </figure>
-        <header className="pj-head pa-head">
-          <p className="pj-kind">
-            <PersonIcon />
-            {t.kind}
-          </p>
-          {/* The longest word sizes the title on a narrow screen, so that
-              ordinary words stay whole (public.css, `.pa-title`). */}
-          <h1
-            className="pj-title pa-title"
-            style={
-              {
-                "--pa-longest": longestWordLength(artist.name),
-              } as React.CSSProperties
-            }
+    <main id="main" tabIndex={-1}>
+      <article>
+        <section className="wrap" aria-labelledby="pp-h1">
+          <div
+            className={`torn ${photo ? "has-photo" : "no-photo"}`}
+            data-io=""
           >
-            {artist.name}
-          </h1>
-        </header>
-      </article>
-
-      <section className="pj-grid pa-section" aria-labelledby="pa-in-journal">
-        <div className="pa-margin">
-          <h2 id="pa-in-journal">{t.inThisJournal}</h2>
-        </div>
-        <div className="pa-lists">
-          <h3 id="pa-albums" className="pa-list-title">
-            {t.albumJournals}
-          </h3>
-          <ul className="pa-albums" role="list" aria-labelledby="pa-albums">
-            {artist.albums.map((album) => (
-              <AlbumRow key={album.slug} album={album} locale={locale} />
+            <span
+              className="half l"
+              aria-hidden="true"
+              style={halfStyle("left")}
+            >
+              {portrait("left")}
+              {photo ? null : (
+                <span className="knm hand">{first.toLowerCase()}</span>
+              )}
+            </span>
+            <span
+              className="half r"
+              aria-hidden="true"
+              style={halfStyle("right")}
+            >
+              {portrait("right")}
+              {photo ? null : (
+                <span className="knm hand">
+                  {(rest || first).toLowerCase()}
+                </span>
+              )}
+            </span>
+            <span
+              className="sr"
+              role="img"
+              aria-label={
+                photo ? d.photo.of(artist.name) : d.photo.noneOf(artist.name)
+              }
+            />
+            <div className="mid">
+              <p className="k pix">
+                {locale === "pt-BR" ? "ARTISTA" : "ARTIST"}
+              </p>
+              <h1 id="pp-h1">
+                {first}
+                {rest ? " " : null}
+                {rest ? <span className="ser">{rest}</span> : null}
+              </h1>
+            </div>
+            {labels.map((entry, i) => (
+              <p
+                key={entry.label}
+                className="lab"
+                style={{
+                  top: `${LABEL_TOPS[i]}px`,
+                  margin: 0,
+                  ["--ld" as string]: `${(1.6 + i * 0.25).toFixed(2)}s`,
+                }}
+              >
+                <span className="pix lab-k">{entry.label}</span>
+                <br />
+                <span className="hand">{entry.value}</span>
+              </p>
             ))}
-          </ul>
-          {artist.tracks.length > 0 ? (
-            <>
-              <h3 id="pa-tracks" className="pa-list-title">
-                {t.tracksWrittenAbout}
-              </h3>
-              <ul className="pa-tracks" role="list" aria-labelledby="pa-tracks">
-                {artist.tracks.map((track) => (
-                  <TrackRow
-                    key={`${track.slug}:${track.number ?? ""}:${track.title}`}
-                    track={track}
-                    locale={locale}
-                  />
-                ))}
-              </ul>
-            </>
+            <span
+              className="crop"
+              aria-hidden="true"
+              style={{
+                left: "2%",
+                top: 14,
+                borderTopWidth: 1.5,
+                borderLeftWidth: 1.5,
+              }}
+            />
+            <span
+              className="crop"
+              aria-hidden="true"
+              style={{
+                right: "2%",
+                top: 14,
+                borderTopWidth: 1.5,
+                borderRightWidth: 1.5,
+              }}
+            />
+            <span
+              className="crop"
+              aria-hidden="true"
+              style={{
+                left: "2%",
+                bottom: 14,
+                borderBottomWidth: 1.5,
+                borderLeftWidth: 1.5,
+              }}
+            />
+            <span
+              className="crop"
+              aria-hidden="true"
+              style={{
+                right: "2%",
+                bottom: 14,
+                borderBottomWidth: 1.5,
+                borderRightWidth: 1.5,
+              }}
+            />
+          </div>
+          {photo ? (
+            <p className="pcredit pix">
+              {d.photo.captionPrefix}
+              {photo.credit}
+              {d.photo.viaCommons} ·{" "}
+              {photo.license.url ? (
+                <a
+                  href={photo.license.url}
+                  rel="license noopener noreferrer"
+                  target="_blank"
+                >
+                  {photo.license.name}
+                </a>
+              ) : (
+                photo.license.name
+              )}
+              {photo.license.shareAlike ? ` ${d.photo.shareAlike}` : null} ·{" "}
+              <a
+                href={photo.sourceUrl}
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                {d.photo.source}
+              </a>{" "}
+              · {photo.modifications} {c.shown}
+            </p>
           ) : null}
-        </div>
-      </section>
-      <ClosingLinks locale={locale} archive="/artists" label={t.allArtists} />
+        </section>
+        {artist.albums.length > 0 ? (
+          <section className="his wrap" aria-labelledby="pp-his">
+            <div className="shead">
+              <h2 id="pp-his">
+                {c.shelfH}
+                <span className="ser">{c.shelfB}</span>
+              </h2>
+            </div>
+            {artist.albums.map((album) => {
+              const href = localizedHref(locale, `/albums/${album.slug}`);
+              return (
+                <div key={album.slug} className="row">
+                  <Link
+                    className="sl"
+                    href={href}
+                    data-a="sleeve"
+                    data-d="0"
+                    style={{ ["--vx" as string]: "-40%" }}
+                    aria-hidden="true"
+                    tabIndex={-1}
+                  >
+                    <Vinyl
+                      top={artist.name.toLowerCase()}
+                      bottom={album.title}
+                    />
+                    <Cover
+                      artwork={album.artwork}
+                      title={album.title}
+                      line={labelLine([artist.name], album.firstReleaseYear)}
+                      sizes="300px"
+                    />
+                  </Link>
+                  <Link className="tx" href={href}>
+                    <span className="t ser" style={{ display: "block" }}>
+                      {album.title}
+                    </span>
+                    <span className="m" style={{ display: "block" }}>
+                      {[artist.name, album.firstReleaseYear]
+                        .filter(Boolean)
+                        .join(", ")}
+                    </span>
+                  </Link>
+                </div>
+              );
+            })}
+            <div style={{ marginTop: 60 }}>
+              <Link
+                className="pill ghost"
+                href={localizedHref(locale, "/artists")}
+              >
+                {c.allR}
+              </Link>
+            </div>
+          </section>
+        ) : null}
+      </article>
     </main>
   );
 }

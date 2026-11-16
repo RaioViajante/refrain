@@ -515,7 +515,7 @@ describe("address normalization", () => {
     const home = await request(on.baseURL, "/");
     expect(home.status).toBe(200);
     // The Home itself (M3.4), not a redirect to anything else.
-    expect(home.body).toContain('<h1 id="ph-title"');
+    expect(home.body).toContain('<h1 id="pp-h1"');
     const page = await request(on.baseURL, `/albums/${slug("grace")}`);
     expect(page.status).toBe(200);
     const signIn = await request(off.baseURL, "/studio/sign-in");

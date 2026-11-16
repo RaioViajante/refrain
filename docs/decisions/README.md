@@ -12,6 +12,10 @@ Significant architectural, data, and workflow decisions are recorded here as sho
 | [0006](0006-publication-decision-and-acknowledgement.md) | Publication Decision and Acknowledgement | Accepted; amended through 2026-11-10 (A1 to A7; A7's public surfaces are built, its Studio surfaces are not) |
 | [0007](0007-hosted-backups-and-retention.md) | Hosted Backups, Retention, and Recovery | Accepted (2026-11-07); not provisioned yet |
 | [0008](0008-interface-localization.md) | Interface Localization (English and Brazilian Portuguese) | Accepted (2026-11-10); not implemented |
+| [0011](0011-refrain-v3-identity-and-product.md) | Refrain v3: Visual Identity and Product Changes | **Proposed** (2026-11-15); not accepted. Proposes amendments to 0002, 0004, 0005, 0006 (A9 to A12), and 0008 |
+| [0012](0012-external-services-music-story-email-media.md) | External Services: Music Story, Transactional Email, and Media Storage | **Proposed** (2026-11-15); not accepted |
+
+ADR numbers 0009 and 0010 are used by proposals in open draft pull requests #98 and #99, which are not merged and not accepted.
 
 ## Format
 

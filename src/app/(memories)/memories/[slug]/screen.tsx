@@ -5,6 +5,7 @@ import { cache } from "react";
 
 import {
   getPublicMemory,
+  listPublicMemoryArchive,
   publicReadsEnabled,
   resolvePublicMemorySlug,
   type PublicMemory,
@@ -14,12 +15,12 @@ import {
   notFoundMetadata,
   publicPageMetadata,
 } from "@/app/(public)/_components/page-metadata";
-import { PublicFrame } from "@/app/(public)/_components/public-frame";
+import { V3Frame } from "@/app/v3/frame";
 import { dictionaryFor } from "@/i18n/dictionaries";
 import { OPEN_GRAPH_LOCALE, type InterfaceLocale } from "@/i18n/locales";
 import { localizedHref } from "@/i18n/paths";
 
-import { MemoryView } from "./memory-view";
+import { MemoryView, type MemoryNeighbours } from "./memory-view";
 
 // A public memory (M3.7), read through the Publication module's reading entry
 // point alone. A memory is public only while one of its language versions is
@@ -99,14 +100,43 @@ export async function MemoryScreen({
   if (loaded.kind !== "page") {
     notFound();
   }
+  const neighbours = await neighboursOf(loaded.memory.slug, locale);
   return (
-    <PublicFrame
+    <V3Frame
       locale={locale}
       path={`/memories/${loaded.memory.slug}`}
+      page="memory"
       current="memories"
       inside
     >
-      <MemoryView memory={loaded.memory} locale={locale} />
-    </PublicFrame>
+      <MemoryView
+        memory={loaded.memory}
+        locale={locale}
+        neighbours={neighbours}
+      />
+    </V3Frame>
   );
+}
+
+/** The memories published just before and after this one, from the public archive. */
+async function neighboursOf(
+  slug: string,
+  locale: InterfaceLocale,
+): Promise<MemoryNeighbours> {
+  if (!publicReadsEnabled()) {
+    return { previous: null, next: null };
+  }
+  try {
+    const cards = [...(await listPublicMemoryArchive(locale))].sort(
+      (a, b) => a.publishedAt.getTime() - b.publishedAt.getTime(),
+    );
+    const index = cards.findIndex((card) => card.slug === slug);
+    if (index < 0) return { previous: null, next: null };
+    return {
+      previous: cards[index - 1]?.slug ?? null,
+      next: cards[index + 1]?.slug ?? null,
+    };
+  } catch {
+    return { previous: null, next: null };
+  }
 }

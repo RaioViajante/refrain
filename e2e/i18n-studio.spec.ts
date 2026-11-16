@@ -101,11 +101,11 @@ async function settled(page: Page) {
 
 // The visible footer's: after a refresh the framework may keep the previous
 // view of a route hidden, out of the accessibility tree, with its own copy.
-const footer = (page: Page) => page.getByRole("contentinfo");
-const selector = (page: Page) =>
-  footer(page).locator("summary.studio-language-button");
-const option = (page: Page, name: string) =>
-  footer(page).locator(".studio-language-option", { hasText: name });
+// v3: the languages are two links in the Studio sidebar's foot, each to the
+// same page in the other language (ADR 0008 § 6: the URL is the only
+// language state).
+const languageLink = (page: Page, code: "EN" | "PT") =>
+  page.locator(".side .seg").getByRole("link", { name: code, exact: true });
 
 async function versionsOf(title: string, kind: "album" | "memory") {
   return withDatabase(async (client) => {
@@ -142,7 +142,9 @@ test("the Portuguese Studio speaks Portuguese, and the selector keeps the page",
   await page.goto("/pt/studio");
   await settled(page);
   await expect(page.locator("html")).toHaveAttribute("lang", "pt-BR");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Mesa");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "Que bom te ver.",
+  );
   const nav = page.getByRole("navigation", { name: "Estúdio de escrita" });
   await expect(nav.getByRole("link", { name: "Mesa" })).toHaveAttribute(
     "href",
@@ -153,48 +155,33 @@ test("the Portuguese Studio speaks Portuguese, and the selector keeps the page",
     "/pt/studio/catalog",
   );
   await expect(page.getByRole("button", { name: "Sair" })).toBeVisible();
-  await expect(selector(page)).toHaveText(/Idioma: Português/);
+  // The current language is marked, the other is the same page in English,
+  // and each is a 44px target.
+  const portuguese = languageLink(page, "PT");
+  const english = languageLink(page, "EN");
+  await expect(portuguese).toHaveAttribute("aria-current", "true");
+  await expect(portuguese).toHaveAttribute("lang", "pt-BR");
+  expect(await english.getAttribute("aria-current")).toBeNull();
+  await expect(english).toHaveAttribute("href", "/studio");
+  await expect(english).toHaveAttribute("lang", "en");
+  await expectTouchTarget(portuguese);
+  await expectTouchTarget(english);
 
-  await selector(page).click();
-  await expect(option(page, "Português (Brasil)")).toHaveAttribute(
-    "aria-current",
-    "page",
-  );
-  await expect(
-    page.getByText(
-      "Muda só a interface. O que foi escrito fica no idioma original.",
-    ),
-  ).toBeVisible();
-  await option(page, "English").click();
-  await page.waitForURL(/\/studio$/);
+  // By keyboard, as any link: the same page, in English.
+  await english.focus();
+  await expect(english).toBeFocused();
+  await page.keyboard.press("Enter");
+  await page.waitForURL((url) => url.pathname === "/studio");
   expect(new URL(page.url()).pathname).toBe("/studio");
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Desk");
-
-  // By keyboard: the arrows open the menu and move, Escape closes it.
-  await selector(page).focus();
-  await page.keyboard.press("ArrowUp");
-  await expect(footer(page).locator("details.studio-language")).toHaveAttribute(
-    "open",
-    "",
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "Good to see you.",
   );
-  await expect(
-    footer(page).locator(".studio-language-option").last(),
-  ).toBeFocused();
-  // Open, each option is shown and is a 44px target.
-  const options = footer(page).locator(".studio-language-option");
-  await expect(options).toHaveCount(2);
-  for (const option of await options.all()) {
-    await expect(option).toBeVisible();
-    await expectTouchTarget(option);
-  }
-  await page.keyboard.press("Escape");
-  await expect(selector(page)).toBeFocused();
-  // Closed, the options are not shown, and the button is a 44px target.
-  for (const option of await options.all()) {
-    await expect(option).toBeHidden();
-  }
-  await expectTouchTarget(selector(page));
+  await expect(languageLink(page, "EN")).toHaveAttribute(
+    "aria-current",
+    "true",
+  );
+  await expect(languageLink(page, "PT")).toHaveAttribute("href", "/pt/studio");
 });
 
 test("adds an artist, an album, and a track in Portuguese, and the English Studio has them at once", async ({
@@ -237,8 +224,7 @@ test("adds an artist, an album, and a track in Portuguese, and the English Studi
 
   // The same album in English, by the selector: the track is there, with no
   // restart and no reload of anything but the page.
-  await selector(page).click();
-  await option(page, "English").click();
+  await languageLink(page, "EN").click();
   await page.waitForURL((url) => url.pathname === albumPath.slice(3));
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
   await expect(page.getByRole("link", { name: names.track })).toBeVisible();
@@ -560,8 +546,7 @@ test("asks before the language selector leaves unsaved changes", async ({
     asked.push(dialog.message());
     await dialog.dismiss();
   });
-  await selector(page).click();
-  await option(page, "English").click();
+  await languageLink(page, "EN").click();
   await expect
     .poll(() => asked)
     .toEqual(["Há alterações não salvas. Sair sem salvar?"]);
@@ -576,11 +561,14 @@ test("answers a Portuguese Studio record that does not exist with the shared vie
 }) => {
   await page.goto("/pt/studio/artists/00000000-0000-4000-8000-000000000000");
   await expect(page.locator("html")).toHaveAttribute("lang", "pt-BR");
+  // The shared v3 not-found view, in Portuguese, with the English line under
+  // it.
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(
+    "essa faixa pulou",
+  );
+  await expect(page.locator(".nf-other")).toHaveAttribute("lang", "en");
   await expect(
-    page.getByRole("heading", { level: 1, name: "Nada aqui" }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("link", { name: "Voltar ao início" }),
+    page.getByRole("link", { name: "Voltar pro começo" }),
   ).toHaveAttribute("href", "/pt");
 });
 
@@ -602,10 +590,14 @@ test("signs in and out in Portuguese, staying in Portuguese, with no callback pa
   await page.getByLabel("Senha").fill(env("E2E_AUTHOR_PASSWORD"));
   await page.getByRole("button", { name: "Entrar" }).click();
   await page.waitForURL((url) => url.pathname === "/pt/studio");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Mesa");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "Que bom te ver.",
+  );
   await page.getByRole("button", { name: "Sair" }).click();
   await page.waitForURL((url) => url.pathname === "/pt/studio/sign-in");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Entrar");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "Entre para escrever",
+  );
   await context.close();
 });
 
@@ -640,7 +632,7 @@ test("every Portuguese Studio page fits 320 to 1440 px, its selector too, with n
     heading: string;
     fact?: string;
   }[] = [
-    { name: "desk", path: "/pt/studio", heading: "Mesa" },
+    { name: "desk", path: "/pt/studio", heading: "Que bom te ver." },
     { name: "catalog", path: "/pt/studio/catalog", heading: "Catálogo" },
     {
       name: "add-music",
@@ -700,7 +692,7 @@ test("every Portuguese Studio page fits 320 to 1440 px, its selector too, with n
       path: "/pt/studio/tracks/new",
       heading: "Adicionar uma faixa",
     },
-    { name: "journals", path: "/pt/studio/journals", heading: "Diários" },
+    { name: "journals", path: "/pt/studio/journals", heading: "Biblioteca" },
     { name: "journal", path: journalPath, heading: names.album },
     {
       name: "journal-edit",
@@ -762,17 +754,15 @@ test("every Portuguese Studio page fits 320 to 1440 px, its selector too, with n
         await scan(page, `${path} at ${width}`);
       }
       await shot(page, name);
-      // The selector, opened, stays on the screen.
-      await selector(page).click();
-      const menu = await footer(page)
-        .locator(".studio-language-menu")
-        .boundingBox();
-      expect(menu!.x, `${path} at ${width}`).toBeGreaterThanOrEqual(0);
-      expect(menu!.x + menu!.width, `${path} at ${width}`).toBeLessThanOrEqual(
-        width,
-      );
+      // The languages stay on the screen.
+      for (const code of ["EN", "PT"] as const) {
+        const box = await languageLink(page, code).boundingBox();
+        expect(box!.x, `${path} at ${width}`).toBeGreaterThanOrEqual(0);
+        expect(box!.x + box!.width, `${path} at ${width}`).toBeLessThanOrEqual(
+          width,
+        );
+      }
       await expectNoHorizontalOverflow(page);
-      await selector(page).click();
     }
   }
 });

@@ -395,9 +395,8 @@ test("shows the chosen cover on every studio surface, and the fallback when it f
       await expectNoHorizontalOverflow(page);
     }
   };
-  await expectCoverRow("/studio", "Journals");
-  await screenshot(page, "desk-with-cover", testInfo.project.name);
-  await expectCoverRow("/studio/journals", "Journals");
+  // The v3 Desk and Library list no artwork (the reference's rows are words
+  // only); the catalog's albums list still shows it.
   await expectCoverRow("/studio/albums", "Albums");
   await expectCoverRow(
     "/studio/catalog/add?q=paper%20moon",

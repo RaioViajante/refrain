@@ -195,7 +195,7 @@ test("the Desk shows a non-zero count of written tracks, as PostgreSQL computes 
   await page.goto("/studio");
   await expect(
     page
-      .getByRole("list", { name: "Journals" })
+      .getByRole("list", { name: "Keep writing" })
       .getByRole("listitem")
       .filter({ hasText: album }),
   ).toContainText("1 of 2 tracks written");

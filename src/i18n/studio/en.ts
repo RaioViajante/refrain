@@ -15,6 +15,7 @@ export type WritingKind = "journal" | "memory";
 export const studioEn = {
   meta: {
     studio: "Writing studio · refrain",
+    system: "System · refrain",
     signIn: "Sign in · refrain",
     catalog: "Catalog · refrain",
     addMusic: "Add music · refrain",
@@ -80,6 +81,9 @@ export const studioEn = {
     tooMany: "Too many attempts. Wait a minute, then try again.",
     refused: "This sign-in was refused. Reload the page and try again.",
     failed: "Couldn’t sign in. Try again.",
+    // The v3 sign-in's lead says only what is true today: there is no email
+    // link yet (R10, blocked on ADR 0012 § 3).
+    lead: "Only you have an account here.",
   },
   signOut: {
     action: "Sign out",
@@ -815,6 +819,14 @@ export const studioEn = {
     deletedHint:
       "Moved there, not erased: the writing stays in the database, and nothing removes it automatically. You can restore a journal from there; permanent deletion is not offered yet.",
     openDeleted: "Open Recently deleted",
+    // The v3 Library (ADR 0011, proposed): what the v3 strings lack.
+    status: "Status",
+    statusFilter: "Status",
+    privateFilter: "Private",
+    searchLabel: "Search titles",
+    searchSubmit: "Search",
+    clearSearch: "Clear the search",
+    tableLabel: "Library",
     rowDates: (started: string, edited: string, wordCount: number) =>
       `started ${started} · edited ${edited} · ${counted("en", wordCount, "word", "words")}`,
   },
@@ -1303,6 +1315,13 @@ export const studioEn = {
       `This memory is published, so saving changes what readers see. Here is exactly what changes. Nothing is saved until you press the button below, and cancelling leaves your text in the editor. This updates what is marked as published in your records. ${note}`,
     takenAway: "Taken away from the published memory",
   },
+  // The private design-system catalogue (/studio/system). Its other words are
+  // the v3 strings; this rule replaces the reference's, which showed unwritten
+  // fields as [brackets] (AGENTS.md § 5: a field not written is not shown).
+  system: {
+    yourWords:
+      "Opinions, memories, and ratings are only ever yours. A field you have not written is simply not shown.",
+  },
   desk: {
     title: "Desk",
     lead: "Everything you are writing. Everything here is private.",
@@ -1358,6 +1377,18 @@ export const studioEn = {
     catalogEnd: ". ",
     openCatalog: "Open the catalog",
     catalogClose: ".",
+    // The v3 Desk (ADR 0011, proposed): its greeting and section names are
+    // the v3 strings; these say only what the Studio does today (no autosave,
+    // no photographs, no Music Story yet).
+    greetingLead: "Pick up a draft or start something new.",
+    journalCardHint:
+      "Choose a record from your catalog, then write it track by track.",
+    memoryCardHint: "A song and what happened.",
+    musicCard: "Add music",
+    musicCardHint: "Find a record on MusicBrainz and add it to your catalog.",
+    keepWritingEmpty: "Nothing unpublished: everything you wrote is published.",
+    publishedEmpty: "Nothing published yet.",
+    edited: (date: string) => `edited ${date}`,
   },
 };
 

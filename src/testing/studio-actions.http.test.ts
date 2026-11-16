@@ -243,12 +243,12 @@ describe("the minted session is a real session", () => {
     const withCookie = await get("/studio", { cookie: author.cookie });
     expect(withCookie.status).toBe(200);
     const html = await withCookie.text();
-    expect(html).toContain("Everything you are writing");
+    expect(html).toContain("Pick up a draft or start something new.");
     expect(html).toContain('name="robots" content="noindex, nofollow"');
     expect(withCookie.headers.get("cache-control")).toContain("no-store");
 
     const without = await (await get("/studio")).text();
-    expect(without).not.toContain("Everything you are writing");
+    expect(without).not.toContain("Pick up a draft or start something new.");
     expect(without).toContain("NEXT_REDIRECT;replace;/studio/sign-in;307;");
   });
 });
@@ -1054,7 +1054,7 @@ describe("the author's complete journey, through real HTTP and PostgreSQL", () =
   it("shows the desk and lists with figures computed by PostgreSQL", async () => {
     const desk = await (await get("/studio", { cookie: cookie() })).text();
     expect(desk).toContain("Your catalog");
-    expect(desk).toContain("Your journals");
+    expect(desk).toContain("Keep writing");
     const albums = await (
       await get("/studio/albums", { cookie: cookie() })
     ).text();
@@ -1066,19 +1066,22 @@ describe("the author's complete journey, through real HTTP and PostgreSQL", () =
     const journals = await (
       await get("/studio/journals", { cookie: cookie() })
     ).text();
-    expect(journals).toMatch(/1 (draft|journal)|private/);
-    // The album is the journal's heading, with the artist as context; the
-    // author's own words appear only as a preview, beside dates and status.
+    // v3: the Library's table shows each entry's status as a tag.
+    expect(journals).toMatch(/>(Draft|Private)</);
+    // The album is the journal's title, with the artist as context, its
+    // type, and the date it was last edited (the v3 Library's table). The
+    // author's words are not listed there.
     expect(journals).toContain(`${own("Album")} (retitled)`);
     expect(journals).toContain(own("Artist"));
+    expect(journals).toContain(">Album journal<");
+    expect(journals.replaceAll("<!-- -->", "")).toMatch(
+      />[A-Z][a-z]{2} \d{1,2}, \d{4}</,
+    );
     const currentBody = await scalar<string>(
       "select body_text from entry_texts where entry_id = $1",
       [ids.journal],
     );
-    expect(journals).toContain(currentBody.slice(0, 40));
-    expect(journals.replaceAll("<!-- -->", "")).toMatch(
-      /started [A-Z][a-z]{2} \d{1,2}, \d{4}/,
-    );
+    expect(journals).not.toContain(currentBody.slice(0, 40));
     const albumPage = await (
       await get(`/studio/albums/${ids.album}`, { cookie: cookie() })
     ).text();
@@ -3374,7 +3377,8 @@ describe("recovering a journal from Recently deleted, through real HTTP and Post
     const list = await (
       await get("/studio/journals", { cookie: cookie() })
     ).text();
-    expect(list).toContain("Recoverable second paragraph");
+    // v3: the Library lists the journal (by its address), not its words.
+    expect(list).toContain(`/studio/journals/${ids.journal}`);
     const deletedPage = await (
       await get("/studio/journals/deleted", { cookie: cookie() })
     ).text();

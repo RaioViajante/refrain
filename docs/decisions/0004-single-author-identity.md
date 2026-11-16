@@ -1,6 +1,6 @@
 # ADR 0004: Single-Author Identity and Access
 
-- **Status:** Accepted
+- **Status:** Accepted **Proposed amendment pending** ([ADR 0011](0011-refrain-v3-identity-and-product.md), not accepted): magic-link sign-in, blocked by an account-deletion hazard; see [below](#proposed-amendment-adr-0011-magic-link-sign-in).
 - **Date:** 2026-10-31. Proposed with M1.3A (issue #9, pull request #10), and accepted by the author in the review of #10 the same day. The author accepted the reliance on Better Auth's internal adapter (§3) as a documented maintenance risk.
 - **Scope:** Authentication, sessions, the provisioning of the single author account, and the authorization boundary of the Writing Studio. It implements the access-control requirements of [Security](../security.md#access-control) with the planned authentication library, Better Auth ([Architecture](../architecture.md#target-technologies)).
 
@@ -171,3 +171,16 @@ An upgrade that changes the account format fails these tests.
 - the deployment target is chosen, especially if a reverse proxy can name the client for rate limiting (§6);
 - Better Auth is upgraded: follow the upgrade procedure in §3;
 - the author wants a second factor (passkey or TOTP), which would be a new ADR.
+
+## Proposed amendment (ADR 0011): magic-link sign-in
+
+**Status: Proposed, not accepted.** Until accepted, § "Library and method" stands: email and password only, no plugins.
+
+The approved v3 design signs the author in with a single-use link, valid for 15 minutes, sent to the author's email. The amendment would allow Better Auth's `magicLink` plugin as the primary sign-in, with these conditions, all of which are **mandatory blockers** for any authentication change:
+
+1. **The account-deletion hazard is fixed first.** Better Auth 1.7.12's magic-link verify calls `revokeUnprovenAccountAccess` for a user whose `emailVerified` is false, which deletes every account and session of that user. Provisioning creates the author with `emailVerified: false`. Enabling the plugin as it is would delete the author's password account on the first magic-link sign-in. Provisioning must create the author verified, and a reviewed data fix must update the existing author row on each database (a hosted one only with the owner's authorization). Details and evidence: [ADR 0012 § 3](0012-external-services-music-story-email-media.md#3-the-better-auth-magic-link-account-deletion-hazard-a-mandatory-blocker).
+2. **Plugin configuration:** `disableSignUp: true`, `storeToken: "hashed"`, `expiresIn: 900`; single use.
+3. **Verification by `POST` from a page on Refrain's own origin**, never by the `GET` link itself (the `SameSite=Strict` cookie, link scanners, and logs). The allow-list in § 5 gains only the send endpoint and that verification.
+4. **Mail only to `REFRAIN_AUTHOR_EMAIL`**, an identical response otherwise, and a daily send cap.
+5. **A recovery path remains** (password sign-in or a CLI-printed link), so the email provider is not a single point of failure.
+6. **Tests against real PostgreSQL** prove that the author's credential account and sessions survive a magic-link sign-in, that sign-up is impossible, and that a token works once and expires.

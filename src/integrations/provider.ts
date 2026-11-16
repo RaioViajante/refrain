@@ -12,7 +12,8 @@ import "server-only";
 // docs/architecture.md § External providers; docs/security.md § External
 // providers.
 
-export type ProviderName = "musicbrainz" | "cover_art_archive" | "wikimedia";
+export type ProviderName =
+  "musicbrainz" | "cover_art_archive" | "wikimedia" | "music_story";
 
 /**
  * Why a provider call did not produce data. A fixed code: never the provider's
@@ -206,6 +207,11 @@ export interface JsonRequest {
   maxBytes: number;
   /** Whether a redirect may be followed to this URL (never by default). */
   allowRedirect?: (target: URL) => boolean;
+  /**
+   * An `Authorization` header for the provider's own URL only. It is never
+   * sent to a redirect's target, so a token cannot follow a redirect.
+   */
+  authorization?: string;
   maxRedirects?: number;
 }
 
@@ -289,6 +295,9 @@ async function fetchFollowing(request: JsonRequest): Promise<Response> {
       headers: {
         Accept: "application/json",
         "User-Agent": request.userAgent,
+        ...(hop === 0 && request.authorization
+          ? { Authorization: request.authorization }
+          : {}),
       },
       redirect: "manual",
       credentials: "omit",

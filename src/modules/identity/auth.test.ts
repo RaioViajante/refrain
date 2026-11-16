@@ -1,6 +1,6 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { schema } from "@/db";
 
@@ -75,7 +75,28 @@ describe("authentication handler, before Better Auth", () => {
   const handle = createAuthRequestHandler(() => ({
     auth: createAuth(unconnectedDatabase(), config),
     config,
+    database: unconnectedDatabase(),
   }));
+
+  it("refuses a sign-in when its limits cannot be counted: never unlimited (issue #11)", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const response = await handle(
+        new Request(`${config.baseURL}/api/auth/sign-in/email`, {
+          method: "POST",
+          headers: {
+            origin: config.baseURL,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ email: "a@example.com", password: "x" }),
+        }),
+      );
+      expect(response.status).toBe(503);
+      expect(await response.json()).toEqual({ code: "AUTH_UNAVAILABLE" });
+    } finally {
+      error.mockRestore();
+    }
+  });
 
   it("passes exactly three endpoints", () => {
     expect([...AUTH_ENDPOINTS].sort()).toEqual([

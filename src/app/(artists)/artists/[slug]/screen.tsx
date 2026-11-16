@@ -14,7 +14,7 @@ import {
   notFoundMetadata,
   publicPageMetadata,
 } from "@/app/(public)/_components/page-metadata";
-import { PublicFrame } from "@/app/(public)/_components/public-frame";
+import { V3Frame } from "@/app/v3/frame";
 import { dictionaryFor } from "@/i18n/dictionaries";
 import type { InterfaceLocale } from "@/i18n/locales";
 
@@ -88,13 +88,14 @@ export async function ArtistScreen({
     notFound();
   }
   return (
-    <PublicFrame
+    <V3Frame
       locale={locale}
       path={`/artists/${loaded.artist.address}`}
+      page="artist"
       current="artists"
       inside
     >
       <ArtistView artist={loaded.artist} locale={locale} />
-    </PublicFrame>
+    </V3Frame>
   );
 }

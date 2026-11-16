@@ -196,6 +196,45 @@ function hiddenAddresses() {
 }
 
 describe("public reads enabled: an address that is not served answers as an unknown one", () => {
+  // The proxy's not-found rewrite overrides the request's headers (it
+  // forwards them without the User-Agent). The framework carries those as
+  // `x-middleware-request-*` copies, which hold the cookie's value; none may
+  // reach the client.
+  it("returns none of the request's headers, its cookie included", async () => {
+    for (const path of [
+      `/albums/${slug("draft")}`,
+      `/albums/${slug("nothing")}`,
+      `/pt/albums/${slug("draft")}`,
+    ]) {
+      const response = await request(on.baseURL, path, {
+        headers: {
+          cookie: "probe=refrain-private-cookie-value",
+          "user-agent": "Slackbot-LinkExpanding 1.0",
+        },
+      });
+      expect(response.status, path).toBe(404);
+      const names = Object.keys(response.headers);
+      // Only the framework's own rewrite marker, the same fixed path for every
+      // address that is not served, may appear: no request-header copy and no
+      // override list.
+      expect(
+        names.filter(
+          (name) =>
+            name.startsWith("x-middleware-request-") ||
+            name === "x-middleware-override-headers",
+        ),
+        path,
+      ).toEqual([]);
+      expect(response.headers["x-middleware-rewrite"] ?? "", path).toMatch(
+        /^(\/__refrain-unknown-address)?$/,
+      );
+      expect(JSON.stringify(response.headers), path).not.toContain(
+        "refrain-private-cookie-value",
+      );
+      expect(response.body, path).not.toContain("refrain-private-cookie-value");
+    }
+  });
+
   it.each(hiddenAddresses())(
     "%s: the same 404, byte for byte",
     async (_n, s) => {
@@ -290,16 +329,31 @@ describe("public reads enabled: a published journal", () => {
     expect(response.headers["x-powered-by"]).toBeUndefined();
   });
 
+  it("is sent complete in one pass, in both languages: nothing waits in hidden markup for a script (#44)", async () => {
+    for (const path of [
+      `/albums/${slug("grace")}`,
+      `/pt/albums/${slug("grace")}`,
+    ]) {
+      const response = await request(on.baseURL, path);
+      expect(response.status, path).toBe(200);
+      expect(response.body, path).not.toMatch(/<div hidden id="S:/);
+      expect(response.body, path).not.toContain("Loading…");
+      expect(response.body, path).not.toContain('aria-busy="true"');
+    }
+  });
+
   it("shows exactly what the approved projection allows", async () => {
     const { body } = await request(on.baseURL, `/albums/${slug("grace")}`);
     // The album, the credit, the facts, the opening, the rating.
     expect(body).toContain(">Grace</h1>");
     expect(body).toContain("Jeff Buckley");
-    expect(body).toContain("1994 · Columbia · 6 tracks");
+    // v3: the credit and year under the title, and the track count above it.
+    expect(visibleText(body)).toMatch(/Jeff Buckley\s*, 1994/);
+    expect(visibleText(body)).toContain("ALBUM JOURNAL · 6 TRACKS");
     expect(body).toContain(PUBLIC_TEXT.opening);
     expect(body).toContain("My rating: 4.5 out of 5");
-    expect(body).toContain("[4.5] / 5");
-    expect(body).toContain("Written in English");
+    expect(body).toContain("[4.5]");
+    expect(body).toContain("IN ENGLISH");
     expect(body).toContain(PUBLIC_TEXT.marginNote);
     // The body, through the allow-list: a subheading, a quote, a hard break.
     expect(body).toContain(`<h2>${PUBLIC_TEXT.heading}</h2>`);
@@ -317,15 +371,14 @@ describe("public reads enabled: a published journal", () => {
     for (const title of ["Mojo Pin", "Grace", "Last Goodbye"]) {
       expect(body).toContain(PUBLIC_TEXT.reflection(title));
     }
-    expect(body).toContain("Favourite: ");
-    expect(body).toContain("(still writing)");
+    // v3: the favourite is circled, with "the one" beside it.
+    expect(body).toContain("the one");
+    expect(body).toContain("still writing");
     // Lilac Wine has a reflection that is not public: the track is listed from
     // the catalog, with its credit, and the page does not say that it exists.
     expect(body).toContain("Lilac Wine");
     expect(body).toContain("by James Shelton");
-    expect(
-      body.match(/class="pj-track-status">not written yet</g),
-    ).toHaveLength(3);
+    expect(body.match(/class="ny">NOT WRITTEN YET</g)).toHaveLength(3);
     for (const marker of PRIVATE_MARKER_LIST) {
       expect(body).not.toContain(marker);
     }
@@ -333,6 +386,40 @@ describe("public reads enabled: a published journal", () => {
     const visible = visibleText(body);
     expect(visible).not.toMatch(/studio|sign in|\bedit\b|\bdraft\b|private/i);
     expect(body).not.toContain('href="/studio');
+  });
+
+  it("links its previous and next journals only to served journals, at their current addresses", async () => {
+    // Each published journal's crate (`listPublicAlbumArchive`'s neighbours).
+    const servedHere = [slug("grace"), slug("new")];
+    const hiddenHere = [
+      slug("draft"),
+      slug("private"),
+      slug("deleted"),
+      slug("old"),
+      slug("hidden-old"),
+    ];
+    let linked = 0;
+    for (const address of servedHere) {
+      const { body } = await request(on.baseURL, `/albums/${address}`);
+      const crate =
+        /<nav[^>]*class="crate wrap"[\s\S]*?<\/nav>/.exec(body)?.[0] ?? "";
+      const hrefs = [...crate.matchAll(/href="(\/albums\/[^"#?]+)"/g)].map(
+        (match) => match[1]!,
+      );
+      for (const href of hrefs) {
+        linked += 1;
+        const answer = await request(on.baseURL, href);
+        expect(answer.status, `${address} -> ${href}`).toBe(200);
+        for (const hidden of hiddenHere) {
+          expect(href, `${address} -> ${href}`).not.toBe(`/albums/${hidden}`);
+        }
+      }
+      for (const hidden of hiddenHere) {
+        expect(crate, `${address}: ${hidden}`).not.toContain(hidden);
+      }
+    }
+    // The two served journals are each other's neighbours, at least.
+    expect(linked).toBeGreaterThan(0);
   });
 
   it("has the title, description, and Open Graph tags of a public page only", async () => {
@@ -648,7 +735,10 @@ describe("the album artwork (M3.2)", () => {
     expect(got.headers["content-security-policy"]).toBe(
       CONTENT_SECURITY_POLICY,
     );
-    const images = [...got.body.matchAll(/<img\b[^>]*>/g)].map((m) => m[0]);
+    // The frame's own images (tape, the torn edge) are not covers.
+    const images = [...got.body.matchAll(/<img\b[^>]*>/g)]
+      .map((m) => m[0])
+      .filter((tag) => !tag.includes('src="/v3/'));
     expect(images).toHaveLength(1);
     const image = images[0]!;
     expect(image).toContain(`src="${stored}-500.jpg"`);
@@ -671,7 +761,11 @@ describe("the album artwork (M3.2)", () => {
     expect(unset.status).toBe(200);
     expect(unset.body).not.toContain("coverartarchive.org");
     expect(unset.body).not.toContain(release);
-    expect([...unset.body.matchAll(/<img\b[^>]*>/g)]).toHaveLength(0);
+    expect(
+      [...unset.body.matchAll(/<img\b[^>]*>/g)].filter(
+        (m) => !m[0].includes('src="/v3/'),
+      ),
+    ).toHaveLength(0);
     expect(unset.body).toContain(
       "Album artwork for [Test] Artwork album: not available yet",
     );
@@ -696,7 +790,7 @@ describe("the album artwork (M3.2)", () => {
       );
       const got = await request(covers.baseURL, `/albums/${slug("artwork")}`);
       expect(got.status).toBe(200);
-      expect(got.body, coverUrl).not.toMatch(/<img\b/);
+      expect(got.body, coverUrl).not.toMatch(/<img\b(?![^>]*src="\/v3\/)/);
       expect(got.body).not.toContain("evil.example");
       expect(got.body).not.toContain("javascript:");
       expect(got.body).not.toContain("onerror");

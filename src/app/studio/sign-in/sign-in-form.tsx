@@ -59,15 +59,9 @@ export function SignInForm() {
   }
 
   return (
-    <form
-      onSubmit={signIn}
-      className="space-y-6"
-      aria-describedby="sign-in-message"
-    >
-      <div className="space-y-2">
-        <label htmlFor="email" className="studio-label block">
-          {words.signIn.email}
-        </label>
+    <form onSubmit={signIn} aria-describedby="sign-in-message">
+      <div className="fld">
+        <label htmlFor="email">{words.signIn.email}</label>
         <input
           id="email"
           name="email"
@@ -75,13 +69,11 @@ export function SignInForm() {
           autoComplete="username"
           required
           maxLength={254}
-          className="studio-field"
+          className="in"
         />
       </div>
-      <div className="space-y-2">
-        <label htmlFor="password" className="studio-label block">
-          {words.signIn.password}
-        </label>
+      <div className="fld">
+        <label htmlFor="password">{words.signIn.password}</label>
         <input
           id="password"
           name="password"
@@ -89,19 +81,15 @@ export function SignInForm() {
           autoComplete="current-password"
           required
           maxLength={128}
-          className="studio-field"
+          className="in"
         />
       </div>
-      <p
-        id="sign-in-message"
-        role="alert"
-        className="min-h-[1.5em] text-[16px]"
-      >
-        {message}
-      </p>
-      <button type="submit" disabled={pending} className="studio-button">
+      <button type="submit" disabled={pending} className="btn pri login-submit">
         {pending ? words.signIn.pending : words.signIn.submit}
       </button>
+      <p id="sign-in-message" role="alert" className="login-message">
+        {message}
+      </p>
     </form>
   );
 }

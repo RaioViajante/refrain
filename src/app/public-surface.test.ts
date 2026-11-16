@@ -64,6 +64,10 @@ function publicFiles(): string[] {
       file.startsWith("src/app/(memories)/") ||
       // M3.8a: the archives, in a route group of their own.
       file.startsWith("src/app/(archives)/") ||
+      // v3 (ADR 0011, proposed): the About page, and the shared frame,
+      // objects, and motion and sound islands that every public page uses.
+      file.startsWith("src/app/(about)/") ||
+      file.startsWith("src/app/v3/") ||
       // The thin English routes, which only delegate (route-structure.test.ts).
       (file.startsWith("src/app/(en)/") &&
         !file.startsWith("src/app/(en)/studio/")) ||
@@ -143,9 +147,15 @@ const ALLOWED_IMPORTS = [
   /^@\/app\/(public\.css|globals\.css|public-fonts|not-found-view|home-screen)$/,
   // The interface's dictionaries, formats, and links (ADR 0008 § 4).
   /^@\/i18n\/(authored|dictionaries|format|locales|paths)$/,
+  // v3: its interface copy and templates (src/i18n/v3).
+  /^@\/i18n\/v3(\/[a-z-]+)?$/,
+  // v3: the shared frame, objects, covers, and islands (src/app/v3), and the
+  // stylesheets they import.
+  /^@\/app\/v3\/[a-z-]+$/,
+  /^\.\/[a-z0-9-]+\.css$/,
   /^\.\/pt-BR$/,
   // The thin English routes name their implementation, and nothing else.
-  /^@\/app\/\((public|artists|memories|archives)\)\/([a-z-]+\/|\[slug\]\/)*(screen|section-layout)$/,
+  /^@\/app\/\((public|artists|memories|archives|about)\)\/([a-z-]+\/|\[slug\]\/)*(screen|section-layout)$/,
   /^@\/app\/\(public\)\/_components\/[a-z-]+$/,
   // M3.8a: the archives' shared frame, metadata, and lines.
   /^@\/app\/\(archives\)\/_components\/[a-z-]+$/,
@@ -549,9 +559,12 @@ describe("the public surface", () => {
     ).toHaveLength(1);
   });
 
-  it("renders the Home, the artist pages, the memory pages, and the archives on the server before sending them, so they need no client JavaScript", () => {
+  it("renders the Home, the album journals, the artist pages, the memory pages, and the archives on the server before sending them, so they need no client JavaScript", () => {
     for (const file of [
       "src/app/(en)/page.tsx",
+      // Issue #44: the album journal, in one pass like the memory pages.
+      "src/app/(en)/(public)/albums/[slug]/page.tsx",
+      "src/app/pt/(public)/albums/[slug]/page.tsx",
       "src/app/(en)/(artists)/artists/[slug]/page.tsx",
       "src/app/(en)/(memories)/memories/[slug]/page.tsx",
       "src/app/(en)/(archives)/albums/page.tsx",
@@ -608,6 +621,8 @@ describe("the public surface", () => {
       "/albums",
       "/artists",
       "/memories",
+      // v3: the About page, answered as the archives are.
+      "/about",
       "/sitemap.xml",
       "/robots.txt",
       // The Portuguese Home, sections, and archives (ADR 0006 A7, item 2).
@@ -618,6 +633,7 @@ describe("the public surface", () => {
       "/pt/albums",
       "/pt/artists",
       "/pt/memories",
+      "/pt/about",
       // The Portuguese Studio, only so that its encoded prefix is refused
       // (PR 3); a literal address goes back to the framework.
       "/pt/studio",
@@ -647,6 +663,8 @@ describe("the public surface", () => {
       /^src\/app\/\(memories\)\//,
       // M3.8a: the archives, scanned above.
       /^src\/app\/\(archives\)\//,
+      // v3: the About page, scanned above.
+      /^src\/app\/\(about\)\//,
       /^src\/app\/sitemap\.xml\/route\.ts$/,
       /^src\/app\/robots\.txt\/route\.ts$/,
       // The not-found views: the address-level one and the English root's.
@@ -654,7 +672,7 @@ describe("the public surface", () => {
       /^src\/app\/\(en\)\/not-found\.tsx$/,
       // The English routes: public ones are scanned above, and each Studio
       // route delegates to an authorized screen (route-structure.test.ts).
-      /^src\/app\/\(en\)\/(\(public\)|\(artists\)|\(memories\)|\(archives\)|studio)\//,
+      /^src\/app\/\(en\)\/(\(public\)|\(artists\)|\(memories\)|\(archives\)|\(about\)|studio)\//,
       // The Home (M3.4), scanned above as a public file.
       /^src\/app\/\(en\)\/page\.tsx$/,
       // The English root layout, which reads nothing.
@@ -662,7 +680,7 @@ describe("the public surface", () => {
       // The Portuguese public routes (ADR 0006 A7, item 9), scanned above as
       // public files, its root layout, which reads nothing, and its
       // not-found view.
-      /^src\/app\/pt\/(\(public\)|\(artists\)|\(memories\)|\(archives\))\//,
+      /^src\/app\/pt\/(\(public\)|\(artists\)|\(memories\)|\(archives\)|\(about\))\//,
       /^src\/app\/pt\/(page|layout|not-found)\.tsx$/,
       // The Portuguese Studio's routes (PR 3): each delegates to an authorized
       // screen (route-structure.test.ts), as the English ones do.
@@ -1232,7 +1250,9 @@ describe("the Publication reading module", () => {
     /photo_url|photo_credit|photo_license|photo_source_url|photo_file_|photo_chosen_at|photoUrl|photoCredit|photoLicense|photoSourceUrl|photoFile|photoChosenAt|wikimedia/i;
   const PHOTO_READERS = [
     "src/modules/publication/public-artist.ts",
-    "src/app/(artists)/artists/[slug]/artist-view.tsx",
+    // v3: the About page names the photographs' source in its credits; it
+    // reads no photograph.
+    "src/app/(about)/about/screen.tsx",
     "src/app/(public)/_components/artist-photograph.tsx",
     "src/app/(public)/_components/public-photo-image.tsx",
   ];
@@ -1259,6 +1279,203 @@ describe("the Publication reading module", () => {
         );
       }
     }
+  });
+
+  // The v3 artist page renders the photograph itself (the torn halves), from
+  // `PublicArtist.photo`, the one public value that carries it. Comments
+  // aside, only the artist page's own files may touch a `.photo` value or
+  // draw an image from one.
+  const PHOTO_VALUE =
+    /\.photo\b|\bphoto\.(?:src|srcSet|credit|alt|width|height)\b/;
+  const code = (file: string) =>
+    readFileSync(file, "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "");
+
+  it("draws an artist photograph only on the artist page", () => {
+    const pages = publicFiles().filter((file) => file.startsWith("src/app/"));
+    const touching = pages.filter((file) => PHOTO_VALUE.test(code(file)));
+    expect(touching.length).toBeGreaterThan(0);
+    for (const file of touching) {
+      expect(file, file).toMatch(
+        /^src\/app\/\((?:artists)\)\/|^src\/app\/\(public\)\/_components\/(?:artist-photograph|public-photo-image)\.tsx$/,
+      );
+    }
+    expect(touching).toContain(
+      "src/app/(artists)/artists/[slug]/artist-view.tsx",
+    );
+  });
+
+  // The Home reads one thing: the Home's own read model, called once, in its
+  // one snapshot (ADR 0006 A6, item 8). No journal page, no slug resolution,
+  // in the Home's own files: its screen, its view, and its two route files
+  // (the shared v3 components they import are covered by the reading
+  // allowlist in src/app/studio/no-publishing.test.ts).
+  const HOME_TREE = [
+    "src/app/home-screen.tsx",
+    "src/app/(public)/_components/home-view.tsx",
+    "src/app/(en)/page.tsx",
+    "src/app/pt/page.tsx",
+  ];
+
+  function publicationImports(source: string): {
+    names: string[];
+    namespace: boolean;
+  } {
+    const file = ts.createSourceFile(
+      "x.tsx",
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+    );
+    const names: string[] = [];
+    let namespace = false;
+    for (const statement of file.statements) {
+      if (
+        !ts.isImportDeclaration(statement) ||
+        !ts.isStringLiteral(statement.moduleSpecifier) ||
+        !/(^|\/)modules\/publication(\/|$)/.test(statement.moduleSpecifier.text)
+      ) {
+        continue;
+      }
+      const clause = statement.importClause;
+      const typeOnly = clause?.isTypeOnly ?? false;
+      if (clause?.name) names.push(clause.name.text);
+      const bindings = clause?.namedBindings;
+      if (bindings && ts.isNamespaceImport(bindings)) namespace = true;
+      if (bindings && ts.isNamedImports(bindings)) {
+        for (const element of bindings.elements) {
+          if (!typeOnly && !element.isTypeOnly) names.push(element.name.text);
+        }
+      }
+    }
+    return { names, namespace };
+  }
+
+  it("has the Home read only getPublicHome, once, and the switch", () => {
+    const values: string[] = [];
+    for (const file of HOME_TREE) {
+      const { names, namespace } = publicationImports(
+        readFileSync(file, "utf8"),
+      );
+      expect(namespace, file).toBe(false);
+      values.push(...names);
+    }
+    expect(values.sort()).toEqual(["getPublicHome", "publicReadsEnabled"]);
+    const calls = HOME_TREE.map(
+      (file) => (code(file).match(/\bgetPublicHome\s*\(/g) ?? []).length,
+    ).reduce((sum, count) => sum + count, 0);
+    expect(calls).toBe(1);
+  });
+
+  it("would notice a second read on the Home", () => {
+    expect(
+      publicationImports(
+        'import { getPublicHome, getPublicAlbumJournal } from "@/modules/publication/public";',
+      ).names,
+    ).toContain("getPublicAlbumJournal");
+    expect(
+      publicationImports('import * as p from "@/modules/publication";')
+        .namespace,
+    ).toBe(true);
+    expect(
+      publicationImports(
+        'import type { PublicHome } from "@/modules/publication/public";',
+      ).names,
+    ).toEqual([]);
+  });
+
+  // A memory's "when" is free text, never read as a date (owner decision;
+  // ADR 0006 A6). Every read of a `rememberedWhen` property on a public page
+  // is checked in the syntax tree: it may only be rendered (a JSX child or
+  // attribute), tested for presence (a condition, `&&`, `!`, a `.filter`
+  // callback), or carried as is into an object's property. Anything else (a
+  // call, a method on it, a template, an alias) fails. What a property is
+  // used for afterwards is not followed: reviewers check that by reading.
+  function whenUses(source: string): string[] {
+    const file = ts.createSourceFile(
+      "x.tsx",
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+    );
+    const bad: string[] = [];
+    const visit = (node: ts.Node) => {
+      const named =
+        (ts.isPropertyAccessExpression(node) &&
+          node.name.text === "rememberedWhen") ||
+        (ts.isElementAccessExpression(node) &&
+          ts.isStringLiteralLike(node.argumentExpression) &&
+          node.argumentExpression.text === "rememberedWhen") ||
+        (ts.isBindingElement(node) &&
+          (node.propertyName ?? node.name).getText() === "rememberedWhen");
+      if (named) {
+        let use: ts.Node = node;
+        while (
+          ts.isNonNullExpression(use.parent) ||
+          ts.isParenthesizedExpression(use.parent)
+        ) {
+          use = use.parent;
+        }
+        const parent = use.parent;
+        const allowed =
+          !ts.isBindingElement(node) &&
+          (ts.isJsxExpression(parent) ||
+            (ts.isConditionalExpression(parent) && parent.condition === use) ||
+            (ts.isBinaryExpression(parent) &&
+              parent.operatorToken.kind ===
+                ts.SyntaxKind.AmpersandAmpersandToken &&
+              parent.left === use) ||
+            (ts.isPrefixUnaryExpression(parent) &&
+              parent.operator === ts.SyntaxKind.ExclamationToken) ||
+            (ts.isPropertyAssignment(parent) && parent.initializer === use) ||
+            (ts.isArrowFunction(parent) &&
+              parent.body === use &&
+              ts.isCallExpression(parent.parent) &&
+              ts.isPropertyAccessExpression(parent.parent.expression) &&
+              parent.parent.expression.name.text === "filter"));
+        if (!allowed) bad.push(node.getText());
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(file);
+    return bad;
+  }
+
+  it('never parses a memory\'s "when" on a public page', () => {
+    const pages = publicFiles().filter((file) => file.startsWith("src/app/"));
+    const parsing = pages.flatMap((file) =>
+      whenUses(readFileSync(file, "utf8")).map((use) => `${file}: ${use}`),
+    );
+    expect(parsing).toEqual([]);
+  });
+
+  it('would notice a "when" read as a year, in any spelling', () => {
+    for (const source of [
+      "yearOf(card.rememberedWhen)",
+      "card.rememberedWhen.match(/\\d{4}/)",
+      "const { rememberedWhen: w } = memory;",
+      "const x = `${c.rememberedWhen}`;",
+      'c["rememberedWhen"].slice(0, 4)',
+      "group(list, (c) => c.rememberedWhen)",
+    ]) {
+      expect(whenUses(source), source).not.toEqual([]);
+    }
+    for (const source of [
+      "<span>{memory.rememberedWhen}</span>",
+      "card.rememberedWhen ? <b /> : null",
+      "list.filter((card) => card.rememberedWhen)",
+      "({ label: card.rememberedWhen! })",
+    ]) {
+      expect(whenUses(source), source).toEqual([]);
+    }
+  });
+
+  it("would notice a photograph drawn outside the artist page", () => {
+    expect(PHOTO_VALUE.test("<img src={artist.photo.src} />")).toBe(true);
+    expect(PHOTO_VALUE.test("const p = artist.photo;")).toBe(true);
+    expect(PHOTO_VALUE.test("photo.srcSet")).toBe(true);
+    expect(PHOTO_VALUE.test("const photographs = []")).toBe(false);
   });
 
   it("would notice a photo column read by a public file", () => {
@@ -1749,16 +1966,16 @@ describe("the Home's components", () => {
   it("are all server components, down to every component they import", () => {
     const { files, packages } = appImports("src/app/home-screen.tsx");
     expect([...files]).toContain("src/app/(public)/_components/home-view.tsx");
-    expect([...files]).toContain("src/app/(public)/_components/arrow-icon.tsx");
-    // The language selector's keyboard island is the only client component
-    // (ADR 0008 § 6). It receives the server-rendered selector as children,
-    // and imports nothing but React, so no read model reaches the client.
-    expect([...files].filter(isClient)).toEqual([
-      "src/app/(public)/_components/language-keys.tsx",
-    ]);
+    expect([...files]).toContain("src/app/v3/frame.tsx");
+    // v3: the page runtime (the reveal observer, the hero's scroll, the pen's
+    // sounds) and the footer's sound control are the only client component.
+    // It receives a label string as its only prop, and imports nothing but
+    // React and the synthesized sound engine, so no read model reaches the
+    // client.
+    expect([...files].filter(isClient)).toEqual(["src/app/v3/runtime.tsx"]);
     const island = parse(
-      readFileSync("src/app/(public)/_components/language-keys.tsx", "utf8"),
-      "src/app/(public)/_components/language-keys.tsx",
+      readFileSync("src/app/v3/runtime.tsx", "utf8"),
+      "src/app/v3/runtime.tsx",
     );
     expect(
       island.statements
@@ -1766,7 +1983,12 @@ describe("the Home's components", () => {
         .map(
           (statement) => (statement.moduleSpecifier as ts.StringLiteral).text,
         ),
-    ).toEqual(["react"]);
+    ).toEqual(["react", "./sfx"]);
+    const engine = parse(
+      readFileSync("src/app/v3/sfx.ts", "utf8"),
+      "src/app/v3/sfx.ts",
+    );
+    expect(engine.statements.filter(ts.isImportDeclaration)).toEqual([]);
     expect([...packages].filter((name) => !HOME_PACKAGES.has(name))).toEqual(
       [],
     );

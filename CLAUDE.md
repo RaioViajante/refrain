@@ -7,9 +7,10 @@
 ## Starting a task
 
 1. Inspect before acting: `git status`, the current branch, and the actual files involved. Recalled context or earlier conversations are not evidence of the repository's current state.
-2. Read the documents and ADRs relevant to the task (index in [`README.md`](README.md#read-next)). For UI work, also read [Design System](docs/design-system.md) and, when available locally, the matching screen in `reference/`, which is not in the repository.
+2. Read the documents and ADRs relevant to the task (index in [`README.md`](README.md#read-next)). For UI work, also read [Design System](docs/design-system.md): Part I is the v3 specification, the visual authority since ADR 0011 was partly accepted on 2026-11-15 (only its listed parts: the rest, including R2 to R12, is still proposed). Part II, the V4.4 specification, describes only the surfaces v3 has not replaced yet. When available locally, open the matching v3 screen in `reference/screens/` and its source in `reference/source/` (with `reference/code/tokens.css` and `sfx.js`); none of it is in the repository.
 3. For multi-step work, give a brief plan with the acceptance criteria, then work in small, reviewable increments: one concern per commit, one milestone per branch.
-4. Do not start a milestone the author has not authorized ([Roadmap](docs/roadmap.md)).
+4. Do not start a milestone the author has not authorized ([Roadmap](docs/roadmap.md)). For the v3 rebuild, run one `/goal` per R milestone; its condition must ask for printed evidence (command summaries, the PR URL, HTTP status lines), because the evaluator sees only the conversation. A goal never deploys, merges, or changes hosted data.
+5. Before any authentication change, read the magic-link hazard in [ADR 0012 § 3](docs/decisions/0012-external-services-music-story-email-media.md#3-the-better-auth-magic-link-account-deletion-hazard-a-mandatory-blocker). It is a blocker, not a warning.
 
 ## While working
 

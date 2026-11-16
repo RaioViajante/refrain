@@ -17,7 +17,7 @@ const email = inject("studioAuthorEmail");
 const password = inject("studioAuthorPassword");
 
 // Text that only the signed-in Desk contains (its introduction).
-const SIGNED_IN = "Everything you are writing";
+const SIGNED_IN = "Pick up a draft or start something new.";
 const SIGN_IN_REDIRECT = "NEXT_REDIRECT;replace;/studio/sign-in;307;";
 
 function post(
@@ -53,8 +53,9 @@ function sessionSetCookie(response: Response): string | undefined {
 const AUTHENTICATED_ONLY = [
   'aria-label="Writing studio"',
   "Catalog sections",
-  "studio-nav",
-  "studio-header-end",
+  // v3: the sidebar and its foot (the site, the languages, the session).
+  'class="side"',
+  'class="foot"',
   "Sign out",
 ];
 
@@ -112,6 +113,7 @@ describe("studio access without a valid session", () => {
     "/studio/journals",
     "/studio/journals/deleted",
     "/studio/journals/new",
+    "/studio/system",
   ])("never renders %s for an anonymous request", async (path) => {
     await expectNoStudio(await get(path));
   });

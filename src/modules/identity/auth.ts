@@ -14,7 +14,11 @@ export const AUTH_BASE_PATH = "/api/auth";
 /** Session lifetime. Sessions are not extended by use (see below). */
 export const SESSION_LIFETIME_SECONDS = 7 * 24 * 60 * 60;
 
-/** Sign-in attempts allowed per window, across all clients (see below). */
+/**
+ * Sign-in attempts allowed per window for one client, or for every client
+ * together when no trusted header names the client (see below, and
+ * sign-in-limits.ts).
+ */
 export const SIGN_IN_RATE_LIMIT = { window: 60, max: 5 } as const;
 
 export const MIN_PASSWORD_LENGTH = 15;
@@ -92,13 +96,18 @@ export function createAuth(database: DatabaseExecutor, config: AuthConfig) {
       disableCSRFCheck: false,
       disableOriginCheck: false,
       database: { generateId: "uuid" },
-      // No proxy is trusted yet, so no request header names the client: a
-      // client could set any X-Forwarded-For value and get a fresh rate-limit
-      // bucket for each. With no trusted header, Better Auth keys every
-      // client into one bucket per path, so the sign-in limit holds for all
-      // clients together. A deployment behind a known proxy configures the
-      // header and the proxy addresses here (docs/security.md).
-      ipAddress: { ipAddressHeaders: [] },
+      // A request header names the client only where the hosting platform
+      // overwrites it (config.ts, readTrustedClientIpHeader). Otherwise none
+      // does: a client could set any X-Forwarded-For value and get a fresh
+      // bucket for each, so Better Auth keys every client into one bucket per
+      // path and the sign-in limit holds for all clients together. Either
+      // way, the handler also applies its own per-client limit and a global
+      // ceiling first (sign-in-limits.ts).
+      ipAddress: {
+        ipAddressHeaders: config.trustedClientIpHeader
+          ? [config.trustedClientIpHeader]
+          : [],
+      },
     },
 
     telemetry: { enabled: false },
@@ -112,6 +121,7 @@ export type Auth = ReturnType<typeof createAuth>;
 interface ConfiguredAuth {
   auth: Auth;
   config: AuthConfig;
+  database: DatabaseExecutor;
 }
 
 const globalForAuth = globalThis as typeof globalThis & {
@@ -127,7 +137,12 @@ const globalForAuth = globalThis as typeof globalThis & {
 export function getConfiguredAuth(): ConfiguredAuth {
   if (!globalForAuth.refrainAuth) {
     const config = readAuthConfig(process.env);
-    globalForAuth.refrainAuth = { auth: createAuth(getDb(), config), config };
+    const database = getDb();
+    globalForAuth.refrainAuth = {
+      auth: createAuth(database, config),
+      config,
+      database,
+    };
   }
   return globalForAuth.refrainAuth;
 }

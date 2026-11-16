@@ -8,15 +8,11 @@ import {
 } from "@/modules/publication/public";
 
 import {
-  HomeListings,
-  HomeOpening,
-  HomeUnavailable,
+  HomeView,
+  type HomeExtras,
 } from "@/app/(public)/_components/home-view";
 import { publicPageMetadata } from "@/app/(public)/_components/page-metadata";
-import {
-  PUBLIC_CONTENT_ID,
-  PublicFrame,
-} from "@/app/(public)/_components/public-frame";
+import { V3Frame } from "@/app/v3/frame";
 import { dictionaryFor } from "@/i18n/dictionaries";
 import type { InterfaceLocale } from "@/i18n/locales";
 
@@ -52,19 +48,28 @@ const NOTHING_PUBLISHED: PublicHome = {
   memories: [],
 };
 
+const NO_EXTRAS: HomeExtras = { memories: [], artists: [] };
+
 /** What the Home lists, or null when the database could not answer. */
-async function load(locale: InterfaceLocale): Promise<PublicHome | null> {
+async function load(
+  locale: InterfaceLocale,
+): Promise<{ home: PublicHome; extras: HomeExtras } | null> {
   // Runtime only, never at build time. Outside the `try`: the framework uses
   // it to defer rendering, and that must never be caught.
   await connection();
   if (!publicReadsEnabled()) {
-    return NOTHING_PUBLISHED;
+    return { home: NOTHING_PUBLISHED, extras: NO_EXTRAS };
   }
   try {
-    return await getPublicHome(locale);
+    // One read, in the Home's one snapshot (ADR 0006 A6, item 8): every
+    // section, the sleeve and the board included, comes from it.
+    const home = await getPublicHome(locale);
+    return {
+      home,
+      extras: { memories: home.memories, artists: home.artists },
+    };
   } catch {
-    // Never logged: a driver message can carry connection details. The page
-    // says, in a fixed sentence, that the lists could not be read.
+    // Never logged: a driver message can carry connection details.
     return null;
   }
 }
@@ -85,17 +90,15 @@ export async function homeMetadata(locale: InterfaceLocale): Promise<Metadata> {
 export async function HomeScreen({
   locale,
 }: Readonly<{ locale: InterfaceLocale }>) {
-  const home = await load(locale);
+  const loaded = await load(locale);
   return (
-    <PublicFrame locale={locale} path="/" current="home">
-      <main className="public-shell ph" id={PUBLIC_CONTENT_ID} tabIndex={-1}>
-        <HomeOpening locale={locale} />
-        {home ? (
-          <HomeListings home={home} locale={locale} />
-        ) : (
-          <HomeUnavailable locale={locale} />
-        )}
-      </main>
-    </PublicFrame>
+    <V3Frame locale={locale} path="/" page="home" home>
+      <HomeView
+        home={loaded?.home ?? NOTHING_PUBLISHED}
+        extras={loaded?.extras ?? NO_EXTRAS}
+        locale={locale}
+        unavailable={loaded === null}
+      />
+    </V3Frame>
   );
 }

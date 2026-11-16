@@ -29,6 +29,73 @@ describe("readAuthConfig", () => {
       secret: SECRET,
       baseURL: "http://localhost:3000",
       authorEmail: "author@example.com",
+      // No header names the client unless one is configured (issue #11).
+      trustedClientIpHeader: null,
+    });
+  });
+
+  describe("the trusted client header (issue #11)", () => {
+    it("trusts x-forwarded-for only on Vercel, which overwrites it", () => {
+      expect(
+        readAuthConfig({
+          ...valid,
+          REFRAIN_TRUSTED_CLIENT_IP_HEADER: " X-Forwarded-For ",
+          VERCEL: "1",
+          VERCEL_ENV: "production",
+        }).trustedClientIpHeader,
+      ).toBe("x-forwarded-for");
+    });
+
+    it.each([undefined, "development", "test", ""])(
+      "refuses it with VERCEL=1 but VERCEL_ENV=%j, as a pulled .env.local has it",
+      (vercelEnv) => {
+        expect(
+          refusal({
+            ...valid,
+            REFRAIN_TRUSTED_CLIENT_IP_HEADER: "x-forwarded-for",
+            VERCEL: "1",
+            VERCEL_ENV: vercelEnv,
+          }),
+        ).toContain("only on Vercel");
+      },
+    );
+
+    it.each([undefined, "", "0", "true", "yes"])(
+      "refuses it off Vercel (VERCEL=%j): there a client chooses the header",
+      (vercel) => {
+        expect(
+          refusal({
+            ...valid,
+            REFRAIN_TRUSTED_CLIENT_IP_HEADER: "x-forwarded-for",
+            VERCEL: vercel,
+          }),
+        ).toContain("only on Vercel");
+      },
+    );
+
+    it.each([
+      "x-real-ip",
+      "x-vercel-forwarded-for",
+      "cf-connecting-ip",
+      "forwarded",
+      "x-forwarded-for, x-real-ip",
+    ])(
+      "refuses %j, which no platform here is documented to overwrite",
+      (header) => {
+        expect(
+          refusal({
+            ...valid,
+            REFRAIN_TRUSTED_CLIENT_IP_HEADER: header,
+            VERCEL: "1",
+          }),
+        ).toContain("may only be x-forwarded-for");
+      },
+    );
+
+    it("trusts nothing when unset, even on Vercel", () => {
+      expect(
+        readAuthConfig({ ...valid, VERCEL: "1" }).trustedClientIpHeader,
+      ).toBeNull();
     });
   });
 

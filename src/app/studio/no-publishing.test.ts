@@ -69,8 +69,10 @@ const PREVIEW_ACTION_IMPORTERS: Record<string, string> = {
 const PUBLICATION_MODULE = /(^|\/)modules\/publication(\/|$)/;
 
 // The only files under src/app that may import its reading entry point.
+// The v3 folder is shared with the Studio, so only its cover component, which
+// takes a public artwork's type, is allowed there; not the whole folder.
 const PUBLIC_READING_FILES =
-  /^src\/app\/(\(public\)\/|\(artists\)\/|\(memories\)\/|\(archives\)\/|home-screen\.tsx$|not-found-view\.tsx$|sitemap\.xml\/route\.ts$|robots\.txt\/route\.ts$)/;
+  /^src\/app\/(\(public\)\/|\(artists\)\/|\(memories\)\/|\(archives\)\/|\(about\)\/|v3\/cover\.tsx$|home-screen\.tsx$|not-found-view\.tsx$|sitemap\.xml\/route\.ts$|robots\.txt\/route\.ts$)/;
 
 /** The module path a node names, if it names one with a string literal. */
 function moduleNamed(node: ts.Node): string | undefined {

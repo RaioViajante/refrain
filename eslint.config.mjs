@@ -97,6 +97,10 @@ const eslintConfig = defineConfig([
       "src/app/\\(artists\\)/**",
       // The memory pages (M3.7): their own route group, for their header.
       "src/app/\\(memories\\)/**",
+      // v3 (ADR 0011, proposed): the About page, and the shared frame,
+      // objects, and covers every public page uses.
+      "src/app/\\(about\\)/**",
+      "src/app/v3/**",
       // The archives (M3.8a): their own route group, so that each page draws
       // its own header with its section as the current page.
       "src/app/\\(archives\\)/**",

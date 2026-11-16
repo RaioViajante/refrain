@@ -1,9 +1,12 @@
 import "server-only";
 
+import type { DatabaseExecutor } from "@/db";
+
 import { AUTH_BASE_PATH, getConfiguredAuth, type Auth } from "./auth";
 import { reportUnavailable } from "./authorization";
 import type { AuthConfig } from "./config";
 import { logAuthApiError } from "./logging";
+import { limitSignIn } from "./sign-in-limits";
 
 // The HTTP boundary of Better Auth (src/app/api/auth/[...all]/route.ts).
 //
@@ -25,6 +28,8 @@ export const MAX_AUTH_BODY_BYTES = 4096;
 interface ConfiguredAuth {
   auth: Auth;
   config: AuthConfig;
+  /** Holds the sign-in counters (sign-in-limits.ts). */
+  database: DatabaseExecutor;
 }
 
 function jsonResponse(status: number, code: string): Response {
@@ -159,6 +164,26 @@ export function createAuthRequestHandler(resolve: () => ConfiguredAuth) {
         headers: request.headers,
         body,
       });
+    }
+
+    // The per-client limit and the global ceiling (issue #11), counted only
+    // for a sign-in that passed the origin and size checks. If the counters
+    // cannot be read, the attempt is refused: never allowed unlimited.
+    if (pathname === `${AUTH_BASE_PATH}/sign-in/email`) {
+      let limit;
+      try {
+        limit = await limitSignIn(
+          configured.database,
+          request,
+          configured.config,
+        );
+      } catch (error) {
+        reportUnavailable(error);
+        return jsonResponse(503, "AUTH_UNAVAILABLE");
+      }
+      if (limit !== "allowed") {
+        return jsonResponse(429, "TOO_MANY_REQUESTS");
+      }
     }
 
     try {

@@ -1,0 +1,643 @@
+/* Refrain v3 in the Writing Studio (docs/design-system.md, Part I, Writing
+   Studio): inside the v3 shell (.stu), the existing screens take the v3
+   Studio's letters, colours, and thin lines in place of V4.4's hand-drawn
+   outlines. Their structure, controls, and behaviour are unchanged. */
+.stu {
+  --font-kalam: var(--f-archivo);
+  --font-alegreya-sans: var(--f-archivo);
+  --color-ink: #141311;
+  --color-ink-2: #3a3732;
+  --color-ink-3: #6e6a63;
+  --color-rule: #e3ded5;
+  --color-frame-quiet: #8c877e;
+  --color-paper: #faf8f4;
+  --color-paper-2: #f2efe9;
+  --color-paper-3: #f6f4ef;
+  --color-hover: #f2efe9;
+  --stroke-button: none;
+  --stroke-button-hover: none;
+  --stroke-button-focus: none;
+  --stroke-button-disabled: none;
+  --stroke-button-primary: none;
+  --stroke-button-primary-hover: none;
+  --stroke-field: none;
+  --stroke-field-hover: none;
+  --stroke-field-focus: none;
+  --stroke-area: none;
+  --stroke-area-hover: none;
+  --stroke-area-focus: none;
+  --stroke-frame: none;
+  --stroke-frame-small: none;
+  --stroke-dialog: none;
+  --stroke-rule: none;
+  --stroke-opening-line: none;
+  --stroke-rule-focus: none;
+  --stroke-underline: none;
+}
+.stu .studio-main :is(h1, h2, h3) {
+  font-family: var(--f-archivo), system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+.stu .studio-main h1 {
+  font-size: 30px;
+  line-height: 1.1;
+}
+/* Control boundaries at 3:1 or better (WCAG 2.2, 1.4.11): the reference's
+   --line (#E3DED5, about 1.3:1 on white) is kept for rules and panels, and
+   controls take #8C877E (about 3.6:1), as V4.4's frame did (D10). */
+.stu {
+  --control-line: #8c877e;
+}
+.stu .studio-button {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--control-line);
+  border-radius: 7px;
+  background-color: #fff;
+  font-family: var(--f-archivo), system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+}
+.stu .studio-button:not(.studio-button-primary):hover {
+  border-color: var(--ink);
+}
+.stu .studio-button-primary {
+  border-color: var(--burg);
+  background-color: var(--burg);
+  color: #fbf5ef;
+}
+.stu .studio-button-primary:hover:not(:disabled) {
+  border-color: #76231c;
+  background-color: #76231c;
+}
+.stu .studio-field,
+.stu .studio-textarea,
+.stu .studio-memory-results,
+.stu .studio-dialog,
+.stu .studio-language-menu {
+  border: 1px solid var(--control-line);
+  border-radius: 7px;
+  background-color: #fff;
+}
+.stu .studio-field:focus,
+.stu .studio-textarea:focus,
+.stu .studio-opening-field:focus {
+  outline: 2px solid var(--pen);
+  outline-offset: 0;
+  border-color: var(--pen);
+}
+.stu .studio-opening-field {
+  border-bottom: 1px solid var(--control-line);
+  font-family: var(--f-serif), Georgia, serif;
+  font-style: italic;
+}
+.stu .studio-row::after,
+.stu .studio-rule {
+  background: var(--line);
+  height: 1px;
+}
+.stu .studio-dialog {
+  border-radius: 10px;
+  box-shadow: 0 24px 60px -24px rgba(20, 19, 17, 0.35);
+}
+.stu .studio-main {
+  /* The reference's page column (.content): it stops growing at 1200px, and
+     its own padding (32px, 16px on a phone) is the only gutter: V4.4's
+     narrower width would add 17.6px a side. */
+  width: auto;
+  max-width: 1200px;
+}
+/* The shell's languages are links (the URL is the only language state). */
+/* Each is a 44px target (the reference's are 30px), and the current one is
+   the reference's filled ink chip. */
+.stu .side .seg a,
+.stu .login-foot .seg a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 5px;
+  color: var(--grey);
+}
+.stu .side .seg a[aria-current],
+.stu .login-foot .seg a[aria-current] {
+  background: var(--ink);
+  color: #fff;
+}
+.stu .side .foot button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-decoration: underline;
+}
+.stu .studio-skip {
+  position: absolute;
+  left: 16px;
+  top: -60px;
+}
+.stu .studio-skip:focus {
+  top: 12px;
+  z-index: 20;
+  padding: 8px 14px;
+  background: #fff;
+}
+/* In the track panel the rating's label takes its own line in the v3 faces,
+   so the stars and the value never rewrap when a rating is set or cleared. */
+.stu .studio-rating[data-compact] > legend {
+  flex-basis: 100%;
+}
+/* A page with its own editor bar (the journal editor) uses that bar in place
+   of the shell's, so the two never overlap. */
+.stu:has(.studio-editorbar) .main > .bar {
+  display: none;
+}
+/* The session line keeps "Sign out" with the name. */
+.stu .side .foot span {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: baseline;
+}
+/* Track titles at the v3 Studio's quieter scale: Archivo is wider than V4.4's
+   Kalam, and at 22px a title rewrapped when the track's state line grew
+   ("edited"), moving the rating below it. */
+.stu .studio-track-title {
+  font-size: 17px;
+  line-height: 1.35;
+}
+.stu .studio-track-number {
+  font-family: var(--f-pixel), ui-monospace, monospace;
+  font-style: normal;
+  font-size: 13px;
+}
+/* In the v3 shell's narrower column the editor bar keeps one line, so a
+   changed save state never pushes the page down. */
+@media (min-width: 721px) {
+  .stu .studio-editorbar {
+    flex-wrap: nowrap;
+  }
+  .stu .studio-editorbar-start {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+/* The save hint sits beside Save, so the sticky bar keeps one height whether
+   or not there are unsaved changes. */
+@media (min-width: 721px) {
+  .stu .studio-editorbar-end {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+  .stu .studio-editorbar-end .studio-hint {
+    margin: 0;
+    white-space: nowrap;
+  }
+}
+/* The sidebar's destinations are 44px targets (the reference's are 36px). */
+.stu .side nav a {
+  min-height: 44px;
+}
+/* Reduced motion stops every transition in the Studio. */
+@media (prefers-reduced-motion: reduce) {
+  .stu *,
+  .stu *::before,
+  .stu *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+/* In the track panel the rating's row has a line of its own (the label and
+   the hint take theirs), so it fills that line: its box keeps one width
+   whatever the words say ("No rating", "4.5 stars"), and setting or clearing
+   a rating moves nothing. */
+.stu .studio-rating[data-compact] .studio-rating-row {
+  flex: 1 1 auto;
+}
+/* On a phone the editing bar keeps one line too: "Unsaved changes" beside Save
+   wrapped it onto two in the v3 face, so clearing the last change moved the
+   whole page by a line. The way back shortens (its full name stays its
+   accessible name); a refusal, which needs its words, may still wrap. */
+@media (max-width: 720px) {
+  .stu .studio-editorbar[data-mode="edit"]:not(:has(.studio-problem)) {
+    flex-wrap: nowrap;
+    column-gap: 12px;
+  }
+  .stu
+    .studio-editorbar[data-mode="edit"]:not(:has(.studio-problem))
+    .studio-editorbar-start {
+    flex: 1 1 0;
+    flex-wrap: nowrap;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .stu
+    .studio-editorbar[data-mode="edit"]:not(:has(.studio-problem))
+    .studio-crumb {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 44px;
+  }
+  .stu
+    .studio-editorbar[data-mode="edit"]:not(:has(.studio-problem))
+    .studio-editorbar-end {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    margin-left: 0;
+  }
+  .stu .studio-editorbar[data-mode="edit"] .studio-editorbar-end .studio-hint {
+    margin: 0;
+    font-size: 14px;
+    white-space: nowrap;
+  }
+}
+/* On a phone a track's state line takes the chevron's column too (the chevron
+   sits on the title's line), at the v3 Studio's meta size, so "written ·
+   private · edited" keeps one line at 320 px and setting or clearing a rating
+   does not rewrap it. */
+@media (max-width: 720px) {
+  .stu .studio-track-state {
+    grid-column: 2 / -1;
+    font-size: 14px;
+  }
+}
+/* The v3 Desk. Its controls are 44px targets (the reference's are 30 to
+   36px): a list title's target reaches into the row's padding, so the rows
+   keep the reference's rhythm. */
+.stu .btn {
+  min-height: 44px;
+}
+.stu .list li .ti {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  margin-block: -11.5px;
+}
+.stu .quick a {
+  min-height: 44px;
+}
+.stu .lnk {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  text-underline-offset: 4px;
+}
+.stu .lnk:hover {
+  text-decoration-color: currentColor;
+}
+.stu .desk-first {
+  margin-top: 24px;
+}
+.stu .desk-steps {
+  margin: 10px 0 0;
+  padding-left: 20px;
+  list-style: decimal;
+}
+.stu .desk-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+/* "On the site" counts the published album journals and memories: two cells,
+   as artist pages and Music Story are not on this Desk yet. */
+.stu .desk-stat {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid var(--line);
+}
+.stu .desk-more {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin: 0;
+  padding: 0 4px;
+  font-size: 13px;
+}
+.stu .desk-published {
+  margin-top: 24px;
+}
+.stu .desk-catalog {
+  margin: 18px 0 0;
+  font-size: 13px;
+  color: var(--grey);
+}
+.stu .sec.hint {
+  margin: 0;
+  color: var(--grey);
+}
+@media (max-width: 720px) {
+  .stu .quick,
+  .stu .cols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .stu .list li {
+    padding-inline: 16px;
+  }
+}
+.stu .sec.hd {
+  align-items: center;
+  padding-block: 12px;
+}
+/* "Search for" Albums, Artists, Recordings: a short word is still a 44px
+   target in the v3 face. */
+.stu .studio-search-kinds a {
+  min-width: 44px;
+  justify-content: center;
+}
+/* The v3 sign-in: the reference's box, with 44px controls and its inputs'
+   boundary at 3:1 (#8C877E), as every Studio control. */
+.stu .login .in {
+  min-height: 44px;
+  border-color: var(--control-line);
+}
+.stu .login-title {
+  margin-top: 34px;
+  font-size: 22px;
+}
+.stu .login-submit {
+  width: 100%;
+  margin-top: 16px;
+}
+.stu .login-message {
+  min-height: 1.5em;
+  margin: 14px 0 0;
+  font-size: 14px;
+}
+.stu .login-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 28px;
+  font-size: 13px;
+  color: var(--grey);
+}
+.stu .login-foot > a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+.stu .login-foot > a:hover {
+  color: var(--ink);
+}
+/* A track's rating words take a fixed width that holds the longest state in
+   either language ("4,5 estrelas"), so whether the row wraps never depends
+   on what the words say or on a platform's font metrics (CI's Linux faces
+   once wrapped "No rating" where "3 stars" fitted, at 320px). */
+.stu .studio-rating[data-compact] .studio-rating-words {
+  flex: 0 0 6.5em;
+  min-width: 0;
+  white-space: nowrap;
+}
+/* The v3 Library: the reference's head, filters, and table, with 44px
+   targets (its filter buttons are 30px) and the filters as links, so the
+   address is the only state and every filter works without JavaScript. */
+.stu .lib-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+.stu .lib-search {
+  flex: 1 1 220px;
+  max-width: 280px;
+}
+.stu .lib-search .in {
+  max-width: none;
+  min-height: 44px;
+  border-color: var(--control-line);
+}
+/* A filter group wraps rather than overflow (the Portuguese names are long). */
+.stu .filters .seg {
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+.stu .filters .seg a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 5px;
+  color: var(--grey);
+  white-space: nowrap;
+}
+.stu .filters .seg a:hover {
+  color: var(--ink);
+}
+.stu .filters .seg a[aria-current] {
+  background: var(--ink);
+  color: #fff;
+}
+.stu .lib-count {
+  margin: 0 0 0 auto;
+}
+.stu .lib-panel {
+  margin-top: 16px;
+  overflow: hidden;
+}
+/* A 44px target that changes no layout: the padding is taken back by the
+   margin, so a long title that wraps never covers the line under it. */
+.stu .tbl .lib-title {
+  display: inline-block;
+  padding-block: 11.5px;
+  margin-block: -11.5px;
+  overflow-wrap: anywhere;
+}
+.stu .tbl .lib-context {
+  display: block;
+  white-space: normal;
+}
+.stu .lib-bin {
+  margin-top: 24px;
+}
+.stu .lib-bin h2 {
+  margin: 0;
+  font-size: 16px;
+}
+.stu .lib-bin .hint {
+  max-width: 62ch;
+  color: var(--grey);
+}
+/* The type, language, and date columns give way below 1024px, where the
+   sidebar leaves the table too little room (the reference hides them on a
+   phone). */
+@media (max-width: 1024px) {
+  .stu .tbl .hide-m {
+    display: none;
+  }
+}
+@media (max-width: 720px) {
+  .stu .tbl th,
+  .stu .tbl td {
+    padding: 11px 12px;
+  }
+  .stu .lib-search {
+    max-width: none;
+    flex-basis: 100%;
+  }
+}
+/* A panel's list starts under a rule, as in the reference. */
+.stu .panel > .list {
+  border-top: 1px solid var(--line);
+}
+/* The streaming placeholder: the v3 Studio's paper, face, and soft blocks,
+   still with no furniture before the request is authorized. */
+.stu .studio-loading {
+  margin: 0;
+  max-width: none;
+  min-height: 100vh;
+}
+.stu .studio-loading .studio-hint {
+  font-family: var(--f-archivo), system-ui, sans-serif;
+  font-size: 14px;
+  color: var(--grey);
+}
+.stu .studio-loading .studio-skeleton > span {
+  background: var(--soft);
+}
+/* The v3 Bin (Recently deleted): the reference's panels and lists, with what
+   a restore will do on each row. */
+.stu .bin-back {
+  margin: 0 0 8px;
+}
+.stu .bin-hint {
+  max-width: 62ch;
+}
+.stu .bin-panel {
+  margin-top: 24px;
+}
+.stu .bin-empty {
+  margin: 0;
+  font-weight: 600;
+}
+.stu .list li.bin-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+.stu .bin-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.stu .bin-body .ti {
+  display: inline-block;
+  padding-block: 11.5px;
+  margin-block: -11.5px;
+  white-space: normal;
+}
+.stu .bin-excerpt {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stu .bin-end {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 12px;
+}
+@media (max-width: 720px) {
+  .stu .list li.bin-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .stu .bin-end {
+    justify-content: flex-start;
+  }
+}
+/* The journal editor in the reference's panels (AlbumEdit): the record, the
+   journal with its tracks under a rule, and the aside, each a white panel,
+   with the reference's 1fr + 320px grid. Only the drawing changes: the
+   document order, the controls, and what they do are as before. */
+.stu .studio-editor-head-album {
+  padding: 22px 24px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+@media (min-width: 1100px) {
+  .stu .studio-columns {
+    grid-template-columns: minmax(0, 1fr) 320px;
+    column-gap: 24px;
+    margin-top: 24px;
+  }
+}
+.stu .studio-writing-column,
+.stu .studio-margin {
+  padding: 22px 24px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+.stu .studio-writing-column > .studio-tracks {
+  margin: 0 -24px;
+  padding: 22px 24px 0;
+  border-top: 1px solid var(--line);
+}
+.stu .studio-margin {
+  gap: 14px;
+}
+@media (min-width: 1100px) {
+  .stu .studio-margin {
+    position: sticky;
+    top: 88px;
+  }
+}
+.stu .studio-margin .studio-margin-title {
+  font-size: 16px;
+}
+.stu .studio-writing-column label.studio-label,
+.stu .studio-writing-column legend.studio-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+@media (max-width: 720px) {
+  .stu .studio-writing-column,
+  .stu .studio-margin,
+  .stu .studio-editor-head-album {
+    padding: 18px 16px;
+  }
+  .stu .studio-writing-column > .studio-tracks {
+    margin: 0 -16px;
+    padding: 18px 16px 0;
+  }
+}
+/* On the narrowest phones (the reference's phone is 390px) the writing panel
+   gives its frame back, so the album rating's stars, words, and Clear keep one
+   line. */
+@media (max-width: 360px) {
+  .stu .studio-writing-column {
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+  .stu .studio-writing-column > .studio-tracks {
+    margin: 0;
+    padding: 18px 0 0;
+  }
+}
+/* The record panel lines up with the journal panel, and Track by track is a
+   panel's heading, as in the reference. */
+/* Both keep the writing's reading measure: 760px at most, frame included. */
+.stu .studio-editor-head-album,
+.stu .studio-writing-column {
+  max-width: 760px;
+}
+.stu .studio-writing-column > .studio-tracks > .studio-section-title {
+  font-size: 18px;
+  letter-spacing: -0.01em;
+}

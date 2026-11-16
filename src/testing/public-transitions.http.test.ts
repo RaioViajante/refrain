@@ -228,7 +228,7 @@ describe("language versions", () => {
     // The translation is a draft: the page never mentions it.
     let page = await expectServed(slug);
     expect(page.body).not.toContain("Abertura publica");
-    expect(page.body).toContain("Written in English");
+    expect(page.body).toContain("IN ENGLISH");
 
     await publishForTest(db(), entryId, "pt-BR");
     page = await expectServed(slug);
@@ -240,7 +240,9 @@ describe("language versions", () => {
     await unpublishLanguageVersion(db(), author, entryId, "en", "private");
     page = await expectServed(slug);
     expect(page.body).toContain("Abertura publica");
-    expect(page.body).toContain("Written in Brazilian Portuguese");
+    expect(page.body).toContain("IN PORTUGUESE");
+    // The withdrawn original is never named.
+    expect(page.body).not.toMatch(/TRANSLATED FROM|READ THE ORIGINAL/);
     expect(page.body).not.toContain(PUBLIC_TEXT.opening);
     // Its reflections: the flagged one in Portuguese is not public, because the
     // fixture never made a Portuguese reflection public.
@@ -253,7 +255,7 @@ describe("language versions", () => {
 
 /** The journal's own rating line, apart from the tracks' ratings. */
 function albumRating(html: string): string | null {
-  return /<p class="pj-rating">[\s\S]*?<\/p>/.exec(html)?.[0] ?? null;
+  return /<p class="rt hand"[\s\S]*?<\/p>/.exec(html)?.[0] ?? null;
 }
 
 describe("a reflection and the rating", () => {
@@ -291,9 +293,7 @@ describe("a reflection and the rating", () => {
     );
     page = await expectServed(slug);
     expect(page.body).not.toContain(mojoPin);
-    expect(
-      page.body.match(/class="pj-track-status">not written yet</g),
-    ).toHaveLength(4);
+    expect(page.body.match(/class="ny">NOT WRITTEN YET</g)).toHaveLength(4);
   });
 
   it("shows a changed rating, and no rating once it is cleared", async () => {

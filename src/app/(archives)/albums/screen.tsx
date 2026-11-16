@@ -13,7 +13,22 @@ import { notFoundMetadata } from "@/app/(public)/_components/page-metadata";
 import { dictionaryFor } from "@/i18n/dictionaries";
 import type { InterfaceLocale } from "@/i18n/locales";
 
+import { ALBUM_SORTS, type AlbumSort } from "./album-list";
 import { AlbumsArchive } from "./albums-archive";
+
+/**
+ * The list's order from the address: exactly one of the four names, else the
+ * order written. Anything else (an array, a different spelling, nothing) is
+ * the order written; the value only selects among the four, never reaches a
+ * query, and is never echoed.
+ */
+export function albumSortOf(value: string | string[] | undefined): AlbumSort {
+  return ALBUM_SORTS.find((sort) => sort === value) ?? "written";
+}
+
+export type ArchiveSearchParams = Promise<
+  Record<string, string | string[] | undefined>
+>;
 
 // The public Albums archive (M3.8a; the approved V4.4 `Albums` screen),
 // anonymous, read through the Publication module's reading entry point alone.
@@ -67,14 +82,17 @@ export async function albumsArchiveMetadata(
 
 export async function AlbumsArchiveScreen({
   locale,
-}: Readonly<{ locale: InterfaceLocale }>) {
+  searchParams,
+}: Readonly<{ locale: InterfaceLocale; searchParams: ArchiveSearchParams }>) {
   const loaded = await load(locale);
   if (loaded.kind === "not_found") {
     notFound();
   }
+  const sort = albumSortOf((await searchParams).sort);
   return (
     <AlbumsArchive
       albums={loaded.kind === "list" ? loaded.albums : null}
+      sort={sort}
       locale={locale}
     />
   );

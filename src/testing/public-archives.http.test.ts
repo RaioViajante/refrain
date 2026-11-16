@@ -22,12 +22,17 @@
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 
+import { sql } from "drizzle-orm";
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
 
 // eslint-disable-next-line no-restricted-imports
 import { unpublishLanguageVersion } from "@/modules/publication/commands";
-import { createTestAlbumJournal, testAuthor } from "@/testing/fixtures";
+import {
+  createTestAlbumJournal,
+  createTestMemory,
+  testAuthor,
+} from "@/testing/fixtures";
 import {
   startProductionServer,
   type ProductionServer,
@@ -80,8 +85,18 @@ const buildId = readFileSync(".next/BUILD_ID", "utf8").trim();
 const author = testAuthor();
 const ORIGIN = "https://refrain.example";
 
-const ARCHIVES = ["albums", "artists", "memories"] as const;
+// The About page (v3, ADR 0011 § 4.4, proposed) is answered as the archives
+// are: the same switch, the same methods, the same unknown address.
+const ARCHIVES = ["albums", "artists", "memories", "about"] as const;
 type Archive = (typeof ARCHIVES)[number];
+
+/** The route group a section's page sits in, as its segment paths name it. */
+const GROUP: Record<Archive, string> = {
+  albums: "!KGFyY2hpdmVzKQ", // (archives)
+  artists: "!KGFyY2hpdmVzKQ",
+  memories: "!KGFyY2hpdmVzKQ",
+  about: "!KGFib3V0KQ", // (about)
+};
 
 let client: Client;
 const db = () => fixtureDatabase(client);
@@ -90,6 +105,9 @@ let artists: SeededArtists;
 let memories: SeededMemories;
 /** A second, older published journal about Grace's album. */
 let secondGrace: string;
+/** A published memory whose "when" names a year, which is never read as one. */
+let datedMemory: string;
+const DATED_WHEN = "[Test] The summer of 2019, more or less";
 
 let on: ProductionServer;
 const offs: ProductionServer[] = [];
@@ -142,6 +160,24 @@ beforeAll(async () => {
       ],
     }),
   );
+  datedMemory = await db().transaction(async (tx) => {
+    const entryId = await createTestMemory(tx, {
+      slug: slug("dated-memory"),
+      versions: [
+        {
+          locale: "en",
+          status: "published",
+          title: "[Test] A memory whose when names a year",
+          text: "[Test] A memory whose when names a year.",
+          publishedAt: new Date("2020-02-02T00:00:00Z"),
+        },
+      ],
+    });
+    await tx.execute(sql`
+      update memories set remembered_when = ${DATED_WHEN}
+       where entry_id = ${entryId}`);
+    return entryId;
+  });
   on = await start("true");
   for (const value of [undefined, "TRUE", "1", "true "]) {
     offs.push(await start(value));
@@ -157,6 +193,10 @@ afterAll(async () => {
       secondGrace,
     ]);
     await client.query("delete from entries where id = $1", [secondGrace]);
+    await client.query("delete from entry_slugs where entry_id = $1", [
+      datedMemory,
+    ]);
+    await client.query("delete from entries where id = $1", [datedMemory]);
     await removeSeededMemories(client, memories, prefix);
     await removeSeededArtists(client, artists, prefix);
     await removeSeeded(client, seeded, prefix);
@@ -169,7 +209,13 @@ afterAll(async () => {
 function archiveForms(
   archive: Archive,
 ): [string, string, RequestInit & { rsc?: boolean }, string][] {
-  const unknown = `/${archive}/${slug("nothing")}`;
+  // The proxy's unknown address in the same section; About has no addresses
+  // under it (`/about/<x>` is any unmatched path), so it is compared with an
+  // unknown album's, the proxy's same answer.
+  const unknown =
+    archive === "about"
+      ? `/albums/${slug("nothing")}`
+      : `/${archive}/${slug("nothing")}`;
   const rsc = { rsc: "1", "next-router-prefetch": "1" };
   return [
     ["GET", `/${archive}`, {}, unknown],
@@ -207,7 +253,7 @@ function archiveForms(
         rsc: true,
         headers: {
           ...rsc,
-          "next-router-segment-prefetch": `/!KGVuKQ/!KGFyY2hpdmVzKQ/${archive}/__PAGE__`,
+          "next-router-segment-prefetch": `/!KGVuKQ/${GROUP[archive]}/${archive}/__PAGE__`,
         },
       },
       unknown,
@@ -228,7 +274,7 @@ function archiveForms(
     ],
     [
       "segment file (page)",
-      `/${archive}.segments/!KGVuKQ/!KGFyY2hpdmVzKQ/${archive}/__PAGE__.segment.rsc`,
+      `/${archive}.segments/!KGVuKQ/${GROUP[archive]}/${archive}/__PAGE__.segment.rsc`,
       {},
       unknown,
     ],
@@ -270,6 +316,57 @@ function archiveForms(
   ];
 }
 
+// ADR 0006 A13 (approved by the owner on 2026-11-15): the router's URL forms,
+// `<address>.rsc` and `<address>.segments/…/*.segment.rsc`, of an address
+// that is not served. Next.js decides from the requested path, after the
+// proxy, that a rendered answer is the router's payload, so it cannot be the
+// HTML document of an unknown address. For these forms only: the same `404`
+// and exactly the same headers as an unknown address in the same form, the
+// shared not-found payload, and no stored text or cookie. Its independence
+// from the database's contents is fixed by public-router-forms.http.test.ts.
+// Every other form keeps byte identity below.
+const URL_ROUTER_FORM = /\.rsc$|\.segments\/.*\.segment\.rsc$/;
+const PROBE_COOKIE = "probe=refrain-private-cookie-value";
+
+async function expectSharedNotFoundPayload(
+  base: string,
+  path: string,
+  sameFormUnknown: string,
+  label: string,
+  addresses: { requested: string; unknown: string },
+) {
+  const init = { headers: { cookie: PROBE_COOKIE } };
+  const got = comparable(await request(base, path, init));
+  const unknown = comparable(await request(base, sameFormUnknown, init));
+  expect(got.status, label).toBe(404);
+  expect(unknown.status, `${label}: the unknown address, same form`).toBe(404);
+  expect(got.headers, label).toEqual(unknown.headers);
+  // The shared not-found payload (for a page segment the framework answers an
+  // empty body), byte for byte the unknown address's in the same form once
+  // the address each payload echoes is the same and the framework's
+  // per-render identifiers are masked.
+  if (got.body !== "") {
+    expect(got.body, label).toContain("/_not-found");
+  }
+  const renderIds = (text: string) =>
+    text.replace(/(")[A-Za-z0-9_-]{21,23}(?![A-Za-z0-9_-])/g, "$1ID");
+  expect(renderIds(got.body), `${label}: the unknown address's body`).toBe(
+    renderIds(unknown.body.split(addresses.unknown).join(addresses.requested)),
+  );
+  for (const marker of [
+    ...PRIVATE_MARKER_LIST,
+    ...MEMORY_MARKER_LIST,
+    "[Test]",
+    "Grace",
+    "Buckley",
+    prefix,
+    "refrain-private-cookie-value",
+  ]) {
+    expect(got.body.includes(marker), `${label}: ${marker}`).toBe(false);
+    expect(JSON.stringify(got.headers).includes(marker), label).toBe(false);
+  }
+}
+
 describe("with public reads off, every archive is the unknown address in every request form", () => {
   it.each(
     ARCHIVES.flatMap((archive) =>
@@ -277,8 +374,18 @@ describe("with public reads off, every archive is the unknown address in every r
     ),
   )(
     "%s, %s: identical status, headers, and body",
-    async (_a, name, path, init, baseline) => {
+    async (archive, name, path, init, baseline) => {
       for (const off of offs) {
+        if (URL_ROUTER_FORM.test(path)) {
+          await expectSharedNotFoundPayload(
+            off.baseURL,
+            path,
+            path.replace(`/${archive}`, baseline),
+            `${name} on a server whose switch is off`,
+            { requested: `/${archive}`, unknown: baseline },
+          );
+          continue;
+        }
         const expected = masked(await request(off.baseURL, baseline, init), [
           slug("nothing"),
         ]);
@@ -368,8 +475,9 @@ describe("with public reads on, the Albums archive", () => {
     expect(albums.status).toBe(200);
     const text = visibleText(albums.body);
     expect(text).toContain("Albums");
+    // v3: the reference's own line about the orbit.
     expect(text).toContain(
-      "Whole records, written about slowly. Some have every track, some only a few.",
+      "The first ones sit in the middle. Each new journal is added on the outside",
     );
     // Grace once, opening its newest journal, with the earlier one under it.
     expect(text.match(/\bGrace\b/g)?.length).toBeGreaterThanOrEqual(1);
@@ -394,6 +502,45 @@ describe("with public reads on, the Albums archive", () => {
     expect(albums.headers["content-security-policy"]).toBe(
       CONTENT_SECURITY_POLICY,
     );
+  });
+
+  it("lists the same served journals in every order of `?sort=`, and echoes nothing it is sent", async () => {
+    const written = hrefs(await page("/albums"), "albums");
+    for (const sort of ["year", "artist", "rating", "written"]) {
+      const sorted = await page(`/albums?sort=${sort}`);
+      expect(sorted.status, sort).toBe(200);
+      expect(sorted.headers["cache-control"], sort).toMatch(/no-store/);
+      expect(hrefs(sorted, "albums"), sort).toEqual(written);
+      // The chosen order is the current one.
+      expect(sorted.body, sort).toMatch(
+        new RegExp(
+          `aria-current="true" href="/albums(?:\\?sort=${sort})?#pp-list"`,
+        ),
+      );
+    }
+    // Anything else is the order written, and is never written back.
+    for (const odd of [
+      "?sort=%3Cscript%3Ex%3C%2Fscript%3E",
+      "?sort=year&sort=artist",
+      "?sort=YEAR",
+      `?sort=${"x".repeat(5000)}`,
+    ]) {
+      const got = await page(`/albums${odd}`);
+      expect(got.status, odd).toBe(200);
+      expect(hrefs(got, "albums"), odd).toEqual(written);
+      // Never as markup; the framework's router payload records the request's
+      // own address, escaped, inside its script, as on every page.
+      expect(got.body, odd).not.toContain("<script>x");
+      expect(markup(got), odd).not.toContain("x".repeat(100));
+      expect(markup(got), odd).not.toContain("script>x");
+      expect(got.body, odd).toContain(
+        'aria-current="true" href="/albums#pp-list"',
+      );
+    }
+    for (const hidden of [slug("draft"), slug("private"), slug("deleted")]) {
+      const sorted = await page(`/albums?sort=artist`);
+      expect(hrefs(sorted, "albums")).not.toContain(`/albums/${hidden}`);
+    }
   });
 
   it("stops linking a journal on the next request after it is unpublished", async () => {
@@ -424,7 +571,8 @@ describe("with public reads on, the Artists archive", () => {
     expect(text).not.toContain("Archived Credit Artist");
     // No artist kind and no photograph on the list.
     expect(text).not.toMatch(/Solo artist|Band\b/);
-    expect(markup(list)).not.toMatch(/<img\b/);
+    // v3: the only images are the frame's own (the torn edge), never a photo.
+    expect(markup(list)).not.toMatch(/<img\b(?![^>]*src="\/v3\/)/);
     expect(list.body).not.toContain("upload.wikimedia.org");
     expect(markup(list)).not.toContain("thumb.wikimedia.org");
     // Every response under /artists/ keeps the artist pages' policy.
@@ -434,18 +582,64 @@ describe("with public reads on, the Artists archive", () => {
   });
 });
 
+describe("with public reads on, the Artists archive's views", () => {
+  it("lists the same artists in both views of `?view=`, and echoes nothing it is sent", async () => {
+    const cloud = hrefs(await page("/artists"), "artists");
+    for (const query of [
+      "?view=az",
+      "?view=often",
+      "?view=%3Cb%3E",
+      "?view=AZ",
+    ]) {
+      const got = await page(`/artists${query}`);
+      expect(got.status, query).toBe(200);
+      expect(got.headers["cache-control"], query).toMatch(/no-store/);
+      expect(hrefs(got, "artists"), query).toEqual(cloud);
+      expect(markup(got), query).not.toContain("<b>");
+    }
+    expect((await page("/artists?view=az")).body).toContain('data-view="az"');
+    expect((await page("/artists?view=AZ")).body).toContain(
+      'data-view="often"',
+    );
+  });
+});
+
+describe('a memory\'s "when" that names a year', () => {
+  it("is shown as written and never read as a date, on the archive and on its page", async () => {
+    const archive = await page("/memories");
+    expect(visibleText(archive.body)).toContain(DATED_WHEN);
+    expect(archive.body).not.toMatch(/class="yh/);
+    // The year appears only inside the "when" itself.
+    const archiveText = visibleText(archive.body);
+    expect(archiveText.split("2019").length - 1).toBe(
+      archiveText.split(DATED_WHEN).length - 1,
+    );
+    const memory = await page(`/memories/${slug("dated-memory")}`);
+    expect(memory.status).toBe(200);
+    const text = visibleText(memory.body);
+    expect(text).toContain(DATED_WHEN);
+    expect(text).not.toMatch(/MEMORY\s*·\s*2019|FIG\. 01\s*·\s*2019/i);
+    expect(text.split("2019").length - 1).toBe(
+      text.split(DATED_WHEN).length - 1,
+    );
+  });
+});
+
 describe("with public reads on, the Memories archive", () => {
   it("lists the served memories with their when, title, excerpt, and music, and nothing hidden", async () => {
     const list = await page("/memories");
     expect(list.status).toBe(200);
     const text = visibleText(list.body);
-    // The owner's lead (M3.8a review), in place of the screen's.
+    // The owner's lead: the reference's "Kept by year" would describe a
+    // grouping the page does not make, since the "when" is never read as a
+    // date. No year heading, and the "when" exactly as written.
     expect(text).toContain("Memories and the music woven through them.");
+    expect(text).not.toContain("Kept by year");
+    expect(list.body).not.toMatch(/class="yh/);
     expect(text).not.toContain("Dated the way I remember");
     expect(text).toContain(PUBLIC_MEMORY.title);
     expect(text).toContain(PUBLIC_MEMORY.when);
-    expect(text).toContain(PUBLIC_MEMORY.paragraphs[0]);
-    // Only the first paragraph: the page never carries the whole writing.
+    // v3 shows no excerpt on the board, and never the whole writing.
     expect(list.body).not.toContain(PUBLIC_MEMORY.paragraphs[1]);
     expect(text).toContain(PUBLIC_MEMORY.firstSong);
     expect(text).toContain(PUBLIC_MEMORY.quietTitle);
@@ -465,8 +659,8 @@ describe("with public reads on, the Memories archive", () => {
     expect(list.headers["content-security-policy"]).toBe(
       CONTENT_SECURITY_POLICY,
     );
-    // The writing carries its own language.
-    expect(markup(list)).toMatch(/<p class="px-excerpt" lang="en">/);
+    // The title carries the writing's own language.
+    expect(markup(list)).toMatch(/<span class="t hand" lang="en">/);
   });
 });
 
@@ -475,7 +669,7 @@ describe("artist namesakes and every artist row", () => {
     const list = markup(await page("/artists"));
     const rows = [
       ...list.matchAll(
-        /<a class="px-row" href="(\/artists\/[^"]+)"><span class="px-row-name">([^<]+)<\/span>/g,
+        /<li><a href="(\/artists\/[^"]+)">([^<]+)<\/a><span class="pix">/g,
       ),
     ].map((match) => ({ href: match[1]!, name: match[2]! }));
     expect(rows.length).toBeGreaterThanOrEqual(3);
@@ -582,21 +776,96 @@ describe("every archive response", () => {
   });
 });
 
+describe("the About page, in both languages", () => {
+  const ABOUT = ["/about", "/pt/about"] as const;
+
+  it("answers 200 to GET and HEAD with reads on, never storable, naming no entry", async () => {
+    for (const path of ABOUT) {
+      for (const method of ["GET", "HEAD"]) {
+        const got = await request(on.baseURL, path, { method });
+        expect(got.status, `${method} ${path}`).toBe(200);
+        expect(got.headers["cache-control"], `${method} ${path}`).toMatch(
+          /no-store/,
+        );
+        expect(got.headers["x-nextjs-cache"], `${method} ${path}`).toBe(
+          undefined,
+        );
+        expect(got.body, `${method} ${path}`).not.toContain(prefix);
+        expect(got.body, `${method} ${path}`).not.toContain("[Test]");
+      }
+    }
+  });
+
+  it("refuses every other method with reads on: 405, GET and HEAD allowed, no-store", async () => {
+    for (const path of ABOUT) {
+      for (const method of ["POST", "PUT", "PATCH", "DELETE", "OPTIONS"]) {
+        const got = await request(on.baseURL, path, { method });
+        expect(got.status, `${method} ${path}`).toBe(405);
+        expect(got.headers.allow, `${method} ${path}`).toBe("GET, HEAD");
+        expect(got.headers["cache-control"], `${method} ${path}`).toBe(
+          "no-store",
+        );
+        expect(got.body, `${method} ${path}`).toBe("");
+      }
+    }
+  });
+
+  it("is the unknown address in Portuguese too while reads are off, in every method and transport form", async () => {
+    const unknown = `/pt/memories/${slug("nothing")}`;
+    const forms: [string, string, RequestInit & { rsc?: boolean }][] = [
+      ["GET", "/pt/about", {}],
+      ["HEAD", "/pt/about", { method: "HEAD" }],
+      ["POST", "/pt/about", { method: "POST" }],
+      ["PUT", "/pt/about", { method: "PUT" }],
+      ["DELETE", "/pt/about", { method: "DELETE" }],
+      ["OPTIONS", "/pt/about", { method: "OPTIONS" }],
+      ["RSC", "/pt/about", { rsc: true }],
+      [".rsc", "/pt/about.rsc", {}],
+      ["segment file", "/pt/about.segments/_tree.segment.rsc", {}],
+      ["percent-encoded", "/pt/%61bout", {}],
+    ];
+    for (const off of offs) {
+      for (const [name, path, init] of forms) {
+        if (URL_ROUTER_FORM.test(path)) {
+          await expectSharedNotFoundPayload(
+            off.baseURL,
+            path,
+            path.replace("/pt/about", unknown),
+            `${name} on a server whose switch is off`,
+            { requested: "/pt/about", unknown },
+          );
+          continue;
+        }
+        const expected = masked(await request(off.baseURL, unknown, init), [
+          slug("nothing"),
+        ]);
+        const got = masked(await request(off.baseURL, path, init), []);
+        expect(got.status, name).toBe(404);
+        expect(
+          { ...got, body: got.body.replaceAll("SLUG", "") },
+          `${name} on a server whose switch is off`,
+        ).toEqual({ ...expected, body: expected.body.replaceAll("SLUG", "") });
+      }
+    }
+  });
+});
+
 describe("the shared navigation", () => {
   const navOf = (snapshot: Snapshot) => {
     const nav = markup(snapshot).match(
       /<nav aria-label="Main">[\s\S]*?<\/nav>/,
     );
     expect(nav).not.toBeNull();
-    return [...nav![0].matchAll(/<a ([^>]*)>([^<]*)<\/a>/g)].map((m) => ({
+    return [...nav![0].matchAll(/<a ([^>]*)>([^<]*)<svg/g)].map((m) => ({
       label: m[2],
       href: m[1]!.match(/href="([^"]*)"/)?.[1],
       current: m[1]!.match(/aria-current="([^"]*)"/)?.[1] ?? null,
     }));
   };
+  // v3: the header's sections are Albums, Artists, and Memories; the name
+  // ("refrain") leads to the Home, outside the list, on every page but it.
   const links = (current: string | null, value: string | null) =>
     [
-      ["Home", "/"],
       ["Albums", "/albums"],
       ["Artists", "/artists"],
       ["Memories", "/memories"],
@@ -611,7 +880,7 @@ describe("the shared navigation", () => {
     // another suite would change the bare name's address).
     const artist = hrefs(await page("/artists"), "artists")[0]!;
     const cases: [string, string | null, string | null][] = [
-      ["/", "Home", "page"],
+      ["/", null, null],
       ["/albums", "Albums", "page"],
       ["/artists", "Artists", "page"],
       ["/memories", "Memories", "page"],
@@ -627,9 +896,7 @@ describe("the shared navigation", () => {
 
   it("is the same with the switch off, on the Home and on the unknown address", async () => {
     for (const off of offs) {
-      expect(navOf(await request(off.baseURL, "/"))).toEqual(
-        links("Home", "page"),
-      );
+      expect(navOf(await request(off.baseURL, "/"))).toEqual(links(null, null));
       expect(navOf(await request(off.baseURL, "/albums"))).toEqual(
         links(null, null),
       );
@@ -641,9 +908,11 @@ describe("the sitemap", () => {
   it("lists the archives with every served address while reads are on, and is unknown while they are off", async () => {
     const sitemap = await page("/sitemap.xml");
     expect(sitemap.status).toBe(200);
-    for (const archive of ARCHIVES) {
+    // The three archives; the About page is not listed in the sitemap.
+    for (const archive of ARCHIVES.filter((section) => section !== "about")) {
       expect(sitemap.body).toContain(`<loc>${ORIGIN}/${archive}</loc>`);
     }
+    expect(sitemap.body).not.toContain(`${ORIGIN}/about`);
     const albums = hrefs(await page("/albums"), "albums");
     const listedAlbums = [
       ...sitemap.body.matchAll(/<loc>[^<]*?(\/albums\/[^<]+)<\/loc>/g),

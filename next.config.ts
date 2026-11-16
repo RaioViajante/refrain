@@ -1,4 +1,9 @@
+import { readdirSync } from "node:fs";
+import { join } from "node:path";
+
 import type { NextConfig } from "next";
+
+import { canonicalHostRedirectsFromEnvironment } from "./src/canonical-host";
 
 // The Content-Security-Policies, as in src/security-headers.ts (this file
 // cannot import application modules; src/security-headers.test.ts keeps them
@@ -26,6 +31,20 @@ const PRIVATE_NO_STORE = "private, no-store, max-age=0, must-revalidate";
 const ROBOTS_DIRECTIVE = "noindex, nofollow";
 const ROBOTS_HEADER = { key: "X-Robots-Tag", value: ROBOTS_DIRECTIVE };
 
+// G2: every response is `no-store` unless it is one of the framework's
+// content-hashed build files (`/_next/static/…`), its image optimizer (exactly
+// `/_next/image`), or one of the promoted, data-free files that exist in
+// `public/` (each named exactly, so that a missing file or another spelling
+// is the not-found view and is `no-store` too). The list is read from the
+// repository when the configuration loads; it never depends on a request.
+const NO_STORE_HEADER = { key: "Cache-Control", value: "no-store" };
+const PUBLIC_ASSETS = ["v3", "artwork"].flatMap((folder) =>
+  readdirSync(join(process.cwd(), "public", folder)).map(
+    (name) => `${folder}/${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
+  ),
+);
+const UNNAMED_ADDRESSES = `/:path((?!_next/static/|_next/image$|(?:${PUBLIC_ASSETS.join("|")})$).*)`;
+
 const nextConfig: NextConfig = {
   // Data is dynamic unless it is explicitly cached with `use cache`, so nothing
   // is prerendered from the database by accident (docs/architecture.md).
@@ -51,6 +70,11 @@ const nextConfig: NextConfig = {
   // shell with the author's data streamed into the same response, which the
   // platform answers with `public, max-age=0, must-revalidate` unless a header
   // says otherwise (F-01, issue #63, docs/security.md#studio-responses).
+  // The canonical-host redirect (Hosted Launch § 7, item 2), off unless its
+  // variable lists hostnames: src/canonical-host.ts.
+  async redirects() {
+    return canonicalHostRedirectsFromEnvironment();
+  },
   async headers() {
     const privateHeaders = [
       { key: "Cache-Control", value: PRIVATE_NO_STORE },
@@ -88,6 +112,16 @@ const nextConfig: NextConfig = {
       // the same value, and the framework keeps the last rule that sets a
       // header.
       { source: "/:path*", headers: [ROBOTS_HEADER] },
+      // Every address no rule below names is never stored either (G2): an
+      // address no route serves, its router and transport forms, and the
+      // framework's own `/_not-found` and `/_global-error`. Locally the
+      // framework already answers those `no-store`; on the host the prerendered
+      // not-found view was served from the platform's cache with
+      // `public, max-age=0, must-revalidate` (docs/evidence/v3-rc.md). It comes
+      // before the section rules, which set their own value and win as the
+      // last rule. The framework's immutable build files and the promoted,
+      // data-free assets keep their own caching.
+      { source: UNNAMED_ADDRESSES, headers: [NO_STORE_HEADER, ROBOTS_HEADER] },
       // The Home (M3.4): exactly `/`. It lists public journals per request, so
       // it is `no-store` like every other public response.
       { source: "/", headers: publicHeaders },
@@ -97,6 +131,8 @@ const nextConfig: NextConfig = {
       { source: "/artists/:path*", headers: artistHeaders },
       // M3.7: the memories, with the public policy (no image is shown).
       { source: "/memories/:path*", headers: publicHeaders },
+      // v3: the About page, with the public policy.
+      { source: "/about", headers: publicHeaders },
       // The Portuguese forms of the same pages (ADR 0006 A7, item 6), one rule
       // per section and none broad enough to reach `/pt/studio`, which keeps
       // the private headers of the Writing Studio when it exists.
@@ -104,6 +140,7 @@ const nextConfig: NextConfig = {
       { source: "/pt/albums/:path*", headers: publicHeaders },
       { source: "/pt/artists/:path*", headers: artistHeaders },
       { source: "/pt/memories/:path*", headers: publicHeaders },
+      { source: "/pt/about", headers: publicHeaders },
       // The same headers, so that these answer as every other public address
       // does when public reads are off.
       { source: "/sitemap.xml", headers: publicHeaders },

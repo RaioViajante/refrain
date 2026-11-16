@@ -47,7 +47,7 @@ test("set up: an album and a journal", async ({ page }) => {
   journalUrl = page.url();
 });
 
-test("the header has exactly two destinations, Desk and Catalog, on every page", async ({
+test("the sidebar has the same destinations on every page (v3)", async ({
   page,
 }) => {
   for (const path of [
@@ -63,17 +63,24 @@ test("the header has exactly two destinations, Desk and Catalog, on every page",
     await page.goto(path);
     await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
     const links = primary(page).getByRole("link");
-    await expect(links, path).toHaveText(["Desk", "Catalog"]);
+    await expect(links, path).toHaveText([
+      "Desk",
+      "Library",
+      "Memories",
+      "+Album journal",
+      "+Memory",
+      "Catalog",
+    ]);
     // Sign out stays available, as a control of its own.
     await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
   }
 });
 
-test("Desk is current on the Desk and in the writing workflows, Catalog on the music library", async ({
+test("Desk is current on the Desk, the Library in the journal workflows, Catalog on the music library", async ({
   page,
 }) => {
-  const deskPaths = [
-    "/studio",
+  const deskPaths = ["/studio"];
+  const libraryPaths = [
     "/studio/journals",
     "/studio/journals/new",
     "/studio/journals/deleted",
@@ -92,6 +99,7 @@ test("Desk is current on the Desk and in the writing workflows, Catalog on the m
   ];
   for (const [paths, current, other] of [
     [deskPaths, "Desk", "Catalog"],
+    [libraryPaths, "Library", "Desk"],
     [catalogPaths, "Catalog", "Desk"],
   ] as const) {
     for (const path of paths) {
@@ -179,7 +187,7 @@ test("every section is reachable by clicking, with no menu to open", async ({
   page,
 }) => {
   await page.goto("/studio");
-  await expect(heading(page, "Desk")).toBeVisible();
+  await expect(heading(page, "Good to see you.")).toBeVisible();
 
   // Desk to Catalog to each Catalog section and back.
   await primary(page)
@@ -206,23 +214,23 @@ test("every section is reachable by clicking, with no menu to open", async ({
 
   // Desk to the writing: a journal, its editor, all journals, Recently deleted.
   await primary(page).getByRole("link", { name: "Desk", exact: true }).click();
-  await expect(heading(page, "Desk")).toBeVisible();
+  await expect(heading(page, "Good to see you.")).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "Write a journal" }),
+    page.getByRole("link", { name: /^\+ Album journal/ }),
   ).toBeVisible();
+  // v3: an unpublished journal is under "Keep writing", and opens its editor.
   const row = page
-    .getByRole("list", { name: "Journals" })
+    .getByRole("list", { name: "Keep writing" })
     .getByRole("listitem")
     .filter({ hasText: ALBUM });
   await expect(row).toHaveCount(1);
-  await row.getByRole("link", { name: /^Edit/ }).click();
-  await expect(page).toHaveURL(/\/edit$/);
+  await row
+    .getByRole("link", { name: `Edit the journal about ${ALBUM}` })
+    .click();
+  await expect(page).toHaveURL(/\/studio\/journals\/[0-9a-f-]{36}\/edit$/);
   await page.goBack();
-  await row.getByRole("link", { name: ALBUM, exact: true }).click();
-  await expect(page).toHaveURL(/\/studio\/journals\/[0-9a-f-]{36}$/);
-  await page.goBack();
-  await page.getByRole("link", { name: /^All (\d+ )?journals$/ }).click();
-  await expect(heading(page, "Journals")).toBeVisible();
+  await page.getByRole("link", { name: "All drafts", exact: true }).click();
+  await expect(heading(page, "Library")).toBeVisible();
   await page.goBack();
   await page.getByRole("link", { name: /^Recently deleted/ }).click();
   await expect(heading(page, "Recently deleted")).toBeVisible();
@@ -240,7 +248,7 @@ test("browser history keeps working across the sections", async ({ page }) => {
   await page.goBack();
   await expect(heading(page, "Catalog")).toBeVisible();
   await page.goBack();
-  await expect(heading(page, "Desk")).toBeVisible();
+  await expect(heading(page, "Good to see you.")).toBeVisible();
   await page.goForward();
   await expect(heading(page, "Catalog")).toBeVisible();
 });
@@ -256,7 +264,7 @@ test("moving between sections is a client-side navigation", async ({
   });
 
   await page.goto("/studio");
-  await expect(heading(page, "Desk")).toBeVisible();
+  await expect(heading(page, "Good to see you.")).toBeVisible();
   await page.evaluate(() => {
     (window as unknown as { __documentMarker: string }).__documentMarker =
       "same-document";
@@ -274,7 +282,7 @@ test("moving between sections is a client-side navigation", async ({
     await expect(heading(page, section)).toBeVisible();
   }
   await primary(page).getByRole("link", { name: "Desk", exact: true }).click();
-  await expect(heading(page, "Desk")).toBeVisible();
+  await expect(heading(page, "Good to see you.")).toBeVisible();
 
   expect(documentRequests, "document requests during navigation").toEqual([]);
   expect(
@@ -300,7 +308,7 @@ test("keyboard navigation between sections raises no console, script, or hydrati
   page.on("pageerror", (error) => problems.push(`pageerror: ${error.message}`));
 
   await page.goto("/studio");
-  await expect(heading(page, "Desk")).toBeVisible();
+  await expect(heading(page, "Good to see you.")).toBeVisible();
   const steps: [() => ReturnType<Page["getByRole"]>, string][] = [
     [
       () => primary(page).getByRole("link", { name: "Catalog", exact: true }),
@@ -321,7 +329,7 @@ test("keyboard navigation between sections raises no console, script, or hydrati
     ],
     [
       () => primary(page).getByRole("link", { name: "Desk", exact: true }),
-      "Desk",
+      "Good to see you.",
     ],
   ];
   for (const [link, title] of steps) {
@@ -347,7 +355,7 @@ test("known limitation: after a section loads, focus is no longer on the link th
   page,
 }) => {
   await page.goto("/studio");
-  await expect(heading(page, "Desk")).toBeVisible();
+  await expect(heading(page, "Good to see you.")).toBeVisible();
   const link = primary(page).getByRole("link", {
     name: "Catalog",
     exact: true,

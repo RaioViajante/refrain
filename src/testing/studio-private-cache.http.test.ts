@@ -12,6 +12,8 @@
 // the same configuration in src/next-config.test.ts. What `next start` cannot
 // show, the platform's own precedence, is verified on the hosted deployment
 // (docs/security.md#studio-responses).
+import { v3En } from "@/i18n/v3/en";
+import { v3PtBR } from "@/i18n/v3/pt-BR";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 
@@ -100,6 +102,7 @@ function pages(): string[] {
     "/studio/journals",
     `/studio/journals/${ids.entryId}`,
     "/studio/journals/deleted",
+    "/studio/system",
     "/studio/sign-in",
     // Not found, below the studio.
     "/studio/no-such-page",
@@ -278,6 +281,26 @@ afterAll(async () => {
 });
 
 describe("the visitors are who the tests say they are", () => {
+  it("shows the System catalogue to the author only, in both trees", async () => {
+    for (const [prefix, system] of [
+      ["", v3En.system],
+      ["/pt", v3PtBR.system],
+    ] as const) {
+      const own = await ask("author", `${prefix}/studio/system`);
+      expect(own.status).toBe(200);
+      expect(own.body).toContain(system.h1b);
+      for (const visitor of ["anonymous", "wrong-author"] as const) {
+        const other = await ask(visitor, `${prefix}/studio/system`);
+        const where = `${visitor} at ${prefix}/studio/system`;
+        expect(other.body, where).not.toContain(v3En.system.h1b);
+        expect(other.body, where).not.toContain(v3PtBR.system.h1b);
+        expect(other.body, where).toContain(
+          `NEXT_REDIRECT;replace;${prefix}/studio/sign-in;307;`,
+        );
+      }
+    }
+  });
+
   it("shows the author's private data to the author, and to no one else", async () => {
     const own = await ask("author", "/studio/artists");
     expect(own.status).toBe(200);

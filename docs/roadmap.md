@@ -1,6 +1,6 @@
 # Roadmap
 
-**Presentation:** Monday, November 16, 2026. The dates below are targets, not commitments or completion claims. Each milestone is complete only when its acceptance criteria are verified.
+**Presentation:** first planned for Monday, November 16, 2026, and **postponed by the owner to late November 2026** (decided 2026-11-15; the exact date is not recorded yet). The 2026-11-16 freeze no longer applies. The dates below are targets, not commitments or completion claims. Each milestone is complete only when its acceptance criteria are verified.
 
 | Milestone | Target | Scope | Acceptance |
 | --- | --- | --- | --- |
@@ -166,6 +166,50 @@ M2 is split into increments, each authorized separately by the author. **M2.0 (d
 | **M2.4 — Delete now** | The studio control and its author-bound command, with the interim copy (INV-4). | M2.1 |
 | **First public slice (M3.1)** (issue #34; merged, #35) | One public album-journal page by address, redirects, and identical `404`s, through the Publication queries only, with `no-store`, and the server-only, default-disabled `REFRAIN_PUBLIC_READS_ENABLED` switch with its tests (every public content-serving surface answers the unknown-address `404` unless it is exactly `true`; it never replaces the predicate). It starts with a spike that proves real `308`/`404` statuses and `no-store` under Cache Components ([ADR 0006 § 11](decisions/0006-publication-decision-and-acknowledgement.md#11-public-reads-and-caches)). Building and demonstrating it locally is not deployment: **hosting it publicly is blocked by the [public page release gates](decisions/0006-publication-decision-and-acknowledgement.md#14-public-page-release-gates)**. | M2.3 |
 | After November 16, or if time allows | Author-written translations, featuring and address-change controls, artist journals, Tiptap. (Memories have since been built, and the full `en` and `pt-BR` interface was approved for November 16 on 2026-11-10: [Interface localization](#interface-localization-approved-not-implemented).) Translations stay on the roadmap but do not block the first public demonstration. | Scoped individually |
+
+## Refrain v3 rebuild (R track)
+
+**Proposed with [ADR 0011](decisions/0011-refrain-v3-identity-and-product.md) and [ADR 0012](decisions/0012-external-services-music-story-email-media.md).** On 2026-11-15 the owner partly accepted both, only for the work already built (R1's surfaces and the unwired Music Story adapter). The milestones R2 to R12 and MS-0 to MS-4 stay proposed, and each still needs its own authorization. Each milestone needs the owner's authorization, starts only after the ones it depends on are merged, and is complete only when its verification criteria are shown with real command output. R0 is this documentation pack. No milestone deploys, changes a hosted database, or merges itself. Hosted steps are R11's, and each needs its own owner authorization.
+
+**Every milestone follows these rules:**
+- a vertical slice on its own branch (`<type>/<topic>`), with one pull request and one concern per commit;
+- its documents and evidence change in the same pull request ([`AGENTS.md` § 9](../AGENTS.md#9-documentation));
+- the full checks pass, each with its summary printed: lint, format, typecheck, unit, integration (real PostgreSQL), HTTP (production build), Playwright at desktop width and 390 px, PG18, and backup;
+- no assertion is weakened and no test is skipped;
+- a migration goes through `/refrain-db-change`, with its SQL read and tested on a fresh database and on one with data;
+- a change at a trust boundary gets `/refrain-security-review` from a separate context, and every finding at Medium or above is closed;
+- UI milestones show the visual verification of [Design System, Part I](design-system.md#accessibility-performance-and-verification) at 1440 and 390;
+- rollback is a revert pull request. Migrations are additive first, with destructive steps separate, and each has a written forward fix;
+- public reads and covers stay off on every host, so nothing is exposed mid-way.
+
+| Milestone | Implementation | Verification | Depends on |
+| --- | --- | --- | --- |
+| **R0 — Decision pack** | ADR 0011 and 0012 (partly accepted on 2026-11-15 for the built work; the rest Proposed); proposed amendments to ADRs 0002, 0004, 0005, 0006 (A9 to A12), and 0008; Design System Part I; AGENTS, CLAUDE, Product, and this roadmap. Documentation only | Every relative link and anchor resolves; `pnpm format:check` passes; no file links `reference/`; a draft pull request | — |
+| **R1 — Foundations** (built on `feat/v3-foundations`, draft PR #104, not merged, on the existing read models with no migration. It also carries the parts of R3 and R8 that need no decision: every public page and About; the Studio's sidebar, Desk, Library, Bin, sign-in, and loading placeholder; the editors' panels; and `/studio/system`. [Evidence](evidence/v3-public.md)) | Tokens with the contrast fix (D10); the four faces through `next/font`; the promoted chrome assets (D11); the v3 primitives (vinyl, sleeves, polaroid, pin, tape, kraft, print, lined sheet, torn sheet and strip, pen ring, pills); the motion, sound, and cursor islands; the v3 header and footer on every public page; `/studio/system` | Tokens and computed styles equal Part I. Reduced motion means opacity 1 and no animation. Without JavaScript, everything is visible. No AudioContext exists before the toggle, and it is suspended after. Focus draws the ring, targets are at least 44 px, axe is clean, and the pt-BR glyphs render. The asset SHA-256s are printed. The System comparison against the reference is done locally | R0 accepted |
+| **R2 — Album domain** | The one-favourite constraint; writers for the margin note and translations; `public_changed_at`; `show_on_home`; the A9 atoms in the fingerprint; scan allow-lists | Migration evidence; ADR 0006 scans extended; the privacy matrix for every new atom | R1 |
+| **R3 — Albums** | `/albums` (orbit and four sorts), `/albums/:slug` (all states, previous and next, the album's memories), the 404, and the v3 album editor (track by track, one favourite, translation, slug, preview, the review dialog) | Identical `404`s in every request form; "not written yet" never reveals a private reflection; no bracket text in public HTML; visual criteria | R2 |
+| **R4 — Pending changes** | A10: the pending-changes row, autosave, "Changes not on the site yet", Update through the confirmed save, "open elsewhere" | No public read touches pending rows. An autosave input is refused for an entry with a published version. The token never leaves the dialog. Browser tests run across two tabs. **Lands before real writing goes into v3** | R3 |
+| **R5 — Media** | [ADR 0012 § 4](decisions/0012-external-services-music-story-email-media.md#4-media-is-stored-in-postgresql-and-served-through-the-predicate): `media_assets`, `sharp` (direct dependency, version recorded), the upload route, EXIF and GPS removal, the grayscale public copy, the predicate-checked public route, the author-only Studio route, credits | A draft's photo answers the identical `404`; EXIF is absent from served bytes; size limits are refused; backups include media | R2 |
+| **R6 — Memories** | Year, month, or undated (a data migration); one song; photo with attachment and alt text; the editor; `/memories` and `/memories/:slug` | Migration on data; privacy matrix; empty states; visual criteria | R4, R5 |
+| **R7 — Artists** | Stored artist slugs with history and `308`s; artist-journal commands (A11); own and licensed photographs; featured; the cloud and A–Z; the editor; `/artists` and `/artists/:slug` | A11 binding tests; G1 redirect semantics; the torn photo under reduced motion; visual criteria | R4, R5 |
+| **R8 — Home, About, Studio shell** | The v3 Home; About (the `about` kind and `site_settings`); Desk, Library, Bin, Settings (no token field), and States; text-only share cards and the favicon | A4 and A6 rules extended; switch-off answers; classification of the new route-like files; visual criteria | R3, R6, R7 |
+| **R9 — Catalog wording (G8)** | A reworked ADR 0010 for the v3 surfaces; the G3 writer inventory; the G4 decision | The owner reviews the evidence for G3, G4, and G8 | Can start after R3; must cover R6 to R8 |
+| **R10 — Magic link** | [ADR 0012 § 3](decisions/0012-external-services-music-story-email-media.md#3-the-better-auth-magic-link-account-deletion-hazard-a-mandatory-blocker) in full, and the email provider (D15) | The author's account and sessions survive a magic-link sign-in; sign-up is impossible; single use and the 15-minute expiry hold; the `POST` verify; HTTPS on a protected preview | R0 accepted (in parallel) |
+| **R11 — Hosting and gates** | A staged redeploy of an approved commit to protected production; F-02 and G6 closed; evidence for G1 to G8; the reviews for Deployment gate items 6 and 7, and the artwork licence; the hosted catalog imported through the Studio (**never a copy of the local database**); ready for the owner's S4 decision | Owner-reviewed evidence for every gate; a rehearsed restore; noindex unchanged unless the owner decides | R8, R9, R10, F-02 |
+| **R12 — Final verification** | The full visual and functional pass, the README, and retiring V4.4 code and assets (deletions approved by the owner) | Side-by-sides signed off by the owner; anonymous access checked after S4 (`200` for public pages, `404` for drafts, the Studio redirects to sign-in) | R11 and the owner's S4 |
+| **Post** | Offline editing: a local buffer that never holds a token and replays as ordinary saves | Clearing on sign-out and on `401`; no service worker for private pages | Owner |
+
+### Music Story evaluation (MS track)
+
+Music Story is the preferred unified provider (ADR 0011, AR-16; ADR 0012 § 1). The owner has an account; API token access and commercial artwork licensing are **not verified**. This track runs **now, in parallel with R1**, and its migration is planned before launch if feasible.
+
+| Step | Work | Exit |
+| --- | --- | --- |
+| **MS-0 — Access** | The owner confirms the token in the Metadata Monitor and its plan (trial: 15 days, 200 calls a day). The token is set only as a server environment variable. One counted test call returns a known album | A recorded result, with no token in any log or file |
+| **MS-1 — Licensing** | Request the written terms for displaying cover art and artist pictures on a public site, for caching or rehosting, for attribution, and for the quota | Terms the owner accepts in writing, or **stop for the owner's decision** (D16, D22). The provider is never changed silently |
+| **MS-2 — Adapter** (built on `feat/music-story-adapter`, not wired to any screen, tested only against synthetic responses in the documented shapes; no live call made) | `src/integrations/music-story/`, built against sanitized captured responses where the terms allow; usage counter; the Studio's search and "fill it in by hand" | The adapter tests; no writing is ever sent |
+| **MS-3 — Mapping** | `ms_*` identifier columns; an approved linking review that fills identifiers only and keeps every MusicBrainz identifier; Grace's tracklist completed | No duplicate albums; every journal keeps its album |
+| **MS-4 — Artwork** | Covers and artist pictures from Music Story on hosted pages, under the accepted licence, with `img-src` widened only then | The licence recorded as a Deployment gate item |
 
 ## Critical path
 

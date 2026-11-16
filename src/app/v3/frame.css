@@ -1,0 +1,648 @@
+/* Refrain v3: the parts of the frame that the reference draws as buttons and
+   the implementation builds as links (the languages are addresses, ADR 0008),
+   and the skip link the reference leaves out. Same measures as the reference's
+   .lang button rules in v3.css. */
+html:has(.pp),
+body:has(> .pp) {
+  margin: 0;
+  background: #ece9e3;
+}
+.pp .lang-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.pp .lang a,
+.pp .lang .lang-off {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  padding: 3px 2px;
+  min-height: 44px;
+  min-width: 40px;
+  color: var(--grey);
+}
+.pp .lang .lang-off[data-current="true"] {
+  color: var(--ink);
+  font-weight: 700;
+}
+.pp .lang a .penring {
+  left: -12px;
+  top: -2px;
+  width: calc(100% + 24px);
+  height: calc(100% + 4px);
+}
+.pp .lang a .penring path {
+  transition: stroke-dashoffset 0.5s cubic-bezier(0.3, 0.15, 0.45, 1);
+}
+.pp .lang a:hover .penring path,
+.pp .lang a:focus-visible .penring path,
+.pp .lang a[aria-current] .penring path {
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 0.45s cubic-bezier(0.25, 0.6, 0.35, 1);
+}
+.pp .lang a[aria-current] {
+  color: var(--ink);
+  font-weight: 700;
+}
+.pp .ftr .lang a {
+  color: #9ba0ae;
+}
+.pp .ftr .lang a[aria-current] {
+  color: #edeae3;
+}
+.pp .hdr.in nav a[aria-current="true"] .penring path {
+  stroke-dashoffset: 0;
+}
+.pp .hdr nav a,
+.pp .ftr nav a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+.pp .skip {
+  position: absolute;
+  left: 20px;
+  top: -80px;
+  z-index: 20;
+  padding: 10px 18px;
+  background: var(--sleeve, #f6f4ef);
+  color: var(--ink);
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px var(--ink);
+}
+.pp .skip:focus {
+  top: 12px;
+}
+.pp main:focus {
+  outline: none;
+}
+/* The cursor applies only to a fine pointer, and never over text fields. */
+@media not (pointer: fine) {
+  .pp,
+  .pp * {
+    cursor: auto !important;
+  }
+}
+.pp input,
+.pp textarea {
+  cursor: text !important;
+}
+/* The other language's lines on the interim bilingual not-found view (ADR 0008 § 8). */
+.pp .nf .nf-other {
+  margin-top: 28px;
+  font-size: 14px;
+  color: var(--grey);
+}
+.pp .nf .nf-other a {
+  color: var(--pen);
+}
+/* Album journal: the track rows are native disclosures (they open without
+   JavaScript and with the keyboard), drawn as the reference's buttons. */
+.pp .tk details.trw > summary {
+  list-style: none;
+}
+.pp .tk details.trw > summary::-webkit-details-marker {
+  display: none;
+}
+.pp .tk details.trw[open] > summary .pl::after {
+  rotate: 0deg;
+}
+.pp .leaf2 .leaf-text > * {
+  margin: 0 0 0.6em;
+  font-size: 26px;
+  line-height: 1.5;
+  color: var(--pen);
+}
+@media (max-width: 720px) {
+  .pp .leaf2 .leaf-text > * {
+    font-size: 22px;
+  }
+}
+/* A missing cover: the white record label (Empty states). */
+.pp .covx {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  aspect-ratio: 1.45;
+  margin-top: 18px;
+  padding: 16px;
+  background: #fbfaf6;
+  box-shadow: inset 0 0 0 1px rgba(20, 19, 17, 0.08);
+}
+.pp .covx .hole {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 46%;
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(20, 19, 17, 0.12);
+}
+.pp .covx b {
+  position: relative;
+  font-family: var(--f-serif), Georgia, serif;
+  font-weight: 400;
+  font-size: 34px;
+  line-height: 0.95;
+}
+.pp .covx .yr {
+  position: relative;
+  margin-top: auto;
+  font-size: 11px;
+  color: var(--grey);
+}
+.pp .cv .covx,
+.pp .s .covx,
+.pp .ri .covx {
+  height: 100%;
+  margin-top: 0;
+  aspect-ratio: auto;
+  padding: 8px;
+  position: relative;
+  z-index: 1;
+}
+.pp .cv .covx b,
+.pp .s .covx b,
+.pp .ri .covx b {
+  font-size: 15px;
+}
+.pp .cv .covx .yr,
+.pp .s .covx .yr,
+.pp .ri .covx .yr {
+  font-size: 7px;
+}
+/* The crate's "one before", when there is one, mirrors "the one after". */
+.pp .crate .cr1:first-child {
+  justify-self: start;
+  text-align: left;
+  flex-direction: row-reverse;
+}
+/* With reduced motion nothing waits to be revealed: a sleeve's record and the
+   board's path are in place before the reader reaches them. */
+@media (prefers-reduced-motion: reduce) {
+  .pp.io [data-a="sleeve"]:not(.on) .vinyl {
+    opacity: 1;
+  }
+  .pp.io [data-io]:not(.on) .ri img,
+  .pp.io [data-io]:not(.on) > .vinyl {
+    opacity: 1;
+  }
+  .pp.io .board:not(.on) .path mask path {
+    stroke-dashoffset: 0;
+  }
+}
+/* Albums orbit: each cover sits in a wrapper that carries its tilt and its
+   delay, so a missing cover's white label grows in like an image. */
+.pp .orb2 .ri .ric {
+  display: block;
+}
+.pp.io .orb2:not(.on) .ri .ric {
+  opacity: 0;
+}
+.pp.io .orb2.on .ri .ric {
+  animation: a-grow 0.9s cubic-bezier(0.3, 1.4, 0.5, 1) var(--gd, 0ms) backwards;
+}
+.pp .orb2 .ri .covx {
+  aspect-ratio: 1;
+  height: auto;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pp.io .orb2:not(.on) .ri .ric {
+    opacity: 1;
+  }
+}
+/* Artists: the kraft "no photo" strip with the name in hand (Empty states). */
+.pp .feat .tear.kp,
+.pp .torn.no-photo .half {
+  background: #d6c29a;
+  background-image: repeating-linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.07) 0 2px,
+    transparent 2px 5px
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pp .feat .tear.kp .knm {
+  font-size: 40px;
+  color: #2a241a;
+  rotate: -3deg;
+}
+.pp .torn.no-photo .half .knm {
+  font-size: 56px;
+  color: #2a241a;
+  rotate: -4deg;
+}
+/* A real portrait is shown in black and white, with a little grain. */
+.pp .torn.has-photo .half {
+  filter: grayscale(1) contrast(1.06);
+}
+.pp .torn .lab .lab-k {
+  font-size: 12px;
+  color: var(--grey);
+}
+.pp .pcredit {
+  margin: 14px 0 0;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--grey);
+}
+.pp .pcredit a {
+  color: var(--pen);
+}
+.pp .board0.lone {
+  margin: 80px auto 0;
+  padding: 60px 0;
+  background: #1e2840 url(/v3/navy.jpg) repeat;
+  background-size: 900px auto;
+}
+@media (max-width: 720px) {
+  .pp .torn.no-photo .half.r {
+    display: none;
+  }
+}
+/* Memories without a photograph: lined paper with the title (Empty states). */
+.pp .yb .mi .pg,
+.pp .mbd .print .pg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 0.86;
+  padding: 14px;
+  background: #e9d2a6 url(/v3/lined.jpg) 0 0 / 300px auto;
+  color: var(--pen);
+  font-size: 30px;
+  line-height: 1.1;
+  text-align: center;
+  box-shadow: 0 12px 20px -14px rgba(0, 0, 0, 0.45);
+}
+.pp .yb .mi .pg {
+  font-size: 26px;
+}
+.pp .mbd .print .pg {
+  aspect-ratio: 0.8;
+  font-size: 44px;
+}
+/* The memory's writing may be longer than the reference's three lines: the
+   sheet grows, and the song and labels follow it. */
+.pp .mbd {
+  display: grid;
+  grid-template-columns: 540px minmax(0, 640px);
+  column-gap: 20px;
+  row-gap: 40px;
+  height: auto;
+}
+.pp .mbd > .print,
+.pp .mbd > .sheet,
+.pp .mbd > .np,
+.pp .mbd > dl {
+  position: relative;
+  left: auto;
+  top: auto;
+}
+.pp .mbd > .print {
+  grid-column: 1;
+  grid-row: 1;
+  margin-left: 20px !important;
+  margin-top: 30px !important;
+}
+.pp .mbd > .sheet {
+  grid-column: 2;
+  grid-row: 1;
+  height: auto;
+  min-height: 680px;
+  padding-bottom: 40px;
+}
+.pp .mbd > .np {
+  grid-column: 1;
+  grid-row: 2;
+  margin-left: 70px;
+}
+.pp .mbd > dl {
+  grid-column: 2;
+  grid-row: 2;
+  margin-left: 80px;
+}
+.pp .mbd .sheet .para > * {
+  margin: 0;
+  font-size: 30px;
+  line-height: 56.7px;
+  color: var(--pen);
+}
+.pp .mbd .np .on a {
+  color: var(--pen);
+}
+@media (max-width: 720px) {
+  .pp .mbd {
+    display: flex;
+  }
+  .pp .mbd > * {
+    margin-left: 0 !important;
+  }
+  .pp .mbd .sheet .para > * {
+    font-size: 23px;
+    line-height: 34px;
+  }
+  /* On a phone the sheet fits the writing, as the reference's phone rule
+     says (height: auto); the desktop's 680px minimum does not apply. */
+  .pp .mbd > .sheet {
+    min-height: 0;
+    padding: 40px 22px 26px 40px;
+  }
+}
+/* Home: memories without a photograph, and covers that fall back to the label. */
+.pp .recent .it .pg,
+.pp .board .pol .pg,
+/* The board's places are fixed, so a caption keeps to three lines (the
+   whole title stays the link's accessible name). */
+.pp .board .pol .t {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+.pp .jr .print .pg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 14px;
+  background: #e9d2a6 url(/v3/lined.jpg) 0 0 / 300px auto;
+  color: var(--pen);
+  font-size: 26px;
+  line-height: 1.1;
+  text-align: center;
+}
+/* The lined stand-in keeps the photograph's shape whatever the title's
+   length: with visible overflow a long title stretched the polaroid over its
+   neighbour. A long title is cut at the bottom (it is decorative and
+   aria-hidden; the whole title is written under the polaroid). */
+.pp .recent .it .pg,
+.pp .board .pol .pg {
+  overflow: hidden;
+  align-items: safe center;
+}
+.pp .jr .print .pg {
+  aspect-ratio: 1.35;
+  font-size: 40px;
+}
+.pp .recent .it .covx {
+  margin-top: 0;
+  aspect-ratio: 1;
+}
+.pp .front .card .covx {
+  aspect-ratio: 1.45;
+}
+.pp .mini .s .covx {
+  position: relative;
+  z-index: 1;
+}
+.pp .board0.home {
+  height: 420px;
+  margin-top: 60px;
+}
+/* Albums list: an album's other public journals, linked after its title. */
+.pp .alist li .oj {
+  flex: 0 0 auto;
+  color: var(--pen);
+}
+.pp .home-unavailable {
+  margin-top: 60px;
+  text-align: center;
+}
+/* Pixel lines are set in capitals by the stylesheet, so the author's titles
+   and the catalog's names reach the reader as they are written. */
+.pp .yb .mi .s,
+.pp .pol .song,
+.pp .back .card ol,
+.pp .mbd .np .tx .on {
+  text-transform: uppercase;
+}
+.pp .vinyl .lbl > .t2,
+.pp .covx .yr {
+  text-transform: uppercase;
+}
+/* The artist's portrait: one image across both halves, each half showing its
+   own side, black and white. */
+.pp .torn .half {
+  overflow: hidden;
+}
+.pp .torn.has-photo .half {
+  background-image: none;
+}
+.pp .torn .half .hp {
+  position: absolute;
+  top: 0;
+  width: 250%;
+  max-width: none;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 22%;
+}
+.pp .torn .half .hp.left {
+  left: 0;
+}
+.pp .torn .half .hp.right {
+  right: 0;
+}
+@media (max-width: 720px) {
+  .pp .torn .half .hp.left {
+    width: 100%;
+  }
+}
+.pp .alist li.oj {
+  font-size: 11px;
+}
+.pp .alist li.oj a {
+  color: var(--pen);
+}
+.pp .yb .mi .w {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--grey);
+}
+/* The fine print's link is a 44px target, set on the line's middle. */
+.pp .ftr .fine a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  vertical-align: middle;
+}
+/* D10 (ADR 0011, proposed): the reference's grey #6E6A63 is 4.44:1 on paper,
+   below WCAG AA for small text; #67635C (4.93:1) looks the same and passes.
+   Applied for accessibility, pending the owner's sign-off. */
+.pp {
+  --grey: #67635c;
+}
+/* "Not written yet" rows stay greyed, at a grey that reads (WCAG AA): the
+   reference's #9A958C is about 2.8:1 on the sleeve. */
+.pp .trow.off,
+.pp .trow.off .tt {
+  color: var(--grey);
+}
+/* The languages are 44px targets both ways (the reference's are 40px wide). */
+.pp .lang a,
+.pp .lang .lang-off {
+  min-width: 44px;
+}
+/* The System catalogue's stand-ins: the lined paper where the reference
+   shows its example photographs. */
+.pp .stage .pol .pg,
+.pp .stage .print .pg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 0.8;
+  padding: 14px;
+  background: #e9d2a6 url(/v3/lined.jpg) 0 0 / 300px auto;
+  color: var(--pen);
+  font-size: 24px;
+  line-height: 1.1;
+  text-align: center;
+}
+.pp .stage .print .pg {
+  aspect-ratio: 1.35;
+}
+
+/* The back of the Home's sleeve carries the newest album's card only (ADR
+   0006 A4/A6): its title and credits sit where the reference prints the
+   tracklist, in the tracklist's type. */
+.pp .back .card .credit {
+  margin: 22px 0 0;
+  display: flex;
+  flex-direction: column;
+  font-size: 12.5px;
+  line-height: 2.05;
+  position: relative;
+  z-index: 1;
+}
+
+/* A board label is a memory's "when" exactly as written (A6), which can be
+   longer than a year: one line, cut with an ellipsis, the whole text kept. */
+.pp .board .kr.yr {
+  max-width: 260px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Forced colours (Windows high contrast). The system replaces the page's
+   colours but keeps images, so the navy sheets' texture would sit under the
+   system's text colour: the sheets drop it and take the system canvas. The
+   pen rings are SVG strokes, which keep their own colour: they take the
+   system's text colour, and the current page, the current language, and a
+   favourite take the system highlight. Focus stays a visible system outline. */
+@media (forced-colors: active) {
+  .pp .mem .sheet,
+  .pp .ftr .sheet,
+  .pp .gmem .sheet2,
+  .pp .obj .stage.navy,
+  .pp .obj .navyb {
+    background-image: none;
+  }
+  /* !important: the footer's and the language links' own stroke rules are
+     more specific, and only the system's colours may show here. */
+  .pp .penring path {
+    stroke: CanvasText !important;
+  }
+  .pp [aria-current] .penring path,
+  .pp [aria-pressed="true"] .penring path,
+  .pp .fav .penring path {
+    stroke: Highlight !important;
+  }
+  .pp :focus-visible {
+    outline: 2px solid Highlight;
+  }
+}
+
+/* A record label's two lines are one line each, inside the label: a long
+   artist or album name (real catalogue names can be long) is cut with an
+   ellipsis instead of running off the red circle. The vinyl is decorative
+   and aria-hidden; the names are written out beside it. */
+.pp .vinyl .lbl > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 9%;
+}
+
+/* The Albums archive's orders are links (`?sort=`), so they work without
+   JavaScript: the reference's sort buttons, the same look, the chosen one
+   current and circled. */
+.pp .sorts a {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 6px;
+  font-size: 14px;
+  color: var(--grey);
+}
+.pp .sorts a[aria-current="true"] {
+  color: var(--ink);
+  font-weight: 700;
+}
+.pp .sorts a .penring {
+  left: -10px;
+  top: 4px;
+  width: calc(100% + 20px);
+  height: calc(100% - 8px);
+}
+.pp .sorts a .penring path {
+  transition: stroke-dashoffset 0.5s cubic-bezier(0.3, 0.15, 0.45, 1);
+}
+.pp .sorts a:hover .penring path,
+.pp .sorts a:focus-visible .penring path,
+.pp .sorts a[aria-current="true"] .penring path {
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 0.45s cubic-bezier(0.25, 0.6, 0.35, 1);
+}
+
+/* The entrances' fail-safe (frame.tsx, NO_SCRIPT_RELEASE): the page is sent
+   armed, so if the runtime never marks it ready (a script that failed to
+   load or to run), everything waiting is shown after three seconds. */
+@keyframes v3-release {
+  to {
+    opacity: 1;
+  }
+}
+@keyframes v3-release-path {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.pp.io:not([data-runtime="ready"]) [data-a]:not(.on),
+.pp.io:not([data-runtime="ready"]) [data-a="sleeve"]:not(.on) .vinyl,
+.pp.io:not([data-runtime="ready"]) .orb2:not(.on) .ri img,
+.pp.io:not([data-runtime="ready"]) .orb2:not(.on) .ri .ric,
+.pp.io:not([data-runtime="ready"]) .orb2:not(.on) > .vinyl,
+.pp.io:not([data-runtime="ready"]) .torn:not(.on) .half,
+.pp.io:not([data-runtime="ready"]) .torn:not(.on) .mid,
+.pp.io:not([data-runtime="ready"]) .torn:not(.on) .lab,
+.pp.io:not([data-runtime="ready"]) .torn:not(.on) .phl {
+  animation: v3-release 0s linear 3s forwards;
+}
+.pp.io:not([data-runtime="ready"]) .board:not(.on) .path mask path {
+  animation: v3-release-path 0s linear 3s forwards;
+}
+
+/* A white label keeps its words on the sleeve: a long title is cut at the
+   label's edge, never spilled onto its neighbours. In the Albums orbit on a
+   phone a cover is about 35 px, too small for words: the label shows its
+   ring only, as a blank white label does. The list below names every album. */
+.pp .covx {
+  overflow: hidden;
+}
+@media (max-width: 720px) {
+  .pp .orb2 .ri .covx b,
+  .pp .orb2 .ri .covx .yr {
+    display: none;
+  }
+}
