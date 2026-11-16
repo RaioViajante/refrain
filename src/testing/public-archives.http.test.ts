@@ -316,6 +316,57 @@ function archiveForms(
   ];
 }
 
+// ADR 0006 A13 (approved by the owner on 2026-11-15): the router's URL forms,
+// `<address>.rsc` and `<address>.segments/…/*.segment.rsc`, of an address
+// that is not served. Next.js decides from the requested path, after the
+// proxy, that a rendered answer is the router's payload, so it cannot be the
+// HTML document of an unknown address. For these forms only: the same `404`
+// and exactly the same headers as an unknown address in the same form, the
+// shared not-found payload, and no stored text or cookie. Its independence
+// from the database's contents is fixed by public-router-forms.http.test.ts.
+// Every other form keeps byte identity below.
+const URL_ROUTER_FORM = /\.rsc$|\.segments\/.*\.segment\.rsc$/;
+const PROBE_COOKIE = "probe=refrain-private-cookie-value";
+
+async function expectSharedNotFoundPayload(
+  base: string,
+  path: string,
+  sameFormUnknown: string,
+  label: string,
+  addresses: { requested: string; unknown: string },
+) {
+  const init = { headers: { cookie: PROBE_COOKIE } };
+  const got = comparable(await request(base, path, init));
+  const unknown = comparable(await request(base, sameFormUnknown, init));
+  expect(got.status, label).toBe(404);
+  expect(unknown.status, `${label}: the unknown address, same form`).toBe(404);
+  expect(got.headers, label).toEqual(unknown.headers);
+  // The shared not-found payload (for a page segment the framework answers an
+  // empty body), byte for byte the unknown address's in the same form once
+  // the address each payload echoes is the same and the framework's
+  // per-render identifiers are masked.
+  if (got.body !== "") {
+    expect(got.body, label).toContain("/_not-found");
+  }
+  const renderIds = (text: string) =>
+    text.replace(/(")[A-Za-z0-9_-]{21,23}(?![A-Za-z0-9_-])/g, "$1ID");
+  expect(renderIds(got.body), `${label}: the unknown address's body`).toBe(
+    renderIds(unknown.body.split(addresses.unknown).join(addresses.requested)),
+  );
+  for (const marker of [
+    ...PRIVATE_MARKER_LIST,
+    ...MEMORY_MARKER_LIST,
+    "[Test]",
+    "Grace",
+    "Buckley",
+    prefix,
+    "refrain-private-cookie-value",
+  ]) {
+    expect(got.body.includes(marker), `${label}: ${marker}`).toBe(false);
+    expect(JSON.stringify(got.headers).includes(marker), label).toBe(false);
+  }
+}
+
 describe("with public reads off, every archive is the unknown address in every request form", () => {
   it.each(
     ARCHIVES.flatMap((archive) =>
@@ -323,8 +374,18 @@ describe("with public reads off, every archive is the unknown address in every r
     ),
   )(
     "%s, %s: identical status, headers, and body",
-    async (_a, name, path, init, baseline) => {
+    async (archive, name, path, init, baseline) => {
       for (const off of offs) {
+        if (URL_ROUTER_FORM.test(path)) {
+          await expectSharedNotFoundPayload(
+            off.baseURL,
+            path,
+            path.replace(`/${archive}`, baseline),
+            `${name} on a server whose switch is off`,
+            { requested: `/${archive}`, unknown: baseline },
+          );
+          continue;
+        }
         const expected = masked(await request(off.baseURL, baseline, init), [
           slug("nothing"),
         ]);
@@ -765,6 +826,16 @@ describe("the About page, in both languages", () => {
     ];
     for (const off of offs) {
       for (const [name, path, init] of forms) {
+        if (URL_ROUTER_FORM.test(path)) {
+          await expectSharedNotFoundPayload(
+            off.baseURL,
+            path,
+            path.replace("/pt/about", unknown),
+            `${name} on a server whose switch is off`,
+            { requested: "/pt/about", unknown },
+          );
+          continue;
+        }
         const expected = masked(await request(off.baseURL, unknown, init), [
           slug("nothing"),
         ]);

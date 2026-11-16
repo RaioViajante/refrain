@@ -7,6 +7,7 @@ import {
   readFileSync,
   rmSync,
 } from "node:fs";
+import { lookup } from "node:dns/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -227,6 +228,16 @@ export async function startProductionServer(
 
   const target = effectiveTarget(connectionString, "TEST_DATABASE_URL");
   const databaseTarget = `${target.host}:${target.port}/${target.database}`;
+  // The server is started on `localhost`, resolved IPv4 first (below), so it
+  // listens on 127.0.0.1, where every test connects. On a machine where
+  // `localhost` has no IPv4 address it would listen elsewhere, and a process
+  // that took 127.0.0.1:<port> could answer the tests: refuse to start.
+  const loopback = await lookup("localhost", { order: "ipv4first" });
+  if (loopback.address !== "127.0.0.1") {
+    throw new Error(
+      `localhost resolves first to ${loopback.address}, not 127.0.0.1; the test server would not listen where the tests connect.`,
+    );
+  }
   const port = await choosePort(options.port);
   const baseURL = `http://127.0.0.1:${port}`;
   const commandEnv = {
@@ -289,13 +300,24 @@ export async function startProductionServer(
   const logDirectory = mkdtempSync(join(tmpdir(), "refrain-http-"));
   const serverLog = join(logDirectory, "server.log");
   const logStream = createWriteStream(serverLog);
+  // `-H localhost`, resolved to 127.0.0.1 first: the server still listens on
+  // the IPv4 loopback address only, where every test connects, but the
+  // framework's own origin is then `http://localhost:<port>`. Next.js writes
+  // every loopback address in the request the proxy sees as `localhost`
+  // (`NextURL`), and treats a rewrite whose origin differs from its own as an
+  // external URL. With `-H 127.0.0.1` the proxy's rewrite to the shared
+  // not-found view was therefore sent back to this server over HTTP, and
+  // failed under load with `500` (docs/evidence/v3-rc.md). The origin never
+  // comes from a request: it is this fixed name. If the address were ever
+  // another one, the readiness check on 127.0.0.1 below fails loudly.
   const server = spawn(
     process.execPath,
     [
+      "--dns-result-order=ipv4first",
       "node_modules/next/dist/bin/next",
       "start",
       "-H",
-      "127.0.0.1",
+      "localhost",
       "-p",
       String(port),
     ],
