@@ -250,7 +250,7 @@ describe("every command of § 4.1 and § 4.4 locks through the helpers, first", 
     [
       CHANGE,
       "requirePublicChangeConfirmation",
-      'lockAlbumJournalCatalog(tx, binding.entryId, "save")',
+      "await lockAlbumJournalCatalog(",
       ["changeCatalog(tx", "changeFingerprint("],
     ],
   ];
@@ -281,6 +281,10 @@ describe("every command of § 4.1 and § 4.4 locks through the helpers, first", 
     );
     const change = bodyOf(CHANGE, "requirePublicChangeConfirmation");
     expect(change).toContain("lockMemoryCatalog(tx, [");
+    // A save locks the tracks its predicted state newly reflects, too.
+    expect(change).toMatch(
+      /lockAlbumJournalCatalog\(\s*tx,\s*binding\.entryId,\s*"save",\s*flaggedTracksOf\(predicted\),/,
+    );
   });
 });
 

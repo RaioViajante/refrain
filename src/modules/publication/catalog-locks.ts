@@ -330,6 +330,8 @@ export async function lockAlbumJournalCatalog(
   tx: Transaction,
   entryId: string,
   kind: "transition" | "save",
+  /** A confirmed save's newly flagged reflections' tracks (ADR 0013 § 5). */
+  reflectedTrackIds: readonly string[] = [],
 ): Promise<void> {
   const album = await column(
     tx,
@@ -361,7 +363,7 @@ export async function lockAlbumJournalCatalog(
     new LockPlan()
       .album([albumId], mode)
       .artist(artists, mode)
-      .track(tracks, "share"),
+      .track([...tracks, ...reflectedTrackIds], "share"),
   );
 }
 

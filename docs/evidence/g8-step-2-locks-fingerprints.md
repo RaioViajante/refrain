@@ -69,15 +69,15 @@ The engines' rules are unchanged:
 | Not stale: an unrelated artist's rename, a track's own artists (not on an album-journal page), draft, private, and deleted memories on its tracks | the same |
 | Memory, after the preview: song retitled, singer renamed, song's artists changed, the named album switching (another album moved earlier), the named album's credits, the song added to another album, the named album gaining a served journal | the same (7 cases) |
 | Not stale: retitling an album the memory does not name | the same |
-| Confirmed saves: a track renamed between an album journal's preview and save; a song added, then renamed before a memory's save (stale, nothing written); an unlinked song's rename (not stale) | the same |
+| Confirmed saves: a track renamed between an album journal's preview and save; a reflection the save makes public on a track outside the reference edition, renamed before the save (found by the review); a song added, then renamed before a memory's save (stale, nothing written); an unlinked song's rename (not stale) | the same |
 | Inverted to the new rule: the two tests that recorded gap C11 (`publish.integration.test.ts`, `memory-publishing.integration.test.ts`) now expect `confirmation_stale` | those files |
-| **Concurrency on PostgreSQL**, separate connections, committed synthetic rows: a publication waits for an uncommitted track rename, then refuses as stale; a catalog edit waits for a publication holding the journal, then commits; a track rename waits for a memory publication's share lock; the memory lock's re-read catches a credit added while it waited; 8 rounds of 6 racing transactions (two publications, artist rename, track and credit change, tracklist rewrite, album credits) end with **no deadlock** and only `succeeded` or `confirmation_stale` | `catalog-locks.concurrency.integration.test.ts` |
+| **Concurrency on PostgreSQL**, separate connections, committed synthetic rows: a publication waits for an uncommitted track rename, then refuses as stale; a catalog edit waits for a publication holding the journal, then commits; a track rename waits for a memory publication's share lock; the memory lock's re-read catches a credit added while it waited; 8 rounds of 10 racing transactions (two publications, an album journal's and a memory's save, artist rename, track and credit change, tracklist rewrite, album credits, `createTrack` with the album, `removeAlbumArtwork`) end with **no deadlock**, at least one success, and only known answers (`succeeded`, `confirmation_stale`, `version_conflict`, `confirmation_required`, A3's `public_page`) | `catalog-locks.concurrency.integration.test.ts` |
 | Step 1 inside a command's locks: `catalogPublicImpact` runs in a savepoint under `lockAlbumCatalogChange`, and the album stays locked afterwards (`55P03` for another session's `nowait`) | the same |
 | **Static lock order:** `lockInOrder` takes entries, albums, artists, then tracks, ascending, with the strongest mode; each of the 20 commands takes its helper before its decisions and writes; an entry command takes its own entry first; no other catalog-row lock exists except a listed re-lock of a row the helper holds, or identifier-only rows | `catalog-locks.test.ts` |
 | The existing static tests of A5's guards, adapted to the new helper with the same guarantees (entries in id order, then the artist row in a write mode, then the decision) | `src/app/public-surface.test.ts` |
 
 **Mutation checks**, run by hand and reverted:
-- removing the catalog material from both fingerprints made 31 of the 38 binding tests fail (the other 7 expect no staleness);
+- removing the catalog material from both fingerprints made 31 of the (then) 38 binding tests fail. Of the other 7, 3 expect no staleness, and 4 stay stale through A5's existing binding of the artist pages a publication opens: the credited artist's rename and a namesake becoming public, in EN and `pt-BR` (checked by listing the passing tests);
 - dropping the memory re-read made the re-read test fail;
 - dropping the publication's track lock made the waiting test fail.
 
@@ -88,11 +88,31 @@ The engines' rules are unchanged:
 | `pnpm install --frozen-lockfile` | Lockfile unchanged |
 | `pnpm lint`, `pnpm format:check`, `pnpm typecheck` | Clean |
 | `pnpm test` | 61 files, **1,398 passed** |
-| `pnpm test:integration`, disposable PostgreSQL 17.11 | 41 files, **872 passed** |
-| `pnpm test:integration`, disposable **PostgreSQL 18.6** (`pnpm db:test18:up`, port 5434) | 41 files, **872 passed** |
+| `pnpm test:integration`, disposable PostgreSQL 17.11 | 41 files, **873 passed** |
+| `pnpm test:integration`, disposable **PostgreSQL 18.6** (`pnpm db:test18:up`, port 5434) | 41 files, **873 passed** |
 | `pnpm build` | Succeeded |
 | `pnpm test:http` | 22 files, **809 passed** |
-| `pnpm test:e2e:run` | **359 passed, 4 skipped**, 0 failed |
+| `pnpm test:e2e:run` | **359 passed, 4 skipped**, 0 failed (at `95aa3e8`; the review's fixes change no page, and CI runs the browser tests on the final head) |
+
+## Independent security and concurrency review
+
+Read-only, in a separate context, at `95aa3e8`, using the repository's security-review method. It reran the unit suite and the integration suite on PostgreSQL 18. **GO** for a draft step 2, with **no Critical, High, or Medium finding**.
+
+It found:
+- the lock order sound across the 20 commands, with no constructible deadlock cycle;
+- every re-lock in the same mode or a weaker one;
+- the fingerprints identical at preview and confirmation;
+- privacy unchanged, with the disclosure's shape intact;
+- ADR 0006 preserved, and no test weakened.
+
+| Finding | Done |
+| --- | --- |
+| Low: a confirmed save did not bind or lock a reflection it newly makes public on a track outside the reference edition (reproduced: `succeeded` instead of `confirmation_stale`) | Fixed: the save binds and locks the tracks its predicted state reflects; regression test, which fails without the fix |
+| Low: ADR 0013 § 4.5 said deadlocks answer "the existing generic retry error", which does not exist | The ADR now says they roll back and write nothing, surfacing unmapped until step 3 maps them |
+| Low: the race did not include the saves, `createTrack`, or an artwork command | Added (10 transactions per round) |
+| Info: the mutation note's "other 7" | Corrected, after listing the passing tests |
+| Info: a test named "an artist rename" ran a track rename | Renamed |
+| Info: plans read before their locks; a memory save adding a link re-reads its new album's credits without comparing them | Recorded: the consequence is an edit that could equally have committed just after the save, which step 2 still allows (steps 3 and 4) |
 
 ## Remaining concurrency risks (not closed by step 2)
 

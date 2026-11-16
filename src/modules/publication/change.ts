@@ -120,6 +120,14 @@ function changeFingerprint(
   return hash(canonicalJson(material));
 }
 
+// The tracks a save leaves with flagged reflections: the page renders each,
+// even one outside the reference edition (`mergeTracks`).
+function flaggedTracksOf(surface: EntrySurface): string[] {
+  return surface.reflections
+    .filter((reflection) => reflection.isPublished)
+    .map((reflection) => reflection.trackId);
+}
+
 function linksOf(surface: EntrySurface): CatalogLink[] {
   return (surface.memory?.music ?? []).map((key) =>
     key.startsWith("track:")
@@ -135,7 +143,10 @@ async function changeCatalog(
   predicted: EntrySurface,
 ): Promise<unknown> {
   if (before.kind === "album_journal") {
-    return albumJournalCatalog(db, before.entryId, { asPublished: false });
+    return albumJournalCatalog(db, before.entryId, {
+      asPublished: false,
+      reflectedTrackIds: flaggedTracksOf(predicted),
+    });
   }
   if (before.kind === "memory") {
     return {
@@ -293,7 +304,12 @@ export async function requirePublicChangeConfirmation(
   // the albums containing their tracks, and the artists credited on them.
   let catalogLocked = true;
   if (before.kind === "album_journal") {
-    await lockAlbumJournalCatalog(tx, binding.entryId, "save");
+    await lockAlbumJournalCatalog(
+      tx,
+      binding.entryId,
+      "save",
+      flaggedTracksOf(predicted),
+    );
   } else if (before.kind === "memory") {
     catalogLocked = await lockMemoryCatalog(tx, [
       ...linksOf(before),

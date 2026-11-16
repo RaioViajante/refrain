@@ -432,6 +432,44 @@ describe("a confirmed save binds its page's catalog wording", () => {
     });
   });
 
+  it("an album journal: a reflection the save makes public, on a track outside the reference edition, renamed before the save", async () => {
+    await inRollbackTransaction(async (tx) => {
+      const fixture = await draftJournal(tx);
+      // A member of the album that is not in the reference edition: the page
+      // still renders it once a reflection on it is public (mergeTracks).
+      const outside = fixture.album.trackIds[2]!;
+      await tx.execute(sql`
+        delete from edition_tracks where track_id = ${outside}`);
+      await publishForTest(tx, fixture.entryId, "en");
+      const input = {
+        entryId: fixture.entryId,
+        expectedVersion: 1,
+        reflections: [
+          {
+            trackId: outside,
+            isPublished: true,
+            texts: { en: "[Test] A reflection made public" },
+          },
+        ],
+      };
+      const preview = await previewAlbumJournalChange(tx, author, input);
+      expect(preview.confirmation).not.toBeNull();
+      await catalog.updateTrack(tx, author, outside, {
+        title: uniqueLabel("Renamed"),
+      });
+      const before = await rowChecksum(tx);
+      expect(
+        await failure(
+          saveAlbumJournal(tx, author, {
+            ...input,
+            confirmation: preview.confirmation!,
+          }),
+        ),
+      ).toBe("confirmation_stale");
+      expect(await rowChecksum(tx)).toEqual(before);
+    });
+  });
+
   it("a memory: a song added, then renamed in the catalog before the save", async () => {
     await inRollbackTransaction(async (tx) => {
       const album = await createTestAlbum(tx, {

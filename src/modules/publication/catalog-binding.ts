@@ -61,7 +61,17 @@ export interface AlbumJournalCatalog {
 export async function albumJournalCatalog(
   db: DatabaseExecutor,
   entryId: string,
-  { asPublished }: { asPublished: boolean },
+  {
+    asPublished,
+    reflectedTrackIds = [],
+  }: {
+    asPublished: boolean;
+    /**
+     * Tracks a confirmed save's predicted state has flagged reflections on,
+     * beyond the stored ones: the page will render them (ADR 0013 § 5).
+     */
+    reflectedTrackIds?: readonly string[];
+  },
 ): Promise<AlbumJournalCatalog | null> {
   const head = await db.execute<{
     album_id: string;
@@ -119,12 +129,22 @@ export async function albumJournalCatalog(
       join tracks t on t.id = et.track_id
      where ed.album_id = ${albumId} and ed.is_reference
      order by et.disc_number asc, et.position asc`);
+  const extra =
+    reflectedTrackIds.length === 0
+      ? sql``
+      : sql`union
+            select t.id as track_id, t.title from tracks t
+             where t.id in (${sql.join(
+               reflectedTrackIds.map((id) => sql`${id}`),
+               sql`, `,
+             )})`;
   const reflected = await db.execute<{ track_id: string; title: string }>(sql`
     select tr.track_id, t.title
       from track_reflections tr
       join tracks t on t.id = tr.track_id
      where tr.album_journal_id = ${entryId} and tr.is_published
-     order by tr.track_id asc`);
+    ${extra}
+     order by track_id asc`);
 
   let transitions: AlbumJournalCatalog["transitions"] = null;
   if (asPublished) {

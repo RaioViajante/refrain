@@ -6,6 +6,12 @@ import { getDb, type Database } from "@/db";
 // a module's internals.
 // eslint-disable-next-line no-restricted-imports
 import * as catalog from "@/modules/catalog/commands";
+// eslint-disable-next-line no-restricted-imports
+import { removeAlbumArtwork } from "@/modules/catalog/music";
+// eslint-disable-next-line no-restricted-imports
+import { saveAlbumJournal } from "@/modules/journals/commands";
+// eslint-disable-next-line no-restricted-imports
+import { saveMemory } from "@/modules/journals/memories";
 import {
   createTestAlbum,
   createTestAlbumJournal,
@@ -211,7 +217,7 @@ describe("a catalog edit and a publication serialize", () => {
     });
   });
 
-  it("an artist rename waits for a memory publication's share lock on a linked track", async () => {
+  it("a track rename waits for a memory publication's share lock on a linked track", async () => {
     const world = await committedWorld("Memory lock");
     await withConnections(2, async ([publisher, editor]) => {
       const publication = holdOpen(publisher!, async (tx) => {
@@ -325,8 +331,15 @@ describe("no mix of catalog edits and publications deadlocks", () => {
       string,
     ];
     const outcomes: string[] = [];
-    await withConnections(6, async (dbs) => {
+    const versionOf = async (entryId: string) =>
+      (
+        await getDb().execute<{ version: number }>(sql`
+          select version from entries where id = ${entryId}`)
+      ).rows[0]!.version;
+    await withConnections(10, async (dbs) => {
       for (let round = 0; round < 8; round++) {
+        const journalVersion = await versionOf(world.journalId);
+        const memoryVersion = await versionOf(world.memoryId);
         const preview = await previewPublication(dbs[0]!, author, {
           entryId: world.journalId,
           locale: "en",
@@ -383,6 +396,46 @@ describe("no mix of catalog edits and publications deadlocks", () => {
                 confirmation: memoryPreview.confirmation,
               }),
             ),
+          // The saves (with no token: a public save is refused as
+          // confirmation_required, which is a known answer), a new track on
+          // the album, and the artwork takedown path.
+          () =>
+            failure(
+              saveAlbumJournal(dbs[6]!, author, {
+                entryId: world.journalId,
+                expectedVersion: journalVersion,
+                opening: uniqueLabel("Race opening"),
+              }),
+            ),
+          () =>
+            failure(
+              saveMemory(dbs[7]!, author, {
+                entryId: world.memoryId,
+                expectedVersion: memoryVersion,
+                title: uniqueLabel("Race memory"),
+              }),
+            ),
+          () =>
+            catalog
+              .createTrack(dbs[8]!, author, {
+                title: uniqueLabel("Race new track"),
+                albumId: world.album.albumId,
+                artistIds: [world.artistId],
+              })
+              .then(
+                ({ id }) => {
+                  created.tracks.push(id);
+                  return "succeeded";
+                },
+                (error: unknown) => failure(Promise.reject(error)),
+              ),
+          () =>
+            failure(
+              removeAlbumArtwork(dbs[9]!, author, {
+                albumId: world.album.albumId,
+                expectedCover: null,
+              }),
+            ),
         ]);
         outcomes.push(
           ...results.map((result) =>
@@ -408,11 +461,21 @@ describe("no mix of catalog edits and publications deadlocks", () => {
     // No deadlock (40P01), and every refusal is a known answer: a stale
     // confirmation, because the catalog changed after its preview.
     expect(outcomes.filter((outcome) => outcome.includes("40P01"))).toEqual([]);
+    // Every other answer is one of the engines' known refusals: a stale
+    // confirmation (the catalog or entry changed after its preview), a
+    // version conflict (a save or publication bumped the entry first), a
+    // confirmation required (a save of a version public by then), or A3's
+    // refusal of an artwork change while the journal is public.
+    const known = new Set([
+      "succeeded",
+      "confirmation_stale",
+      "version_conflict",
+      "confirmation_required",
+      "public_page",
+    ]);
+    expect(outcomes.filter((outcome) => !known.has(outcome))).toEqual([]);
     expect(
-      outcomes.filter(
-        (outcome) =>
-          outcome !== "succeeded" && outcome !== "confirmation_stale",
-      ),
-    ).toEqual([]);
+      outcomes.filter((outcome) => outcome === "succeeded").length,
+    ).toBeGreaterThan(0);
   });
 });
