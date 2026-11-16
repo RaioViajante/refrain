@@ -2750,6 +2750,11 @@ describe("what a request without the author's session can do", () => {
         args: [ids.artist, { name: `${label} Hijacked`, kind: "group" }],
         routeId: ids.artist,
       },
+      // ADR 0013 step 3: the catalog edits' review, which mints a token.
+      previewCatalogChangeAction: {
+        args: ["artist", ids.artist, { name: `${label} Hijacked` }],
+        routeId: ids.artist,
+      },
       archiveArtistAction: { args: [ids.artist], routeId: ids.artist },
       restoreArtistAction: {
         args: [ids.archivedArtist],

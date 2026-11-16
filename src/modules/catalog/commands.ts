@@ -319,6 +319,11 @@ async function confirmCatalogChange(
   confirmation: ReturnType<typeof presentedConfirmation>,
 ): Promise<void> {
   if (change.length === 0) {
+    // A token presented with an edit that changes nothing a page renders is
+    // refused, never ignored (ADR 0013 § 3.5).
+    if (confirmation !== undefined) {
+      throw new CatalogError("confirmation_stale");
+    }
     return;
   }
   const impact = await requireCatalogChangeConfirmation(tx, {

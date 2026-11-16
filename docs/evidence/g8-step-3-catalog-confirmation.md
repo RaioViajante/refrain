@@ -78,6 +78,24 @@ The scope is a deliberate superset:
 
 The lists (archives, Home, sitemap) are always rendered. The tests that compare against the real commands' full renders all pass with it.
 
+## Independent security and concurrency review
+
+Read-only, in a separate context, at `4617097`. It reran 89 integration tests on PostgreSQL 18 and the unit suite. **GO** for a draft. It confirmed:
+- the token's purpose, subject, and session isolation;
+- the expiry by the database clock after the locks;
+- single use, including A → B → A within a millisecond;
+- the gate placed before every write, and A5 at both the preview and the command;
+- privacy unchanged, and no test weakened.
+
+| Finding | Done |
+| --- | --- |
+| **High:** the page scope missed pages when a rename collides with another artist's *suffixed* address, not only a namesake's base. Reproduced: 11 pages listed against 15 changed; the confirmed edit succeeded | Fixed. The scope now starts from the artists whose address actually differs: both address maps are computed over every public artist, the change applied to copies in an always-rolled-back savepoint. **A post-check fails closed** (`impact_unavailable`) if any moved address is outside the scope. Regression test with the reviewer's case, against the full-render oracle |
+| Low: a token sent with an edit that makes no operation (a sort name only) was not checked | Refused as `confirmation_stale`; tested |
+| Low: the limits (statement timeout, deadline, page cap, `TEMPORARY`) are tested only through the error mapping | Recorded. Exercising them needs injectable limits or a role without `TEMPORARY` on the shared disposable database; left for step 4 |
+| Info: the dialog shows the stale message for an expired or invalid token too; `onNothingToConfirm` resaves without a token | Recorded. The author's action is the same (review again); both fail closed |
+
+**A flaky check found while fixing these:** two refusal tests compared checksums of whole tables under READ COMMITTED. They failed when another suite committed rows to the shared disposable database at the same moment. They now read one REPEATABLE READ snapshot, as the impact tests do; the assertion that a refusal writes nothing is unchanged. The HTTP suite's test that enumerates every Server Action now includes the new preview action.
+
 ## Not verified, and risks
 
 - **Hosted databases:** the `TEMPORARY` privilege and the cost there are not checked; no hosted access is authorized. Without the privilege, every confirmable edit to a public record answers `impact_unavailable`, writing nothing.

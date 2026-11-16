@@ -243,6 +243,42 @@ describe("what a change affects", () => {
     });
   });
 
+  it("lists the pages of artists whose address a rename collides with (the review's counterexample)", async () => {
+    await inSnapshotTest(async (tx) => {
+      // Q and R are public namesakes, so each has a suffixed address; P is
+      // another public artist. Renaming P to Q's whole address collides with
+      // it: both P's and Q's addresses close. Q's journal loses its link.
+      const shared = uniqueLabel("Namesake");
+      const artists: string[] = [];
+      for (const name of [shared, shared, uniqueLabel("Plain")]) {
+        const id = await createTestArtist(tx, name);
+        artists.push(id);
+        const album = await createTestAlbum(tx, {
+          title: uniqueLabel("Collision album"),
+          artistIds: [id],
+        });
+        await createTestAlbumJournal(tx, {
+          albumId: album.albumId,
+          slug: slugOf("collision"),
+          versions: [published()],
+        });
+      }
+      const [q, , p] = artists as [string, string, string];
+      const qAddress = (await renderServedCatalog(tx)).artistAddresses.get(q)!;
+      expect(qAddress).toMatch(/-[0-9a-f]{10}$/);
+      const impact = await impactOf(
+        tx,
+        [{ op: "update_artist", artistId: p, name: qAddress }],
+        () => confirmed.updateArtist(tx, author, p, { name: qAddress }),
+      );
+      expect(
+        impact.pages.some(
+          (page) => page.surface === "artist" && page.artistId === q,
+        ),
+      ).toBe(true);
+    });
+  });
+
   it("follows album, track, and tracklist edits on every page that renders them", async () => {
     await inSnapshotTest(async (tx) => {
       const world = await servedWorld(tx);

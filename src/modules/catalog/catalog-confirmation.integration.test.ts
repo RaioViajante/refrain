@@ -40,6 +40,16 @@ import { CatalogError } from "./errors";
 // purpose, subject, session, or state. Every refusal writes nothing.
 
 const author = testAuthor();
+
+// One REPEATABLE READ snapshot per test: the checksums of whole tables must
+// not see rows that other suites commit to the shared disposable database
+// meanwhile. The assertion that a refusal writes nothing is unchanged.
+async function inSnapshot(work: (tx: Transaction) => Promise<void>) {
+  await inRollbackTransaction(async (tx) => {
+    await tx.execute(sql`set transaction isolation level repeatable read`);
+    await work(tx);
+  });
+}
 const slugOf = () => normalizeSlug(`t ${uniqueLabel("cc")}`);
 
 async function failure(work: Promise<unknown>): Promise<string> {
@@ -91,7 +101,7 @@ async function nameOf(tx: Transaction, artistId: string) {
 
 describe("an edit that changes no published page", () => {
   it("is saved as before, with no review and no token", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inSnapshot(async (tx) => {
       const hidden = await createTestArtist(tx, uniqueLabel("Unpublished"));
       const review = await previewArtistChange(tx, author, hidden, {
         name: "[Test] Still unpublished",
@@ -106,7 +116,7 @@ describe("an edit that changes no published page", () => {
   });
 
   it("is saved as before for a field no page renders, even on a public record", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inSnapshot(async (tx) => {
       const world = await servedArtist(tx);
       await updateArtist(tx, author, world.artistId, {
         sortName: "[Test] Sort",
@@ -123,7 +133,7 @@ describe("an edit that changes no published page", () => {
 
 describe("an edit that changes a published page", () => {
   it("is refused without a token, writing nothing", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inSnapshot(async (tx) => {
       const world = await servedArtist(tx);
       const before = await everything(tx);
       // One at a time: they share this transaction.
@@ -148,7 +158,7 @@ describe("an edit that changes a published page", () => {
   });
 
   it("is saved with the review's token, exactly as reviewed, and the review lists every page and address", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inSnapshot(async (tx) => {
       const world = await servedArtist(tx);
       const name = uniqueLabel("Renamed");
       const review = await previewArtistChange(tx, author, world.artistId, {
@@ -180,7 +190,7 @@ describe("an edit that changes a published page", () => {
   });
 
   it("refuses a token for another value, subject, purpose, or session, writing nothing", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inSnapshot(async (tx) => {
       const world = await servedArtist(tx);
       const other = await servedArtist(tx);
       const reviewed = { name: uniqueLabel("Reviewed") };
@@ -272,8 +282,35 @@ describe("an edit that changes a published page", () => {
     });
   });
 
+  it("refuses a token sent with an edit no page renders", async () => {
+    await inSnapshot(async (tx) => {
+      const world = await servedArtist(tx);
+      const { confirmation } = await previewArtistChange(
+        tx,
+        author,
+        world.artistId,
+        {
+          name: uniqueLabel("Reviewed"),
+        },
+      );
+      expect(
+        await failure(
+          updateArtist(
+            tx,
+            author,
+            world.artistId,
+            { sortName: "[Test] Sort" },
+            {
+              confirmation,
+            },
+          ),
+        ),
+      ).toBe("confirmation_stale");
+    });
+  });
+
   it("refuses an expired token, by the database clock", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inSnapshot(async (tx) => {
       const world = await servedArtist(tx);
       const patch = { name: uniqueLabel("Late") };
       const { confirmation } = await previewArtistChange(
@@ -293,7 +330,7 @@ describe("an edit that changes a published page", () => {
   });
 
   it("is single use: a replay, and A → B → A within a millisecond, are stale", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inSnapshot(async (tx) => {
       const world = await servedArtist(tx);
       const a = world.name;
       const b = uniqueLabel("B");
@@ -359,7 +396,7 @@ describe("an edit that changes a published page", () => {
   });
 
   it("is stale when a published page changed after the review", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inSnapshot(async (tx) => {
       const world = await servedArtist(tx);
       const patch = { name: uniqueLabel("Rename") };
       const review = await previewArtistChange(
@@ -388,7 +425,7 @@ describe("an edit that changes a published page", () => {
   });
 
   it("never opens an artist page, token or not (A5)", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inSnapshot(async (tx) => {
       const world = await servedArtist(tx);
       const newcomer = await createTestArtist(tx, uniqueLabel("Newcomer"));
       const credits = [{ artistId: world.artistId }, { artistId: newcomer }];
@@ -406,7 +443,7 @@ describe("an edit that changes a published page", () => {
   });
 
   it("discloses a namesake's address move, and applies it only when confirmed", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inSnapshot(async (tx) => {
       const shared = uniqueLabel("Namesake");
       const first = await servedArtist(tx, shared);
       const second = await servedArtist(tx, shared);
@@ -444,7 +481,7 @@ describe("an edit that changes a published page", () => {
   });
 
   it("fails closed when the impact cannot be computed, writing nothing", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inSnapshot(async (tx) => {
       const world = await servedArtist(tx);
       // A temporary table in the way of the computation's copies (one the
       // command's own lock reads do not use).

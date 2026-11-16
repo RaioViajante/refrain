@@ -188,7 +188,8 @@ type ParsedOperation = z.output<typeof catalogChangeOperation>;
 
 export class CatalogImpactError extends Error {
   constructor(
-    readonly code: "invalid_change" | "shadow_conflict" | "too_large",
+    readonly code:
+      "invalid_change" | "shadow_conflict" | "too_large" | "scope_incomplete",
     message: string,
   ) {
     super(message);
@@ -285,7 +286,11 @@ export async function catalogPublicImpact(
     await tx.execute(sql`
       select set_config('statement_timeout', ${String(IMPACT_STATEMENT_TIMEOUT_MS)}, true)`);
     const deadline = Date.now() + IMPACT_TIME_LIMIT_MS;
-    const scope = await candidatePages(tx, operations);
+    // Every artist whose public address the change moves, opens, or closes,
+    // from the address maps themselves (a rename can collide with another
+    // artist's suffixed address, not only with a namesake's base).
+    const moved = await movedArtists(tx, operations);
+    const scope = await candidatePages(tx, operations, moved);
     const before = await renderServedCatalog(tx, deadline, scope);
     await createShadow(tx);
     await assertShadowResolves(tx);
@@ -293,7 +298,17 @@ export async function catalogPublicImpact(
       await applyOperation(tx, operation);
     }
     const after = await renderServedCatalog(tx, deadline, scope);
-    return compareRenders(before, after);
+    const impact = compareRenders(before, after);
+    // Fail closed: every moved address's artist must have been in scope.
+    for (const change of impact.artistAddresses) {
+      if (!scope.artists.has(change.artistId)) {
+        throw new CatalogImpactError(
+          "scope_incomplete",
+          "The impact's scope missed an artist whose address moves.",
+        );
+      }
+    }
+    return impact;
   });
 }
 
@@ -1059,13 +1074,53 @@ export interface PageScope {
  * The tests compare the impact with a render of every served page after the
  * real command; a page this misses would fail them.
  */
+class AddressesRollback extends Error {}
+
+/**
+ * The artists whose public address differs before and after the change:
+ * the change is applied to temporary copies in a savepoint that is always
+ * rolled back, and the two address maps (computed over every public artist,
+ * as the pages compute them) are compared.
+ */
+async function movedArtists(
+  tx: DatabaseExecutor,
+  operations: readonly ParsedOperation[],
+): Promise<Set<string>> {
+  const before = await publicArtistAddresses(tx);
+  let after = new Map<string, string>();
+  try {
+    await tx.transaction(async (inner) => {
+      await createShadow(inner);
+      await assertShadowResolves(inner);
+      for (const operation of operations) {
+        await applyOperation(inner, operation);
+      }
+      after = await publicArtistAddresses(inner);
+      throw new AddressesRollback();
+    });
+  } catch (error) {
+    if (!(error instanceof AddressesRollback)) {
+      throw error;
+    }
+  }
+  await assertNoShadow(tx);
+  const moved = new Set<string>();
+  for (const id of new Set([...before.keys(), ...after.keys()])) {
+    if (before.get(id) !== after.get(id)) {
+      moved.add(id);
+    }
+  }
+  return moved;
+}
+
 async function candidatePages(
   tx: DatabaseExecutor,
   operations: readonly ParsedOperation[],
+  movedArtistIds: ReadonlySet<string> = new Set(),
 ): Promise<PageScope> {
   const albums = new Set<string>();
   const tracks = new Set<string>();
-  const artists = new Set<string>();
+  const artists = new Set<string>(movedArtistIds);
   const names = new Set<string>();
   for (const operation of operations) {
     switch (operation.op) {

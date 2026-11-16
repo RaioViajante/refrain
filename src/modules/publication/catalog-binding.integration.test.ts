@@ -37,6 +37,16 @@ import { normalizeSlug } from "./slug";
 // test rolled back.
 
 const author = testAuthor();
+
+// One REPEATABLE READ snapshot per test: the checksums of whole tables must
+// not see rows that other suites commit to the shared disposable database
+// meanwhile. The assertion that a refusal writes nothing is unchanged.
+async function inSnapshot(work: (tx: Transaction) => Promise<void>) {
+  await inRollbackTransaction(async (tx) => {
+    await tx.execute(sql`set transaction isolation level repeatable read`);
+    await work(tx);
+  });
+}
 const slugOf = (label: string) => normalizeSlug(`t ${uniqueLabel(label)}`);
 
 async function failure(work: Promise<unknown>): Promise<string> {
@@ -233,7 +243,7 @@ describe("publishing an album journal binds its catalog wording", () => {
     it.each(edits)(
       `%s after the preview: stale, nothing written (${locale})`,
       async (_name, edit) => {
-        await inRollbackTransaction(async (tx) => {
+        await inSnapshot(async (tx) => {
           const fixture = await draftJournal(tx, locale);
           expect(
             await publishAfter(tx, fixture.entryId, locale, () =>
@@ -246,7 +256,7 @@ describe("publishing an album journal binds its catalog wording", () => {
   }
 
   it("is not stale for an edit the page does not render, or for hidden entries", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inSnapshot(async (tx) => {
       const fixture = await draftJournal(tx);
       const outcome = await publishAfter(
         tx,
@@ -383,7 +393,7 @@ describe("publishing a memory binds its music's wording", () => {
       },
     ],
   ])("%s after the preview: stale, nothing written", async (_name, edit) => {
-    await inRollbackTransaction(async (tx) => {
+    await inSnapshot(async (tx) => {
       const fixture = await draftMemory(tx);
       expect(
         await publishAfter(tx, fixture.entryId, "en", () => edit(tx, fixture)),
@@ -392,7 +402,7 @@ describe("publishing a memory binds its music's wording", () => {
   });
 
   it("is not stale for the later album's title, which the page does not show", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inSnapshot(async (tx) => {
       const fixture = await draftMemory(tx);
       expect(
         await publishAfter(tx, fixture.entryId, "en", () =>
@@ -407,7 +417,7 @@ describe("publishing a memory binds its music's wording", () => {
 
 describe("a confirmed save binds its page's catalog wording", () => {
   it("an album journal: a track renamed between the preview and the save", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inSnapshot(async (tx) => {
       const fixture = await draftJournal(tx);
       await publishForTest(tx, fixture.entryId, "en");
       const input = {
@@ -434,7 +444,7 @@ describe("a confirmed save binds its page's catalog wording", () => {
   });
 
   it("an album journal: a reflection the save makes public, on a track outside the reference edition, renamed before the save", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inSnapshot(async (tx) => {
       const fixture = await draftJournal(tx);
       // A member of the album that is not in the reference edition: the page
       // still renders it once a reflection on it is public (mergeTracks).
@@ -472,7 +482,7 @@ describe("a confirmed save binds its page's catalog wording", () => {
   });
 
   it("a memory: a song added, then renamed in the catalog before the save", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inSnapshot(async (tx) => {
       const album = await createTestAlbum(tx, {
         title: uniqueLabel("Album"),
         trackTitles: [uniqueLabel("Kept"), uniqueLabel("Added")],
@@ -504,7 +514,7 @@ describe("a confirmed save binds its page's catalog wording", () => {
   });
 
   it("a memory: an edit to a song it does not link leaves the token valid", async () => {
-    await inRollbackTransaction(async (tx) => {
+    await inSnapshot(async (tx) => {
       const album = await createTestAlbum(tx, {
         title: uniqueLabel("Album"),
         trackTitles: [uniqueLabel("Linked"), uniqueLabel("Not linked")],
