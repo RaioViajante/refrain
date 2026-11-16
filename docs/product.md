@@ -10,7 +10,7 @@ Refrain is not a streaming platform, social network, collaborative service, revi
 
 ## Refrain v3 (proposed)
 
-The owner approved a new design as final on 2026-11-15: *the booklet of a record that belongs to you*. It is specified in [Design System, Part I](design-system.md#part-i--refrain-v3-specification). Adopting it, and the product changes below, is **proposed** in [ADR 0011](decisions/0011-refrain-v3-identity-and-product.md) and [ADR 0012](decisions/0012-external-services-music-story-email-media.md). Neither is accepted, and **none of this is built**. The rest of this document describes the product as accepted.
+The owner approved a new design as final on 2026-11-15: *the booklet of a record that belongs to you*. It is specified in [Design System, Part I](design-system.md#part-i--refrain-v3-specification). On 2026-11-15 the owner **partly accepted** [ADR 0011](decisions/0011-refrain-v3-identity-and-product.md), for the visual identity and the parts already built, and [ADR 0012](decisions/0012-external-services-music-story-email-media.md), for the unwired Music Story adapter only. The product changes below that are not built remain **proposed**, each needing its own decision (the ADRs' Status lines list what is accepted). Neither is accepted, and **none of this is built**. The rest of this document describes the product as accepted.
 
 **New pages and experiences**
 - **About:** the "liner notes".

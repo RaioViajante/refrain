@@ -1,6 +1,6 @@
 # ADR 0008: Interface Localization (English and Brazilian Portuguese)
 
-- **Status:** **Accepted** by the owner on 2026-11-10. **Approved and built:** the public pages are built in both languages (PR 2B), with the routes of § 2 and § 3, the dictionaries and formats of §§ 4 and 5, the selector of § 6, the metadata of § 7, and the not-found view of § 8. **The Writing Studio is built in both languages (PR 3)**, with the routes of §§ 2 and 3, its own dictionaries (§ 4), the selector in its footer (§ 6), the trust limits of § 9, and the writing language of memories (§ 10). The work is sequenced in [Roadmap § Interface localization](../roadmap.md#interface-localization-approved-not-implemented). **Proposed amendments pending** ([ADR 0011](0011-refrain-v3-identity-and-product.md), not accepted): see [below](#proposed-amendments-adr-0011).
+- **Status:** **Accepted** by the owner on 2026-11-10. **Approved and built:** the public pages are built in both languages (PR 2B), with the routes of § 2 and § 3, the dictionaries and formats of §§ 4 and 5, the selector of § 6, the metadata of § 7, and the not-found view of § 8. **The Writing Studio is built in both languages (PR 3)**, with the routes of §§ 2 and 3, its own dictionaries (§ 4), the selector in its footer (§ 6), the trust limits of § 9, and the writing language of memories (§ 10). The work is sequenced in [Roadmap § Interface localization](../roadmap.md#interface-localization-approved-not-implemented). **Amendment 1 accepted** by the owner on 2026-11-15 (EN/PT links in the public header and footer, and the Studio sidebar's selector); amendments 2 to 4 remain proposed: see [below](#proposed-amendments-adr-0011).
 - **Date:** 2026-11-10.
 - **Scope:** How the public pages and the Writing Studio are offered in English and Brazilian Portuguese: routes, dictionaries, formats, the language switch, alternates, the not-found view, and the trust limits of all of these. It replaces `next-intl` as the planned localization technology ([`AGENTS.md` § 3](../../AGENTS.md#3-architecture-constraints) lets a planned technology be replaced only through an ADR). [ADR 0006 amendment A7](0006-publication-decision-and-acknowledgement.md#a7-the-pt-surfaces) binds the `/pt` surfaces to the publication rules.
 
@@ -83,7 +83,7 @@ Every format goes through `src/i18n/format.ts`, which takes the interface langua
 ### 6. Language state and the switch
 
 - **The URL is the only state.** No cookie, no `Accept-Language` negotiation, no `localStorage`, no query parameter. `/` is always English. Every internal link keeps the current prefix, through one helper (`localizedHref`), so a bookmark or a reload keeps the language.
-- **The selector** is discreet and centered in the footer, with no flag, offering "English" and "Português (Brasil)" with the V4.4 note. It is real links, so it works without JavaScript, and a small island adds the arrow keys and Escape the V4.4 handoff asks for.
+- *Superseded by [amendment 1](#proposed-amendments-adr-0011), accepted on 2026-11-15: EN/PT links in the public header and footer, and in the Studio's sidebar; the URL stays the only language state.* **The selector** is discreet and centered in the footer, with no flag, offering "English" and "Português (Brasil)" with the V4.4 note. It is real links, so it works without JavaScript, and a small island adds the arrow keys and Escape the V4.4 handoff asks for.
 - **Each page supplies its own pair of addresses**, built from its route and its validated slug. There is no `next=` or similar parameter, and a page without a counterpart links to the start of the other language.
 - In the Studio the selector is an ordinary link, so the unsaved-changes guard applies to it.
 
@@ -144,9 +144,9 @@ By the owner's decision of 2026-11-10, a memory may be written originally in Eng
 
 ## Proposed amendments (ADR 0011)
 
-**Status: Proposed, not accepted.**
+**Status:** amendment 1 **accepted** by the owner on 2026-11-15. Amendments 2 to 4 remain **Proposed, not accepted**.
 
-1. **§ 6. The selector in the header and the footer.** The v3 design places EN/PT in the header as well as the footer. The state stays the URL only, the values stay `en` and `pt-BR`, and every rule of § 6 and § 9 holds.
+1. **§ 6. The selector in the header and the footer.** *(Accepted on 2026-11-15.)* The v3 design places EN/PT in the header as well as the footer. The state stays the URL only, the values stay `en` and `pt-BR`, and every rule of § 6 and § 9 holds. As accepted, it also covers the selector as implemented in the Studio's sidebar.
 2. **The original and its translation.** When the shown version is a translation, the page says so ("translated from …") and links to the original at the other language's address, only when that version is public (INV-3). The interface language follows the address, as now.
 3. **Author-written translations in the Studio.** This ADR left the translation interface open. v3 draws it: an optional second version under each field, including track notes, never filled automatically. Each version keeps its own status and confirmation (ADR 0006).
 4. **"Follow their browser" is rejected.** The v3 Settings screen draws a setting for the language a visitor sees first. It would read `Accept-Language`, which § 6 and § 9 exclude, so it is not built.

@@ -2,9 +2,9 @@
 
 **Status:**
 - **Part I** is the specification of **Refrain v3**, the design the owner approved as final on 2026-11-15. It replaces V4.4.
-  - Its authority over the code is **proposed** in [ADR 0011](decisions/0011-refrain-v3-identity-and-product.md), which is not accepted yet.
+  - Its authority over the code is **accepted** ([ADR 0011](decisions/0011-refrain-v3-identity-and-product.md) § 1 and § 2, partly accepted by the owner on 2026-11-15). The accepted scope is listed in the ADR's Status; everything else in it, including R2 to R12, is still proposed.
   - **Partly implemented on a branch, not merged:** the foundations, the public pages, and the Studio's shell ([evidence](evidence/v3-public.md)). The rest is built milestone by milestone in the [R track](roadmap.md#refrain-v3-rebuild-r-track).
-- **Part II** is the V4.4 specification, unchanged. It still describes, and governs, every surface on `main` until the R milestone that replaces that surface is merged.
+- **Part II** is the V4.4 specification, unchanged, kept for the record. Its visual rules are **superseded by ADR 0011 § 2**. It still describes the surfaces v3 has not replaced yet (for example, the Rough.js rating stars in the Studio), until the R milestone that replaces each one is merged.
 
 The two identities are named by their design files. "v3" (November 2026) is newer than "V4.4" (October 2026); the numbers are not a sequence ([ADR 0011, Context](decisions/0011-refrain-v3-identity-and-product.md#context)).
 
@@ -19,7 +19,7 @@ The parts that wait on ADR 0011, 0012, and the R-track decisions are listed ther
 
 ## Authority
 
-Once [ADR 0011](decisions/0011-refrain-v3-identity-and-product.md) is accepted, these sources rank as follows:
+Under [ADR 0011](decisions/0011-refrain-v3-identity-and-product.md) § 1 (accepted on 2026-11-15), these sources rank as follows:
 
 1. **The approved v3 screens.** These are the full-page captures at 1440 px and at 390 px (2×) in the owner's local reference workspace (`reference/screens/public/`, `reference/screens/studio/`, `reference/screens/share/`).
 2. **The v3 source files.** One `.dc.html` per screen (`reference/source/public/`, `reference/source/studio/`), holding the HTML, CSS, copy (`const t = { en, pt }`), and logic (`renderVals()`).

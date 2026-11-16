@@ -1,6 +1,6 @@
 # ADR 0012: External Services — Music Story, Transactional Email, and Media Storage
 
-- **Status:** **Proposed.** Not accepted. Until the owner accepts it, MusicBrainz, the Cover Art Archive, and Wikimedia Commons remain the only integrations, sign-in stays email and password, and no media is stored.
+- **Status:** **Partly accepted** by the owner on 2026-11-15, in writing: **§ 1 items 1 to 3 and 8 only**, and only for the existing, unwired, server-side Music Story adapter in `src/integrations/music-story/` (included in #106). **Not authorized:** live API calls, schema migrations, replacing a provider, displaying its artwork, and any licensing assumption. § 1 items 4 to 7, § 2, § 3, and § 4 remain **Proposed**. MusicBrainz, the Cover Art Archive, and Wikimedia Commons remain the only active integrations; sign-in stays email and password; and no media is stored.
 - **Date:** 2026-11-15
 - **Scope:** The music-data provider, the email service that magic-link sign-in needs, and where photographs are stored and how they are served. It supports [ADR 0011](0011-refrain-v3-identity-and-product.md). [`AGENTS.md` § 3](../../AGENTS.md#3-architecture-constraints) requires an ADR for any new external service.
 

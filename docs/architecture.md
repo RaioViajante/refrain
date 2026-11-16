@@ -124,6 +124,8 @@ Rule 7 is enforced at build time. A Client Component that reaches a module impor
 
 ## The v3 presentation layer (proposed, draft PR #104)
 
+*Status: its visual authority is accepted ([ADR 0011](decisions/0011-refrain-v3-identity-and-product.md) § 1 and § 2, partly accepted on 2026-11-15). It is not merged yet: it reaches `main` with #104, #106, and #112.*
+
 On the branch `feat/v3-foundations` (not merged; [evidence](evidence/v3-public.md)), presentation follows the v3 design ([Design System, Part I](design-system.md#part-i--refrain-v3-specification)), with no change to the modules or the schema:
 
 - **`src/app/v3/`** holds the shared presentation:

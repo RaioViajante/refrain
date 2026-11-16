@@ -1,6 +1,8 @@
 # Owner packet: the smallest acceptance of ADR 0011 and ADR 0012
 
-**Prepared for the owner on 2026-11-15. It accepts nothing.** ADR 0011, ADR 0012, and ADR 0006 A8–A12 stay **Proposed** until the owner records a decision in the ADRs themselves. It was drafted from `origin/release/v3-rc` (`5fc316f`), which the integration branch (#112) contains unchanged in these respects. Its cited headings, register entries, `HOME_RECENT_LIMIT = 5`, the Studio's half-step rating, and ADR 0008's proposed amendments were spot-checked against the repository. Items marked *unverified* were not.
+**Decision recorded:** on 2026-11-15 the owner accepted the class-A scope of this packet, with ADR 0012 accepted only for the unwired adapter and the deferrals listed in ADR 0011's Status. See the Status lines of [ADR 0011](../decisions/0011-refrain-v3-identity-and-product.md), [ADR 0012](../decisions/0012-external-services-music-story-email-media.md), and [ADR 0008](../decisions/0008-interface-localization.md).
+
+**Prepared for the owner on 2026-11-15.** The packet itself accepts nothing. ADR 0011, ADR 0012, and ADR 0006 A8–A12 stay **Proposed** until the owner records a decision in the ADRs themselves. It was drafted from `origin/release/v3-rc` (`5fc316f`), which the integration branch (#112) contains unchanged in these respects. Its cited headings, register entries, `HOME_RECENT_LIMIT = 5`, the Studio's half-step rating, and ADR 0008's proposed amendments were spot-checked against the repository. Items marked *unverified* were not.
 
 Source: `origin/release/v3-rc` at `5fc316f`. Evidence: `docs/evidence/v3-public.md` (#104) and `docs/evidence/v3-rc.md`. Both ADRs are **Proposed**.
 
