@@ -78,6 +78,19 @@ The scope is a deliberate superset:
 
 The lists (archives, Home, sitemap) are always rendered. The tests that compare against the real commands' full renders all pass with it.
 
+## Checks run
+
+| Check | Result |
+| --- | --- |
+| `pnpm install --frozen-lockfile` | Lockfile unchanged |
+| `pnpm lint`, `pnpm format:check`, `pnpm typecheck` | Clean |
+| `pnpm test` | 62 files, **1,413 passed** |
+| `pnpm test:integration`, disposable PostgreSQL 17.11 and **18.6** | 42 files each, **886 passed**, 1 skipped (the benchmark, which runs only with `REFRAIN_BENCH=1`), before the review fixes. The three changed suites after them: 69 passed, twice |
+| `pnpm build` | Succeeded |
+| `pnpm test:http` | 22 files, **809 passed** (after adding the new action to the every-action test) |
+| `pnpm test:e2e:run` | **365 passed, 4 skipped**, 0 failed |
+| CI on the final head | Recorded in the pull request. The previous head's CI failed only on the every-action HTTP test, which the review fixes repaired |
+
 ## Independent security and concurrency review
 
 Read-only, in a separate context, at `4617097`. It reran 89 integration tests on PostgreSQL 18 and the unit suite. **GO** for a draft. It confirmed:
