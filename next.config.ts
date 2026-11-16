@@ -1,3 +1,6 @@
+import { readdirSync } from "node:fs";
+import { join } from "node:path";
+
 import type { NextConfig } from "next";
 
 // The Content-Security-Policies, as in src/security-headers.ts (this file
@@ -25,6 +28,20 @@ const PRIVATE_NO_STORE = "private, no-store, max-age=0, must-revalidate";
 // (docs/security.md#indexing).
 const ROBOTS_DIRECTIVE = "noindex, nofollow";
 const ROBOTS_HEADER = { key: "X-Robots-Tag", value: ROBOTS_DIRECTIVE };
+
+// G2: every response is `no-store` unless it is one of the framework's
+// content-hashed build files (`/_next/static/…`), its image optimizer (exactly
+// `/_next/image`), or one of the promoted, data-free files that exist in
+// `public/` (each named exactly, so that a missing file or another spelling
+// is the not-found view and is `no-store` too). The list is read from the
+// repository when the configuration loads; it never depends on a request.
+const NO_STORE_HEADER = { key: "Cache-Control", value: "no-store" };
+const PUBLIC_ASSETS = ["v3", "artwork"].flatMap((folder) =>
+  readdirSync(join(process.cwd(), "public", folder)).map(
+    (name) => `${folder}/${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
+  ),
+);
+const UNNAMED_ADDRESSES = `/:path((?!_next/static/|_next/image$|(?:${PUBLIC_ASSETS.join("|")})$).*)`;
 
 const nextConfig: NextConfig = {
   // Data is dynamic unless it is explicitly cached with `use cache`, so nothing
@@ -88,6 +105,16 @@ const nextConfig: NextConfig = {
       // the same value, and the framework keeps the last rule that sets a
       // header.
       { source: "/:path*", headers: [ROBOTS_HEADER] },
+      // Every address no rule below names is never stored either (G2): an
+      // address no route serves, its router and transport forms, and the
+      // framework's own `/_not-found` and `/_global-error`. Locally the
+      // framework already answers those `no-store`; on the host the prerendered
+      // not-found view was served from the platform's cache with
+      // `public, max-age=0, must-revalidate` (docs/evidence/v3-rc.md). It comes
+      // before the section rules, which set their own value and win as the
+      // last rule. The framework's immutable build files and the promoted,
+      // data-free assets keep their own caching.
+      { source: UNNAMED_ADDRESSES, headers: [NO_STORE_HEADER, ROBOTS_HEADER] },
       // The Home (M3.4): exactly `/`. It lists public journals per request, so
       // it is `no-store` like every other public response.
       { source: "/", headers: publicHeaders },
