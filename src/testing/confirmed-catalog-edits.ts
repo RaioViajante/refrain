@@ -42,3 +42,61 @@ export async function updateTrack(
     confirmation: review.confirmation ?? undefined,
   });
 }
+
+export async function setAlbumTracklist(
+  db: DatabaseExecutor,
+  author: AuthorizedAuthor,
+  albumId: string,
+  input: { tracks: { trackId: string; discNumber?: number }[] },
+): Promise<void> {
+  const review = await catalog.previewTracklistChange(db, author, albumId, {
+    operation: "set",
+    tracks: input.tracks,
+  });
+  await catalog.setAlbumTracklist(db, author, albumId, input, {
+    confirmation: review.confirmation ?? undefined,
+  });
+}
+
+export async function addTrackToAlbum(
+  db: DatabaseExecutor,
+  author: AuthorizedAuthor,
+  albumId: string,
+  trackId: string,
+): Promise<void> {
+  const review = await catalog.previewTracklistChange(db, author, albumId, {
+    operation: "add",
+    trackId,
+  });
+  await catalog.addTrackToAlbum(db, author, albumId, trackId, {
+    confirmation: review.confirmation ?? undefined,
+  });
+}
+
+export async function createTrack(
+  db: DatabaseExecutor,
+  author: AuthorizedAuthor,
+  input: {
+    title: string;
+    albumId: string;
+    artistIds?: string[];
+    credit?: string | null;
+  },
+): Promise<{ id: string }> {
+  const review = await catalog.previewTracklistChange(
+    db,
+    author,
+    input.albumId,
+    {
+      operation: "create",
+      track: {
+        title: input.title,
+        artistIds: input.artistIds ?? [],
+        ...(input.credit !== undefined ? { credit: input.credit } : {}),
+      },
+    },
+  );
+  return catalog.createTrack(db, author, input, {
+    confirmation: review.confirmation ?? undefined,
+  });
+}

@@ -17,6 +17,7 @@ import {
 } from "@/modules/identity";
 import {
   artistsNewlyExposedByCredit,
+  albumHasTrackInServedMemory,
   lockAlbumCatalogChange,
   lockArtistPublicExposure,
   lockArtistRestoreExposure,
@@ -851,6 +852,13 @@ export async function deleteAlbum(
       // the album, before the delete (which decides nothing in its own
       // statement).
       await lockAlbumCatalogChange(tx, id);
+      // ADR 0013 § 1.3, a permanent refusal: deleting an album would change
+      // the album a served memory names (no foreign key protects it), so it
+      // is refused while a served memory links one of its tracks. Decided in
+      // a statement after the locks, never inside the DELETE.
+      if (await albumHasTrackInServedMemory(tx, id)) {
+        throw new CatalogError("public_page");
+      }
       const deleted = await tx
         .delete(schema.albums)
         .where(eq(schema.albums.id, id))
@@ -892,12 +900,21 @@ async function replaceTrackCredits(
  */
 export async function createTrack(
   db: DatabaseExecutor,
-  _author: AuthorizedAuthor,
+  author: AuthorizedAuthor,
   input: unknown,
+  given: CatalogEditOptions = {},
 ): Promise<{ id: string }> {
-  const { albumId, artistIds, ...fields } = parse(newTrackInput, input);
+  const { patch: edit, options } = withoutConfirmation(input, given);
+  const { albumId, artistIds, ...fields } = parse(newTrackInput, edit);
   return guarded(() =>
     db.transaction(async (tx) => {
+      const confirmation = albumId
+        ? presentedConfirmation(author, { kind: "album", id: albumId }, options)
+        : undefined;
+      if (!albumId && options.confirmation !== undefined) {
+        // A track created outside an album changes no page: no token.
+        throw new CatalogError("confirmation_stale");
+      }
       // ADR 0013 § 4.1: with an album, its entries, the album, and the named
       // artists are locked before anything is inserted (an insert first would
       // hold the artists' key-share locks out of order).
@@ -906,6 +923,19 @@ export async function createTrack(
         await lockAlbumForTracklist(tx, albumId);
       }
       await assertArtistsLinkable(tx, artistIds, new Set());
+      // ADR 0013 step 4: a new track on an album a page shows needs the
+      // author's confirmation, decided before anything is inserted.
+      if (albumId) {
+        await confirmCatalogChange(
+          tx,
+          { kind: "album", id: albumId },
+          await tracklistChangeOf(tx, albumId, {
+            operation: "create",
+            track: { title: fields.title, credit: fields.credit, artistIds },
+          }),
+          confirmation,
+        );
+      }
       const [track] = await tx
         .insert(schema.tracks)
         .values(fields)
@@ -918,6 +948,7 @@ export async function createTrack(
           ...tracklist,
           { trackId, discNumber: tracklist.at(-1)?.discNumber ?? 1 },
         ]);
+        await advanceAlbum(tx, albumId);
       }
       return { id: trackId };
     }),
@@ -1108,7 +1139,7 @@ async function referenceEditionId(
 // position in the edition (possible only for data not written by these
 // commands) follows the ordered ones, by title.
 async function currentTracklist(
-  tx: Transaction,
+  tx: DatabaseExecutor,
   albumId: string,
 ): Promise<TracklistItem[]> {
   const result = await tx.execute<{
@@ -1227,85 +1258,192 @@ async function rewriteTracklist(
  */
 export async function setAlbumTracklist(
   db: DatabaseExecutor,
-  _author: AuthorizedAuthor,
+  author: AuthorizedAuthor,
   albumId: unknown,
   input: unknown,
+  given: CatalogEditOptions = {},
 ): Promise<void> {
   const id = idOf(albumId);
-  const data = parse(tracklistInput, input);
+  const { patch: edit, options } = withoutConfirmation(input, given);
+  const data = parse(tracklistInput, edit);
   await guarded(() =>
     db.transaction(async (tx) => {
+      const confirmation = presentedConfirmation(
+        author,
+        { kind: "album", id },
+        options,
+      );
       await lockAlbumCatalogChange(tx, id, {
         addedTrackIds: data.tracks.map((item) => item.trackId),
       });
       await lockAlbumForTracklist(tx, id);
-      // A track that leaves out its disc keeps the one it is on now.
-      const discs = new Map(
-        (await currentTracklist(tx, id)).map((item) => [
-          item.trackId,
-          item.discNumber,
-        ]),
-      );
-      await rewriteTracklist(
+      const desired = await desiredTracklist(tx, id, {
+        operation: "set",
+        tracks: data.tracks,
+      });
+      await confirmCatalogChange(
         tx,
-        id,
-        data.tracks.map((item) => ({
-          trackId: item.trackId,
-          discNumber: item.discNumber ?? discs.get(item.trackId) ?? 1,
-        })),
+        { kind: "album", id },
+        tracklistOps(id, desired),
+        confirmation,
       );
+      if (desired !== null) {
+        await rewriteTracklist(tx, id, desired);
+      }
+      await advanceAlbum(tx, id);
     }),
   );
+}
+
+/** A tracklist edit, as the Studio and the commands describe it. */
+export type TracklistEdit =
+  | { operation: "add"; trackId: string }
+  | { operation: "remove"; trackId: string }
+  | { operation: "move"; trackId: string; direction: "up" | "down" }
+  | {
+      operation: "set";
+      tracks: { trackId: string; discNumber?: number }[];
+    }
+  | {
+      operation: "create";
+      track: {
+        title: string;
+        credit?: string | null;
+        artistIds: string[];
+      };
+    };
+
+// The id an impact gives a track that does not exist yet (ADR 0013 step 4).
+// Pages never render a track's id, and nothing links a new track, so the
+// preview and the command compute the same impact with it, whatever id the
+// insert then gets.
+const NEW_TRACK = "00000000-0000-4000-8000-00000000a7a7";
+
+/**
+ * The album's tracklist after `edit`, or null when it would not change. The
+ * one place both the review and the command compute it, so they cannot
+ * disagree (ADR 0013 step 4). Refuses `not_found` for a track to remove or
+ * move that is not on the album.
+ */
+async function desiredTracklist(
+  tx: DatabaseExecutor,
+  albumId: string,
+  edit: TracklistEdit,
+): Promise<TracklistItem[] | null> {
+  const tracklist = await currentTracklist(tx, albumId);
+  const lastDisc = tracklist.at(-1)?.discNumber ?? 1;
+  switch (edit.operation) {
+    case "add":
+      return tracklist.some((item) => item.trackId === edit.trackId)
+        ? null
+        : [...tracklist, { trackId: edit.trackId, discNumber: lastDisc }];
+    case "create":
+      return [...tracklist, { trackId: NEW_TRACK, discNumber: lastDisc }];
+    case "remove":
+      if (!tracklist.some((item) => item.trackId === edit.trackId)) {
+        throw new CatalogError("not_found");
+      }
+      return tracklist.filter((item) => item.trackId !== edit.trackId);
+    case "move": {
+      const index = tracklist.findIndex(
+        (item) => item.trackId === edit.trackId,
+      );
+      if (index === -1) {
+        throw new CatalogError("not_found");
+      }
+      const target = edit.direction === "up" ? index - 1 : index + 1;
+      // The start, the end, and a disc boundary are all ends: a track moves
+      // within its own disc, so there is nothing to change.
+      if (
+        target < 0 ||
+        target >= tracklist.length ||
+        tracklist[target]!.discNumber !== tracklist[index]!.discNumber
+      ) {
+        return null;
+      }
+      const moved = [...tracklist];
+      [moved[index], moved[target]] = [moved[target]!, moved[index]!];
+      return moved;
+    }
+    case "set": {
+      // A track that leaves out its disc keeps the one it is on now.
+      const discs = new Map(
+        tracklist.map((item) => [item.trackId, item.discNumber]),
+      );
+      return edit.tracks.map((item) => ({
+        trackId: item.trackId,
+        discNumber: item.discNumber ?? discs.get(item.trackId) ?? 1,
+      }));
+    }
+  }
+}
+
+function tracklistOps(
+  albumId: string,
+  desired: TracklistItem[] | null,
+): CatalogChange {
+  return desired === null
+    ? []
+    : [{ op: "set_tracklist", albumId, tracks: desired }];
+}
+
+/** The catalog change of a tracklist edit, as the impact reads it. */
+async function tracklistChangeOf(
+  tx: DatabaseExecutor,
+  albumId: string,
+  edit: TracklistEdit,
+): Promise<CatalogChange> {
+  const ops = tracklistOps(albumId, await desiredTracklist(tx, albumId, edit));
+  if (edit.operation === "create") {
+    return [
+      {
+        op: "create_track",
+        trackId: NEW_TRACK,
+        title: edit.track.title,
+        credit: edit.track.credit ?? null,
+        artistIds: edit.track.artistIds,
+      },
+      ...ops,
+    ];
+  }
+  return ops;
 }
 
 /** Appends an existing track to the end of an album's tracklist. */
 export async function addTrackToAlbum(
   db: DatabaseExecutor,
-  _author: AuthorizedAuthor,
+  author: AuthorizedAuthor,
   albumId: unknown,
   trackId: unknown,
+  options: CatalogEditOptions = {},
 ): Promise<void> {
   const id = idOf(albumId);
   const track = idOf(trackId);
-  await guarded(() =>
-    db.transaction(async (tx) => {
-      await lockAlbumCatalogChange(tx, id, { addedTrackIds: [track] });
-      await lockAlbumForTracklist(tx, id);
-      const tracklist = await currentTracklist(tx, id);
-      if (tracklist.some((item) => item.trackId === track)) {
-        return;
-      }
-      await rewriteTracklist(tx, id, [
-        ...tracklist,
-        { trackId: track, discNumber: tracklist.at(-1)?.discNumber ?? 1 },
-      ]);
-    }),
+  await applyTracklistEdit(
+    db,
+    author,
+    id,
+    { operation: "add", trackId: track },
+    options,
   );
 }
 
 /** Removes a track from an album's tracklist. The track stays in the catalog. */
 export async function removeTrackFromAlbum(
   db: DatabaseExecutor,
-  _author: AuthorizedAuthor,
+  author: AuthorizedAuthor,
   albumId: unknown,
   trackId: unknown,
+  options: CatalogEditOptions = {},
 ): Promise<void> {
   const id = idOf(albumId);
   const track = idOf(trackId);
-  await guarded(() =>
-    db.transaction(async (tx) => {
-      await lockAlbumCatalogChange(tx, id);
-      await lockAlbumForTracklist(tx, id);
-      const tracklist = await currentTracklist(tx, id);
-      if (!tracklist.some((item) => item.trackId === track)) {
-        throw new CatalogError("not_found");
-      }
-      await rewriteTracklist(
-        tx,
-        id,
-        tracklist.filter((item) => item.trackId !== track),
-      );
-    }),
+  await applyTracklistEdit(
+    db,
+    author,
+    id,
+    { operation: "remove", trackId: track },
+    options,
   );
 }
 
@@ -1316,36 +1454,149 @@ export async function removeTrackFromAlbum(
  */
 export async function moveTrackInAlbum(
   db: DatabaseExecutor,
-  _author: AuthorizedAuthor,
+  author: AuthorizedAuthor,
   albumId: unknown,
   trackId: unknown,
   direction: unknown,
+  options: CatalogEditOptions = {},
 ): Promise<void> {
   const id = idOf(albumId);
   const track = idOf(trackId);
   const way = parse(moveDirection, direction);
+  await applyTracklistEdit(
+    db,
+    author,
+    id,
+    { operation: "move", trackId: track, direction: way },
+    options,
+  );
+}
+
+// add, remove, and move: the locks of ADR 0013 § 4.1, the gate, then the
+// rewrite. The album's `updated_at` moves forward, so a token is used once.
+async function applyTracklistEdit(
+  db: DatabaseExecutor,
+  author: AuthorizedAuthor,
+  id: string,
+  edit: Exclude<TracklistEdit, { operation: "set" | "create" }>,
+  options: CatalogEditOptions,
+): Promise<void> {
   await guarded(() =>
     db.transaction(async (tx) => {
-      await lockAlbumCatalogChange(tx, id);
+      const confirmation = presentedConfirmation(
+        author,
+        { kind: "album", id },
+        options,
+      );
+      await lockAlbumCatalogChange(
+        tx,
+        id,
+        edit.operation === "add" ? { addedTrackIds: [edit.trackId] } : {},
+      );
       await lockAlbumForTracklist(tx, id);
-      const tracklist = await currentTracklist(tx, id);
-      const index = tracklist.findIndex((item) => item.trackId === track);
-      if (index === -1) {
-        throw new CatalogError("not_found");
-      }
-      const target = way === "up" ? index - 1 : index + 1;
-      // The start, the end, and a disc boundary are all ends: a track moves
-      // within its own disc, so there is nothing to change.
-      if (
-        target < 0 ||
-        target >= tracklist.length ||
-        tracklist[target]!.discNumber !== tracklist[index]!.discNumber
-      ) {
+      const desired = await desiredTracklist(tx, id, edit);
+      await confirmCatalogChange(
+        tx,
+        { kind: "album", id },
+        tracklistOps(id, desired),
+        confirmation,
+      );
+      if (desired === null) {
         return;
       }
-      const moved = [...tracklist];
-      [moved[index], moved[target]] = [moved[target]!, moved[index]!];
-      await rewriteTracklist(tx, id, moved);
+      await rewriteTracklist(tx, id, desired);
+      await advanceAlbum(tx, id);
     }),
+  );
+}
+
+const tracklistEditInput = z.discriminatedUnion("operation", [
+  z.strictObject({ operation: z.literal("add"), trackId: z.uuid() }),
+  z.strictObject({ operation: z.literal("remove"), trackId: z.uuid() }),
+  z.strictObject({
+    operation: z.literal("move"),
+    trackId: z.uuid(),
+    direction: moveDirection,
+  }),
+  z.strictObject({
+    operation: z.literal("set"),
+    tracks: tracklistInput.shape.tracks,
+  }),
+  z.strictObject({ operation: z.literal("create"), track: newTrackInput }),
+]);
+
+/**
+ * One tracklist edit, by its description: the review dialog's confirm sends
+ * it with the token (ADR 0013 step 4), and it runs the same command as the
+ * editor's ordinary save.
+ */
+export async function editTracklist(
+  db: DatabaseExecutor,
+  author: AuthorizedAuthor,
+  albumId: unknown,
+  input: unknown,
+): Promise<void> {
+  const { patch, options } = withoutConfirmation(input, {});
+  const edit = parse(tracklistEditInput, patch);
+  switch (edit.operation) {
+    case "add":
+      return addTrackToAlbum(db, author, albumId, edit.trackId, options);
+    case "remove":
+      return removeTrackFromAlbum(db, author, albumId, edit.trackId, options);
+    case "move":
+      return moveTrackInAlbum(
+        db,
+        author,
+        albumId,
+        edit.trackId,
+        edit.direction,
+        options,
+      );
+    case "set":
+      return setAlbumTracklist(
+        db,
+        author,
+        albumId,
+        { tracks: edit.tracks },
+        options,
+      );
+    case "create": {
+      await createTrack(
+        db,
+        author,
+        { ...edit.track, albumId: idOf(albumId) },
+        options,
+      );
+      return;
+    }
+  }
+}
+
+/** The review of a tracklist edit (ADR 0013 step 4); see `previewArtistChange`. */
+export async function previewTracklistChange(
+  db: DatabaseExecutor,
+  author: AuthorizedAuthor,
+  albumId: unknown,
+  input: unknown,
+): Promise<CatalogChangePreview> {
+  const id = idOf(albumId);
+  const parsed = parse(tracklistEditInput, input);
+  const edit: TracklistEdit =
+    parsed.operation === "create"
+      ? {
+          operation: "create",
+          track: {
+            title: parsed.track.title,
+            credit: parsed.track.credit,
+            artistIds: parsed.track.artistIds,
+          },
+        }
+      : parsed;
+  return guarded(() =>
+    previewed(
+      previewCatalogChange(db, author, { kind: "album", id }, (executor) =>
+        tracklistChangeOf(executor, id, edit),
+      ),
+    ),
   );
 }

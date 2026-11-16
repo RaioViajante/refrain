@@ -102,10 +102,12 @@ describe("lockInOrder", () => {
 
 function bodyOf(path: string, name: string): string {
   const code = readFileSync(path, "utf8");
-  const start = code.indexOf(`export async function ${name}(`);
+  const exported = code.indexOf(`export async function ${name}(`);
+  const start =
+    exported >= 0 ? exported : code.indexOf(`\nasync function ${name}(`);
   expect(start, `${path}: ${name}`).toBeGreaterThan(-1);
-  const next = code.indexOf("\nexport ", start + 1);
-  return code.slice(start, next === -1 ? undefined : next);
+  const next = code.slice(start + 1).search(/\n(export )?async function /);
+  return code.slice(start, next === -1 ? undefined : start + 1 + next);
 }
 
 describe("every command of § 4.1 and § 4.4 locks through the helpers, first", () => {
@@ -181,23 +183,20 @@ describe("every command of § 4.1 and § 4.4 locks through the helpers, first", 
       "lockAlbumCatalogChange(tx, id, {",
       ["lockAlbumForTracklist(tx, id)", "rewriteTracklist("],
     ],
+    [CATALOG, "addTrackToAlbum", "applyTracklistEdit(", []],
+    [CATALOG, "removeTrackFromAlbum", "applyTracklistEdit(", []],
+    [CATALOG, "moveTrackInAlbum", "applyTracklistEdit(", []],
     [
       CATALOG,
-      "addTrackToAlbum",
-      "lockAlbumCatalogChange(tx, id, { addedTrackIds: [track] })",
-      ["lockAlbumForTracklist(tx, id)", "rewriteTracklist("],
-    ],
-    [
-      CATALOG,
-      "removeTrackFromAlbum",
-      "lockAlbumCatalogChange(tx, id)",
-      ["lockAlbumForTracklist(tx, id)", "rewriteTracklist("],
-    ],
-    [
-      CATALOG,
-      "moveTrackInAlbum",
-      "lockAlbumCatalogChange(tx, id)",
-      ["lockAlbumForTracklist(tx, id)", "rewriteTracklist("],
+      "applyTracklistEdit",
+      "lockAlbumCatalogChange(",
+      [
+        "lockAlbumForTracklist(tx, id)",
+        "desiredTracklist(tx, id, edit)",
+        "confirmCatalogChange(",
+        "rewriteTracklist(",
+        "advanceAlbum(",
+      ],
     ],
     [
       MUSIC,

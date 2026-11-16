@@ -121,6 +121,22 @@ describe.skipIf(!process.env.REFRAIN_BENCH)("the impact's cost", () => {
       );
       const previewMs = performance.now() - previewStarted;
       expect(preview.confirmation).not.toBeNull();
+      // ADR 0013 step 4: a tracklist edit on a served album (two tracks
+      // swapped), reviewed the same way.
+      const reorderStarted = performance.now();
+      const [first, second, ...rest] = albums[0]!.trackIds;
+      const reorder = await catalogPublicImpact(tx, [
+        {
+          op: "set_tracklist",
+          albumId: albums[0]!.albumId,
+          tracks: [second!, first!, ...rest].map((trackId) => ({
+            trackId,
+            discNumber: 1,
+          })),
+        },
+      ]);
+      const reorderMs = performance.now() - reorderStarted;
+      expect(reorder.pages.length).toBeGreaterThan(0);
 
       console.info(
         JSON.stringify({
@@ -129,6 +145,7 @@ describe.skipIf(!process.env.REFRAIN_BENCH)("the impact's cost", () => {
           buildMs,
           impactMs: times.map((ms) => Math.round(ms)),
           previewMs: Math.round(previewMs),
+          tracklistImpactMs: Math.round(reorderMs),
           affectedPages: preview.review.pages.length,
         }),
       );

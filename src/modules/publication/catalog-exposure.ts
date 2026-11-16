@@ -220,3 +220,24 @@ export async function artistsNewlyExposedByCredit(
      order by ar.id`);
   return result.rows.map((row) => row.id);
 }
+
+/**
+ * ADR 0013 § 1.3, a permanent refusal: whether a publicly visible memory
+ * links a track on the album. Called by `deleteAlbum` after
+ * `lockAlbumCatalogChange`, which holds those memories' entries `FOR SHARE`,
+ * so no publication of such a memory can change the answer before the
+ * command commits.
+ */
+export async function albumHasTrackInServedMemory(
+  tx: Transaction,
+  albumId: string,
+): Promise<boolean> {
+  const result = await tx.execute<{ used: boolean }>(sql`
+    select exists (
+      select 1
+        from memory_music mm
+        join (${publicLanguageVersions}) pv on pv.entry_id = mm.memory_id
+       where mm.track_id in (select atr.track_id from album_tracks atr
+                              where atr.album_id = ${albumId})) as used`);
+  return result.rows[0]?.used ?? false;
+}

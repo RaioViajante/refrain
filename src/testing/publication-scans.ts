@@ -691,6 +691,9 @@ export const PUBLICATION_INDEX_EXPORTS: ReadonlySet<string> = new Set([
   "lockTrackCatalogChange",
   "lockReleaseImport",
   "lockAlbumJournalTransition",
+  // ADR 0013 step 4: the permanent refusals; reads only.
+  "albumHasTrackInServedMemory",
+  "catalogChangeAltersServedPages",
   // ADR 0013 step 3: confirmed catalog changes. The preview mints a
   // `catalog_change` token; the gate and the verifier consume it; the rest
   // are types of the review (no token, no writing, no internal id).
@@ -909,6 +912,8 @@ const MINTING_PREVIEWS = [
   "previewArtistChange",
   "previewAlbumChange",
   "previewTrackChange",
+  // ADR 0013 step 4: tracklists.
+  "previewTracklistChange",
 ];
 const CONSUMERS = [
   "publishLanguageVersion",
@@ -923,6 +928,13 @@ const CONSUMERS = [
   "updateArtist",
   "updateAlbum",
   "updateTrack",
+  // ADR 0013 step 4: the tracklist commands and a new track on an album.
+  "setAlbumTracklist",
+  "addTrackToAlbum",
+  "removeTrackFromAlbum",
+  "moveTrackInAlbum",
+  "createTrack",
+  "editTracklist",
 ];
 const SIGNING = "signConfirmation";
 
@@ -1306,6 +1318,8 @@ const CONSUMER_ACTIONS = [
   "updateArtistAction",
   "updateAlbumAction",
   "updateTrackAction",
+  // ADR 0013 step 4.
+  "editTracklistAction",
 ];
 const ACTION_SITES: Record<string, string[]> = {
   previewPublicationAction: ["fetchPreview"],
@@ -1320,6 +1334,7 @@ const ACTION_SITES: Record<string, string[]> = {
   updateArtistAction: ["confirm"],
   updateAlbumAction: ["confirm"],
   updateTrackAction: ["confirm"],
+  editTracklistAction: ["confirm"],
 };
 // The one file that defines each action.
 const ACTION_DEFINITIONS: Record<string, string> = {
@@ -1338,6 +1353,7 @@ const ACTION_DEFINITIONS: Record<string, string> = {
   updateArtistAction: "src/app/studio/artists/actions.ts",
   updateAlbumAction: "src/app/studio/albums/actions.ts",
   updateTrackAction: "src/app/studio/tracks/actions.ts",
+  editTracklistAction: "src/app/studio/albums/actions.ts",
 };
 // Files that may name each action at all (outside its own definition).
 const ACTION_FILES: Record<string, string[]> = {
@@ -1379,6 +1395,12 @@ const ACTION_FILES: Record<string, string[]> = {
     "src/app/studio/catalog/catalog-change-dialog.tsx",
     "src/app/studio/tracks/track-form.tsx",
   ],
+  // ADR 0013 step 4: the dialog's confirm, and the tracklist editor's resave
+  // when nothing published changes any more (no token).
+  editTracklistAction: [
+    "src/app/studio/catalog/catalog-change-dialog.tsx",
+    "src/app/studio/albums/tracklist-editor.tsx",
+  ],
 };
 const DEFERRED = new Set([
   "useEffect",
@@ -1414,6 +1436,7 @@ const DIALOG_ACTION_IMPORTS: Record<string, string[]> = {
     "updateArtistAction",
     "updateAlbumAction",
     "updateTrackAction",
+    "editTracklistAction",
     "previewCatalogChangeAction",
     "CatalogChangeReviewResult",
   ],

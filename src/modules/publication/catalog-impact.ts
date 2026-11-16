@@ -91,6 +91,17 @@ export const IMPACT_TIME_LIMIT_MS = 20_000;
 /** Served pages (journals, memories, artists) it reads, at most. */
 export const IMPACT_MAX_SERVED_PAGES = 5_000;
 
+/**
+ * The limits in force. Constants in production; the integration tests lower
+ * them for a moment to show each one failing closed on real PostgreSQL.
+ * Internal: not exported from the module's entry points.
+ */
+export const impactLimits = {
+  statementTimeoutMs: IMPACT_STATEMENT_TIMEOUT_MS,
+  timeLimitMs: IMPACT_TIME_LIMIT_MS,
+  maxServedPages: IMPACT_MAX_SERVED_PAGES,
+};
+
 /** The catalog tables the public reads use; each one is copied. */
 export const CATALOG_TABLES = [
   "artists",
@@ -284,8 +295,8 @@ export async function catalogPublicImpact(
     // computation, has a limit; past either, it fails closed. The setting is
     // local to this transaction or savepoint and undone by its rollback.
     await tx.execute(sql`
-      select set_config('statement_timeout', ${String(IMPACT_STATEMENT_TIMEOUT_MS)}, true)`);
-    const deadline = Date.now() + IMPACT_TIME_LIMIT_MS;
+      select set_config('statement_timeout', ${String(impactLimits.statementTimeoutMs)}, true)`);
+    const deadline = Date.now() + impactLimits.timeLimitMs;
     // Every artist whose public address the change moves, opens, or closes,
     // from the address maps themselves (a rename can collide with another
     // artist's suffixed address, not only with a namesake's base).
@@ -907,7 +918,7 @@ export async function renderServedCatalog(
 
   if (
     journals.rows.length + memories.rows.length + artistIds.length >
-    IMPACT_MAX_SERVED_PAGES
+    impactLimits.maxServedPages
   ) {
     throw new CatalogImpactError(
       "too_large",

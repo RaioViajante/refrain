@@ -307,8 +307,14 @@ export async function releaseImportPlan(
     sql`select distinct atr.album_id as id from album_tracks atr
          where ${inList(sql`atr.track_id`, reusedTrackIds)}`,
   );
+  // Also the journals of those albums (ADR 0013 step 4): whether one is
+  // served decides which album a memory names, so the refusal of an import
+  // that would change it is decided while no such publication can commit.
   return new LockPlan()
-    .involve({ memoriesLinkingTracks: reusedTrackIds })
+    .involve({
+      memoriesLinkingTracks: reusedTrackIds,
+      journalsOfAlbums: albums,
+    })
     .album(albums, "share")
     .artist(reusedArtistIds, "share")
     .track(reusedTrackIds, "no key update");

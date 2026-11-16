@@ -379,3 +379,16 @@ export async function requireCatalogChangeConfirmation(
   }
   return impact;
 }
+
+/**
+ * Whether `change` would alter any served page, failing closed like the gate
+ * (`impact_unavailable`, `retry`). For the permanent refusals of ADR 0013
+ * § 1.3, which are decided, not confirmed.
+ */
+export async function catalogChangeAltersServedPages(
+  tx: Transaction,
+  change: CatalogChange,
+): Promise<boolean> {
+  const impact = await computeImpact(tx, change);
+  return impact.pages.length > 0 || impact.artistAddresses.length > 0;
+}

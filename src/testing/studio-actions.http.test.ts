@@ -2750,6 +2750,11 @@ describe("what a request without the author's session can do", () => {
         args: [ids.artist, { name: `${label} Hijacked`, kind: "group" }],
         routeId: ids.artist,
       },
+      // ADR 0013 step 4: a tracklist edit confirmed in the review dialog.
+      editTracklistAction: {
+        args: [ids.album, { operation: "remove", trackId: ids.track }],
+        routeId: ids.album,
+      },
       // ADR 0013 step 3: the catalog edits' review, which mints a token.
       previewCatalogChangeAction: {
         args: ["artist", ids.artist, { name: `${label} Hijacked` }],

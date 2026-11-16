@@ -6,9 +6,11 @@ import { useState, type FormEvent } from "react";
 
 import {
   addTrackToAlbumAction,
+  editTracklistAction,
   moveTrackInAlbumAction,
   removeTrackFromAlbumAction,
 } from "@/app/studio/albums/actions";
+import { CatalogChangeDialog } from "@/app/studio/catalog/catalog-change-dialog";
 import { ConfirmDialog, useSubmission } from "@/app/studio/form-kit";
 import { formatDuration, parseDuration } from "@/app/studio/format";
 import { failureMessage } from "@/app/studio/messages";
@@ -52,7 +54,12 @@ export function TracklistEditor({
   const router = useRouter();
   const { words, href } = useStudio();
   const w = words.tracklist;
-  const { pending, failure, run, clearFailure } = useSubmission();
+  const { pending, failure, run, clearFailure, report } = useSubmission();
+  // ADR 0013 step 4: the edit waiting for the author's review, when it would
+  // change a published page, and what to say once it is saved.
+  const [reviewing, setReviewing] = useState<
+    { edit: Record<string, unknown>; done: string } | undefined
+  >();
   const [message, setMessage] = useState("");
   const [existing, setExisting] = useState("");
   const [title, setTitle] = useState("");
@@ -64,12 +71,17 @@ export function TracklistEditor({
   async function change(
     work: () => Promise<ActionResult<unknown>>,
     done: string,
+    edit: Record<string, unknown>,
   ): Promise<boolean> {
     setMessage("");
     const result = await run(work);
     if (result.ok) {
       setMessage(done);
       router.refresh();
+    } else if (result.code === "confirmation_required") {
+      // A published page shows this tracklist: the review dialog asks first.
+      clearFailure();
+      setReviewing({ edit, done });
     }
     return result.ok;
   }
@@ -79,7 +91,12 @@ export function TracklistEditor({
     if (existing === "") {
       return;
     }
-    if (await change(() => addTrackToAlbumAction(albumId, existing), w.added)) {
+    if (
+      await change(() => addTrackToAlbumAction(albumId, existing), w.added, {
+        operation: "add",
+        trackId: existing,
+      })
+    ) {
       setExisting("");
     }
   }
@@ -102,6 +119,14 @@ export function TracklistEditor({
             albumId,
           }),
         w.created,
+        {
+          operation: "create",
+          track: {
+            title,
+            lengthMs,
+            artistIds: creditAlbumArtists ? albumArtistIds : [],
+          },
+        },
       )
     ) {
       setTitle("");
@@ -149,6 +174,11 @@ export function TracklistEditor({
                         () =>
                           moveTrackInAlbumAction(albumId, track.trackId, "up"),
                         w.movedUp(track.title),
+                        {
+                          operation: "move",
+                          trackId: track.trackId,
+                          direction: "up",
+                        },
                       )
                     }
                   >
@@ -168,6 +198,11 @@ export function TracklistEditor({
                             "down",
                           ),
                         w.movedDown(track.title),
+                        {
+                          operation: "move",
+                          trackId: track.trackId,
+                          direction: "down",
+                        },
                       )
                     }
                   >
@@ -326,6 +361,7 @@ export function TracklistEditor({
           await change(
             () => removeTrackFromAlbumAction(albumId, track.trackId),
             w.removed(track.title),
+            { operation: "remove", trackId: track.trackId },
           );
           setRemoving(undefined);
         }}
@@ -333,6 +369,38 @@ export function TracklistEditor({
       >
         <p>{w.removeBody(removing?.title ?? "")}</p>
       </ConfirmDialog>
+
+      <CatalogChangeDialog
+        kind="tracklist"
+        recordId={albumId}
+        payload={reviewing?.edit}
+        onSaved={() => {
+          setMessage(reviewing?.done ?? "");
+          if (reviewing?.edit.operation === "create") {
+            setTitle("");
+            setLength("");
+          }
+          setReviewing(undefined);
+          router.refresh();
+        }}
+        onNothingToConfirm={() => {
+          // Nothing published changes any more: the editor saves as before.
+          const waiting = reviewing;
+          setReviewing(undefined);
+          if (waiting) {
+            void change(
+              () => editTracklistAction(albumId, waiting.edit),
+              waiting.done,
+              waiting.edit,
+            );
+          }
+        }}
+        onRefused={(refused) => {
+          setReviewing(undefined);
+          report(refused);
+        }}
+        onCancel={() => setReviewing(undefined)}
+      />
     </div>
   );
 }

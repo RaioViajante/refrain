@@ -31,6 +31,12 @@ export const updateTrack = withDatabase(commands.updateTrack);
 export const previewArtistChange = withDatabase(commands.previewArtistChange);
 export const previewAlbumChange = withDatabase(commands.previewAlbumChange);
 export const previewTrackChange = withDatabase(commands.previewTrackChange);
+// ADR 0013 step 4: tracklists. The review mints a token; `editTracklist` is
+// the review dialog's confirm, the same commands as the editor's saves.
+export const previewTracklistChange = withDatabase(
+  commands.previewTracklistChange,
+);
+export const editTracklist = withDatabase(commands.editTracklist);
 export const archiveTrack = withDatabase(commands.archiveTrack);
 export const restoreTrack = withDatabase(commands.restoreTrack);
 export const deleteTrack = withDatabase(commands.deleteTrack);

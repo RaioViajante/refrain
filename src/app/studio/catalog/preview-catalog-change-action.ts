@@ -9,6 +9,7 @@ import {
   previewAlbumChange,
   previewArtistChange,
   previewTrackChange,
+  previewTracklistChange,
   type CatalogChangePreview,
 } from "@/modules/catalog";
 import { authorizeAuthor } from "@/modules/identity";
@@ -41,6 +42,8 @@ export async function previewCatalogChangeAction(
         return previewAlbumChange(author, recordId, input);
       case "track":
         return previewTrackChange(author, recordId, input);
+      case "tracklist":
+        return previewTracklistChange(author, recordId, input);
       default:
         throw new CatalogError("invalid_input");
     }

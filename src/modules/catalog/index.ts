@@ -112,6 +112,8 @@ export {
   previewAlbumChange,
   previewArtistChange,
   previewTrackChange,
+  previewTracklistChange,
+  editTracklist,
 } from "./studio";
 export type {
   CatalogChangePreview,

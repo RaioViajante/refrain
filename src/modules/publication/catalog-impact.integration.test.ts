@@ -354,7 +354,7 @@ describe("what a change affects", () => {
           },
         ],
         () =>
-          catalog.setAlbumTracklist(tx, author, albumId, {
+          confirmed.setAlbumTracklist(tx, author, albumId, {
             tracks: [track3, track1, track2].map((trackId) => ({ trackId })),
           }),
       );
@@ -368,7 +368,7 @@ describe("what a change affects", () => {
       // the id the command chose, is what the impact must predict.
       const newTitle = uniqueLabel("Track 4");
       const before = await renderServedCatalog(tx);
-      const created = await catalog.createTrack(tx, author, {
+      const created = await confirmed.createTrack(tx, author, {
         title: newTitle,
         albumId,
         artistIds: [world.artistA.id],
@@ -427,7 +427,7 @@ describe("what a change affects", () => {
         firstReleaseYear: 2000,
         trackTitles: [],
       });
-      await catalog.setAlbumTracklist(tx, author, later.albumId, {
+      await confirmed.setAlbumTracklist(tx, author, later.albumId, {
         tracks: [{ trackId: recording }],
       });
       const memoryId = await createTestMemory(tx, {
@@ -472,12 +472,15 @@ describe("what a change affects", () => {
         ],
       });
 
-      // Deleting the album it now names names the other one again.
-      impact = await impactOf(
-        tx,
-        [{ op: "delete_album", albumId: later.albumId }],
-        () => catalog.deleteAlbum(tx, author, later.albumId),
-      );
+      // Deleting the album it now names would name the other one again: the
+      // impact says so, and deleting it is refused outright (ADR 0013 § 1.3,
+      // a permanent refusal since step 4).
+      impact = await catalogPublicImpact(tx, [
+        { op: "delete_album", albumId: later.albumId },
+      ]);
+      await expect(
+        catalog.deleteAlbum(tx, author, later.albumId),
+      ).rejects.toMatchObject({ failure: "public_page" });
       expect(atomsOf(impact, memoryId)[0]?.changes).toEqual([
         {
           atom: "music.1.album.title",

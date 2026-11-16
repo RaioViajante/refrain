@@ -49,6 +49,7 @@ export {
   artistsNewlyExposedByCredit,
   isAlbumOnPublicPage,
   isArtistOnPublicPage,
+  albumHasTrackInServedMemory,
   lockAlbumCatalogChange,
   lockAlbumPublicExposure,
   lockArtistPublicExposure,
@@ -59,6 +60,7 @@ export {
 // ADR 0013 step 3: confirmed catalog changes. The preview mints a
 // `catalog_change` token; the catalog commands verify and gate with it.
 export {
+  catalogChangeAltersServedPages,
   previewCatalogChange,
   requireCatalogChangeConfirmation,
   verifyCatalogChangeConfirmation,

@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { updateAlbumAction } from "@/app/studio/albums/actions";
+import {
+  editTracklistAction,
+  updateAlbumAction,
+} from "@/app/studio/albums/actions";
 import { updateArtistAction } from "@/app/studio/artists/actions";
 import {
   previewCatalogChangeAction,
@@ -19,7 +22,7 @@ import { localizedHref } from "@/i18n/paths";
 
 type Failure = Extract<ActionResult<unknown>, { ok: false }>;
 
-export type CatalogRecordKind = "artist" | "album" | "track";
+export type CatalogRecordKind = "artist" | "album" | "track" | "tracklist";
 
 type Stage =
   | { name: "loading" }
@@ -181,7 +184,12 @@ function OpenCatalogChangeDialog({
           ? await updateArtistAction(recordId, { ...payload, confirmation })
           : kind === "album"
             ? await updateAlbumAction(recordId, { ...payload, confirmation })
-            : await updateTrackAction(recordId, { ...payload, confirmation });
+            : kind === "track"
+              ? await updateTrackAction(recordId, { ...payload, confirmation })
+              : await editTracklistAction(recordId, {
+                  ...payload,
+                  confirmation,
+                });
     } catch {
       result = { ok: false, code: "unreachable" };
     }

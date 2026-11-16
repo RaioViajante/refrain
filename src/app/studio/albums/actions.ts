@@ -6,6 +6,7 @@ import { denied, perform } from "@/app/studio/perform";
 import type { ActionResult } from "@/app/studio/results";
 import {
   addTrackToAlbum,
+  editTracklist,
   archiveAlbum,
   createAlbum,
   deleteAlbum,
@@ -110,6 +111,20 @@ export async function moveTrackInAlbumAction(
   return perform(() =>
     moveTrackInAlbum(authorization.author, albumId, trackId, direction),
   );
+}
+
+// ADR 0013 step 4: a tracklist edit confirmed in the review dialog. The token
+// is inside the input, only from the dialog's confirm control; the command
+// takes it out and checks it.
+export async function editTracklistAction(
+  albumId: unknown,
+  input: unknown,
+): Promise<ActionResult> {
+  const authorization = await authorizeAuthor(await headers());
+  if (!authorization.ok) {
+    return denied(authorization.reason);
+  }
+  return perform(() => editTracklist(authorization.author, albumId, input));
 }
 
 // Artwork (M3.2): a front cover from the Cover Art Archive, chosen by the

@@ -42,6 +42,7 @@ import { ProviderError } from "@/integrations/provider";
 import type { AuthorizedAuthor } from "@/modules/identity";
 import {
   isAlbumOnPublicPage,
+  catalogChangeAltersServedPages,
   lockAlbumCatalogChange,
   lockAlbumPublicExposure,
   lockReleaseImport,
@@ -903,6 +904,13 @@ async function guarded<Result>(work: () => Promise<Result>): Promise<Result> {
  * The cover is set only if the author chose one of the release's front
  * images. Nothing is published.
  */
+// The lowest and highest ids a new album could get, for the import's
+// refusal (ADR 0013 § 1.3): the named-album order ends with the id.
+const IMPORT_PLACEHOLDERS = [
+  "00000000-0000-4000-8000-000000000000",
+  "ffffffff-ffff-4fff-bfff-ffffffffffff",
+] as const;
+
 export async function importMusicRelease(
   db: DatabaseExecutor,
   _author: AuthorizedAuthor,
@@ -972,6 +980,52 @@ export async function importMusicRelease(
         reusedTracks.map((row) => row.id),
         reusedArtists.map((row) => row.id),
       );
+      // ADR 0013 § 1.3, a permanent refusal: reusing a recording a served
+      // memory links can change the album that memory names. Decided after
+      // the locks, before anything is inserted, by the impact of the new
+      // album holding the reused recordings, with the new album's id at
+      // either end of the order (a tie on year and title is refused too:
+      // conservative, whatever id the insert gets).
+      const reusedNow = await tx
+        .select({
+          id: schema.tracks.id,
+          mbRecordingId: schema.tracks.mbRecordingId,
+        })
+        .from(schema.tracks)
+        .where(
+          inArray(
+            schema.tracks.mbRecordingId,
+            plan.tracks.map((track) => track.mbRecordingId),
+          ),
+        );
+      const reusedIds = new Map(
+        reusedNow.map((row) => [row.mbRecordingId!, row.id]),
+      );
+      const reusedTracklist = plan.tracks.flatMap((track) => {
+        const id = reusedIds.get(track.mbRecordingId);
+        return id ? [{ trackId: id, discNumber: track.discNumber }] : [];
+      });
+      if (reusedTracklist.length > 0) {
+        for (const placeholder of IMPORT_PLACEHOLDERS) {
+          if (
+            await catalogChangeAltersServedPages(tx, [
+              {
+                op: "create_album",
+                albumId: placeholder,
+                title: plan.title,
+                firstReleaseYear: plan.firstReleaseYear,
+              },
+              {
+                op: "set_tracklist",
+                albumId: placeholder,
+                tracks: reusedTracklist,
+              },
+            ])
+          ) {
+            throw new CatalogError("public_page");
+          }
+        }
+      }
       const [album] = await tx
         .select({ id: schema.albums.id })
         .from(schema.albums)
