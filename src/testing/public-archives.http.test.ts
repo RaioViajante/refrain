@@ -333,6 +333,7 @@ async function expectSharedNotFoundPayload(
   path: string,
   sameFormUnknown: string,
   label: string,
+  addresses: { requested: string; unknown: string },
 ) {
   const init = { headers: { cookie: PROBE_COOKIE } };
   const got = comparable(await request(base, path, init));
@@ -340,13 +341,18 @@ async function expectSharedNotFoundPayload(
   expect(got.status, label).toBe(404);
   expect(unknown.status, `${label}: the unknown address, same form`).toBe(404);
   expect(got.headers, label).toEqual(unknown.headers);
-  // The shared not-found payload; for a page segment the framework answers
-  // an empty body, and then so does the unknown address in that form.
-  if (got.body === "") {
-    expect(unknown.body, `${label}: an empty page segment`).toBe("");
-  } else {
+  // The shared not-found payload (for a page segment the framework answers an
+  // empty body), byte for byte the unknown address's in the same form once
+  // the address each payload echoes is the same and the framework's
+  // per-render identifiers are masked.
+  if (got.body !== "") {
     expect(got.body, label).toContain("/_not-found");
   }
+  const renderIds = (text: string) =>
+    text.replace(/(")[A-Za-z0-9_-]{21,23}(?![A-Za-z0-9_-])/g, "$1ID");
+  expect(renderIds(got.body), `${label}: the unknown address's body`).toBe(
+    renderIds(unknown.body.split(addresses.unknown).join(addresses.requested)),
+  );
   for (const marker of [
     ...PRIVATE_MARKER_LIST,
     ...MEMORY_MARKER_LIST,
@@ -376,6 +382,7 @@ describe("with public reads off, every archive is the unknown address in every r
             path,
             path.replace(`/${archive}`, baseline),
             `${name} on a server whose switch is off`,
+            { requested: `/${archive}`, unknown: baseline },
           );
           continue;
         }
@@ -825,6 +832,7 @@ describe("the About page, in both languages", () => {
             path,
             path.replace("/pt/about", unknown),
             `${name} on a server whose switch is off`,
+            { requested: "/pt/about", unknown },
           );
           continue;
         }

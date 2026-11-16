@@ -105,6 +105,9 @@ let on: ProductionServer;
 const withoutRenderIds = (text: string) =>
   text.replace(/(")[A-Za-z0-9_-]{21,23}(?![A-Za-z0-9_-])/g, "$1ID");
 
+/** Every answer as received, before any masking, for the marker scan. */
+const raw = new Map<string, string>();
+
 async function answers(): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   for (const [server, addresses] of [
@@ -115,10 +118,9 @@ async function answers(): Promise<Map<string, string>> {
       const answer = comparable(
         await request(server.baseURL, path, { headers: { cookie: COOKIE } }),
       );
-      out.set(
-        `${server === off ? "off" : "on"} ${path}`,
-        withoutRenderIds(JSON.stringify(answer)),
-      );
+      const key = `${server === off ? "off" : "on"} ${path}`;
+      raw.set(key, JSON.stringify(answer));
+      out.set(key, withoutRenderIds(JSON.stringify(answer)));
     }
   }
   return out;
@@ -208,7 +210,10 @@ describe("the router's URL forms of an address that is not served (ADR 0006 A13)
   });
 
   it("are a 404 with the shared not-found payload, and carry no stored text and no cookie", () => {
-    for (const [key, answer] of populated) {
+    for (const [key, masked] of populated) {
+      // Scanned as received: masking could hide a token of an ID's length.
+      const answer = raw.get(key)!;
+      expect(withoutRenderIds(answer), key).toBe(masked);
       const parsed = JSON.parse(answer) as {
         status: number;
         headers: Record<string, string>;
@@ -263,26 +268,33 @@ describe("the router's URL forms of an address that is not served (ADR 0006 A13)
     },
   );
 
-  it("answer every hidden memory's address as an unknown one in each form", async () => {
+  it("answer every hidden memory's address as an unknown one in each form, EN and /pt", async () => {
     // Every memory that is not served, by state (seedMemories).
     const hiddenMemories = memories!.hidden.map((memory) => memory.slug);
     expect(hiddenMemories.length).toBeGreaterThan(0);
     for (const hidden of hiddenMemories) {
       const unknown = `${prefix}-${"z".repeat(hidden.length - prefix.length - 1)}`;
-      for (const [i, path] of urlForms(`/memories/${hidden}`).entries()) {
-        const got = comparable(await request(on.baseURL, path));
-        const expected = comparable(
-          await request(on.baseURL, urlForms(`/memories/${unknown}`)[i]!),
-        );
-        expect(got.status, path).toBe(404);
-        expect(
-          withoutRenderIds(JSON.stringify(got).split(hidden).join("SLUG")),
-          path,
-        ).toBe(
-          withoutRenderIds(
-            JSON.stringify(expected).split(unknown).join("SLUG"),
-          ),
-        );
+      for (const section of ["/memories", "/pt/memories"]) {
+        const unknownForms = urlForms(`${section}/${unknown}`);
+        for (const [i, path] of urlForms(`${section}/${hidden}`).entries()) {
+          const got = comparable(
+            await request(on.baseURL, path, { headers: { cookie: COOKIE } }),
+          );
+          const expected = comparable(
+            await request(on.baseURL, unknownForms[i]!, {
+              headers: { cookie: COOKIE },
+            }),
+          );
+          expect(got.status, path).toBe(404);
+          expect(
+            withoutRenderIds(JSON.stringify(got).split(hidden).join("SLUG")),
+            path,
+          ).toBe(
+            withoutRenderIds(
+              JSON.stringify(expected).split(unknown).join("SLUG"),
+            ),
+          );
+        }
       }
     }
   });
