@@ -3,14 +3,14 @@
 **Status:**
 - **Part I** is the specification of **Refrain v3**, the design the owner approved as final on 2026-11-15. It replaces V4.4.
   - Its authority over the code is **accepted** ([ADR 0011](decisions/0011-refrain-v3-identity-and-product.md) § 1 and § 2, partly accepted by the owner on 2026-11-15). The accepted scope is listed in the ADR's Status; everything else in it, including R2 to R12, is still proposed.
-  - **Partly implemented on a branch, not merged:** the foundations, the public pages, and the Studio's shell ([evidence](evidence/v3-public.md)). The rest is built milestone by milestone in the [R track](roadmap.md#refrain-v3-rebuild-r-track).
+  - **Partly implemented** (#104, integrated through #112): the foundations, the public pages, and the Studio's shell ([evidence](evidence/v3-public.md)). The rest is built milestone by milestone in the [R track](roadmap.md#refrain-v3-rebuild-r-track).
 - **Part II** is the V4.4 specification, unchanged, kept for the record. Its visual rules are **superseded by ADR 0011 § 2**. It still describes the surfaces v3 has not replaced yet (for example, the Rough.js rating stars in the Studio), until the R milestone that replaces each one is merged.
 
 The two identities are named by their design files. "v3" (November 2026) is newer than "V4.4" (October 2026); the numbers are not a sequence ([ADR 0011, Context](decisions/0011-refrain-v3-identity-and-product.md#context)).
 
 # Part I — Refrain v3 specification
 
-**Implementation status.** Part I is implemented on draft PR #104, which is not merged, for the parts that need no decision. The [evidence](evidence/v3-public.md) lists:
+**Implementation status.** Part I is implemented for the parts that need no decision (#104, integrated through #112). The [evidence](evidence/v3-public.md) lists:
 - each built page and screen;
 - every deliberate difference from the reference, with its reason;
 - the per-band comparison with the reference at 1440 and 390 px.

@@ -81,3 +81,25 @@ Run on `4542dd8` (the five merges), on the disposable test database, reset befor
   - Vercel's overwrite of `x-forwarded-for` (#110);
   - the indexing policy.
 - **CI on the final head** is recorded in the pull request.
+
+## Review of the complete diff into `main` (`origin/main...4cf6c3c`)
+
+Before the merge into `main`, an independent review covered the whole diff: 166 files, 76 commits, #103 to #113.
+
+**GO**, with no Critical, High, or Medium finding. It verified:
+- every public v3 screen reads only through the Publication module's reading entry point, behind the switch;
+- A13 is scoped to the router's URL forms, and the proxy's only behaviour change is the not-found request's `User-Agent`;
+- `no-store` and the indexing constant hold;
+- every Studio screen, `/studio/system` included, authorizes first, and no Server Action changed;
+- there is no authentication-method change, and the sign-in limits fail closed;
+- `gitleaks` over the 69 non-merge commits found no secret;
+- the Music Story code is server-only and unwired;
+- the ADR Status lines match the owner's decision;
+- no test was skipped or weakened.
+
+| Finding | Done |
+| --- | --- |
+| Low: `AGENTS.md` and the Design System called v3 "on draft PR #104 (not merged)" | Updated to "integrated through #112" |
+| Low: `AGENTS.md` § 1 said the Studio follows V4.4 | Updated: the Studio follows v3 since #112 |
+| Low: "Administrative controls never appear on public pages" sat inside a bullet marked superseded | Restated as its own **binding** rule in `AGENTS.md` § 6 |
+| Low: the v3 rewrite of the artist, memory-page, and archives browser specs (#104) no longer runs their forced-colours, layout-shift, and visible-focus-ring checks. The 44 px target and axe checks remain | **Open follow-up**, not a security issue: restore those accessibility checks for the v3 pages in a test-only pull request |
