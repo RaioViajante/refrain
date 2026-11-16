@@ -323,159 +323,173 @@ describe("step 1's impact inside a command's locks", () => {
 });
 
 describe("no mix of catalog edits and publications deadlocks", () => {
-  it("races renames, credit changes, tracklists, and publications on shared rows, with no deadlock", async () => {
-    const world = await committedWorld("Race");
-    const [first, second, third] = world.album.trackIds as [
-      string,
-      string,
-      string,
-    ];
-    const outcomes: string[] = [];
-    const versionOf = async (entryId: string) =>
-      (
-        await getDb().execute<{ version: number }>(sql`
+  // Eight rounds of ten transactions, each of which may compute a public
+  // impact since steps 3 and 4: more than vitest's default five seconds on a
+  // slower machine. A time budget, not a weaker assertion.
+  it(
+    "races renames, credit changes, tracklists, and publications on shared rows, with no deadlock",
+    { timeout: 120_000 },
+    async () => {
+      const world = await committedWorld("Race");
+      const [first, second, third] = world.album.trackIds as [
+        string,
+        string,
+        string,
+      ];
+      const outcomes: string[] = [];
+      const versionOf = async (entryId: string) =>
+        (
+          await getDb().execute<{ version: number }>(sql`
           select version from entries where id = ${entryId}`)
-      ).rows[0]!.version;
-    await withConnections(10, async (dbs) => {
-      for (let round = 0; round < 8; round++) {
-        const journalVersion = await versionOf(world.journalId);
-        const memoryVersion = await versionOf(world.memoryId);
-        const preview = await previewPublication(dbs[0]!, author, {
-          entryId: world.journalId,
-          locale: "en",
-        });
-        const memoryPreview = await previewPublication(dbs[0]!, author, {
-          entryId: world.memoryId,
-          locale: "en",
-        });
-        const results = await raceAll([
-          () =>
-            failure(
-              publishLanguageVersion(dbs[0]!, author, {
-                entryId: world.journalId,
-                locale: "en",
-                expectedVersion: preview.disclosure.entryVersion,
-                confirmation: preview.confirmation,
-              }),
-            ),
-          () =>
-            failure(
-              catalog.updateArtist(dbs[1]!, author, world.artistId, {
-                name: uniqueLabel("Race name"),
-              }),
-            ),
-          () =>
-            failure(
-              catalog.updateTrack(dbs[2]!, author, first, {
-                title: uniqueLabel("Race track"),
-                artistIds: [world.artistId],
-              }),
-            ),
-          () =>
-            failure(
-              catalog.setAlbumTracklist(dbs[3]!, author, world.album.albumId, {
-                tracks: (round % 2 === 0
-                  ? [first, second, third]
-                  : [second, first, third]
-                ).map((trackId) => ({ trackId })),
-              }),
-            ),
-          () =>
-            failure(
-              catalog.updateAlbum(dbs[4]!, author, world.album.albumId, {
-                title: uniqueLabel("Race album"),
-                credits: [{ artistId: world.artistId }],
-              }),
-            ),
-          () =>
-            failure(
-              publishLanguageVersion(dbs[5]!, author, {
-                entryId: world.memoryId,
-                locale: "en",
-                expectedVersion: memoryPreview.disclosure.entryVersion,
-                confirmation: memoryPreview.confirmation,
-              }),
-            ),
-          // The saves (with no token: a public save is refused as
-          // confirmation_required, which is a known answer), a new track on
-          // the album, and the artwork takedown path.
-          () =>
-            failure(
-              saveAlbumJournal(dbs[6]!, author, {
-                entryId: world.journalId,
-                expectedVersion: journalVersion,
-                opening: uniqueLabel("Race opening"),
-              }),
-            ),
-          () =>
-            failure(
-              saveMemory(dbs[7]!, author, {
-                entryId: world.memoryId,
-                expectedVersion: memoryVersion,
-                title: uniqueLabel("Race memory"),
-              }),
-            ),
-          () =>
-            catalog
-              .createTrack(dbs[8]!, author, {
-                title: uniqueLabel("Race new track"),
-                albumId: world.album.albumId,
-                artistIds: [world.artistId],
-              })
-              .then(
-                ({ id }) => {
-                  created.tracks.push(id);
-                  return "succeeded";
-                },
-                (error: unknown) => failure(Promise.reject(error)),
+        ).rows[0]!.version;
+      await withConnections(10, async (dbs) => {
+        for (let round = 0; round < 8; round++) {
+          const journalVersion = await versionOf(world.journalId);
+          const memoryVersion = await versionOf(world.memoryId);
+          const preview = await previewPublication(dbs[0]!, author, {
+            entryId: world.journalId,
+            locale: "en",
+          });
+          const memoryPreview = await previewPublication(dbs[0]!, author, {
+            entryId: world.memoryId,
+            locale: "en",
+          });
+          const results = await raceAll([
+            () =>
+              failure(
+                publishLanguageVersion(dbs[0]!, author, {
+                  entryId: world.journalId,
+                  locale: "en",
+                  expectedVersion: preview.disclosure.entryVersion,
+                  confirmation: preview.confirmation,
+                }),
               ),
-          () =>
-            failure(
-              removeAlbumArtwork(dbs[9]!, author, {
-                albumId: world.album.albumId,
-                expectedCover: null,
-              }),
+            () =>
+              failure(
+                catalog.updateArtist(dbs[1]!, author, world.artistId, {
+                  name: uniqueLabel("Race name"),
+                }),
+              ),
+            () =>
+              failure(
+                catalog.updateTrack(dbs[2]!, author, first, {
+                  title: uniqueLabel("Race track"),
+                  artistIds: [world.artistId],
+                }),
+              ),
+            () =>
+              failure(
+                catalog.setAlbumTracklist(
+                  dbs[3]!,
+                  author,
+                  world.album.albumId,
+                  {
+                    tracks: (round % 2 === 0
+                      ? [first, second, third]
+                      : [second, first, third]
+                    ).map((trackId) => ({ trackId })),
+                  },
+                ),
+              ),
+            () =>
+              failure(
+                catalog.updateAlbum(dbs[4]!, author, world.album.albumId, {
+                  title: uniqueLabel("Race album"),
+                  credits: [{ artistId: world.artistId }],
+                }),
+              ),
+            () =>
+              failure(
+                publishLanguageVersion(dbs[5]!, author, {
+                  entryId: world.memoryId,
+                  locale: "en",
+                  expectedVersion: memoryPreview.disclosure.entryVersion,
+                  confirmation: memoryPreview.confirmation,
+                }),
+              ),
+            // The saves (with no token: a public save is refused as
+            // confirmation_required, which is a known answer), a new track on
+            // the album, and the artwork takedown path.
+            () =>
+              failure(
+                saveAlbumJournal(dbs[6]!, author, {
+                  entryId: world.journalId,
+                  expectedVersion: journalVersion,
+                  opening: uniqueLabel("Race opening"),
+                }),
+              ),
+            () =>
+              failure(
+                saveMemory(dbs[7]!, author, {
+                  entryId: world.memoryId,
+                  expectedVersion: memoryVersion,
+                  title: uniqueLabel("Race memory"),
+                }),
+              ),
+            () =>
+              catalog
+                .createTrack(dbs[8]!, author, {
+                  title: uniqueLabel("Race new track"),
+                  albumId: world.album.albumId,
+                  artistIds: [world.artistId],
+                })
+                .then(
+                  ({ id }) => {
+                    created.tracks.push(id);
+                    return "succeeded";
+                  },
+                  (error: unknown) => failure(Promise.reject(error)),
+                ),
+            () =>
+              failure(
+                removeAlbumArtwork(dbs[9]!, author, {
+                  albumId: world.album.albumId,
+                  expectedCover: null,
+                }),
+              ),
+          ]);
+          outcomes.push(
+            ...results.map((result) =>
+              result.status === "fulfilled"
+                ? result.value
+                : String(result.reason),
             ),
-        ]);
-        outcomes.push(
-          ...results.map((result) =>
-            result.status === "fulfilled"
-              ? result.value
-              : String(result.reason),
-          ),
-        );
-        // Put the journals back, so each round publishes again.
-        for (const entryId of [world.journalId, world.memoryId]) {
-          if ((await statusOf(entryId)) === "published") {
-            await unpublishLanguageVersion(
-              dbs[0]!,
-              author,
-              entryId,
-              "en",
-              "private",
-            );
+          );
+          // Put the journals back, so each round publishes again.
+          for (const entryId of [world.journalId, world.memoryId]) {
+            if ((await statusOf(entryId)) === "published") {
+              await unpublishLanguageVersion(
+                dbs[0]!,
+                author,
+                entryId,
+                "en",
+                "private",
+              );
+            }
           }
         }
-      }
-    });
-    // No deadlock (40P01), and every refusal is a known answer: a stale
-    // confirmation, because the catalog changed after its preview.
-    expect(outcomes.filter((outcome) => outcome.includes("40P01"))).toEqual([]);
-    // Every other answer is one of the engines' known refusals: a stale
-    // confirmation (the catalog or entry changed after its preview), a
-    // version conflict (a save or publication bumped the entry first), a
-    // confirmation required (a save of a version public by then), or A3's
-    // refusal of an artwork change while the journal is public.
-    const known = new Set([
-      "succeeded",
-      "confirmation_stale",
-      "version_conflict",
-      "confirmation_required",
-      "public_page",
-    ]);
-    expect(outcomes.filter((outcome) => !known.has(outcome))).toEqual([]);
-    expect(
-      outcomes.filter((outcome) => outcome === "succeeded").length,
-    ).toBeGreaterThan(0);
-  });
+      });
+      // No deadlock (40P01), and every refusal is a known answer: a stale
+      // confirmation, because the catalog changed after its preview.
+      expect(outcomes.filter((outcome) => outcome.includes("40P01"))).toEqual(
+        [],
+      );
+      // Every other answer is one of the engines' known refusals: a stale
+      // confirmation (the catalog or entry changed after its preview), a
+      // version conflict (a save or publication bumped the entry first), a
+      // confirmation required (a save of a version public by then), or A3's
+      // refusal of an artwork change while the journal is public.
+      const known = new Set([
+        "succeeded",
+        "confirmation_stale",
+        "version_conflict",
+        "confirmation_required",
+        "public_page",
+      ]);
+      expect(outcomes.filter((outcome) => !known.has(outcome))).toEqual([]);
+      expect(
+        outcomes.filter((outcome) => outcome === "succeeded").length,
+      ).toBeGreaterThan(0);
+    },
+  );
 });

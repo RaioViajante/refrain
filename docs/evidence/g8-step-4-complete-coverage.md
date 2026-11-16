@@ -87,7 +87,7 @@ The import's refusal computes the impact twice, at about 1.1 to 1.4 s each at th
 | `pnpm test:integration`, PostgreSQL 17.11 and **18.6** | 43 files each, **899 passed**, 1 skipped (the benchmark); the step 4 suite after the review fixes: 11 passed |
 | `pnpm build` | Succeeded |
 | `pnpm test:http` | 22 files, **809 passed** |
-| `pnpm test:e2e:run` | Run before the review fixes; result in the pull request. CI runs every suite on the final head |
+| `pnpm test:e2e:run` | **369 passed, 4 skipped**, 0 failed (before the review fixes, which change no page) |
 
 ## Independent security and concurrency review
 
@@ -99,6 +99,7 @@ Read-only, in a separate context, at `3c1348c`. **GO** for a draft, with **no Cr
 | Low: the inventory scanned only `export async function` in three files, and Drizzle writes only through `schema.` | It now matches `export function` and `export const … = async`, inventories every exported helper (as a reader where it writes nothing), requires every other file of the module to write nothing, and matches bare table names |
 | Low: a lock assertion lost `addedTrackIds` | Restored in `catalog-locks.test.ts` |
 | Low: the replay assertion was loose; the "another purpose" test presented no such token; the timeout test runs no command | Exact codes per operation; a publication's token is presented and refused as invalid; the evidence now says what the timeout test shows (the gate's mapping), and that the deadline and page-cap tests show the command refusing with nothing written |
+| CI, first run at `f7fcd9d`: the round-based race test exceeded vitest's default 5 s on CI's machines (no deadlock, no failed assertion: each racing command now computes an impact) | The test has an explicit 120 s budget; its assertions are unchanged |
 | Info: the "tie refused" wording | Corrected: a tie that changes no rendered wording is allowed |
 | Info: `impactLimits` is mutable, protected only by lint; the timeout test's exclusive lock could stall another suite on the same database; `onNothingToConfirm` could loop if preview and command disagreed; a retried `create` after `unreachable` could duplicate a track | Recorded |
 
