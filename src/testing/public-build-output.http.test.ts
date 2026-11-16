@@ -7,14 +7,15 @@
 //
 // - which routes under `/albums` and `/_not-found` are prerendered, and that
 //   no concrete address is among them;
-// - that the one prerendered page of the album route is a generic fallback
-//   shell, and that its visible text, links, metadata, and transport payloads
-//   hold only the frame (navigation, a loading line, the footer);
+// - that the album route prerenders an empty fallback and no shell: since
+//   issue #44 it renders per request in one pass (`instant = false`), as the
+//   memory and artist pages do, so the build holds no page of it at all, and
+//   its transport payloads name the parameter and no value;
 // - that the not-found view is the same for every address and names none.
 //
-// The shell is a prerendered response, so it is a "static shell" in the
-// literal sense; the test states exactly what it holds, so that the owner's
-// decision on the ADR's wording rests on facts (docs/evidence/m3-1.md).
+// Until issue #44 the route prerendered a generic shell (navigation, a
+// loading line, the footer), which ADR 0006 A2 allowed; it no longer does
+// (docs/evidence/m3-1.md, docs/evidence/v3-rc.md).
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
@@ -62,10 +63,16 @@ function visibleText(html: string): string {
 
 describe("what the build prerenders for the public routes", () => {
   it("prerenders no concrete album address", () => {
-    const concrete = Object.keys(manifest.routes).filter((route) =>
-      route.startsWith("/albums/"),
+    const concrete = Object.keys(manifest.routes).filter(
+      (route) =>
+        route.startsWith("/albums/") || route.startsWith("/pt/albums/"),
     );
     expect(concrete).toEqual([]);
+    expect(readdirSync(join(APP, "pt/albums")).sort()).toEqual([
+      "[slug].html",
+      "[slug].meta",
+      "[slug].segments",
+    ]);
     // Nothing under the build's album directory but the one parameterised
     // fallback and its segments: a file per address would be named for it.
     const names = readdirSync(join(APP, "albums"));
@@ -90,48 +97,30 @@ describe("what the build prerenders for the public routes", () => {
     expect(meta.routeCache?.isFallback).toBe(true);
   });
 
-  it("has a shell that is the frame only: navigation, a loading line, and the footer", () => {
-    const html = text(join(APP, "albums/[slug].html"));
-    expect(visibleText(html)).toBe(
-      "Skip to content refrain Albums Artists Memories EN / PT Loading… some songs take you back. Albums Artists Memories About sound EN / PT refrain is written by raioviajante",
-    );
-    // Links: the skip link, the name, the header's sections, the footer's
-    // sections and About, and the author's site (v3), the same on every page.
-    // The languages wait for the journal's own address. A link to an album
-    // would be entry data.
-    expect(
-      [...html.matchAll(/<a [^>]*href="([^"]*)"/g)].map((m) => m[1]),
-    ).toEqual([
-      "#main",
-      "/",
-      "/albums",
-      "/artists",
-      "/memories",
-      "/albums",
-      "/artists",
-      "/memories",
-      "/about",
-      "https://raioviajante.com",
-    ]);
-    // The loading state says nothing about whether anything exists.
-    expect(html).toContain('aria-busy="true"');
-    // No metadata that a journal could fill: the title and the description of
-    // an entry, and its social-preview tags.
-    expect(html).not.toMatch(/<title/);
-    expect(html).not.toMatch(
-      /<meta[^>]+(?:name|property)="(?:description|og:|twitter:)/,
-    );
-    expect(html).not.toMatch(/<link[^>]+rel="canonical"/);
-    // No data island: nothing the page would hydrate from but the framework's
-    // own streaming placeholders (`B:n` templates).
-    expect(html).not.toMatch(/application\/(?:ld\+)?json/);
+  it("prerenders no page of the album route: its fallback is empty, so it needs no client JavaScript (issue #44)", () => {
+    // The memory and artist routes' property: the route renders per request
+    // in one pass, and the build holds an empty document for it, so no frame,
+    // loading line, metadata, or data can be served from the build.
+    expect(text(join(APP, "albums/[slug].html"))).toBe("");
+    expect(text(join(APP, "pt/albums/[slug].html"))).toBe("");
+    for (const route of ["/albums/[slug]", "/pt/albums/[slug]"]) {
+      const entry = manifest.dynamicRoutes[route] as unknown as {
+        response?: string;
+        compute?: string;
+        htmlSize?: number;
+      };
+      expect(entry, route).toBeDefined();
+      expect(entry.response, route).toBe("empty");
+      expect(entry.compute, route).toBe("blocking");
+      expect(entry.htmlSize, route).toBe(0);
+    }
   });
 
   it("has transport payloads (segments, RSC, postponed state) that carry the parameter name and no value", () => {
-    const album = join(APP, "albums");
-    const payloads = files(album).filter((file) =>
-      /\.(rsc|meta|html)$/.test(file),
-    );
+    const payloads = [
+      ...files(join(APP, "albums")),
+      ...files(join(APP, "pt/albums")),
+    ].filter((file) => /\.(rsc|meta|html)$/.test(file));
     expect(payloads.length).toBeGreaterThanOrEqual(4);
     for (const file of payloads) {
       const body = text(file);

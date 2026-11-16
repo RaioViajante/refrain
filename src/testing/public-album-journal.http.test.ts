@@ -290,6 +290,19 @@ describe("public reads enabled: a published journal", () => {
     expect(response.headers["x-powered-by"]).toBeUndefined();
   });
 
+  it("is sent complete in one pass, in both languages: nothing waits in hidden markup for a script (#44)", async () => {
+    for (const path of [
+      `/albums/${slug("grace")}`,
+      `/pt/albums/${slug("grace")}`,
+    ]) {
+      const response = await request(on.baseURL, path);
+      expect(response.status, path).toBe(200);
+      expect(response.body, path).not.toMatch(/<div hidden id="S:/);
+      expect(response.body, path).not.toContain("Loading…");
+      expect(response.body, path).not.toContain('aria-busy="true"');
+    }
+  });
+
   it("shows exactly what the approved projection allows", async () => {
     const { body } = await request(on.baseURL, `/albums/${slug("grace")}`);
     // The album, the credit, the facts, the opening, the rating.

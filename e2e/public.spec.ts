@@ -263,6 +263,40 @@ test("a draft, and an unknown address, show the same not-found view with a real 
   await expect(page).toHaveTitle("Not found · refrain");
 });
 
+test("reads in full without JavaScript, in both languages (issue #44)", async ({
+  browser,
+}) => {
+  // Rendered on the server in one pass (`instant = false`): the writing, the
+  // rating, the tracks, and the footer's languages are in the document the
+  // server sends, and nothing waits for a script to be revealed.
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  const page = await context.newPage();
+  for (const [path, other] of [
+    [`/albums/${slug}`, "PT"],
+    [`/pt/albums/${slug}`, "EN"],
+  ] as const) {
+    const response = await page.goto(`${base}${path}`);
+    expect(response?.status(), path).toBe(200);
+    await expect(page.getByText("Loading…"), path).toHaveCount(0);
+    await expect(page.getByText(opening), path).toBeVisible();
+    await expect(page.locator(".gtop .by"), path).toContainText("Jeff Buckley");
+    await expect(page.locator(".review .fine2"), path).toBeVisible();
+    // A written track opens as a native disclosure, with no script.
+    const row = page.locator(".tk details.trw").first();
+    await expect(row, path).toBeVisible();
+    await row.locator("summary").click();
+    await expect(row, path).toHaveAttribute("open", "");
+    // The footer's languages are real links to this journal's other form.
+    const footer = page.locator("footer").last();
+    await expect(
+      footer.getByRole("link", { name: other, exact: true }),
+      path,
+    ).toBeVisible();
+    await expect(page.getByText("PRIVATE"), path).toHaveCount(0);
+  }
+  await context.close();
+});
+
 test("asks not to be indexed without JavaScript, in both languages, served or not", async ({
   browser,
 }) => {
