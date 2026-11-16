@@ -194,3 +194,33 @@ The owner approved Option B for the router's URL forms only, as [ADR 0006 A13](.
   - **Hidden against unknown, per form.** A draft, private, deleted, and unpublished journal's address, EN and `/pt`, and every hidden memory's address, each against an unknown address of the same length, in each URL form: **byte-identical** (the slug masked).
 
 Nothing in the application changed for Option B. The proxy and harness changes above are the same.
+
+### Verification after Option B
+
+| Check | Result |
+| --- | --- |
+| `pnpm lint`, `pnpm typecheck`, `pnpm format:check` | Clean |
+| `pnpm test` | 58 files, **1,307 passed** |
+| `pnpm test:integration` (database reset first) | 37 files, **805 passed** |
+| `pnpm build` | Succeeded |
+| `pnpm test:http` at `a2fdd67` (corrected harness, database reset first) | **21 files, 791 passed, 0 failed**: the 17 earlier failures pass under A13, and the new file passes |
+| `pnpm test:e2e:run` at `a2fdd67` (every project, `E2E_KEEP_SERVER_LOG=1`) | **357 passed, 0 failed, 4 skipped**; no `Failed to proxy` in any server's log |
+| After the review's fixes (`b8a3ebe`, tests only): `public-archives.http.test.ts` and `public-router-forms.http.test.ts` (database reset first) | **290 passed** |
+| Measured: each section's URL-form answer against an unknown address's in the same form, the unknown address's echoed path rewritten to the section's (six sections, EN and `/pt`, three forms) | **Byte-identical, 18 of 18** (per-render IDs masked) |
+
+### Independent review of the contract and tests (`a2fdd67`)
+
+**GO**, with no Critical or High finding. It confirmed:
+- the exception is scoped to paths ending in `.rsc` only, and does not match `?_rsc=`, `.json`, `_next/data`, a mid-path `.rsc`, or encoded spellings;
+- header-driven router forms keep byte identity;
+- nothing else was weakened;
+- the empty-database precondition is real, and the seeded states are the ones claimed;
+- the empty-against-populated comparison would fail on any database-dependent byte;
+- A13's approval quote matches the owner's.
+
+| Finding | What was done (`b8a3ebe`) |
+| --- | --- |
+| **Medium:** a non-empty URL-form body was checked for the not-found payload but never compared with the unknown address's in the same form | Now **byte for byte equal** to it, once the echoed address is the same and per-render IDs are masked. That holds for every section and form (measured above), and for the empty page segment |
+| **Low:** A13 said A7 was unchanged and mislocated A8 to A12 | A13 now states that it narrows A7 item 2 for these two forms, and where A8 to A12 are proposed |
+| **Low:** the memory comparison sent no cookie and covered no `/pt` | Both added |
+| **Low/Info:** markers were scanned after per-render IDs were masked | Now scanned on the raw answers |
