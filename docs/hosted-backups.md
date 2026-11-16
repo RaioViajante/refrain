@@ -1,5 +1,7 @@
 # Hosted Backups and Disaster Recovery
 
+**Deferred by the owner's choice on 2026-11-16.** The owner cancelled the provisioning that was about to start: the billing check (step 0a), key generation, encryption setup, and the `refrain-backups` repository. Nothing was provisioned, and nothing was half done. This is a deferral, not a completion: G6 stays open, and real writing is still not hosted, nor is the site made public, until backups are running and tested. The policy (ADR 0007) and the toolchain stay as they are, ready for when the owner resumes.
+
 **Status (2026-11-07):** F-02, issue [#65](https://github.com/RaioViajante/refrain/issues/65), gate **G6** in [#47](https://github.com/RaioViajante/refrain/issues/47). The toolchain in [`ops/backup/`](../ops/backup/) is **built and tested locally, on synthetic data, against a disposable PostgreSQL 18 server**. The policy, [ADR 0007](decisions/0007-hosted-backups-and-retention.md), was **accepted by the owner on 2026-11-07**. **Nothing is provisioned:**
 - no `refrain_backup` role exists in Neon;
 - no automation repository, secret, or schedule exists;

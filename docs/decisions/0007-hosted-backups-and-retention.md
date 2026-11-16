@@ -1,5 +1,6 @@
 # ADR 0007: Hosted Backups, Retention, and Recovery
 
+- **Provisioning deferred** by the owner's choice on 2026-11-16, before any provisioning step was run. The policy below stays accepted and unchanged. G6 stays open.
 - **Status:** **Accepted** by the owner on 2026-11-07, including the retention exception to ADR 0003 in § 2a ([Acceptance](#acceptance)). Acceptance sets the policy only. **No backup of the hosted database exists yet:** nothing is provisioned, and F-02 (#65) and gate G6 stay open until their [closing criteria](../hosted-backups.md#closing-f-02-and-g6) are met.
 - **Date:** Proposed 2026-11-06; accepted 2026-11-07. Proposed with F-02 (issue [#65](https://github.com/RaioViajante/refrain/issues/65)), for gate G6 ([#47](https://github.com/RaioViajante/refrain/issues/47)).
 - **Scope:** How long backups of the hosted database keep writing, including writing deleted later; what a restore from a backup may and may not do to publication and sessions; and where backups live. The mechanics are in [Hosted Backups](../hosted-backups.md).
