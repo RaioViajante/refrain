@@ -191,6 +191,7 @@ describe("every command of § 4.1 and § 4.4 locks through the helpers, first", 
       "applyTracklistEdit",
       "lockAlbumCatalogChange(",
       [
+        'edit.operation === "add" ? { addedTrackIds: [edit.trackId] }',
         "lockAlbumForTracklist(tx, id)",
         "desiredTracklist(tx, id, edit)",
         "confirmCatalogChange(",

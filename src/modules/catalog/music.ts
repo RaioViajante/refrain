@@ -984,8 +984,8 @@ export async function importMusicRelease(
       // memory links can change the album that memory names. Decided after
       // the locks, before anything is inserted, by the impact of the new
       // album holding the reused recordings, with the new album's id at
-      // either end of the order (a tie on year and title is refused too:
-      // conservative, whatever id the insert gets).
+      // either end of the order, so the answer holds whatever id the insert
+      // gets (a tie that changes no rendered wording is allowed).
       const reusedNow = await tx
         .select({
           id: schema.tracks.id,
@@ -998,6 +998,12 @@ export async function importMusicRelease(
             plan.tracks.map((track) => track.mbRecordingId),
           ),
         );
+      // A recording that gained one of these identifiers after the locks were
+      // planned is not locked: refuse rather than decide without it.
+      const planned = new Set(reusedTracks.map((row) => row.id));
+      if (reusedNow.some((row) => !planned.has(row.id))) {
+        throw new CatalogError("retry");
+      }
       const reusedIds = new Map(
         reusedNow.map((row) => [row.mbRecordingId!, row.id]),
       );

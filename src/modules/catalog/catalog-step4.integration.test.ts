@@ -2,7 +2,7 @@ import { eq, sql } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { schema, type Transaction } from "@/db";
-import { normalizeSlug } from "@/modules/publication";
+import { normalizeSlug, previewPublication } from "@/modules/publication";
 // The limits are lowered for a moment to show each one failing closed.
 // eslint-disable-next-line no-restricted-imports
 import {
@@ -33,7 +33,6 @@ import {
   deleteAlbum,
   editTracklist,
   moveTrackInAlbum,
-  previewArtistChange,
   previewTracklistChange,
   removeTrackFromAlbum,
   setAlbumTracklist,
@@ -175,7 +174,9 @@ describe("tracklist edits on a published album", () => {
             }),
           ),
           edit.operation,
-        ).not.toBe("succeeded");
+        ).toBe(
+          edit.operation === "remove" ? "not_found" : "confirmation_stale",
+        );
       }
       const final = await titles(tx, albumId);
       expect(final).toHaveLength(3);
@@ -218,12 +219,23 @@ describe("tracklist edits on a published album", () => {
           ),
         ),
       ).toBe("confirmation_invalid");
-      // An artist's token is not an album's.
-      const artist = await createTestArtist(tx, uniqueLabel("Other"));
-      const artistToken = (
-        await previewArtistChange(tx, author, artist, { name: "[Test] X" })
-      ).confirmation;
-      expect(artistToken).toBeNull();
+      // Another purpose: a publication's token for a journal of this album.
+      const journal = await createTestAlbumJournal(tx, {
+        albumId: album.albumId,
+        slug: slugOf(),
+        versions: [{ locale: "en", status: "private", text: "[Test] Words" }],
+      });
+      const publication = await previewPublication(tx, author, {
+        entryId: journal,
+        locale: "en",
+      });
+      expect(
+        await failure(
+          moveTrackInAlbum(tx, author, album.albumId, edit.trackId, "up", {
+            confirmation: publication.confirmation,
+          }),
+        ),
+      ).toBe("confirmation_invalid");
     });
   });
 

@@ -163,6 +163,7 @@ const INVENTORY: Record<string, Record<string, Entry>> = {
       ],
     },
     previewTracklistChange: { class: "reader" },
+    translateCatalogFailure: { class: "reader" },
   },
   "music.ts": {
     searchMusic: { class: "reader" },
@@ -195,6 +196,13 @@ const INVENTORY: Record<string, Record<string, Entry>> = {
       reason: "fills a MusicBrainz identifier, which no page renders",
     },
     listAlbumArtworkChoices: { class: "reader" },
+    defaultProviders: { class: "reader" },
+    reviewOf: { class: "reader" },
+    artistKindOf: { class: "reader" },
+    planReleaseImport: { class: "reader" },
+    linkPlanOf: { class: "reader" },
+    artistPlanOf: { class: "reader" },
+    coverStateOf: { class: "reader" },
     setAlbumArtwork: {
       class: "refuse",
       evidence: [
@@ -215,6 +223,9 @@ const INVENTORY: Record<string, Record<string, Entry>> = {
   "photos.ts": {
     listArtistPhotoChoices: { class: "reader" },
     reviewArtistPhoto: { class: "reader" },
+    defaultPhotoProviders: { class: "reader" },
+    photoStateOf: { class: "reader" },
+    storedPhotoView: { class: "reader" },
     setArtistPhoto: {
       class: "refuse",
       evidence: [
@@ -236,11 +247,19 @@ const WRITE =
 
 function exportedFunctions(code: string): Map<string, string> {
   const found = new Map<string, string>();
-  const starts = [...code.matchAll(/^export async function (\w+)\(/gm)];
-  starts.forEach((match, index) => {
-    const end = starts[index + 1]?.index ?? code.length;
+  const starts = [
+    ...code.matchAll(
+      /^export (?:async function (\w+)\(|function (\w+)\(|const (\w+) = async)/gm,
+    ),
+  ].map((match) =>
+    Object.assign(match, { 1: match[1] ?? match[2] ?? match[3] }),
+  );
+  for (const match of starts) {
+    // A top-level function ends at the first line that is only "}".
+    const close = code.indexOf("\n}\n", match.index);
+    const end = close === -1 ? code.length : close + 3;
     found.set(match[1]!, code.slice(match.index, end));
-  });
+  }
   return found;
 }
 
@@ -271,6 +290,22 @@ describe("every catalog writer is classified", () => {
       }
     });
   }
+
+  it("no other file of the Catalog module writes", () => {
+    const listed = new Set(Object.keys(INVENTORY));
+    const others = readdirSync(CATALOG).filter(
+      (name) =>
+        /\.ts$/.test(name) &&
+        !/\.(test|integration\.test)\.ts$/.test(name) &&
+        !listed.has(name),
+    );
+    expect(others.length).toBeGreaterThan(0);
+    for (const name of others) {
+      expect(WRITE.test(readFileSync(join(CATALOG, name), "utf8")), name).toBe(
+        false,
+      );
+    }
+  });
 
   it("a confirm-class helper gates before it writes", () => {
     const code = readFileSync(join(CATALOG, "commands.ts"), "utf8");
@@ -343,9 +378,9 @@ describe("no catalog table is written outside the Catalog module", () => {
       }
       for (const table of DRIZZLE) {
         if (
-          new RegExp(`\\.(insert|update|delete)\\(schema\\.${table}\\)`).test(
-            code,
-          )
+          new RegExp(
+            `\\.(insert|update|delete)\\((schema\\.)?${table}\\)`,
+          ).test(code)
         ) {
           offenders.push(`${path}: schema.${table}`);
         }
