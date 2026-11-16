@@ -552,7 +552,7 @@ describe("publishing a memory", () => {
     });
   });
 
-  it("does not bind catalog wording: a song renamed after the review is the documented gap C11 (gate G8)", async () => {
+  it("binds catalog wording: a song renamed after the review makes the confirmation stale (ADR 0013 § 5)", async () => {
     await inScratchTransaction(async (tx) => {
       const music = await setUp(tx);
       const entryId = await newMemory(tx, [music.a]);
@@ -561,11 +561,15 @@ describe("publishing a memory", () => {
         .update(schema.tracks)
         .set({ title: "[Test] Renamed in the catalog" })
         .where(eq(schema.tracks.id, music.a));
-      // The confirmation still matches: catalog wording is shown, not bound
-      // (ADR 0006 § 2). Recorded as a release gate, not accepted as harmless.
-      await expect(publish(tx, entryId, confirmation)).resolves.toEqual({
-        changed: true,
-      });
+      // Gap C11 is closed for this surface: the page's wording changed after
+      // the review, so the confirmation no longer matches and nothing is
+      // written.
+      expect(
+        await refusedWithoutWriting(tx, (db) =>
+          publish(db, entryId, confirmation),
+        ),
+      ).toBe("confirmation_stale");
+      expect(await statusOf(tx, entryId)).not.toBe("published");
     });
   });
 

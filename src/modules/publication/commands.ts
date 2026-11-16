@@ -12,6 +12,7 @@ import {
 import type { AuthorizedAuthor } from "@/modules/identity";
 
 import { PublicationError, type PublicationFailure } from "./errors";
+import { lockAlbumJournalTransition } from "./catalog-locks";
 import { lockEntry, lockLiveEntry } from "./lock";
 import { isNormalizedSlug, suffixSlug } from "./slug";
 
@@ -51,7 +52,13 @@ export async function unpublishLanguageVersion(
     throw new PublicationError("invalid_status");
   }
   await db.transaction(async (tx) => {
-    await lockLiveEntry(tx, entryId);
+    const entry = await lockLiveEntry(tx, entryId);
+    // ADR 0013 § 4.4: an album journal's unpublication takes its album and
+    // credited artists in a write mode, after the entry, as a publication
+    // does.
+    if (entry.kind === "album_journal") {
+      await lockAlbumJournalTransition(tx, entryId);
+    }
     const updated = await tx.execute(sql`
       update entry_texts
          set status = ${status}, published_at = null, updated_at = now()

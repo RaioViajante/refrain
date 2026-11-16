@@ -4,6 +4,13 @@ import { sql } from "drizzle-orm";
 
 import type { DatabaseExecutor, Transaction } from "@/db";
 
+import {
+  albumChangePlan,
+  artistChangePlan,
+  lockInOrder,
+  releaseImportPlan,
+  trackChangePlan,
+} from "./catalog-locks";
 import { publicLanguageVersions } from "./predicate";
 import { publicArtists, servedAlbumJournalAddresses } from "./queries";
 
@@ -49,85 +56,122 @@ export async function isArtistOnPublicPage(
 }
 
 /**
- * The same answer inside the photograph command's transaction (M3.5; ADR
- * 0006, proposed amendment A5), decided only after two locks, in this order:
- *
- * 1. `FOR SHARE`, in ascending id order, every album-journal entry about an
- *    album that credits the artist: the journals whose publication decides
- *    whether the artist's page exists. Publishing, unpublishing, deleting,
- *    and restoring lock the entry `FOR UPDATE`, so none of them can change
- *    the answer before the command commits.
- * 2. The artist row, `FOR NO KEY UPDATE` (L3: catalog locks after entry
- *    locks). The answer also depends on `archived_at`, which archiving and
- *    restoring the artist change under the same row lock, so neither can
- *    change it either.
- *
- * What still can, recorded in A5's residual windows: a journal created
- * after step 1, or a credit to the artist added on another album after step
- * 1, followed by that journal's publication, all before this command
- * commits.
+ * The same answer inside an artist command's transaction (`updateArtist`,
+ * `archiveArtist`, `setArtistPhoto`), decided only after ADR 0013 § 4.1's
+ * locks, in its order: the album-journal entries and memories involved
+ * `FOR SHARE`, the albums crediting the artist or containing a track crediting
+ * it `FOR SHARE`, the artist `FOR NO KEY UPDATE`, and the tracks crediting it
+ * `FOR SHARE` (`artistChangePlan`). Publishing, unpublishing, deleting, and
+ * restoring lock the entry `FOR UPDATE`, and a publication share-locks the
+ * catalog rows it binds, so none of them can change the answer before the
+ * command commits.
  */
 export async function lockArtistPublicExposure(
   tx: Transaction,
   artistId: string,
 ): Promise<boolean> {
-  await tx.execute(sql`
-    select e.id
-      from entries e
-      join album_journals aj on aj.entry_id = e.id
-     where aj.album_id in (select aa.album_id
-                             from album_artists aa
-                            where aa.artist_id = ${artistId})
-     order by e.id
-       for share of e`);
-  await tx.execute(sql`
-    select id from artists where id = ${artistId} for no key update`);
+  await lockInOrder(tx, await artistChangePlan(tx, artistId));
   return isArtistOnPublicPage(tx, artistId);
 }
 
 /**
- * The same answer inside a catalog command's transaction, after locking every
- * journal entry about the album `FOR SHARE`, in a fixed order. Publishing,
- * unpublishing, deleting, and restoring lock the entry `FOR UPDATE`, so none
- * of them can change the answer before the command commits.
+ * The same locks, inside an album command that may change a served page
+ * (ADR 0013 § 4.1): `updateAlbum`, the tracklist commands, `createTrack` with
+ * an album (before it inserts anything), `deleteAlbum`, and, with
+ * `journalsOnly`, `linkAlbumToMusic`. The album is locked `FOR UPDATE`, its
+ * credited artists and the artists `artistIds` names `FOR SHARE`, its tracks
+ * `FOR SHARE`, and the tracks it adds `FOR NO KEY UPDATE`. With
+ * `creditJournalsOf`, the journals of every album crediting those artists are
+ * locked too (A5's set, for a credit change). Decides nothing: the caller
+ * decides after it returns.
+ */
+export async function lockAlbumCatalogChange(
+  tx: Transaction,
+  albumId: string,
+  options: {
+    artistIds?: readonly string[];
+    addedTrackIds?: readonly string[];
+    creditJournalsOf?: readonly string[];
+    journalsOnly?: boolean;
+  } = {},
+): Promise<void> {
+  const credited = await tx.execute<{ artist_id: string }>(sql`
+    select artist_id from album_artists where album_id = ${albumId}`);
+  await lockInOrder(
+    tx,
+    await albumChangePlan(tx, albumId, {
+      albumMode: "update",
+      artistIds: options.journalsOnly
+        ? []
+        : [
+            ...credited.rows.map((row) => row.artist_id),
+            ...(options.artistIds ?? []),
+          ],
+      addedTrackIds: options.addedTrackIds,
+      creditJournalsOf: options.creditJournalsOf,
+      journalsOnly: options.journalsOnly,
+    }),
+  );
+}
+
+/**
+ * The artwork commands' answer (A3), decided only after the same locks, with
+ * the album `FOR NO KEY UPDATE` (A3's mode, which the album's identity read
+ * takes again): whether a journal about the album is publicly visible.
  */
 export async function lockAlbumPublicExposure(
   tx: Transaction,
   albumId: string,
 ): Promise<boolean> {
-  await tx.execute(sql`
-    select e.id
-      from entries e
-      join album_journals aj on aj.entry_id = e.id
-     where aj.album_id = ${albumId}
-     order by e.id
-       for share of e`);
+  const credited = await tx.execute<{ artist_id: string }>(sql`
+    select artist_id from album_artists where album_id = ${albumId}`);
+  await lockInOrder(
+    tx,
+    await albumChangePlan(tx, albumId, {
+      albumMode: "no key update",
+      artistIds: credited.rows.map((row) => row.artist_id),
+    }),
+  );
   return isAlbumOnPublicPage(tx, albumId);
+}
+
+/** `updateTrack`'s locks (ADR 0013 § 4.1); the caller decides afterwards. */
+export async function lockTrackCatalogChange(
+  tx: Transaction,
+  trackId: string,
+  newArtistIds: readonly string[],
+): Promise<void> {
+  await lockInOrder(tx, await trackChangePlan(tx, trackId, newArtistIds));
+}
+
+/**
+ * `importMusicRelease`'s locks, taken before it inserts anything (ADR 0013
+ * § 4.1): the memories linking the reused recordings, the albums containing
+ * them, the reused artists, and the reused recordings.
+ */
+export async function lockReleaseImport(
+  tx: Transaction,
+  reusedTrackIds: readonly string[],
+  reusedArtistIds: readonly string[],
+): Promise<void> {
+  await lockInOrder(
+    tx,
+    await releaseImportPlan(tx, reusedTrackIds, reusedArtistIds),
+  );
 }
 
 /**
  * For restoring an archived artist (M3.5, review of PR #46): whether the
  * artist **would** have a public page once it is no longer archived, after
- * the same locks as `lockArtistPublicExposure`, in the same order (the
- * entries `FOR SHARE` in id order, then the artist row `FOR NO KEY UPDATE`).
- * It is `publicArtists` without its archived condition, from the same
+ * the same locks as `lockArtistPublicExposure`, in the same order. It is
+ * `publicArtists` without its archived condition, from the same
  * served-address rule.
  */
 export async function lockArtistRestoreExposure(
   tx: Transaction,
   artistId: string,
 ): Promise<boolean> {
-  await tx.execute(sql`
-    select e.id
-      from entries e
-      join album_journals aj on aj.entry_id = e.id
-     where aj.album_id in (select aa.album_id
-                             from album_artists aa
-                            where aa.artist_id = ${artistId})
-     order by e.id
-       for share of e`);
-  await tx.execute(sql`
-    select id from artists where id = ${artistId} for no key update`);
+  await lockInOrder(tx, await artistChangePlan(tx, artistId));
   const result = await tx.execute<{ shown: boolean }>(sql`
     select exists (
       select 1
@@ -136,36 +180,6 @@ export async function lockArtistRestoreExposure(
         join album_artists aa on aa.album_id = aj.album_id
        where aa.artist_id = ${artistId}) as shown`);
   return result.rows[0]?.shown ?? false;
-}
-
-/**
- * For a change of an album's credits (M3.5, the owner's review of PR #46):
- * locks `FOR SHARE`, in ascending id order, every album-journal entry that
- * decides whether the album and the credited artists are on public pages:
- * the journals about this album, and about every album that credits one of
- * `artistIds`. The caller then locks the album row and the artists' rows
- * (L3: catalog locks after entry locks) and decides with
- * `artistsNewlyExposedByCredit`.
- */
-export async function lockAlbumCreditExposure(
-  tx: Transaction,
-  albumId: string,
-  artistIds: readonly string[],
-): Promise<void> {
-  const others =
-    artistIds.length > 0
-      ? sql`or aj.album_id in (select aa.album_id
-                                 from album_artists aa
-                                where aa.artist_id in (${idList(artistIds)}))`
-      : sql``;
-  await tx.execute(sql`
-    select e.id
-      from entries e
-      join album_journals aj on aj.entry_id = e.id
-     where aj.album_id = ${albumId}
-           ${others}
-     order by e.id
-       for share of e`);
 }
 
 /** `id1, id2, …` as bound parameters, for `in (…)`. Never empty here. */

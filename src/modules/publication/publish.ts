@@ -29,6 +29,7 @@ import {
   type PublishState,
 } from "./disclosure";
 import { PublicationError } from "./errors";
+import { lockPublicationCatalog } from "./catalog-locks";
 import { inSnapshot, lockEntry } from "./lock";
 
 // Publishing (ADR 0006 §§ 2 to 4). Two operations and nothing else makes a
@@ -217,8 +218,16 @@ export async function publishLanguageVersion(
   }
 
   return db.transaction(async (tx) => {
-    await lockEntry(tx, data.entryId);
-    // Read after the lock was granted, so the database clock below is too.
+    const entry = await lockEntry(tx, data.entryId);
+    // ADR 0013 § 4.4: after the entry, the catalog rows the page renders, so
+    // a catalog edit either commits before (and the fingerprint below sees
+    // it) or waits for this publication.
+    const catalogLocked = await lockPublicationCatalog(
+      tx,
+      data.entryId,
+      entry.kind,
+    );
+    // Read after the locks were granted, so the database clock below is too.
     const state = await readPublishState(tx, data.entryId, data.locale);
     assertPublishable(state, data.expectedVersion);
 
@@ -229,7 +238,10 @@ export async function publishLanguageVersion(
     if (!confirmationIsCurrent(presented, state.nowMs)) {
       throw new PublicationError("confirmation_expired", disclosure);
     }
-    if (presented.fingerprint !== fingerprintOf(state, disclosure)) {
+    if (
+      !catalogLocked ||
+      presented.fingerprint !== fingerprintOf(state, disclosure)
+    ) {
       throw new PublicationError("confirmation_stale", disclosure);
     }
 

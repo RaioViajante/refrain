@@ -1011,9 +1011,7 @@ describe("publishing needs a token for exactly this state (test 3)", () => {
       });
     });
 
-    it("a catalog title edit is not in the fingerprint (gap C11, closed by gate G8)", async () => {
-      // Recorded, not endorsed: ADR 0006 conflict C11. Gate G8 blocks hosted
-      // exposure until a public page cannot change its wording unconfirmed.
+    it("a catalog title edit (ADR 0013 § 5: catalog wording is bound, closing C11)", async () => {
       await inRollbackTransaction(async (tx) => {
         const fixture = await journal(tx);
         const result = await preview(tx, fixture.entryId);
@@ -1021,9 +1019,9 @@ describe("publishing needs a token for exactly this state (test 3)", () => {
           .update(schema.tracks)
           .set({ title: "[Test] Renamed" })
           .where(eq(schema.tracks.id, fixture.album.trackIds[0]!));
-        await expect(publishWith(tx, fixture.entryId, result)).resolves.toEqual(
-          { changed: true },
-        );
+        expect(
+          (await failure(publishWith(tx, fixture.entryId, result))).failure,
+        ).toBe("confirmation_stale");
       });
     });
 

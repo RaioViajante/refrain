@@ -37,7 +37,8 @@ import { isFilled } from "./text";
 // The save then compares what it really wrote with that prediction.
 //
 // "Still writing" and "featured" play no part in visibility (INV-1, INV-2).
-// Catalog wording (track titles) is not an atom: the documented gap C11.
+// Catalog wording (track titles) is not an atom of the delta; since ADR 0013
+// step 2 the confirmation binds it separately (change.ts, catalog-binding.ts).
 
 /** One language version of the entry, as stored. */
 export interface SurfaceVersion {

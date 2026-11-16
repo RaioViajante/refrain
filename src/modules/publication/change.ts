@@ -15,6 +15,12 @@ import {
   type VerifiedConfirmation,
 } from "@/modules/identity";
 
+import { albumJournalCatalog, memoryLinksCatalog } from "./catalog-binding";
+import {
+  lockAlbumJournalCatalog,
+  lockMemoryCatalog,
+  type CatalogLink,
+} from "./catalog-locks";
 import { canonicalJson } from "./disclosure";
 import { PublicationError } from "./errors";
 import { inSnapshot } from "./lock";
@@ -86,6 +92,7 @@ export interface PublicChangePreview {
 function changeFingerprint(
   before: EntrySurface,
   delta: PublicChangeDelta,
+  catalog: unknown,
 ): string {
   const material = {
     entryId: delta.entryId,
@@ -105,8 +112,38 @@ function changeFingerprint(
       before: change.before ?? null,
       after: change.after,
     })),
+    // ADR 0013 § 5: the catalog wording of the page (an album journal's), or
+    // of every link of the memory before and after the save, so a catalog
+    // edit between the preview and the save makes it stale.
+    catalog,
   };
   return hash(canonicalJson(material));
+}
+
+function linksOf(surface: EntrySurface): CatalogLink[] {
+  return (surface.memory?.music ?? []).map((key) =>
+    key.startsWith("track:")
+      ? { trackId: key.slice("track:".length) }
+      : { albumId: key.slice("album:".length) },
+  );
+}
+
+/** The catalog wording a save's confirmation binds (ADR 0013 § 5). */
+async function changeCatalog(
+  db: DatabaseExecutor,
+  before: EntrySurface,
+  predicted: EntrySurface,
+): Promise<unknown> {
+  if (before.kind === "album_journal") {
+    return albumJournalCatalog(db, before.entryId, { asPublished: false });
+  }
+  if (before.kind === "memory") {
+    return {
+      before: await memoryLinksCatalog(db, linksOf(before)),
+      after: await memoryLinksCatalog(db, linksOf(predicted)),
+    };
+  }
+  return null;
 }
 
 function hash(text: string): string {
@@ -153,10 +190,18 @@ export async function previewPublicChange(
   input: { entryId: string; expectedVersion: number; change: ProposedChange },
 ): Promise<PublicChangePreview> {
   const binding = parseBinding(input);
-  const before = await inSnapshot(db, (executor) =>
-    readEntrySurface(executor, binding.entryId),
-  );
-  const { delta } = evaluate(before, binding.expectedVersion, input.change);
+  const { before, delta, catalog } = await inSnapshot(db, async (executor) => {
+    const read = await readEntrySurface(executor, binding.entryId);
+    const evaluated = evaluate(read, binding.expectedVersion, input.change);
+    return {
+      before: read,
+      ...evaluated,
+      catalog:
+        evaluated.delta.changes.length === 0
+          ? null
+          : await changeCatalog(executor, read, evaluated.predicted),
+    };
+  });
   if (delta.changes.length === 0) {
     return { delta, confirmation: null, expiresAtMs: null };
   }
@@ -167,7 +212,7 @@ export async function previewPublicChange(
     purpose: "change_public",
     entryId: binding.entryId,
     entryVersion: before.version,
-    fingerprint: changeFingerprint(before, delta),
+    fingerprint: changeFingerprint(before, delta, catalog),
     issuedAtMs: before.nowMs,
   });
   if (!signed.ok) {
@@ -242,6 +287,19 @@ export async function requirePublicChangeConfirmation(
     binding.expectedVersion,
     input.change,
   );
+  // ADR 0013 § 4.4: under the entry lock, the catalog rows the page renders,
+  // `FOR SHARE`: an album journal's album, credited artists, and rendered
+  // tracks; a memory's links before and after the save, their albums and
+  // the albums containing their tracks, and the artists credited on them.
+  let catalogLocked = true;
+  if (before.kind === "album_journal") {
+    await lockAlbumJournalCatalog(tx, binding.entryId, "save");
+  } else if (before.kind === "memory") {
+    catalogLocked = await lockMemoryCatalog(tx, [
+      ...linksOf(before),
+      ...linksOf(predicted),
+    ]);
+  }
   if (delta.changes.length === 0) {
     return { predicted, delta };
   }
@@ -252,7 +310,11 @@ export async function requirePublicChangeConfirmation(
   if (!confirmationIsCurrent(presented, before.nowMs)) {
     throw new PublicationError("confirmation_expired", undefined, delta);
   }
-  if (presented.fingerprint !== changeFingerprint(before, delta)) {
+  const catalog = await changeCatalog(tx, before, predicted);
+  if (
+    !catalogLocked ||
+    presented.fingerprint !== changeFingerprint(before, delta, catalog)
+  ) {
     throw new PublicationError("confirmation_stale", undefined, delta);
   }
   return { predicted, delta };

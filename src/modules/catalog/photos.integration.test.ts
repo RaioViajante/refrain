@@ -16,7 +16,7 @@ import {
 } from "@/testing";
 import {
   isArtistOnPublicPage,
-  lockAlbumCreditExposure,
+  lockAlbumCatalogChange,
   lockArtistPublicExposure,
 } from "@/modules/publication";
 import { FIXTURE } from "@/testing/provider-fixtures";
@@ -1577,7 +1577,11 @@ describe("the public page guard, over real connections", () => {
       let locked!: () => void;
       const isLocked = new Promise<void>((resolve) => (locked = resolve));
       const guard = first!.transaction(async (tx) => {
-        await lockAlbumCreditExposure(tx, owner.albumIds[0]!, []);
+        // ADR 0013 step 2: `lockAlbumCatalogChange` replaced it, with the same
+        // entry share locks first.
+        await lockAlbumCatalogChange(tx, owner.albumIds[0]!, {
+          creditJournalsOf: [],
+        });
         locked();
         await held;
       });

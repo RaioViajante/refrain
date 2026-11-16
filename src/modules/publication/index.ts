@@ -47,11 +47,16 @@ export {
   artistsNewlyExposedByCredit,
   isAlbumOnPublicPage,
   isArtistOnPublicPage,
-  lockAlbumCreditExposure,
+  lockAlbumCatalogChange,
   lockAlbumPublicExposure,
   lockArtistPublicExposure,
   lockArtistRestoreExposure,
+  lockReleaseImport,
+  lockTrackCatalogChange,
 } from "./catalog-exposure";
+// ADR 0013 § 4.4: an album journal's deletion takes its album and credited
+// artists after its entry lock, in the lock order (catalog-locks.ts).
+export { lockAlbumJournalTransition } from "./catalog-locks";
 // The publication predicate itself (./predicate) is internal: other modules
 // read public data only through these functions.
 export {

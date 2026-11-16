@@ -12,6 +12,7 @@ import {
 import type { AuthorizedAuthor } from "@/modules/identity";
 import {
   assertWrittenAsPredicted,
+  lockAlbumJournalTransition,
   normalizeSlug,
   previewPublicChange,
   PublicationError,
@@ -378,6 +379,10 @@ export async function deleteAlbumJournal(
     if (journal.deleted) {
       throw new JournalError("entry_deleted");
     }
+    // ADR 0013 § 4.4: a takedown takes the album and its credited artists in
+    // a write mode, so it serializes with every publication that counted the
+    // artist pages this journal keeps open.
+    await lockAlbumJournalTransition(tx, id);
     await tx
       .update(schema.entries)
       .set({ deletedAt: sql`now()` })

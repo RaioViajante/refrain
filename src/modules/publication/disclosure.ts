@@ -14,6 +14,12 @@ import type {
 import { artistPhotoOf } from "@/integrations/wikimedia-commons";
 
 import { artistAddresses } from "./artist-address";
+import {
+  albumJournalCatalog,
+  memoryLinksCatalog,
+  type AlbumJournalCatalog,
+  type MemoryLinksCatalog,
+} from "./catalog-binding";
 import { PublicationError } from "./errors";
 import { readMemoryMusic, type PublicMemoryMusic } from "./memory-music";
 import { isFilled } from "./text";
@@ -110,8 +116,9 @@ export interface PublishDisclosure {
   /**
    * A memory's music as the public page shows it, in the same order as
    * `memory.music`: titles, credited artists, the album, and where each is
-   * linked now (M3.7). Catalog wording, shown and not part of the
-   * fingerprint (C11). Empty for every other kind.
+   * linked now (M3.7). Catalog wording, shown; bound into the fingerprint
+   * through `PublishState.catalog` since ADR 0013 step 2. Empty for every
+   * other kind.
    */
   memoryMusic: PublicMemoryMusic[];
   /**
@@ -155,6 +162,11 @@ export interface PublishState {
   flaggedWithoutText: number;
   artistPages: DisclosedArtistPage[];
   artistAddressChanges: DisclosedArtistAddressChange[];
+  /**
+   * The catalog wording the page will render (ADR 0013 § 5): bound into the
+   * fingerprint, so a catalog edit after the preview makes it stale.
+   */
+  catalog: AlbumJournalCatalog | MemoryLinksCatalog | null;
 }
 
 // UTC text with microseconds, so the connection's TimeZone setting cannot
@@ -309,6 +321,12 @@ export async function readPublishState(
     row.kind === "album_journal"
       ? await readArtistExposure(db, entryId)
       : { pages: [], changes: [] };
+  const catalog =
+    row.kind === "album_journal"
+      ? await albumJournalCatalog(db, entryId, { asPublished: true })
+      : memory !== null
+        ? await memoryLinksCatalog(db, memory.music)
+        : null;
 
   return {
     kind: row.kind,
@@ -333,6 +351,7 @@ export async function readPublishState(
     flaggedWithoutText,
     artistPages: artists.pages,
     artistAddressChanges: artists.changes,
+    catalog,
   };
 }
 
@@ -512,14 +531,16 @@ export function canonicalJson(value: unknown): string {
  * unkeyed and proves nothing about who computed it: it only says whether two
  * states are the same. The token is what carries authority.
  *
- * Catalog wording (a track's title, a memory's music as the page names it,
- * `memoryMusic`) is deliberately not in it: that is the documented gap C11,
- * closed by gate G8, not accepted as harmless. The one
- * exception (M3.5; proposed ADR 0006 A5) is the artist pages publishing
- * would open, with their names, addresses, and photographs, and the public
- * pages whose address would change: a new page is exposure, not wording, so
- * a change to any of them between the preview and the publication makes the
- * confirmation stale.
+ * Since ADR 0013 step 2 the catalog wording the page renders is in it too
+ * (`catalog`, § 5): for an album journal its title, year, label, cover,
+ * credits with each link's presence and address, the reference edition's
+ * tracks, the tracks its reflections name, and the served memories whose
+ * pages the publication may change; for a memory each link's rendered
+ * wording, the album it names, and that album's year and credits. A catalog
+ * edit between the preview and the publication therefore makes the
+ * confirmation stale. As before (A5), the artist pages publishing would open,
+ * with their names, addresses, and photographs, and the public pages whose
+ * address would change, are bound as well.
  */
 export function fingerprintOf(
   state: PublishState,
@@ -551,6 +572,7 @@ export function fingerprintOf(
     })),
     artistPages: disclosure.artistPages,
     artistAddressChanges: disclosure.artistAddressChanges,
+    catalog: state.catalog,
   };
   return createHash("sha256")
     .update(canonicalJson(material), "utf8")

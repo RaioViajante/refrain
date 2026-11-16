@@ -14,9 +14,10 @@ import {
 import type { AuthorizedAuthor } from "@/modules/identity";
 import {
   artistsNewlyExposedByCredit,
-  lockAlbumCreditExposure,
+  lockAlbumCatalogChange,
   lockArtistPublicExposure,
   lockArtistRestoreExposure,
+  lockTrackCatalogChange,
 } from "@/modules/publication";
 import { fieldErrorsOf } from "@/validation";
 
@@ -459,19 +460,16 @@ export async function updateAlbum(
       // for the first time is refused, because no confirmation covers it;
       // the way to do it is to unpublish, change the credits, and publish
       // again, through the publication review.
-      if (credits) {
-        await lockAlbumCreditExposure(tx, id, creditedIds);
-      }
+      // ADR 0013 § 4.1: every entry the album's pages depend on, the album
+      // (FOR UPDATE), its stored and new credited artists, and its tracks,
+      // in that order; for a credit change also the journals of every album
+      // crediting the new artists (A5's set). Decided only after.
+      await lockAlbumCatalogChange(tx, id, {
+        artistIds: creditedIds,
+        creditJournalsOf: credits ? creditedIds : undefined,
+      });
       await lockAlbum(tx, id);
       if (credits) {
-        await tx.execute(sql`
-          select id from artists
-           where id in (${sql.join(
-             creditedIds.map((artistId) => sql`${artistId}`),
-             sql`, `,
-           )})
-           order by id
-             for share`);
         const linked = await linkedAlbumArtists(tx, id);
         await assertArtistsLinkable(tx, creditedIds, linked);
         const added = creditedIds.filter((artistId) => !linked.has(artistId));
@@ -560,15 +558,21 @@ export async function deleteAlbum(
   albumId: unknown,
 ): Promise<void> {
   const id = idOf(albumId);
-  await guarded(async () => {
-    const deleted = await db
-      .delete(schema.albums)
-      .where(eq(schema.albums.id, id))
-      .returning({ id: schema.albums.id });
-    if (deleted.length === 0) {
-      throw new CatalogError("not_found");
-    }
-  });
+  await guarded(() =>
+    db.transaction(async (tx) => {
+      // ADR 0013 § 4.1: the album's entries and its tracks' memories, then
+      // the album, before the delete (which decides nothing in its own
+      // statement).
+      await lockAlbumCatalogChange(tx, id);
+      const deleted = await tx
+        .delete(schema.albums)
+        .where(eq(schema.albums.id, id))
+        .returning({ id: schema.albums.id });
+      if (deleted.length === 0) {
+        throw new CatalogError("not_found");
+      }
+    }),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -607,6 +611,13 @@ export async function createTrack(
   const { albumId, artistIds, ...fields } = parse(newTrackInput, input);
   return guarded(() =>
     db.transaction(async (tx) => {
+      // ADR 0013 § 4.1: with an album, its entries, the album, and the named
+      // artists are locked before anything is inserted (an insert first would
+      // hold the artists' key-share locks out of order).
+      if (albumId) {
+        await lockAlbumCatalogChange(tx, albumId, { artistIds });
+        await lockAlbumForTracklist(tx, albumId);
+      }
       await assertArtistsLinkable(tx, artistIds, new Set());
       const [track] = await tx
         .insert(schema.tracks)
@@ -615,7 +626,6 @@ export async function createTrack(
       const trackId = track!.id;
       await replaceTrackCredits(tx, trackId, artistIds);
       if (albumId) {
-        await lockAlbumForTracklist(tx, albumId);
         const tracklist = await currentTracklist(tx, albumId);
         await rewriteTracklist(tx, albumId, [
           ...tracklist,
@@ -644,6 +654,10 @@ export async function updateTrack(
   const { artistIds, ...fields } = parse(trackPatch, patch);
   await guarded(() =>
     db.transaction(async (tx) => {
+      // ADR 0013 § 4.1: the entries, then the albums containing the track,
+      // then its stored and new artists, then the track (FOR UPDATE). The
+      // album set read to plan the locks is never used to decide.
+      await lockTrackCatalogChange(tx, id, artistIds ?? []);
       const locked = await tx.execute(
         sql`select id from tracks where id = ${id} for update`,
       );
@@ -896,6 +910,9 @@ export async function setAlbumTracklist(
   const data = parse(tracklistInput, input);
   await guarded(() =>
     db.transaction(async (tx) => {
+      await lockAlbumCatalogChange(tx, id, {
+        addedTrackIds: data.tracks.map((item) => item.trackId),
+      });
       await lockAlbumForTracklist(tx, id);
       // A track that leaves out its disc keeps the one it is on now.
       const discs = new Map(
@@ -927,6 +944,7 @@ export async function addTrackToAlbum(
   const track = idOf(trackId);
   await guarded(() =>
     db.transaction(async (tx) => {
+      await lockAlbumCatalogChange(tx, id, { addedTrackIds: [track] });
       await lockAlbumForTracklist(tx, id);
       const tracklist = await currentTracklist(tx, id);
       if (tracklist.some((item) => item.trackId === track)) {
@@ -951,6 +969,7 @@ export async function removeTrackFromAlbum(
   const track = idOf(trackId);
   await guarded(() =>
     db.transaction(async (tx) => {
+      await lockAlbumCatalogChange(tx, id);
       await lockAlbumForTracklist(tx, id);
       const tracklist = await currentTracklist(tx, id);
       if (!tracklist.some((item) => item.trackId === track)) {
@@ -982,6 +1001,7 @@ export async function moveTrackInAlbum(
   const way = parse(moveDirection, direction);
   await guarded(() =>
     db.transaction(async (tx) => {
+      await lockAlbumCatalogChange(tx, id);
       await lockAlbumForTracklist(tx, id);
       const tracklist = await currentTracklist(tx, id);
       const index = tracklist.findIndex((item) => item.trackId === track);

@@ -1507,11 +1507,9 @@ describe("the Publication reading module", () => {
         "lockArtistRestoreExposure(tx, id)",
         ".update(schema.artists)",
       ],
-      [
-        "updateAlbum",
-        "lockAlbumCreditExposure(tx, id, creditedIds)",
-        "lockAlbum(tx, id)",
-      ],
+      // ADR 0013 step 2: the album's entries, the album, its artists, and
+      // its tracks, in that order, before the album row is read to decide.
+      ["updateAlbum", "lockAlbumCatalogChange(tx, id, {", "lockAlbum(tx, id)"],
     ] as const) {
       const text = body(name);
       const locked = text.indexOf(lock);
@@ -1539,7 +1537,10 @@ describe("the Publication reading module", () => {
     );
     // The entries are locked before the artist row (ADR 0006 § 7, L3).
     expect(guard).toBeLessThan(set.indexOf("artistRow(tx, artistId, true)"));
-    // The lock is a share lock on the entries, in id order.
+    // The lock is a share lock on the entries, in id order, then the artist
+    // row in a write mode, then the decision (ADR 0013 § 4.1, which keeps
+    // L3's order): `lockArtistPublicExposure` takes `artistChangePlan`
+    // through `lockInOrder`, and only then decides.
     const exposure = readFileSync(
       "src/modules/publication/catalog-exposure.ts",
       "utf8",
@@ -1547,17 +1548,34 @@ describe("the Publication reading module", () => {
     const lock = exposure.slice(
       exposure.indexOf("export async function lockArtistPublicExposure"),
     );
-    expect(lock).toMatch(/order by e\.id\s+for share of e/);
-    // Then the artist row, before the decision: archiving and restoring the
-    // artist change the answer too.
-    const entries = lock.indexOf("for share of e");
-    const artist = lock.indexOf(
-      "from artists where id = ${artistId} for no key update",
+    const taken = lock.indexOf(
+      "await lockInOrder(tx, await artistChangePlan(tx, artistId));",
     );
     const decision = lock.indexOf("return isArtistOnPublicPage(tx, artistId)");
+    expect(taken).toBeGreaterThan(-1);
+    expect(decision).toBeGreaterThan(taken);
+    const order = readFileSync(
+      "src/modules/publication/catalog-locks.ts",
+      "utf8",
+    );
+    const plan = order.slice(
+      order.indexOf("export async function artistChangePlan"),
+    );
+    expect(plan.slice(0, plan.indexOf("\n}\n"))).toContain(
+      '.artist([artistId], "no key update")',
+    );
+    const inOrder = order.slice(
+      order.indexOf("export async function lockInOrder"),
+    );
+    expect(inOrder).toMatch(/order by e\.id\s+for share of e/);
+    const entries = inOrder.indexOf("for share of e");
+    const albums = inOrder.indexOf("from albums where id");
+    const artists = inOrder.indexOf("from artists where id");
+    const tracks = inOrder.indexOf("from tracks where id");
     expect(entries).toBeGreaterThan(-1);
-    expect(artist).toBeGreaterThan(entries);
-    expect(decision).toBeGreaterThan(artist);
+    expect(albums).toBeGreaterThan(entries);
+    expect(artists).toBeGreaterThan(albums);
+    expect(tracks).toBeGreaterThan(artists);
   });
 
   it.each(reading)("%s imports no command, token, or other module", (file) => {

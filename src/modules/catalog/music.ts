@@ -42,7 +42,9 @@ import { ProviderError } from "@/integrations/provider";
 import type { AuthorizedAuthor } from "@/modules/identity";
 import {
   isAlbumOnPublicPage,
+  lockAlbumCatalogChange,
   lockAlbumPublicExposure,
+  lockReleaseImport,
 } from "@/modules/publication";
 import { cleanText, fieldErrorsOf } from "@/validation";
 
@@ -942,6 +944,34 @@ export async function importMusicRelease(
 
   return guarded(() =>
     db.transaction(async (tx) => {
+      // ADR 0013 § 4.1: before anything is inserted, the memories linking the
+      // recordings it would reuse, the albums containing them, the reused
+      // artists, and the reused recordings, in that order. This read only
+      // plans the locks; `resolveArtists` and `resolveTracks` read again
+      // after them, and decide.
+      const reusedArtists = await tx
+        .select({ id: schema.artists.id })
+        .from(schema.artists)
+        .where(
+          inArray(
+            schema.artists.mbArtistId,
+            plan.artists.map((artist) => artist.mbArtistId),
+          ),
+        );
+      const reusedTracks = await tx
+        .select({ id: schema.tracks.id })
+        .from(schema.tracks)
+        .where(
+          inArray(
+            schema.tracks.mbRecordingId,
+            plan.tracks.map((track) => track.mbRecordingId),
+          ),
+        );
+      await lockReleaseImport(
+        tx,
+        reusedTracks.map((row) => row.id),
+        reusedArtists.map((row) => row.id),
+      );
       const [album] = await tx
         .select({ id: schema.albums.id })
         .from(schema.albums)
@@ -1135,6 +1165,8 @@ export async function linkAlbumToMusic(
   }
   await guarded(() =>
     db.transaction(async (tx) => {
+      // ADR 0013 § 4.1: the album's journals, then the album.
+      await lockAlbumCatalogChange(tx, albumId, { journalsOnly: true });
       const locked = await tx.execute<{
         archived: boolean;
         mb_release_group_id: string | null;

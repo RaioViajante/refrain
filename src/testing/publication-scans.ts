@@ -682,8 +682,15 @@ export const PUBLICATION_INDEX_EXPORTS: ReadonlySet<string> = new Set([
   "lockArtistPublicExposure",
   "lockArtistRestoreExposure",
   // The owner's review of PR #46: credits that would expose an artist.
-  "lockAlbumCreditExposure",
   "artistsNewlyExposedByCredit",
+  // ADR 0013 step 2 (§ 4.1, § 4.4): the lock order for catalog commands and
+  // for an album journal's deletion. They write nothing; they only take row
+  // locks, entries FOR SHARE first, then albums, artists, and tracks.
+  // `lockAlbumCatalogChange` replaces `lockAlbumCreditExposure`.
+  "lockAlbumCatalogChange",
+  "lockTrackCatalogChange",
+  "lockReleaseImport",
+  "lockAlbumJournalTransition",
   // M3.7: types only. A memory's music as the page and the review name it,
   // and the key of one music link in an exposure delta.
   "PublicMemoryArtist",
