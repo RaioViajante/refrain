@@ -7,6 +7,7 @@ import { saveJournalAction } from "@/app/studio/journals/actions";
 import { previewPublicChangeAction } from "@/app/studio/journals/preview-change-action";
 import type { JournalRemoval } from "@/app/studio/journals/removals";
 import {
+  CatalogPageView,
   changePlace,
   Notice,
   RemovalView,
@@ -279,6 +280,9 @@ function OpenChangeDialog({
                 );
               })}
             </ul>
+            {stage.name === "ready" && stage.preview.catalogPage ? (
+              <CatalogPageView page={stage.preview.catalogPage} />
+            ) : null}
             {removals.length > 0 ? (
               <div>
                 <h3 className="studio-label">{w.takenAway}</h3>

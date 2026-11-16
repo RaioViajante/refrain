@@ -3,7 +3,11 @@ import type { ReactNode } from "react";
 import type { JournalRemoval } from "@/app/studio/journals/removals";
 import { useStudio } from "@/app/studio/studio-locale";
 import type { StudioDictionary } from "@/i18n/studio";
-import type { ReviewedValue, ReviewText } from "@/modules/journals";
+import type {
+  CatalogPageSummary,
+  ReviewedValue,
+  ReviewText,
+} from "@/modules/journals";
 
 // Pieces shared by the two dialogs that show the author what readers would
 // see (publishing, and a change to a page that is public). Display only: no
@@ -186,5 +190,63 @@ export function ReviewSection({
       <h3 className="studio-label">{title}</h3>
       {children}
     </section>
+  );
+}
+
+/**
+ * An album journal page's catalog wording, as the confirmation binds it (ADR
+ * 0013 § 5): the album's title, year, label, credits with their artist
+ * addresses, and its tracklist. A change to any of it before the author
+ * confirms makes the review stale.
+ */
+export function CatalogPageView({ page }: { page: CatalogPageSummary }) {
+  const { words: t } = useStudio();
+  const w = t.catalogPage;
+  return (
+    <ReviewSection title={w.heading}>
+      <p className="studio-hint">{w.lead}</p>
+      <dl className="studio-catalog-changes">
+        <div>
+          <dt className="studio-hint">{w.title}</dt>
+          <dd>{page.title}</dd>
+        </div>
+        <div>
+          <dt className="studio-hint">{w.year}</dt>
+          <dd>{page.year ?? w.none}</dd>
+        </div>
+        <div>
+          <dt className="studio-hint">{w.label}</dt>
+          <dd>{page.label ?? w.none}</dd>
+        </div>
+        <div>
+          <dt className="studio-hint">{w.credits}</dt>
+          <dd>
+            {page.credits.length === 0
+              ? w.none
+              : page.credits
+                  .map((credit) =>
+                    credit.address
+                      ? `${credit.name} (/artists/${credit.address})`
+                      : credit.name,
+                  )
+                  .join(", ")}
+          </dd>
+        </div>
+        <div>
+          <dt className="studio-hint">{w.tracks}</dt>
+          <dd>
+            {page.tracks.length === 0 ? (
+              w.none
+            ) : (
+              <ol className="studio-catalog-tracks">
+                {page.tracks.map((title, index) => (
+                  <li key={index}>{title}</li>
+                ))}
+              </ol>
+            )}
+          </dd>
+        </div>
+      </dl>
+    </ReviewSection>
   );
 }

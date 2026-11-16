@@ -34,6 +34,8 @@ export async function updateTrackAction(
   if (!authorization.ok) {
     return denied(authorization.reason);
   }
+  // With a token (ADR 0013 step 3) only from the review dialog's confirm
+  // control, inside the input; the command takes it out and checks it.
   return perform(() => updateTrack(authorization.author, trackId, input));
 }
 

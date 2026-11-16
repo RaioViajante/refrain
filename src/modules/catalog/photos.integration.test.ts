@@ -19,6 +19,7 @@ import {
   lockAlbumCatalogChange,
   lockArtistPublicExposure,
 } from "@/modules/publication";
+import * as confirmed from "@/testing/confirmed-catalog-edits";
 import { FIXTURE } from "@/testing/provider-fixtures";
 import { providerAnswer, providerResponse } from "@/testing/provider-mock";
 import { fixtureProviders, json } from "@/testing/provider-runtime";
@@ -1219,21 +1220,23 @@ describe("changing an album's credits (review of PR #46)", () => {
       const { credited, albumId } = await publishedAlbum(tx);
       // An artist that already has a page, through another public album.
       const elsewhere = await publishedAlbum(tx);
-      await updateAlbum(tx, author, albumId, {
+      await confirmed.updateAlbum(tx, author, albumId, {
         credits: [{ artistId: credited }, { artistId: elsewhere.credited }],
       });
       // Reordering, renaming a credit, and removing one.
-      await updateAlbum(tx, author, albumId, {
+      await confirmed.updateAlbum(tx, author, albumId, {
         credits: [
           { artistId: elsewhere.credited },
           { artistId: credited, creditedAs: "[Test] Alias" },
         ],
       });
-      await updateAlbum(tx, author, albumId, {
+      await confirmed.updateAlbum(tx, author, albumId, {
         credits: [{ artistId: credited }],
       });
       // The album's other fields, without credits.
-      await updateAlbum(tx, author, albumId, { title: "[Test] Retitled" });
+      await confirmed.updateAlbum(tx, author, albumId, {
+        title: "[Test] Retitled",
+      });
       expect((await creditsOf(tx, albumId)).map((c) => c.artistId)).toEqual([
         credited,
       ]);
@@ -1242,7 +1245,7 @@ describe("changing an album's credits (review of PR #46)", () => {
       for (const status of ["draft", "private"] as const) {
         const hidden = await publishedAlbum(tx, status);
         const newcomer = await createTestArtist(tx, uniqueLabel("Newcomer"));
-        await updateAlbum(tx, author, hidden.albumId, {
+        await confirmed.updateAlbum(tx, author, hidden.albumId, {
           credits: [{ artistId: hidden.credited }, { artistId: newcomer }],
         });
         expect(await isArtistOnPublicPage(tx, newcomer)).toBe(false);

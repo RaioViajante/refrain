@@ -1584,6 +1584,42 @@ html:has(.studio-editorbar[data-mode="edit"]) {
   margin-top: 0.8em;
 }
 
+/* ADR 0013 step 3: catalog wording before and after, in the reviews. Words
+   and strike-through say what changes; no color carries meaning. */
+.studio-catalog-changes {
+  display: grid;
+  gap: 10px;
+  margin: 8px 0 0;
+}
+
+.studio-catalog-changes > div {
+  display: grid;
+  gap: 2px;
+}
+
+.studio-catalog-changes dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.studio-catalog-changes del {
+  text-decoration-thickness: 1px;
+}
+
+.studio-catalog-changes ins {
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.studio-catalog-tracks {
+  margin: 0;
+  padding-left: 1.4em;
+}
+
+.studio-review-list code {
+  overflow-wrap: anywhere;
+}
+
 .studio-dialog-body:focus-visible,
 .studio-dialog h2:focus-visible {
   outline: 2px solid var(--color-ink);

@@ -109,4 +109,11 @@ export {
   updateAlbum,
   updateArtist,
   updateTrack,
+  previewAlbumChange,
+  previewArtistChange,
+  previewTrackChange,
 } from "./studio";
+export type {
+  CatalogChangePreview,
+  CatalogChangeReview,
+} from "@/modules/publication";

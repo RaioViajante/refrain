@@ -39,6 +39,11 @@ export type StudioFailure =
   | "cover_display_disabled"
   // Wikimedia Commons (M3.3). Nothing was written.
   | "photo_not_usable"
+  // ADR 0013 step 3: the public impact of a catalog edit could not be
+  // computed reliably; nothing was written.
+  | "impact_unavailable"
+  // A deadlock or serialization failure; nothing was written. Try again.
+  | "retry"
   | "failed";
 
 export type FieldProblem = "required" | "too_long" | "invalid";

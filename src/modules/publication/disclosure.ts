@@ -16,7 +16,9 @@ import { artistPhotoOf } from "@/integrations/wikimedia-commons";
 import { artistAddresses } from "./artist-address";
 import {
   albumJournalCatalog,
+  catalogPageSummary,
   memoryLinksCatalog,
+  type CatalogPageSummary,
   type AlbumJournalCatalog,
   type MemoryLinksCatalog,
 } from "./catalog-binding";
@@ -133,6 +135,12 @@ export interface PublishDisclosure {
   artistPages: DisclosedArtistPage[];
   /** The public artist pages whose address it would change. */
   artistAddressChanges: DisclosedArtistAddressChange[];
+  /**
+   * An album journal's catalog wording as the page will show it, which the
+   * confirmation binds (ADR 0013 § 5): shown to the author. Null for a memory,
+   * whose music is `memoryMusic`.
+   */
+  catalogPage: CatalogPageSummary | null;
 }
 
 /** Everything read for one version, before any rule is applied to it. */
@@ -503,6 +511,10 @@ export function disclosureOf(
     flaggedWithoutText: state.flaggedWithoutText,
     artistPages: state.artistPages,
     artistAddressChanges: state.artistAddressChanges,
+    catalogPage:
+      state.catalog !== null && "album" in state.catalog
+        ? catalogPageSummary(state.catalog)
+        : null,
   };
 }
 

@@ -277,3 +277,35 @@ export async function memoryLinksCatalog(
     })),
   };
 }
+
+/**
+ * What the Studio shows of an album journal page's catalog wording (ADR 0013
+ * step 3): the atoms its confirmation binds, in words, with no internal id.
+ */
+export interface CatalogPageSummary {
+  title: string;
+  year: number | null;
+  label: string | null;
+  /** The credits as the page names them, each with its artist address. */
+  credits: { name: string; address: string | null }[];
+  /** The reference edition's tracks, in order. */
+  tracks: string[];
+}
+
+export function catalogPageSummary(
+  binding: AlbumJournalCatalog | null,
+): CatalogPageSummary | null {
+  if (binding === null) {
+    return null;
+  }
+  return {
+    title: binding.album.title,
+    year: binding.album.year,
+    label: binding.album.label,
+    credits: binding.credits.map((credit) => ({
+      name: credit.name,
+      address: credit.address,
+    })),
+    tracks: binding.tracks.map((track) => track.title),
+  };
+}

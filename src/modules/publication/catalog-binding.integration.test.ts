@@ -6,6 +6,7 @@ import type { Locale, Transaction } from "@/db";
 // would. Tests may reach a module's internals.
 // eslint-disable-next-line no-restricted-imports
 import * as catalog from "@/modules/catalog/commands";
+import * as confirmed from "@/testing/confirmed-catalog-edits";
 // eslint-disable-next-line no-restricted-imports
 import {
   previewAlbumJournalChange,
@@ -115,56 +116,56 @@ describe("publishing an album journal binds its catalog wording", () => {
     [
       "the credited artist renamed",
       (tx, f) =>
-        catalog.updateArtist(tx, author, f.artistId, {
+        confirmed.updateArtist(tx, author, f.artistId, {
           name: uniqueLabel("Renamed"),
         }),
     ],
     [
       "the album retitled",
       (tx, f) =>
-        catalog.updateAlbum(tx, author, f.album.albumId, {
+        confirmed.updateAlbum(tx, author, f.album.albumId, {
           title: uniqueLabel("Retitled"),
         }),
     ],
     [
       "the year changed",
       (tx, f) =>
-        catalog.updateAlbum(tx, author, f.album.albumId, {
+        confirmed.updateAlbum(tx, author, f.album.albumId, {
           firstReleaseYear: 1999,
         }),
     ],
     [
       "the label changed",
       (tx, f) =>
-        catalog.updateAlbum(tx, author, f.album.albumId, {
+        confirmed.updateAlbum(tx, author, f.album.albumId, {
           edition: { label: "[Test] Another label" },
         }),
     ],
     [
       "the credit's wording changed",
       (tx, f) =>
-        catalog.updateAlbum(tx, author, f.album.albumId, {
+        confirmed.updateAlbum(tx, author, f.album.albumId, {
           credits: [{ artistId: f.artistId, creditedAs: "[Test] As credited" }],
         }),
     ],
     [
       "a track retitled",
       (tx, f) =>
-        catalog.updateTrack(tx, author, f.album.trackIds[1]!, {
+        confirmed.updateTrack(tx, author, f.album.trackIds[1]!, {
           title: uniqueLabel("Track"),
         }),
     ],
     [
       "a track's credit changed",
       (tx, f) =>
-        catalog.updateTrack(tx, author, f.album.trackIds[2]!, {
+        confirmed.updateTrack(tx, author, f.album.trackIds[2]!, {
           credit: "[Test] A cover",
         }),
     ],
     [
       "the reflected track retitled",
       (tx, f) =>
-        catalog.updateTrack(tx, author, f.album.trackIds[0]!, {
+        confirmed.updateTrack(tx, author, f.album.trackIds[0]!, {
           title: uniqueLabel("Reflected"),
         }),
     ],
@@ -254,11 +255,11 @@ describe("publishing an album journal binds its catalog wording", () => {
         async () => {
           // An artist on nothing this page renders.
           const other = await createTestArtist(tx, uniqueLabel("Unrelated"));
-          await catalog.updateArtist(tx, author, other, {
+          await confirmed.updateArtist(tx, author, other, {
             name: uniqueLabel("Still unrelated"),
           });
           // A track's own artists, which an album-journal page does not show.
-          await catalog.updateTrack(tx, author, fixture.album.trackIds[1]!, {
+          await confirmed.updateTrack(tx, author, fixture.album.trackIds[1]!, {
             artistIds: [other],
           });
           // Hidden entries linking its tracks: draft, private, and deleted
@@ -324,14 +325,14 @@ describe("publishing a memory binds its music's wording", () => {
     [
       "the song retitled",
       (tx: Transaction, f: Awaited<ReturnType<typeof draftMemory>>) =>
-        catalog.updateTrack(tx, author, f.trackId, {
+        confirmed.updateTrack(tx, author, f.trackId, {
           title: uniqueLabel("Retitled"),
         }),
     ],
     [
       "the singer renamed",
       (tx: Transaction, f: Awaited<ReturnType<typeof draftMemory>>) =>
-        catalog.updateArtist(tx, author, f.artistId, {
+        confirmed.updateArtist(tx, author, f.artistId, {
           name: uniqueLabel("Renamed"),
         }),
     ],
@@ -339,7 +340,7 @@ describe("publishing a memory binds its music's wording", () => {
       "the song's artists changed",
       async (tx: Transaction, f: Awaited<ReturnType<typeof draftMemory>>) => {
         const other = await createTestArtist(tx, uniqueLabel("Other"));
-        await catalog.updateTrack(tx, author, f.trackId, {
+        await confirmed.updateTrack(tx, author, f.trackId, {
           artistIds: [f.artistId, other],
         });
       },
@@ -347,14 +348,14 @@ describe("publishing a memory binds its music's wording", () => {
     [
       "the album it names changed (the later album moved earlier)",
       (tx: Transaction, f: Awaited<ReturnType<typeof draftMemory>>) =>
-        catalog.updateAlbum(tx, author, f.later.albumId, {
+        confirmed.updateAlbum(tx, author, f.later.albumId, {
           firstReleaseYear: 1980,
         }),
     ],
     [
       "the named album's credits changed (shown in the review)",
       (tx: Transaction, f: Awaited<ReturnType<typeof draftMemory>>) =>
-        catalog.updateAlbum(tx, author, f.earlier.albumId, {
+        confirmed.updateAlbum(tx, author, f.earlier.albumId, {
           credits: [{ artistId: f.artistId, creditedAs: "[Test] Credited" }],
         }),
     ],
@@ -395,7 +396,7 @@ describe("publishing a memory binds its music's wording", () => {
       const fixture = await draftMemory(tx);
       expect(
         await publishAfter(tx, fixture.entryId, "en", () =>
-          catalog.updateAlbum(tx, author, fixture.later.albumId, {
+          confirmed.updateAlbum(tx, author, fixture.later.albumId, {
             title: uniqueLabel("Still later"),
           }),
         ),
@@ -416,7 +417,7 @@ describe("a confirmed save binds its page's catalog wording", () => {
       };
       const preview = await previewAlbumJournalChange(tx, author, input);
       expect(preview.confirmation).not.toBeNull();
-      await catalog.updateTrack(tx, author, fixture.album.trackIds[1]!, {
+      await confirmed.updateTrack(tx, author, fixture.album.trackIds[1]!, {
         title: uniqueLabel("Renamed"),
       });
       const before = await rowChecksum(tx);
@@ -454,7 +455,7 @@ describe("a confirmed save binds its page's catalog wording", () => {
       };
       const preview = await previewAlbumJournalChange(tx, author, input);
       expect(preview.confirmation).not.toBeNull();
-      await catalog.updateTrack(tx, author, outside, {
+      await confirmed.updateTrack(tx, author, outside, {
         title: uniqueLabel("Renamed"),
       });
       const before = await rowChecksum(tx);
@@ -486,7 +487,7 @@ describe("a confirmed save binds its page's catalog wording", () => {
       const input = { entryId, expectedVersion: 1, trackIds: [kept, added] };
       const preview = await previewMemoryChange(tx, author, input);
       expect(preview.confirmation).not.toBeNull();
-      await catalog.updateTrack(tx, author, added, {
+      await confirmed.updateTrack(tx, author, added, {
         title: uniqueLabel("Renamed"),
       });
       const before = await rowChecksum(tx);
@@ -517,7 +518,7 @@ describe("a confirmed save binds its page's catalog wording", () => {
       await publishForTest(tx, entryId, "en");
       const input = { entryId, expectedVersion: 1, title: "[Test] New title" };
       const preview = await previewMemoryChange(tx, author, input);
-      await catalog.updateTrack(tx, author, other, {
+      await confirmed.updateTrack(tx, author, other, {
         title: uniqueLabel("Renamed"),
       });
       expect(

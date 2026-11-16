@@ -10,6 +10,7 @@ import {
   publishLanguageVersion,
   type PublicChangeDelta,
   type PublishDisclosure,
+  type CatalogPageSummary,
 } from "@/modules/publication";
 
 import { documentToText, textToParagraphs } from "./body";
@@ -86,6 +87,11 @@ export interface PublicationReview {
     photo: { title: string; credit: string; license: string } | null;
   }[];
   artistAddressChanges: { name: string; from: string; to: string | null }[];
+  /**
+   * The album's catalog wording on the page (title, year, label, credits,
+   * tracklist), which the confirmation binds (ADR 0013 § 5).
+   */
+  catalogPage: CatalogPageSummary | null;
 }
 
 export interface PublicationPreview {
@@ -140,6 +146,7 @@ function toReview(
       from: change.from,
       to: change.to,
     })),
+    catalogPage: disclosure.catalogPage,
   };
 }
 
@@ -381,6 +388,8 @@ export interface PublicChangePreviewReview {
    */
   confirmation: string | null;
   expiresAtMs: number | null;
+  /** The album's catalog wording, which the confirmation binds (ADR 0013). */
+  catalogPage: CatalogPageSummary | null;
 }
 
 /**
@@ -419,5 +428,6 @@ export async function previewAlbumJournalPublicChange(
     review: toChangeReview(preview.delta, titles),
     confirmation: preview.confirmation,
     expiresAtMs: preview.expiresAtMs,
+    catalogPage: preview.catalogPage,
   };
 }

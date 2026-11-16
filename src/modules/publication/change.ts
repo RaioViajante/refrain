@@ -15,7 +15,13 @@ import {
   type VerifiedConfirmation,
 } from "@/modules/identity";
 
-import { albumJournalCatalog, memoryLinksCatalog } from "./catalog-binding";
+import {
+  albumJournalCatalog,
+  catalogPageSummary,
+  memoryLinksCatalog,
+  type AlbumJournalCatalog,
+  type CatalogPageSummary,
+} from "./catalog-binding";
 import {
   lockAlbumJournalCatalog,
   lockMemoryCatalog,
@@ -80,6 +86,11 @@ export interface PublicChangePreview {
   confirmation: string | null;
   /** When the token stops being valid, in milliseconds since the epoch. */
   expiresAtMs: number | null;
+  /**
+   * An album journal's catalog wording, which the confirmation binds (ADR
+   * 0013 § 5), for the dialog to show; null otherwise.
+   */
+  catalogPage: CatalogPageSummary | null;
 }
 
 /**
@@ -214,7 +225,7 @@ export async function previewPublicChange(
     };
   });
   if (delta.changes.length === 0) {
-    return { delta, confirmation: null, expiresAtMs: null };
+    return { delta, confirmation: null, expiresAtMs: null, catalogPage: null };
   }
   if (!confirmationAvailable()) {
     throw new PublicationError("unavailable");
@@ -233,6 +244,10 @@ export async function previewPublicChange(
     delta,
     confirmation: signed.token,
     expiresAtMs: before.nowMs + CONFIRMATION_VALIDITY_MS,
+    catalogPage:
+      before.kind === "album_journal"
+        ? catalogPageSummary(catalog as AlbumJournalCatalog | null)
+        : null,
   };
 }
 

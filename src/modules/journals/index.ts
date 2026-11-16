@@ -54,6 +54,8 @@ export type {
   ReviewedValue,
   ReviewText,
 } from "./publishing";
+// ADR 0013 step 3: an album page's catalog wording, as the reviews show it.
+export type { CatalogPageSummary } from "@/modules/publication";
 export {
   createAlbumJournal,
   createMemory,

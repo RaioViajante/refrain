@@ -207,6 +207,10 @@ export const studioEn = {
     photoNotUsable:
       "This photograph can no longer be used: its license, credit, or file changed on Wikimedia Commons. Nothing was changed. Choose another, or review it again.",
     failed: "Something went wrong, and nothing was changed. Try again.",
+    impactUnavailable:
+      "Refrain couldn’t work out which published pages this edit would change, so nothing was saved. Try again in a moment.",
+    retry:
+      "Another change was being saved at the same time, so nothing was saved. Try again.",
   },
   /**
    * What the Studio says about the web. It is true whichever way the
@@ -1027,6 +1031,16 @@ export const studioEn = {
       music: "The music",
     },
   },
+  catalogPage: {
+    heading: "The album on the published page",
+    lead: "This is the catalog wording readers will see on this page. If any of it changes before you confirm, you’ll be asked to review again.",
+    title: "Title",
+    year: "Year",
+    label: "Label",
+    credits: "Credits",
+    tracks: "Tracklist",
+    none: "(none)",
+  },
   publish: {
     statusDraft: "a draft",
     statusPrivate: "private",
@@ -1131,6 +1145,70 @@ export const studioEn = {
     publishedAfter: "Published after saving",
     publishedAfterNew: "Published after saving (new)",
     takenAway: "Taken away from the published writing",
+  },
+  // ADR 0013 step 3: a catalog edit that changes published pages.
+  catalogChange: {
+    title: "Update the published pages?",
+    confirmLabel: "Save and update the published pages",
+    region: "What will change on the published pages",
+    reading: "Reading which published pages would change…",
+    editKept: "Your edits are still in the form.",
+    lead: "Readers can see this record on published pages, so saving changes what they read. Here is every page that changes, and exactly how. Nothing is saved until you press the button below, and cancelling keeps your edits in the form.",
+    unchanged:
+      "Publication dates, “Recently written”, and the writing and status of every journal and memory do not change.",
+    pageKinds: {
+      album_journal: "Album journal",
+      memory: "Memory",
+      artist: "Artist page",
+      album_archive: "Albums",
+      artist_archive: "Artists",
+      memory_archive: "Memories",
+      home: "Home",
+      sitemap: "Sitemap",
+    },
+    inLanguage: {
+      en: "in English",
+      "pt-BR": "in Portuguese",
+    } as Record<"en" | "pt-BR", string>,
+    now: "Published now",
+    after: "After saving",
+    nothing: "(nothing)",
+    pageMoves: (from: string, to: string) =>
+      `This page moves from ${from} to ${to}.`,
+    addresses: "Artist addresses that change",
+    addressMoves: (from: string, to: string) => `${from} becomes ${to}`,
+    addressCloses: (from: string) => `${from} stops being published`,
+    addressOpens: (to: string) => `${to} would be published`,
+    oldAddressGone:
+      "An old artist address will answer “page not found” (404) from now on. Refrain does not keep redirects for artist addresses yet, so links to it elsewhere will break.",
+    segments: {
+      album: "album",
+      title: "title",
+      year: "year",
+      label: "label",
+      credits: "credit",
+      name: "name",
+      link: "link",
+      tracks: "track",
+      credit: "credit",
+      music: "song",
+      artists: "artist",
+      kind: "kind",
+      address: "address",
+      albums: "album",
+      trackCount: "number of tracks",
+      writtenTrackCount: "tracks with writing",
+      albumTitle: "album title",
+      number: "number",
+      cards: "card",
+      recent: "recently written",
+      memories: "memory",
+      firstSong: "first song",
+      otherJournals: "other journal",
+      albumCount: "number of albums",
+      journalCount: "number of journals",
+      count: "how many",
+    } as Record<string, string>,
   },
   deleted: {
     title: "Recently deleted",

@@ -88,6 +88,15 @@ function failed(error: unknown): ActionResult<never> {
       case "public_page":
       case "cover_display_disabled":
       case "photo_not_usable":
+      // ADR 0013 step 3. The code is all the browser gets: no token, no
+      // impact, no database detail.
+      case "confirmation_required":
+      case "confirmation_invalid":
+      case "confirmation_expired":
+      case "confirmation_stale":
+      case "impact_unavailable":
+      case "retry":
+      case "unavailable":
         return { ok: false, code: error.failure };
       case "review_stale":
         return { ok: false, code: "stale" };

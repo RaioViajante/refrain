@@ -55,7 +55,16 @@ export type CatalogFailure =
   | "not_linked"
   | "public_page"
   | "cover_display_disabled"
-  | "photo_not_usable";
+  | "photo_not_usable"
+  // ADR 0013 step 3: a catalog edit that changes a served page. Nothing was
+  // written.
+  | "confirmation_required"
+  | "confirmation_invalid"
+  | "confirmation_expired"
+  | "confirmation_stale"
+  | "impact_unavailable"
+  | "retry"
+  | "unavailable";
 
 /** What stands in the way of a delete or removal. */
 export type CatalogBlocker =

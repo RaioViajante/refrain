@@ -6,6 +6,7 @@ import { getDb, type Transaction } from "@/db";
 // the impact must have predicted. Tests may reach a module's internals.
 // eslint-disable-next-line no-restricted-imports
 import * as catalog from "@/modules/catalog/commands";
+import * as confirmed from "@/testing/confirmed-catalog-edits";
 import {
   createTestAlbum,
   createTestAlbumJournal,
@@ -135,7 +136,7 @@ describe("what a change affects", () => {
       const impact = await impactOf(
         tx,
         [{ op: "update_artist", artistId: world.artistA.id, name }],
-        () => catalog.updateArtist(tx, author, world.artistA.id, { name }),
+        () => confirmed.updateArtist(tx, author, world.artistA.id, { name }),
       );
 
       const linkBefore = `/artists/${artistAddressBase(world.artistA.name)}`;
@@ -219,7 +220,7 @@ describe("what a change affects", () => {
       const impact = await impactOf(
         tx,
         [{ op: "update_artist", artistId: second, name: renamed }],
-        () => catalog.updateArtist(tx, author, second, { name: renamed }),
+        () => confirmed.updateArtist(tx, author, second, { name: renamed }),
       );
 
       const moved = impact.artistAddresses.find((c) => c.artistId === first);
@@ -265,7 +266,7 @@ describe("what a change affects", () => {
           },
         ],
         () =>
-          catalog.updateAlbum(tx, author, albumId, {
+          confirmed.updateAlbum(tx, author, albumId, {
             title,
             firstReleaseYear: 1999,
             edition: { label: "[Test] Other label" },
@@ -287,7 +288,7 @@ describe("what a change affects", () => {
       impact = await impactOf(
         tx,
         [{ op: "update_track", trackId: track2, title: trackTitle }],
-        () => catalog.updateTrack(tx, author, track2, { title: trackTitle }),
+        () => confirmed.updateTrack(tx, author, track2, { title: trackTitle }),
       );
       expect(atomsOf(impact, world.journalId)[0]?.changes).toEqual([
         {
@@ -404,7 +405,8 @@ describe("what a change affects", () => {
       let impact = await impactOf(
         tx,
         [{ op: "update_album", albumId: later.albumId, title: quiet }],
-        () => catalog.updateAlbum(tx, author, later.albumId, { title: quiet }),
+        () =>
+          confirmed.updateAlbum(tx, author, later.albumId, { title: quiet }),
       );
       expect(pagesOf(impact, memoryId)).toEqual([]);
 
@@ -419,7 +421,7 @@ describe("what a change affects", () => {
           },
         ],
         () =>
-          catalog.updateAlbum(tx, author, later.albumId, {
+          confirmed.updateAlbum(tx, author, later.albumId, {
             firstReleaseYear: 1980,
           }),
       );
@@ -472,7 +474,7 @@ describe("what a change affects", () => {
         // The command keeps the stored `credited_as` of a credit that leaves
         // it out; the change states it.
         () =>
-          catalog.updateAlbum(tx, author, albumId, {
+          confirmed.updateAlbum(tx, author, albumId, {
             title: "[Test] Credit kept",
             credits: [{ artistId: world.artistA.id }],
           }),
@@ -599,11 +601,13 @@ describe("what is never counted", () => {
             },
           ],
           async () => {
-            await catalog.updateArtist(tx, author, artistId, { name: newName });
-            await catalog.updateAlbum(tx, author, album.albumId, {
+            await confirmed.updateArtist(tx, author, artistId, {
+              name: newName,
+            });
+            await confirmed.updateAlbum(tx, author, album.albumId, {
               title: newTitle,
             });
-            await catalog.updateTrack(tx, author, album.trackIds[0]!, {
+            await confirmed.updateTrack(tx, author, album.trackIds[0]!, {
               title: newTitle,
             });
           },
@@ -712,7 +716,7 @@ describe("what is never counted", () => {
       const impact = await impactOf(
         tx,
         [{ op: "update_album", albumId: album.albumId, title }],
-        () => catalog.updateAlbum(tx, author, album.albumId, { title }),
+        () => confirmed.updateAlbum(tx, author, album.albumId, { title }),
       );
       expect(pagesOf(impact, journalId).map((page) => page.locale)).toEqual([
         "en",
@@ -758,7 +762,7 @@ describe("how it reads", () => {
 
       // After the computation, a write in the caller's transaction reaches
       // the permanent table, not a copy.
-      await catalog.updateArtist(tx, author, world.artistA.id, {
+      await confirmed.updateArtist(tx, author, world.artistA.id, {
         name: "[Test] After",
       });
       const stored = await tx.execute<{ name: string }>(sql`

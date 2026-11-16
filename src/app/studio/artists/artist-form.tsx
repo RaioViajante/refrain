@@ -14,6 +14,7 @@ import {
   useSubmission,
   useUnsavedGuard,
 } from "@/app/studio/form-kit";
+import { CatalogChangeDialog } from "@/app/studio/catalog/catalog-change-dialog";
 import { problemWith } from "@/app/studio/messages";
 import { useStudio } from "@/app/studio/studio-locale";
 
@@ -45,7 +46,12 @@ export function ArtistForm({
   const [values, setValues] = useState(initial);
   const [dirty, setDirty] = useState(false);
   const [saved, setSaved] = useState(false);
-  const { pending, failure, run } = useSubmission();
+  const { pending, failure, run, clearFailure, report } = useSubmission();
+  // ADR 0013 step 3: the edit waiting for the author's review, when it would
+  // change a published page.
+  const [reviewing, setReviewing] = useState<
+    Record<string, unknown> | undefined
+  >();
   useUnsavedGuard(dirty);
 
   function change<Field extends keyof ArtistValues>(
@@ -65,6 +71,10 @@ export function ArtistForm({
         setDirty(false);
         setSaved(true);
         router.refresh();
+      } else if (result.code === "confirmation_required") {
+        // A published page shows this record: the review dialog asks first.
+        clearFailure();
+        setReviewing({ ...values });
       }
       return;
     }
@@ -127,6 +137,36 @@ export function ArtistForm({
           dirty={dirty}
         />
       </div>
+      {artistId ? (
+        <CatalogChangeDialog
+          kind="artist"
+          recordId={artistId}
+          payload={reviewing}
+          onSaved={() => {
+            setReviewing(undefined);
+            setDirty(false);
+            setSaved(true);
+            router.refresh();
+          }}
+          onNothingToConfirm={() => {
+            setReviewing(undefined);
+            void run(() => updateArtistAction(artistId, reviewing)).then(
+              (result) => {
+                if (result.ok) {
+                  setDirty(false);
+                  setSaved(true);
+                  router.refresh();
+                }
+              },
+            );
+          }}
+          onRefused={(refused) => {
+            setReviewing(undefined);
+            report(refused);
+          }}
+          onCancel={() => setReviewing(undefined)}
+        />
+      ) : null}
     </form>
   );
 }

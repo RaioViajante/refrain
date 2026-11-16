@@ -25,6 +25,12 @@ export const deleteAlbum = withDatabase(commands.deleteAlbum);
 
 export const createTrack = withDatabase(commands.createTrack);
 export const updateTrack = withDatabase(commands.updateTrack);
+// ADR 0013 step 3: the reviews of a catalog edit that changes a served page.
+// Each mints a `catalog_change` token; only the review dialog's preview
+// action reaches them.
+export const previewArtistChange = withDatabase(commands.previewArtistChange);
+export const previewAlbumChange = withDatabase(commands.previewAlbumChange);
+export const previewTrackChange = withDatabase(commands.previewTrackChange);
 export const archiveTrack = withDatabase(commands.archiveTrack);
 export const restoreTrack = withDatabase(commands.restoreTrack);
 export const deleteTrack = withDatabase(commands.deleteTrack);

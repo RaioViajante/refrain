@@ -691,6 +691,19 @@ export const PUBLICATION_INDEX_EXPORTS: ReadonlySet<string> = new Set([
   "lockTrackCatalogChange",
   "lockReleaseImport",
   "lockAlbumJournalTransition",
+  // ADR 0013 step 3: confirmed catalog changes. The preview mints a
+  // `catalog_change` token; the gate and the verifier consume it; the rest
+  // are types of the review (no token, no writing, no internal id).
+  "previewCatalogChange",
+  "requireCatalogChangeConfirmation",
+  "verifyCatalogChangeConfirmation",
+  "CatalogChangePreview",
+  "CatalogChangeReview",
+  "CatalogSubject",
+  "AtomChange",
+  "CatalogChange",
+  "ImpactSurface",
+  "CatalogPageSummary",
   // M3.7: types only. A memory's music as the page and the review name it,
   // and the key of one music link in an exposure delta.
   "PublicMemoryArtist",
@@ -890,6 +903,12 @@ const MINTING_PREVIEWS = [
   "previewMemoryChange",
   "previewMemoryPublicChange",
   "previewMemoryPublication",
+  // ADR 0013 step 3: the catalog-change preview and the Catalog module's
+  // wrappers. Only the review dialog's preview action reaches them.
+  "previewCatalogChange",
+  "previewArtistChange",
+  "previewAlbumChange",
+  "previewTrackChange",
 ];
 const CONSUMERS = [
   "publishLanguageVersion",
@@ -899,6 +918,11 @@ const CONSUMERS = [
   // M3.7
   "publishMemoryVersion",
   "saveMemory",
+  // ADR 0013 step 3: the catalog-change gate and the commands it guards.
+  "requireCatalogChangeConfirmation",
+  "updateArtist",
+  "updateAlbum",
+  "updateTrack",
 ];
 const SIGNING = "signConfirmation";
 
@@ -935,6 +959,13 @@ export const PREVIEW_IMPORTERS: ReadonlySet<string> = new Set<string>([
   "src/modules/journals/memory-publishing.ts",
   "src/app/studio/memories/preview-publication-action.ts",
   "src/app/studio/memories/preview-change-action.ts",
+  // ADR 0013 step 3: `commands.ts` wraps `previewCatalogChange` beside the
+  // commands it guards (no function calls both); `studio.ts` and the index
+  // bind and re-export the wrappers; the preview action is alone in its file.
+  "src/modules/catalog/commands.ts",
+  "src/modules/catalog/studio.ts",
+  "src/modules/catalog/index.ts",
+  "src/app/studio/catalog/preview-catalog-change-action.ts",
 ]);
 
 function importsOf(
@@ -1261,6 +1292,8 @@ const PREVIEW_ACTIONS = [
   // M3.7: memories.
   "previewMemoryPublicationAction",
   "previewMemoryChangeAction",
+  // ADR 0013 step 3.
+  "previewCatalogChangeAction",
 ];
 const CONSUMER_ACTIONS = [
   "publishJournalVersionAction",
@@ -1268,6 +1301,11 @@ const CONSUMER_ACTIONS = [
   // M3.7: memories.
   "publishMemoryVersionAction",
   "saveMemoryAction",
+  // ADR 0013 step 3: with a token, only the catalog review's confirm sends
+  // them; the forms' ordinary saves send none.
+  "updateArtistAction",
+  "updateAlbumAction",
+  "updateTrackAction",
 ];
 const ACTION_SITES: Record<string, string[]> = {
   previewPublicationAction: ["fetchPreview"],
@@ -1278,6 +1316,10 @@ const ACTION_SITES: Record<string, string[]> = {
   previewMemoryChangeAction: ["fetchPreview"],
   publishMemoryVersionAction: ["confirm"],
   saveMemoryAction: ["confirm"],
+  previewCatalogChangeAction: ["fetchPreview"],
+  updateArtistAction: ["confirm"],
+  updateAlbumAction: ["confirm"],
+  updateTrackAction: ["confirm"],
 };
 // The one file that defines each action.
 const ACTION_DEFINITIONS: Record<string, string> = {
@@ -1291,6 +1333,11 @@ const ACTION_DEFINITIONS: Record<string, string> = {
   previewMemoryChangeAction: "src/app/studio/memories/preview-change-action.ts",
   publishMemoryVersionAction: "src/app/studio/memories/actions.ts",
   saveMemoryAction: "src/app/studio/memories/actions.ts",
+  previewCatalogChangeAction:
+    "src/app/studio/catalog/preview-catalog-change-action.ts",
+  updateArtistAction: "src/app/studio/artists/actions.ts",
+  updateAlbumAction: "src/app/studio/albums/actions.ts",
+  updateTrackAction: "src/app/studio/tracks/actions.ts",
 };
 // Files that may name each action at all (outside its own definition).
 const ACTION_FILES: Record<string, string[]> = {
@@ -1315,6 +1362,22 @@ const ACTION_FILES: Record<string, string[]> = {
   saveMemoryAction: [
     "src/app/studio/memories/memory-change-dialog.tsx",
     "src/app/studio/memories/memory-editor.tsx",
+  ],
+  // ADR 0013 step 3: the review dialog, and each form's ordinary save.
+  previewCatalogChangeAction: [
+    "src/app/studio/catalog/catalog-change-dialog.tsx",
+  ],
+  updateArtistAction: [
+    "src/app/studio/catalog/catalog-change-dialog.tsx",
+    "src/app/studio/artists/artist-form.tsx",
+  ],
+  updateAlbumAction: [
+    "src/app/studio/catalog/catalog-change-dialog.tsx",
+    "src/app/studio/albums/album-form.tsx",
+  ],
+  updateTrackAction: [
+    "src/app/studio/catalog/catalog-change-dialog.tsx",
+    "src/app/studio/tracks/track-form.tsx",
   ],
 };
 const DEFERRED = new Set([
@@ -1345,6 +1408,14 @@ const DIALOG_ACTION_IMPORTS: Record<string, string[]> = {
   "src/app/studio/memories/memory-change-dialog.tsx": [
     "saveMemoryAction",
     "previewMemoryChangeAction",
+  ],
+  // ADR 0013 step 3; `CatalogChangeReviewResult` is the preview's type.
+  "src/app/studio/catalog/catalog-change-dialog.tsx": [
+    "updateArtistAction",
+    "updateAlbumAction",
+    "updateTrackAction",
+    "previewCatalogChangeAction",
+    "CatalogChangeReviewResult",
   ],
 };
 const ACTION_MODULE = /^@\/app\/studio\/.*(actions?|-action)$/;

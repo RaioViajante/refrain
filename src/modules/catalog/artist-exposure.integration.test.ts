@@ -23,6 +23,7 @@ import {
   GRACE_ARTIST_PHOTO,
   setTestArtistPhoto,
 } from "@/testing/public-artists";
+import * as confirmed from "@/testing/confirmed-catalog-edits";
 import { PHOTO } from "@/testing/wikimedia-fixtures";
 
 import { archiveArtist, updateAlbum, updateArtist } from "./commands";
@@ -190,7 +191,7 @@ describe("a rename of a public artist (audit, the owner's review of PR #46)", ()
       const artistId = await publicArtist(tx);
       const before = (await publicArtistAddresses(tx)).get(artistId)!;
       const renamed = uniqueLabel("Renamed");
-      await updateArtist(tx, author, artistId, { name: renamed });
+      await confirmed.updateArtist(tx, author, artistId, { name: renamed });
       const after = (await publicArtistAddresses(tx)).get(artistId)!;
       expect(after).not.toBe(before);
       expect((await resolvePublicArtistAddress(tx, after)).outcome).toBe(
@@ -203,7 +204,7 @@ describe("a rename of a public artist (audit, the owner's review of PR #46)", ()
       // Renamed into a public namesake: both pages take suffixed addresses,
       // and neither keeps the bare name.
       const other = await publicArtist(tx);
-      await updateArtist(tx, author, other, { name: renamed });
+      await confirmed.updateArtist(tx, author, other, { name: renamed });
       const both = await publicArtistAddresses(tx);
       expect(both.get(artistId)).toMatch(new RegExp(`^${after}-[0-9a-f]{10}$`));
       expect(both.get(other)).toMatch(new RegExp(`^${after}-[0-9a-f]{10}$`));

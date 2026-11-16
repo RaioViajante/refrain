@@ -73,6 +73,10 @@ export function failureMessage(
       return f.coverDisplayDisabled;
     case "photo_not_usable":
       return f.photoNotUsable;
+    case "impact_unavailable":
+      return f.impactUnavailable;
+    case "retry":
+      return f.retry;
     case "failed":
       return f.failed;
   }

@@ -15,6 +15,8 @@ export type {
   DisclosedReflection,
   PublishDisclosure,
 } from "./disclosure";
+// ADR 0013 step 3: an album page's catalog wording, as the reviews show it.
+export type { CatalogPageSummary } from "./catalog-binding";
 // A memory's music as the page and the review name it (M3.7).
 export type { PublicMemoryArtist, PublicMemoryMusic } from "./memory-music";
 export {
@@ -54,6 +56,21 @@ export {
   lockReleaseImport,
   lockTrackCatalogChange,
 } from "./catalog-exposure";
+// ADR 0013 step 3: confirmed catalog changes. The preview mints a
+// `catalog_change` token; the catalog commands verify and gate with it.
+export {
+  previewCatalogChange,
+  requireCatalogChangeConfirmation,
+  verifyCatalogChangeConfirmation,
+  type CatalogChangePreview,
+  type CatalogChangeReview,
+  type CatalogSubject,
+} from "./catalog-confirmation";
+export type {
+  AtomChange,
+  CatalogChange,
+  ImpactSurface,
+} from "./catalog-impact";
 // ADR 0013 § 4.4: an album journal's deletion takes its album and credited
 // artists after its entry lock, in the lock order (catalog-locks.ts).
 export { lockAlbumJournalTransition } from "./catalog-locks";

@@ -56,12 +56,16 @@ const TOKEN_FILES = new Set([
   `${J}/change-dialog.tsx`,
   `${M}/memory-publish-dialog.tsx`,
   `${M}/memory-change-dialog.tsx`,
+  // ADR 0013 step 3: the catalog edits' review dialog.
+  "src/app/studio/catalog/catalog-change-dialog.tsx",
 ]);
 const PREVIEW_ACTION_IMPORTERS: Record<string, string> = {
   "@/app/studio/journals/preview-publication-action": `${J}/publish-dialog.tsx`,
   "@/app/studio/journals/preview-change-action": `${J}/change-dialog.tsx`,
   "@/app/studio/memories/preview-publication-action": `${M}/memory-publish-dialog.tsx`,
   "@/app/studio/memories/preview-change-action": `${M}/memory-change-dialog.tsx`,
+  "@/app/studio/catalog/preview-catalog-change-action":
+    "src/app/studio/catalog/catalog-change-dialog.tsx",
 };
 
 // Any module path that names the Publication module, whatever it begins with:

@@ -38,8 +38,10 @@ import {
   type PublicMemoryArtist,
   type PublicMemoryMusic,
 } from "./public-memory";
+import { artistAddressBase } from "./artist-address";
 import {
   publicArtistAddresses,
+  publicArtists,
   servedAlbumJournalAddresses,
   servedMemoryAddresses,
 } from "./queries";
@@ -81,6 +83,13 @@ import {
 //   caller's transaction, it reads in that transaction: the caller must hold
 //   ADR 0013 § 4.1's locks (step 3 does), or use REPEATABLE READ, so that no
 //   commit can fall between the two renders.
+
+/** Each statement of the computation, at most (ADR 0013 step 3). */
+export const IMPACT_STATEMENT_TIMEOUT_MS = 5_000;
+/** The whole computation, at most; past it, it fails closed. */
+export const IMPACT_TIME_LIMIT_MS = 20_000;
+/** Served pages (journals, memories, artists) it reads, at most. */
+export const IMPACT_MAX_SERVED_PAGES = 5_000;
 
 /** The catalog tables the public reads use; each one is copied. */
 export const CATALOG_TABLES = [
@@ -179,7 +188,7 @@ type ParsedOperation = z.output<typeof catalogChangeOperation>;
 
 export class CatalogImpactError extends Error {
   constructor(
-    readonly code: "invalid_change" | "shadow_conflict",
+    readonly code: "invalid_change" | "shadow_conflict" | "too_large",
     message: string,
   ) {
     super(message);
@@ -218,6 +227,11 @@ export interface AffectedPage {
   /** The artist, for an artist page. */
   artistId: string | null;
   changes: AtomChange[];
+  /**
+   * Every catalog atom the page renders before the change, so a confirmation
+   * binds the whole page, not only what this change alters (ADR 0013 § 3.2).
+   */
+  before: Record<string, string | null>;
 }
 
 /** A public artist address that the change moves, opens, or closes. */
@@ -265,13 +279,20 @@ export async function catalogPublicImpact(
   const operations = parseCatalogChange(change);
   return inRolledBackScope(db, async (tx) => {
     await assertNoShadow(tx);
-    const before = await renderServedCatalog(tx);
+    // Bounded work (ADR 0013 step 3): each statement, and the whole
+    // computation, has a limit; past either, it fails closed. The setting is
+    // local to this transaction or savepoint and undone by its rollback.
+    await tx.execute(sql`
+      select set_config('statement_timeout', ${String(IMPACT_STATEMENT_TIMEOUT_MS)}, true)`);
+    const deadline = Date.now() + IMPACT_TIME_LIMIT_MS;
+    const scope = await candidatePages(tx, operations);
+    const before = await renderServedCatalog(tx, deadline, scope);
     await createShadow(tx);
     await assertShadowResolves(tx);
     for (const operation of operations) {
       await applyOperation(tx, operation);
     }
-    const after = await renderServedCatalog(tx);
+    const after = await renderServedCatalog(tx, deadline, scope);
     return compareRenders(before, after);
   });
 }
@@ -833,7 +854,22 @@ const memoryCard = (card: PublicMemoryCard) => ({
 /** Internal; exported for the integration tests' oracle only. */
 export async function renderServedCatalog(
   tx: DatabaseExecutor,
+  deadline: number = Number.POSITIVE_INFINITY,
+  /**
+   * The entries and artists whose pages may render a record the change
+   * touches (`candidatePages`), or every served page when absent. The lists
+   * (archives, Home, sitemap) are always rendered.
+   */
+  scope?: PageScope,
 ): Promise<ServedCatalogRender> {
+  const inTime = () => {
+    if (Date.now() > deadline) {
+      throw new CatalogImpactError(
+        "too_large",
+        "The public impact took longer than its limit.",
+      );
+    }
+  };
   const pages = new Map<string, RenderedPage>();
   const put = (key: string, page: RenderedPage) => pages.set(key, page);
 
@@ -849,9 +885,28 @@ export async function renderServedCatalog(
      order by served.slug asc`);
   const artistAddresses = await publicArtistAddresses(tx);
   const artistIds = [...artistAddresses.keys()].sort();
+  const inScope = {
+    entry: (id: string) => scope === undefined || scope.entries.has(id),
+    artist: (id: string) => scope === undefined || scope.artists.has(id),
+  };
+
+  if (
+    journals.rows.length + memories.rows.length + artistIds.length >
+    IMPACT_MAX_SERVED_PAGES
+  ) {
+    throw new CatalogImpactError(
+      "too_large",
+      "More pages are served than the impact computation reads.",
+    );
+  }
 
   for (const locale of locales) {
+    inTime();
     for (const journal of journals.rows) {
+      inTime();
+      if (!inScope.entry(journal.entry_id)) {
+        continue;
+      }
       const page = await getPublicAlbumJournal(tx, journal.entry_id, locale);
       if (page) {
         put(`album_journal:${journal.entry_id}:${locale}`, {
@@ -865,6 +920,10 @@ export async function renderServedCatalog(
       }
     }
     for (const memory of memories.rows) {
+      inTime();
+      if (!inScope.entry(memory.entry_id)) {
+        continue;
+      }
       const page = await getPublicMemory(tx, memory.entry_id, locale);
       if (page) {
         put(`memory:${memory.entry_id}:${locale}`, {
@@ -878,6 +937,10 @@ export async function renderServedCatalog(
       }
     }
     for (const artistId of artistIds) {
+      inTime();
+      if (!inScope.artist(artistId)) {
+        continue;
+      }
       const page = await getPublicArtist(tx, artistId, locale);
       if (page) {
         put(`artist:${artistId}:${locale}`, {
@@ -968,6 +1031,140 @@ export async function renderServedCatalog(
 }
 
 // ---------------------------------------------------------------------------
+// Which pages can change (ADR 0013 step 3, the cost of the computation)
+
+/** Entries and artists whose pages are rendered; see `candidatePages`. */
+export interface PageScope {
+  entries: Set<string>;
+  artists: Set<string>;
+}
+
+/**
+ * A superset of the served pages a change can alter, read before the copies
+ * exist (on the permanent tables) and widened with what the operations
+ * themselves name, so it holds for the state after the change too:
+ *
+ * - touched records: the albums, tracks, and artists the operations name,
+ *   the albums containing a touched track and the tracks on a touched album
+ *   (one level, both ways), and the artists credited on a touched album or
+ *   track;
+ * - namesakes: every public artist whose name has the same address base as a
+ *   touched artist's name before or after, since its address can move;
+ * - pages: an album journal about a touched album, crediting a touched
+ *   artist, or reflecting on a touched track; a memory linking a touched
+ *   album or track, a track on a touched album (the album it names), or
+ *   music credited to a touched artist; the page of a touched artist, or of
+ *   one credited on a touched album.
+ *
+ * The tests compare the impact with a render of every served page after the
+ * real command; a page this misses would fail them.
+ */
+async function candidatePages(
+  tx: DatabaseExecutor,
+  operations: readonly ParsedOperation[],
+): Promise<PageScope> {
+  const albums = new Set<string>();
+  const tracks = new Set<string>();
+  const artists = new Set<string>();
+  const names = new Set<string>();
+  for (const operation of operations) {
+    switch (operation.op) {
+      case "update_artist":
+        artists.add(operation.artistId);
+        if (operation.name !== undefined) {
+          names.add(operation.name);
+        }
+        break;
+      case "update_album":
+      case "create_album":
+        albums.add(operation.albumId);
+        for (const entry of operation.credits ?? []) {
+          artists.add(entry.artistId);
+        }
+        break;
+      case "delete_album":
+        albums.add(operation.albumId);
+        break;
+      case "update_track":
+      case "create_track":
+        tracks.add(operation.trackId);
+        for (const id of operation.artistIds ?? []) {
+          artists.add(id);
+        }
+        break;
+      case "set_tracklist":
+        albums.add(operation.albumId);
+        for (const entry of operation.tracks) {
+          tracks.add(entry.trackId);
+        }
+        break;
+    }
+  }
+  const list = (ids: Set<string>) =>
+    ids.size === 0
+      ? sql`null::uuid`
+      : sql.join(
+          [...ids].map((id) => sql`${id}::uuid`),
+          sql`, `,
+        );
+  // One level of closure, both ways, on the permanent tables.
+  const related = await tx.execute<{ kind: string; id: string }>(sql`
+    select 'album' as kind, atr.album_id as id from album_tracks atr
+     where atr.track_id in (${list(tracks)})
+    union
+    select 'track', atr.track_id from album_tracks atr
+     where atr.album_id in (${list(albums)})`);
+  for (const row of related.rows) {
+    (row.kind === "album" ? albums : tracks).add(row.id);
+  }
+  const credited = await tx.execute<{ id: string }>(sql`
+    select aa.artist_id as id from album_artists aa
+     where aa.album_id in (${list(albums)})
+    union
+    select ta.artist_id from track_artists ta
+     where ta.track_id in (${list(tracks)})`);
+  for (const row of credited.rows) {
+    artists.add(row.id);
+  }
+  // Namesakes: every public artist sharing an address base with a touched
+  // artist's name, now or after the change.
+  const named = await tx.execute<{ id: string; name: string }>(sql`
+    select ar.id, ar.name from artists ar where ar.id in (${list(artists)})`);
+  const bases = new Set(
+    [...named.rows.map((row) => row.name), ...names].map(artistAddressBase),
+  );
+  const visible = await tx.execute<{ artist_id: string; name: string }>(sql`
+    select visible.artist_id, visible.name from (${publicArtists}) visible`);
+  for (const row of visible.rows) {
+    if (bases.has(artistAddressBase(row.name))) {
+      artists.add(row.artist_id);
+    }
+  }
+  const entries = await tx.execute<{ id: string }>(sql`
+    select aj.entry_id as id from album_journals aj
+     where aj.album_id in (${list(albums)})
+        or aj.album_id in (select aa.album_id from album_artists aa
+                            where aa.artist_id in (${list(artists)}))
+    union
+    select tr.album_journal_id from track_reflections tr
+     where tr.track_id in (${list(tracks)})
+    union
+    select mm.memory_id from memory_music mm
+     where mm.album_id in (${list(albums)})
+        or mm.track_id in (${list(tracks)})
+        or mm.track_id in (select atr.track_id from album_tracks atr
+                            where atr.album_id in (${list(albums)}))
+        or mm.track_id in (select ta.track_id from track_artists ta
+                            where ta.artist_id in (${list(artists)}))
+        or mm.album_id in (select aa.album_id from album_artists aa
+                            where aa.artist_id in (${list(artists)}))`);
+  return {
+    entries: new Set(entries.rows.map((row) => row.id)),
+    artists,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Comparing the two renders
 
 const SURFACE_ORDER: readonly ImpactSurface[] = [
@@ -1020,6 +1217,7 @@ export function compareRenders(
       entryId: shape.entryId,
       artistId: shape.artistId,
       changes,
+      before: Object.fromEntries(was?.atoms ?? new Map()),
     });
   }
   pages.sort(

@@ -25,7 +25,14 @@ export type PublicationFailure =
   | "confirmation_required"
   | "confirmation_invalid"
   | "confirmation_expired"
-  | "confirmation_stale";
+  | "confirmation_stale"
+  // ADR 0013 step 3: the public impact of a catalog change could not be
+  // computed reliably (a missing TEMPORARY privilege, a limit reached, an
+  // unexpected database error), so nothing is written: fail closed.
+  | "impact_unavailable"
+  // A deadlock or serialization failure: rolled back, nothing written; the
+  // author may try again.
+  | "retry";
 
 export class PublicationError extends Error {
   override name = "PublicationError";

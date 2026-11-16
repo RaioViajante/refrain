@@ -1,7 +1,7 @@
 import "server-only";
 
 import { and, eq, inArray, sql } from "drizzle-orm";
-import type { z } from "zod";
+import { z } from "zod";
 
 import {
   databaseErrorOf,
@@ -11,13 +11,23 @@ import {
   type DatabaseExecutor,
   type Transaction,
 } from "@/db";
-import type { AuthorizedAuthor } from "@/modules/identity";
+import {
+  MAX_CONFIRMATION_TOKEN_LENGTH,
+  type AuthorizedAuthor,
+} from "@/modules/identity";
 import {
   artistsNewlyExposedByCredit,
   lockAlbumCatalogChange,
   lockArtistPublicExposure,
   lockArtistRestoreExposure,
   lockTrackCatalogChange,
+  previewCatalogChange,
+  PublicationError,
+  requireCatalogChangeConfirmation,
+  verifyCatalogChangeConfirmation,
+  type CatalogChange,
+  type CatalogChangePreview,
+  type CatalogSubject,
 } from "@/modules/publication";
 import { fieldErrorsOf } from "@/validation";
 
@@ -78,13 +88,36 @@ const MUSICBRAINZ_IDENTIFIERS = new Set([
 // Turns a database failure into a fixed domain failure. Anything unrecognized
 // is rethrown untouched for the caller to report as an internal error; its
 // message is never shown to a client.
-function translate(error: unknown): unknown {
+/** Internal; exported for the unit test of its mapping only. */
+export function translateCatalogFailure(error: unknown): unknown {
   if (error instanceof CatalogError) {
     return error;
+  }
+  // ADR 0013 step 3: the catalog-change gate's refusals, with nothing
+  // written. A fixed code each; no database detail.
+  if (error instanceof PublicationError) {
+    switch (error.failure) {
+      case "confirmation_required":
+      case "confirmation_invalid":
+      case "confirmation_expired":
+      case "confirmation_stale":
+      case "impact_unavailable":
+      case "retry":
+      case "unavailable":
+      case "invalid_input":
+        return new CatalogError(error.failure);
+      default:
+        return new CatalogError("impact_unavailable");
+    }
   }
   const failure = databaseErrorOf(error);
   if (!failure) {
     return error;
+  }
+  // A deadlock or serialization failure rolled everything back: the author
+  // may try again (ADR 0013 § 4.5).
+  if (failure.code === "40P01" || failure.code === "40001") {
+    return new CatalogError("retry");
   }
   if (
     failure.code === SqlState.uniqueViolation &&
@@ -118,7 +151,7 @@ async function guarded<Result>(work: () => Promise<Result>): Promise<Result> {
   try {
     return await work();
   } catch (error) {
-    throw translate(error);
+    throw translateCatalogFailure(error);
   }
 }
 
@@ -133,6 +166,179 @@ function parse<Schema extends z.ZodType>(
     });
   }
   return result.data;
+}
+
+// ADR 0013 step 3: a `catalog_change` token, only from the review dialog's
+// confirm control. Its form is checked here; its authenticity before any
+// lock (verifyCatalogChangeConfirmation); its expiry and fingerprint under
+// the locks (requireCatalogChangeConfirmation).
+const catalogConfirmation = z
+  .string()
+  .max(MAX_CONFIRMATION_TOKEN_LENGTH)
+  .regex(/^ct1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/)
+  .optional();
+
+/** Options of a confirmable catalog command. */
+export interface CatalogEditOptions {
+  /** The review dialog's token, when the author confirmed. */
+  confirmation?: unknown;
+}
+
+/**
+ * The patch without its token, and the token: the Studio's review dialog
+ * sends the token inside the edit's input (as the journal dialogs do), and
+ * nothing else in `src/app` names it.
+ */
+function withoutConfirmation(
+  patch: unknown,
+  options: CatalogEditOptions,
+): { patch: unknown; options: CatalogEditOptions } {
+  if (
+    patch !== null &&
+    typeof patch === "object" &&
+    !Array.isArray(patch) &&
+    "confirmation" in patch
+  ) {
+    const { confirmation, ...rest } = patch as Record<string, unknown>;
+    if (options.confirmation !== undefined) {
+      throw new CatalogError("invalid_input");
+    }
+    return { patch: rest, options: { confirmation } };
+  }
+  return { patch, options };
+}
+
+function presentedConfirmation(
+  author: AuthorizedAuthor,
+  subject: CatalogSubject,
+  options: CatalogEditOptions,
+) {
+  const token = parse(catalogConfirmation, options.confirmation);
+  return token === undefined
+    ? undefined
+    : verifyCatalogChangeConfirmation(author, token, subject);
+}
+
+// After the gate passed and the rows are written: the subject's `updated_at`
+// moves strictly forward, read with microseconds by the fingerprint, so a
+// token that was applied can never match again, even after A -> B -> A
+// (ADR 0013 § 3.5).
+async function advanceArtist(tx: Transaction, id: string) {
+  await tx.execute(sql`
+    update artists
+       set updated_at = greatest(clock_timestamp(),
+                                 updated_at + interval '1 microsecond')
+     where id = ${id}`);
+}
+async function advanceAlbum(tx: Transaction, id: string) {
+  await tx.execute(sql`
+    update albums
+       set updated_at = greatest(clock_timestamp(),
+                                 updated_at + interval '1 microsecond')
+     where id = ${id}`);
+}
+async function advanceTrack(tx: Transaction, id: string) {
+  await tx.execute(sql`
+    update tracks
+       set updated_at = greatest(clock_timestamp(),
+                                 updated_at + interval '1 microsecond')
+     where id = ${id}`);
+}
+
+// The catalog change a patch would make, as the public impact reads it
+// (ADR 0013 § 1.3). Fields no page renders (sort name, kind, identifiers, an
+// edition's date and country, a track's length) make no operation.
+function artistChangeOf(id: string, data: { name?: string }): CatalogChange {
+  return data.name === undefined
+    ? []
+    : [{ op: "update_artist", artistId: id, name: data.name }];
+}
+
+async function albumChangeOf(
+  tx: DatabaseExecutor,
+  id: string,
+  patch: {
+    title?: string;
+    firstReleaseYear?: number | null;
+    label?: string | null;
+    credits?: { artistId: string; creditedAs?: string | null }[];
+  },
+): Promise<CatalogChange> {
+  let credits: { artistId: string; creditedAs: string | null }[] | undefined;
+  if (patch.credits) {
+    // As replaceAlbumCredits writes them: a credit that leaves out
+    // `creditedAs` keeps the stored one.
+    const stored = await tx
+      .select({
+        artistId: schema.albumArtists.artistId,
+        creditedAs: schema.albumArtists.creditedAs,
+      })
+      .from(schema.albumArtists)
+      .where(eq(schema.albumArtists.albumId, id));
+    const keep = new Map(stored.map((row) => [row.artistId, row.creditedAs]));
+    credits = patch.credits.map((credit) => ({
+      artistId: credit.artistId,
+      creditedAs:
+        credit.creditedAs === undefined
+          ? (keep.get(credit.artistId) ?? null)
+          : credit.creditedAs,
+    }));
+  }
+  const operation = {
+    op: "update_album" as const,
+    albumId: id,
+    ...(patch.title !== undefined ? { title: patch.title } : {}),
+    ...(patch.firstReleaseYear !== undefined
+      ? { firstReleaseYear: patch.firstReleaseYear }
+      : {}),
+    ...(patch.label !== undefined ? { label: patch.label } : {}),
+    ...(credits !== undefined ? { credits } : {}),
+  };
+  return Object.keys(operation).length > 2 ? [operation] : [];
+}
+
+function trackChangeOf(
+  id: string,
+  patch: { title?: string; credit?: string | null; artistIds?: string[] },
+): CatalogChange {
+  const operation = {
+    op: "update_track" as const,
+    trackId: id,
+    ...(patch.title !== undefined ? { title: patch.title } : {}),
+    ...(patch.credit !== undefined ? { credit: patch.credit } : {}),
+    ...(patch.artistIds !== undefined ? { artistIds: patch.artistIds } : {}),
+  };
+  return Object.keys(operation).length > 2 ? [operation] : [];
+}
+
+/** The gate, then A5: a catalog confirmation never opens an artist page. */
+async function confirmCatalogChange(
+  tx: Transaction,
+  subject: CatalogSubject,
+  change: CatalogChange,
+  confirmation: ReturnType<typeof presentedConfirmation>,
+): Promise<void> {
+  if (change.length === 0) {
+    return;
+  }
+  const impact = await requireCatalogChangeConfirmation(tx, {
+    subject,
+    change,
+    confirmation,
+  });
+  if (impact.opensArtistPage) {
+    throw new CatalogError("public_page");
+  }
+}
+
+async function previewed(
+  preview: Promise<CatalogChangePreview>,
+): Promise<CatalogChangePreview> {
+  const result = await preview;
+  if (result.opensArtistPage) {
+    throw new CatalogError("public_page");
+  }
+  return result;
 }
 
 // The fields of a patch that are present. A key whose value is `undefined` was
@@ -175,14 +381,19 @@ export async function createArtist(
  */
 export async function updateArtist(
   db: DatabaseExecutor,
-  _author: AuthorizedAuthor,
+  author: AuthorizedAuthor,
   artistId: unknown,
   patch: unknown,
+  given: CatalogEditOptions = {},
 ): Promise<void> {
+  const { patch: edit, options } = withoutConfirmation(patch, given);
   const id = idOf(artistId);
-  const data = present(parse(artistPatch, patch));
+  const data = present(parse(artistPatch, edit));
+  const subject: CatalogSubject = { kind: "artist", id };
   await guarded(() =>
     db.transaction(async (tx) => {
+      // A forged token is refused before it holds a lock.
+      const confirmation = presentedConfirmation(author, subject, options);
       // A name is part of what a publication review shows and binds (the
       // artist pages it would open, and their addresses; M3.5). Taking the
       // entries' share locks first, then the artist row (L3), means a rename
@@ -190,8 +401,15 @@ export async function updateArtist(
       // artist, or that publication sees it. A publication of a journal
       // crediting a namesake is not locked: there the result is as if the
       // rename came just after it (proposed ADR 0006 A5, residual windows).
-      // It is not refused: renaming a public artist is catalog wording (G8).
+      // Renaming an artist whose name a served page shows needs the
+      // author's confirmation (ADR 0013 step 3): recomputed after the locks.
       await lockArtistPublicExposure(tx, id);
+      await confirmCatalogChange(
+        tx,
+        subject,
+        artistChangeOf(id, data),
+        confirmation,
+      );
       const updated = await tx
         .update(schema.artists)
         .set(data)
@@ -200,7 +418,30 @@ export async function updateArtist(
       if (updated.length === 0) {
         throw new CatalogError("not_found");
       }
+      await advanceArtist(tx, id);
     }),
+  );
+}
+
+/**
+ * The review of an artist edit (ADR 0013 § 2): the served pages it would
+ * change, and a `catalog_change` token for exactly that, or none. Writes
+ * nothing. Only the review dialog's preview action reaches it.
+ */
+export async function previewArtistChange(
+  db: DatabaseExecutor,
+  author: AuthorizedAuthor,
+  artistId: unknown,
+  patch: unknown,
+): Promise<CatalogChangePreview> {
+  const id = idOf(artistId);
+  const data = present(parse(artistPatch, patch));
+  return guarded(() =>
+    previewed(
+      previewCatalogChange(db, author, { kind: "artist", id }, async () =>
+        artistChangeOf(id, data),
+      ),
+    ),
   );
 }
 
@@ -443,17 +684,21 @@ export async function createAlbum(
  */
 export async function updateAlbum(
   db: DatabaseExecutor,
-  _author: AuthorizedAuthor,
+  author: AuthorizedAuthor,
   albumId: unknown,
   patch: unknown,
+  given: CatalogEditOptions = {},
 ): Promise<void> {
+  const { patch: edit, options } = withoutConfirmation(patch, given);
   const id = idOf(albumId);
-  const { credits, edition, ...fields } = parse(albumPatch, patch);
+  const { credits, edition, ...fields } = parse(albumPatch, edit);
   const creditedIds = [
     ...new Set((credits ?? []).map((credit) => credit.artistId)),
   ].sort();
+  const subject: CatalogSubject = { kind: "album", id };
   await guarded(() =>
     db.transaction(async (tx) => {
+      const confirmation = presentedConfirmation(author, subject, options);
       // Credits decide which artists have a public page (M3.5). The entries
       // first, then the album, then the credited artists (ADR 0006 § 7, L3),
       // then the decision: a credit that would put an artist on a public page
@@ -477,6 +722,19 @@ export async function updateAlbum(
           throw new CatalogError("public_page");
         }
       }
+      // ADR 0013 step 3: a change to what a served page renders needs the
+      // author's confirmation, recomputed after the locks.
+      await confirmCatalogChange(
+        tx,
+        subject,
+        await albumChangeOf(tx, id, {
+          title: fields.title,
+          firstReleaseYear: fields.firstReleaseYear,
+          label: edition?.label,
+          credits,
+        }),
+        confirmation,
+      );
       const albumFields = present(fields);
       if (Object.keys(albumFields).length > 0) {
         await tx
@@ -506,7 +764,31 @@ export async function updateAlbum(
       if (credits) {
         await replaceAlbumCredits(tx, id, credits);
       }
+      await advanceAlbum(tx, id);
     }),
+  );
+}
+
+/** The review of an album edit (ADR 0013 § 2); see `previewArtistChange`. */
+export async function previewAlbumChange(
+  db: DatabaseExecutor,
+  author: AuthorizedAuthor,
+  albumId: unknown,
+  patch: unknown,
+): Promise<CatalogChangePreview> {
+  const id = idOf(albumId);
+  const { credits, edition, ...fields } = parse(albumPatch, patch);
+  return guarded(() =>
+    previewed(
+      previewCatalogChange(db, author, { kind: "album", id }, (executor) =>
+        albumChangeOf(executor, id, {
+          title: fields.title,
+          firstReleaseYear: fields.firstReleaseYear,
+          label: edition?.label,
+          credits,
+        }),
+      ),
+    ),
   );
 }
 
@@ -646,14 +928,18 @@ export async function createTrack(
  */
 export async function updateTrack(
   db: DatabaseExecutor,
-  _author: AuthorizedAuthor,
+  author: AuthorizedAuthor,
   trackId: unknown,
   patch: unknown,
+  given: CatalogEditOptions = {},
 ): Promise<void> {
+  const { patch: edit, options } = withoutConfirmation(patch, given);
   const id = idOf(trackId);
-  const { artistIds, ...fields } = parse(trackPatch, patch);
+  const { artistIds, ...fields } = parse(trackPatch, edit);
+  const subject: CatalogSubject = { kind: "track", id };
   await guarded(() =>
     db.transaction(async (tx) => {
+      const confirmation = presentedConfirmation(author, subject, options);
       // ADR 0013 § 4.1: the entries, then the albums containing the track,
       // then its stored and new artists, then the track (FOR UPDATE). The
       // album set read to plan the locks is never used to decide.
@@ -675,6 +961,17 @@ export async function updateTrack(
           new Set(linked.map((row) => row.artistId)),
         );
       }
+      // ADR 0013 step 3: recomputed after the locks.
+      await confirmCatalogChange(
+        tx,
+        subject,
+        trackChangeOf(id, {
+          title: fields.title,
+          credit: fields.credit,
+          artistIds,
+        }),
+        confirmation,
+      );
       const trackFields = present(fields);
       if (Object.keys(trackFields).length > 0) {
         await tx
@@ -685,7 +982,30 @@ export async function updateTrack(
       if (artistIds) {
         await replaceTrackCredits(tx, id, artistIds);
       }
+      await advanceTrack(tx, id);
     }),
+  );
+}
+
+/** The review of a track edit (ADR 0013 § 2); see `previewArtistChange`. */
+export async function previewTrackChange(
+  db: DatabaseExecutor,
+  author: AuthorizedAuthor,
+  trackId: unknown,
+  patch: unknown,
+): Promise<CatalogChangePreview> {
+  const id = idOf(trackId);
+  const { artistIds, ...fields } = parse(trackPatch, patch);
+  return guarded(() =>
+    previewed(
+      previewCatalogChange(db, author, { kind: "track", id }, async () =>
+        trackChangeOf(id, {
+          title: fields.title,
+          credit: fields.credit,
+          artistIds,
+        }),
+      ),
+    ),
   );
 }
 

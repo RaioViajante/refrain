@@ -40,7 +40,8 @@ export const CONFIRMATION_VALIDITY_MS = 15 * 60 * 1000;
 export const MAX_CONFIRMATION_TOKEN_LENGTH = 1024;
 
 /** What a token authorizes. A token is accepted only for the purpose it names. */
-export type ConfirmationPurpose = "publish" | "change_public";
+export type ConfirmationPurpose =
+  "publish" | "change_public" | "catalog_change";
 
 const MAC_BYTES = 32;
 const KEY_BYTES = 32;
@@ -49,12 +50,12 @@ const BASE64URL_PATTERN = /^[A-Za-z0-9_-]+$/;
 
 const claimsSchema = z.strictObject({
   /** purpose */
-  p: z.enum(["publish", "change_public"]),
+  p: z.enum(["publish", "change_public", "catalog_change"]),
   /** the authorized author's user id */
   u: z.string().min(1).max(128),
   /** the authorized author's session id */
   s: z.string().min(1).max(128),
-  /** entry id */
+  /** entry id; for `catalog_change`, the catalog subject (`artist:<id>`) */
   e: z.string().min(1).max(64),
   /** locale, for a `publish` token only */
   l: z.enum(locales).optional(),

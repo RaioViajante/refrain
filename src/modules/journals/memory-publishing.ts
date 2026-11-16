@@ -283,6 +283,8 @@ export async function previewMemoryPublicChange(
         review: toMemoryChangeReview(preview.delta, music),
         confirmation: preview.confirmation,
         expiresAtMs: preview.expiresAtMs,
+        // A memory's music is in its review already; no album page here.
+        catalogPage: null,
       };
     },
     { isolationLevel: "repeatable read", accessMode: "read only" },

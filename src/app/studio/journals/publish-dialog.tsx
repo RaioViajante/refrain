@@ -11,6 +11,7 @@ import {
   ReviewedText,
   ReviewSection,
   starsInWords,
+  CatalogPageView,
 } from "@/app/studio/journals/review-parts";
 import { failureMessage } from "@/app/studio/messages";
 import type { ActionResult } from "@/app/studio/results";
@@ -246,6 +247,10 @@ function OpenPublishDialog({
                 {ready.address.wasPublic ? w.wasPublic : ""}
               </p>
             </ReviewSection>
+
+            {ready.catalogPage ? (
+              <CatalogPageView page={ready.catalogPage} />
+            ) : null}
 
             {ready.artistPages.length > 0 ? (
               <ReviewSection title={w.artistPages(ready.artistPages.length)}>
