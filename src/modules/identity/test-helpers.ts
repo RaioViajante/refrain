@@ -19,6 +19,7 @@ export function testAuthConfig(
     secret: randomBytes(32).toString("base64"),
     baseURL: "http://localhost:3000",
     authorEmail: TEST_AUTHOR_EMAIL,
+    trustedClientIpHeader: null,
     ...overrides,
   };
 }
@@ -32,7 +33,7 @@ export function testAuth(
   return {
     auth,
     config,
-    handle: createAuthRequestHandler(() => ({ auth, config })),
+    handle: createAuthRequestHandler(() => ({ auth, config, database })),
   };
 }
 

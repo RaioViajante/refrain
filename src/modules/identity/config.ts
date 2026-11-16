@@ -18,7 +18,17 @@ export interface AuthConfig {
   baseURL: string;
   /** The single author's email address, lowercase. */
   authorEmail: string;
+  /**
+   * The request header that names the client for sign-in rate limits, or
+   * null: every client then shares one bucket (ADR 0004 § 6). Only
+   * `x-forwarded-for`, and only on Vercel, which overwrites that header with
+   * the client's address so that a client cannot choose it.
+   */
+  trustedClientIpHeader: TrustedClientIpHeader | null;
 }
+
+/** The only header that may name the client (see readTrustedClientIpHeader). */
+export type TrustedClientIpHeader = "x-forwarded-for";
 
 type Env = Readonly<Record<string, string | undefined>>;
 
@@ -102,6 +112,37 @@ function readAuthorEmail(env: Env): string {
   return email;
 }
 
+// A client chooses every request header it sends, so a header can name the
+// client only where the hosting platform replaces it. Vercel documents that it
+// overwrites `X-Forwarded-For` "and do[es] not forward external IPs ... to
+// prevent IP spoofing" (docs/security.md § Deployment gate, item 1). It says
+// nothing of the kind for `X-Real-IP` or `x-vercel-forwarded-for`, so those are
+// refused. Everywhere else (`next start`, tests, any other host) the header is
+// the client's own words, so setting this off Vercel is a configuration
+// error, not a silent fallback.
+function readTrustedClientIpHeader(env: Env): TrustedClientIpHeader | null {
+  const value = env.REFRAIN_TRUSTED_CLIENT_IP_HEADER?.trim().toLowerCase();
+  if (!value) {
+    return null;
+  }
+  if (value !== "x-forwarded-for") {
+    throw new AuthConfigError(
+      "REFRAIN_TRUSTED_CLIENT_IP_HEADER may only be x-forwarded-for.",
+    );
+  }
+  // `VERCEL=1` alone also arrives in a pulled `.env.local`; a deployment on
+  // the platform also names its environment.
+  if (
+    env.VERCEL !== "1" ||
+    (env.VERCEL_ENV !== "production" && env.VERCEL_ENV !== "preview")
+  ) {
+    throw new AuthConfigError(
+      "REFRAIN_TRUSTED_CLIENT_IP_HEADER is trusted only on Vercel (VERCEL=1 and VERCEL_ENV production or preview), which overwrites it. Unset it elsewhere.",
+    );
+  }
+  return value;
+}
+
 /**
  * Returns the validated authentication configuration. Throws AuthConfigError
  * when anything is missing or unsafe; there are no defaults to fall back to.
@@ -118,6 +159,7 @@ export function readAuthConfig(env: Env = process.env): AuthConfig {
     secret: readSecret(env),
     baseURL: readBaseURL(env),
     authorEmail: readAuthorEmail(env),
+    trustedClientIpHeader: readTrustedClientIpHeader(env),
   };
 }
 
