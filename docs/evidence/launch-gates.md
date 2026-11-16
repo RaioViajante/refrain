@@ -8,9 +8,9 @@ Who acts: **O** = the owner's decision or action; **E** = engineering, once auth
 
 | # | Item | State | Next step | Who |
 |---|---|---|---|---|
-| 1 | **ADR 0011 / 0012 partial acceptance** | Proposed | [Owner packet](v3-owner-packet.md): accept only the class-A parts | O |
+| 1 | **ADR 0011 / 0012 partial acceptance** | **Partly accepted** on 2026-11-15 (built work only) | Done for the built work (#113); the rest stays proposed, each part needing its own decision | O |
 | 2 | **F-02 / G6 backups** | Toolchain built and tested; nothing provisioned | Below: billing check (0a), then the owner generates the key offline (step 1). The seven days start only after step 10 | O, then E |
-| 3 | **G8 catalog wording** | Gap: catalog edits change published wording with no confirmation | Owner's direction: confirmation. Proposed in [ADR 0013](../decisions/0013-confirmed-catalog-changes-to-published-pages.md), awaiting acceptance; then the PRs of its § 7 | O, then E |
+| 3 | **G8 catalog wording** | Gap: catalog edits change published wording with no confirmation | Owner's direction: confirmation. Proposed in [ADR 0013](../decisions/0013-confirmed-catalog-changes-to-published-pages.md), awaiting acceptance; then the PRs of its § 7. G8 also needs R1 (the album a memory names) decided, as ADR 0013 § 7 says | O, then E |
 | 4 | **G3 inventory, G4 enforcement** | Inventory below | Owner accepts G4 option 1 (`refrain_app` least-privilege role, plus an accepted-risk ADR); then the role is created on the hosted database through `/refrain-db-change` | O, then E |
 | 5 | **Review and merge** #106 → #112 into `main` | Draft; CI and reviews in #112 | Owner review; merging needs ADR 0011's acceptance (item 1) | O |
 | 6 | **S2 staged deployment** of the approved `main` | Production serves `4caf07b` | Hosted Launch's S2 sequence, protected, reads off | O approves, E executes |
