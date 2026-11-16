@@ -143,6 +143,8 @@ Each step is one pull request with its own tests and an independent security rev
 4. **Tracklists and creation:** the tracklist commands and `createTrack` with an album, plus the refusals that stay (§ 1.3), with the dialog for the tracklist editor. Adds the **static coverage test** over every catalog writer.
 5. **Evidence.** `docs/evidence/` records each step's checks.
 
+**Step 4's named-album refusals are best-effort until R1.** The `deleteAlbum` and `importMusicRelease` refusals decide on the journal state of containing albums. ADR 0010's lock table does not lock those journals under today's rule (M3.7), so a concurrent publication can race that decision. That is no wider than today, where nothing is refused, and it stays inside R1.
+
 **G8 does not close with these steps alone.** ADR 0010 files **R1** (the album a memory names can change, with no token, when another album's journal is published or unpublished) as a G8 item, and this ADR does not decide R1. G8 closes only when R1 is resolved by its own decision (ADR 0010 § 4, or a successor), and the owner reviews the evidence of both.
 
 ## Effect on existing decisions
@@ -151,10 +153,11 @@ Each item needs the owner's explicit approval when this ADR is accepted, as ADR 
 
 | Decision | Change |
 | --- | --- |
+| ADR 0006 §§ 1 and 5 | As ADR 0010 § 2 amends them: the memory link atom gains its rendered wording, and the album journal's confirmed save binds its page's catalog atoms |
 | ADR 0006 § 2 | Catalog wording joins the disclosure and fingerprint (from ADR 0010). "Informational lines are not part of the set" ends for catalog wording. **C11 closes** |
 | ADR 0006 § 3 | A third purpose, `catalog_change`. For it, `e` is a catalog subject and `n` is the constant `1`; freshness comes from `f` |
 | ADR 0006 § 6 | The version rule is unchanged for entries. A catalog change is not an entry version and moves no `published_at` |
-| ADR 0006 § 9 | `previewCatalogChange`, in the Publication module, joins the closed list of previews that may mint |
+| ADR 0006 § 9 | `previewCatalogChange`, in the Publication module, joins the closed list of previews that may mint. The Studio reaches it only through its own Server Action file, which imports it through the Publication module's entry point, as the existing preview actions do. Presentation code never imports the database or signing code |
 | ADR 0006 L1, L2, L3, L6 | As ADR 0010 § 3 amends them: the closed L1 reader list, several entries `FOR SHARE` (L2), publications share-locking bound catalog rows (L3), and the decision after the last lock (L6) |
 | ADR 0006 A3 | Its refusals are unchanged. `setAlbumArtwork` decides after the album lock (ADR 0010's reorder) |
 | ADR 0006 A5 | Its rule that a page opens only through a confirmed publication is unchanged. Its operation table changes: "Rename an artist: allowed without a confirmation (C11 and G8)" becomes **confirmed while shown**, and so does credit wording. Its lock order is replaced by ADR 0010 § 3's |
@@ -207,3 +210,8 @@ Each item needs the owner's explicit approval when this ADR is accepted, as ADR 
 
 - Stored artist slugs (R7) land: § 2.3's address-change disclosure becomes a `308`.
 - A catalog surface is added (for example, ADR 0009's listing): it joins § 1.2 and the coverage test.
+
+## Review record
+
+- **First independent review** (architecture and security, read-only, at `fe647b2`): NO-GO as written. It found the design sound but raised three High findings (A5 openings, namesake addresses, R1 and the shown set) and four Medium ones (expiry after the locks, single use, the effect on ADR 0006, delivery order). All were fixed in the text (`2913d72`).
+- **Re-review** (at `2913d72`): **GO**, fit for the owner to consider. It confirmed every High and Medium finding resolved, and the token design sound. Its four Low notes are fixed: §§ 1 and 5 and the § 9 action path in the effect table, step 4's named-album refusals stated as best-effort until R1, and two stale index and checklist rows.
