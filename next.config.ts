@@ -3,6 +3,8 @@ import { join } from "node:path";
 
 import type { NextConfig } from "next";
 
+import { canonicalHostRedirectsFromEnvironment } from "./src/canonical-host";
+
 // The Content-Security-Policies, as in src/security-headers.ts (this file
 // cannot import application modules; src/security-headers.test.ts keeps them
 // equal): no framing, and images only from this application, inline data,
@@ -68,6 +70,11 @@ const nextConfig: NextConfig = {
   // shell with the author's data streamed into the same response, which the
   // platform answers with `public, max-age=0, must-revalidate` unless a header
   // says otherwise (F-01, issue #63, docs/security.md#studio-responses).
+  // The canonical-host redirect (Hosted Launch § 7, item 2), off unless its
+  // variable lists hostnames: src/canonical-host.ts.
+  async redirects() {
+    return canonicalHostRedirectsFromEnvironment();
+  },
   async headers() {
     const privateHeaders = [
       { key: "Cache-Control", value: PRIVATE_NO_STORE },
