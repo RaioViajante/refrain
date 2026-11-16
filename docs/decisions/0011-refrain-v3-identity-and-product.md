@@ -1,6 +1,19 @@
 # ADR 0011: Refrain v3 — Visual Identity and Product Changes
 
-- **Status:** **Proposed.** Not accepted. Nothing in this ADR binds code, tests, or other documents until the owner accepts it in writing. Until then, the accepted ADRs (0001 to 0008), [`AGENTS.md` § 6](../../AGENTS.md#6-design-system-boundaries), and the V4.4 specification in [Design System, Part II](../design-system.md#part-ii--v44-specification) still govern the merged code.
+- **Status:** **Partly accepted** by the owner on 2026-11-15, in writing, for the v3 work already built (PR #104 as assembled in #106 and #112), and only for:
+  - **§ 1**, v3 as the visual authority;
+  - **§ 2**, the replacement of the V4.4 visual rules;
+  - **§ 4 items 9 and 10**, the implemented motion, sound, and physical empty states;
+  - **§ 5**: every existing security contract stays binding;
+  - in § 6, **AR-1 to AR-8**, and **AR-9** for its implemented parts;
+  - **D7** (the About sources row);
+  - **D10** (the contrast adjustments, including `#67635C` and `#8C877E`);
+  - **D11** (the implemented asset promotion and typography only);
+  - **D13** (the derived artist album display only);
+  - **D20** (the implemented album-orbit behaviour only);
+  - **D21** (the non-persistent sound setting only).
+
+  **Everything else remains Proposed:** § 3, the rest of § 4, § 7, the other decisions D1 to D22 (including the parts of D11, D13, D20, and D21 not listed), and ADR 0006 A9 to A12. **Not approved, each needing its own decision:** whole-step track ratings (the existing half-step ratings are kept), one song per memory, one favourite, pending changes and autosave, new artist-journal publishing rules, media stored in PostgreSQL, magic-link sign-in, and the activation of any new external service. This acceptance authorizes no R2 to R12 milestone, no migration, and no deployment. The accepted ADRs 0001 to 0008 and every security and privacy contract still bind.
 - **Date:** 2026-11-15
 - **Scope:**
   - The visual identity of every public page and of the Writing Studio.
