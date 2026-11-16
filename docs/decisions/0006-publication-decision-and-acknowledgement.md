@@ -724,3 +724,11 @@ Archiving an artist removes it, which is a reduction. A5 still refuses every cat
 - **Required tests.**
   - `src/testing/public-router-forms.http.test.ts`: points 2 to 4, comparing an empty and a populated database, EN and `/pt`, for journals and memories, with a cookie sent, and markers scanned before any masking.
   - `src/testing/public-archives.http.test.ts`: points 1, 3, and 4 for the sections and `/pt/about`, with a cookie sent: each body byte for byte the unknown address's in the same form.
+
+### A14. Confirmed catalog changes (ADR 0013)
+
+**Accepted by the owner on 2026-11-16** (PR #115), as part of [ADR 0013](0013-confirmed-catalog-changes-to-published-pages.md). It is how gate G8 and gap C11 are to be resolved: a catalog edit that would change a served page's wording needs the author's explicit confirmation, through this ADR's token with a third purpose, `catalog_change`.
+
+- **What it changes:** exactly the items in ADR 0013's [Effect on existing decisions](0013-confirmed-catalog-changes-to-published-pages.md#effect-on-existing-decisions): §§ 1, 2, 3, 5, 6, and 9, L1, L2, L3, and L6, A3's lock procedure, and A5's operation table and lock order. Nothing else.
+- **When it binds the code:** each item takes effect when the ADR 0013 step that builds it merges. Until then, the text above applies, and **G8 and C11 stay open**. G8 also needs R1 (ADR 0013 § 7).
+- **What is unchanged:** the publication predicate; the confirmations of publish, `change_public`, and unpublish; A1 to A7 and A13 except as listed; and the status of this ADR, which stays Accepted.
