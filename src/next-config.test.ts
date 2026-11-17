@@ -254,3 +254,15 @@ describe("the canonical-host redirect (Hosted Launch § 7, item 2)", () => {
     },
   );
 });
+
+// GHSA-fc5q-39xc-vjpf (docs/development.md § Toolchain): Next.js compiles
+// `images.localPatterns` and `images.remotePatterns` with its bundled
+// picomatch, which the advisory affects and no patched version fixes. Refrain
+// sets neither, so that copy never compiles a pattern. Adding one means
+// re-evaluating the advisory first.
+describe("next.config.ts image patterns", () => {
+  it("sets no local or remote image pattern while GHSA-fc5q-39xc-vjpf is unpatched", () => {
+    expect(nextConfig.images?.localPatterns).toBeUndefined();
+    expect(nextConfig.images?.remotePatterns).toBeUndefined();
+  });
+});

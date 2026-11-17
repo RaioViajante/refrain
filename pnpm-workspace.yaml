@@ -8,3 +8,16 @@ allowBuilds:
   esbuild: false
   sharp: false
   unrs-resolver: false
+
+# Advisories recorded as not applicable (docs/development.md § Toolchain).
+# Each entry names one advisory, never a package or a severity, and is
+# removed as soon as a patched version can be installed.
+auditConfig:
+  ignoreGhsas:
+    # picomatch <= 4.0.7, ReDoS from a crafted glob pattern; no patched
+    # version yet. Installed only under development tools (ESLint,
+    # Vite/Vitest, fast-glob), absent from `pnpm audit --prod`. Next.js's own
+    # bundled copy compiles only `images` patterns from next.config.ts, which
+    # Refrain does not set (src/next-config.test.ts). Refrain never builds a
+    # glob pattern from request data.
+    - GHSA-fc5q-39xc-vjpf
