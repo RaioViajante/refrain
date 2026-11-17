@@ -86,7 +86,7 @@ The owner authorized the documented S2 sequence for the reviewed `main`, with Ve
 2. `vercel alias set <its URL> refrain-bryanalvarenga-5889s-projects.vercel.app`.
 3. Check all three aliases.
 
-**Configuration the owner set and that stays as it is:** the Production music providers are `disabled` (`REFRAIN_MUSICBRAINZ_BASE_URL`, `REFRAIN_COVER_ART_ARCHIVE_BASE_URL`, `REFRAIN_WIKIMEDIA_COMMONS_BASE_URL`, `REFRAIN_WIKIDATA_BASE_URL`), so Add music fails closed on the domain. Covers are not shown (`REFRAIN_COVER_DISPLAY_ENABLED` unset). Turning either on is the owner's decision; the covers also need Deployment gate item 6.
+**Configuration the owner set** (MusicBrainz was turned on later, on 2026-11-17: [Third promotion](#third-promotion-and-musicbrainz-on-the-domain-2026-11-17-908957f))**:** the Production music providers are `disabled` (`REFRAIN_MUSICBRAINZ_BASE_URL`, `REFRAIN_COVER_ART_ARCHIVE_BASE_URL`, `REFRAIN_WIKIMEDIA_COMMONS_BASE_URL`, `REFRAIN_WIKIDATA_BASE_URL`), so Add music fails closed on the domain. Covers are not shown (`REFRAIN_COVER_DISPLAY_ENABLED` unset). Turning either on is the owner's decision; the covers also need Deployment gate item 6.
 
 ### Second promotion, 2026-11-17 (`4a73137`)
 
@@ -101,3 +101,39 @@ With the owner's authorization, #127 (the track options' checkboxes), #125 (the 
 | Promotion (16:27:45 UTC) | `vercel promote`; then `refrain-bryanalvarenga-5889s-projects.vercel.app` pointed at it with `vercel alias set`, as before. All three hostnames on `dpl_3vdq…`, each answering `302` anonymously. Protection unchanged, no bypass |
 
 The owner's signed-in check on the domain is still to be done, as above. **Rollback:** `vercel promote dpl_AUESugsz1wT2ZjzcU6fzMtv6mx7E` (`2f64e71`), then the same `vercel alias set` for the third hostname; or `dpl_BzRwrBYXiX9U7dDVp23kbXxhDWr7` (`4caf07b`) to go back before v3.
+
+### Third promotion and MusicBrainz on the domain, 2026-11-17 (`908957f`)
+
+The owner reported on 2026-11-17 that `refrain.raioviajante.com` opens after signing in. That is a manual access check, not a test of every workflow. The owner then authorized three things:
+- merging #129 (Next.js 16.4.5) and #130 (the audit record for GHSA-fc5q-39xc-vjpf);
+- promoting the verified build of `main`;
+- separately, **enabling MusicBrainz in Production**: only the Production variable `REFRAIN_MUSICBRAINZ_BASE_URL` (`disabled`) is removed, so the adapter uses the real service. The Cover Art Archive, Wikimedia Commons, and Wikidata stay `disabled`, and `REFRAIN_COVER_DISPLAY_ENABLED` stays unset.
+
+No hosted data was changed and no migration ran.
+
+| Step | Evidence |
+| --- | --- |
+| Source | `main` at **`908957fd40532a854296e264bcd27fb5c602251a`** (#130's merge). CI green on it: Verify, both dependency audits, and Database tests on PostgreSQL 18. A separate clean clone passed `pnpm install --frozen-lockfile` and `pnpm build`. `src/db/` unchanged since `4a73137` |
+| Same commit, signed in, on staging | Preview `dpl_H2RsLbnri93pP7VbPNmCDHKmVv9h`, after the same 13 pre-alias checks (protected, no bypass, the staging database's host). The hosted rehearsal passed **40 of 40**, real MusicBrainz search included; its records were removed afterwards. Earlier the same day, `fc8c1b1` (the identical application tree, before #130) passed 40 of 40 as `dpl_HHBxQSUY81ZX1zvjdntXhqMvVwdb` |
+| Production configuration, rehearsed locally | The production build of `fc8c1b1`, run with Production's planned provider settings on the disposable database, passed **8 of 8**: a real search, 26 editions listed with no image, a review offering no cover ("The Cover Art Archive couldn't be reached, so no artwork is offered now."), and an import of 11 tracks with its credit and no cover stored. Also: the album page with no image, the Portuguese Studio, and no request from the browser to another origin |
+| Preflight | All three production hostnames on `dpl_3vdqTQtNnpEjR7Kprg12estteMJQ`. Protection All Deployments, no bypass, password, or trusted IPs; Git deployments disabled and the Ignored Build Step exits 0 |
+| Environment change | `vercel env rm REFRAIN_MUSICBRAINZ_BASE_URL production` (it targeted Production only). Production's `REFRAIN_` variables are now `REFRAIN_AUTHOR_EMAIL`, `REFRAIN_COVER_ART_ARCHIVE_BASE_URL`, `REFRAIN_PUBLIC_READS_ENABLED`, `REFRAIN_WIKIDATA_BASE_URL`, and `REFRAIN_WIKIMEDIA_COMMONS_BASE_URL`; no other variable changed |
+| Staged deployment | **`dpl_2BNyqPYT7Xqu8VhTQLbDV31JcEVM`**, target production, `githubCommitSha 908957f`, no alias, `gru1`. Uploaded: the tracked files except `.gitignore`. Build log clean |
+| Staged checks, anonymous | The same ten paths: the 263-byte `302` to Vercel's sign-in. An anonymous sign-in `POST`: `401` |
+| Promotion (20:43:55 UTC) | `vercel promote`, then `vercel alias set` for `refrain-bryanalvarenga-5889s-projects.vercel.app`. All three hostnames on `dpl_2BNyq…`, each answering `302` anonymously. Protection unchanged, no bypass |
+
+**Not verified:** the signed-in workflows on the domain, Add music among them. Only the owner's session can reach Production.
+
+**MusicBrainz in Production:**
+- **Identification:** `Refrain/0.1.0 ( https://github.com/RaioViajante/refrain )`, the format MusicBrainz asks for.
+- **Rate:** one request per 1.1 s per server instance. MusicBrainz asks for one per second per client; with a single author, one instance is the normal case.
+- **Requests:** 8 s per attempt and 20 s in all, with at most two retries, only after a `503`, `429`, `502`, `504`, or a network error. Responses are validated, and failures are never cached.
+- **No key or account:** the web service needs none for read-only searches and lookups, and non-commercial use is free.
+- **Data licence:** the core data used (names, titles, tracklists, MBIDs) is CC0.
+- **Failure:** a provider error never blocks writing.
+
+**Rollback** (either undoes MusicBrainz too, since the variable is fixed per deployment):
+1. `vercel promote dpl_3vdqTQtNnpEjR7Kprg12estteMJQ` (`4a73137`, built with MusicBrainz `disabled`).
+2. `vercel alias set refrain-5vnaqax4x-raioviajando.vercel.app refrain-bryanalvarenga-5889s-projects.vercel.app`.
+
+To turn MusicBrainz off on the current code instead, add `REFRAIN_MUSICBRAINZ_BASE_URL=disabled` back to Production and redeploy.
