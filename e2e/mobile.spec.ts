@@ -27,6 +27,67 @@ test.describe("sign-in", () => {
   });
 });
 
+test("the header follows the reference: wordmark and languages, the menu, then the page bar", async ({
+  page,
+}) => {
+  for (const language of [
+    { prefix: "", site: "View the site ↗", signOut: "Sign out", add: "+ New" },
+    { prefix: "/pt", site: "Ver o site ↗", signOut: "Sair", add: "+ Novo" },
+  ]) {
+    await page.goto(`${language.prefix}/studio`);
+    await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
+    const side = page.locator(".stu .side");
+    await expect(side.locator(".wm")).toBeVisible();
+    const menu = side.locator("nav");
+    // Row 1: the wordmark, with the languages on its right.
+    const mark = await side.locator(".wm").boundingBox();
+    const languages = side.locator(".foot .seg");
+    const pair = await languages.boundingBox();
+    expect(pair!.x).toBeGreaterThan(mark!.x + mark!.width);
+    expect(
+      Math.abs(pair!.y + pair!.height / 2 - (mark!.y + mark!.height / 2)),
+    ).toBeLessThan(16);
+    for (const link of await languages.getByRole("link").all()) {
+      await expectTouchTarget(link);
+    }
+    // The menu ends with "View the site" and "Sign out", each a 44 px target,
+    // reachable by keyboard; the sidebar foot's copies are not shown.
+    const site = menu.getByRole("link", { name: language.site });
+    const signOut = menu.getByRole("button", { name: language.signOut });
+    for (const control of [site, signOut]) {
+      await control.scrollIntoViewIfNeeded();
+      await expect(control).toBeVisible();
+      await expectTouchTarget(control);
+      await control.focus();
+      await expect(control).toBeFocused();
+    }
+    await expect(
+      page.getByRole("button", { name: language.signOut }),
+    ).toHaveCount(1);
+    await expect(page.getByRole("link", { name: language.site })).toHaveCount(
+      1,
+    );
+    const lastTwo = await menu
+      .locator(":scope > a, :scope > span")
+      .evaluateAll((items) =>
+        items.slice(-2).map((item) => item.textContent?.trim() ?? ""),
+      );
+    expect(lastTwo[0]).toBe(language.site);
+    expect(lastTwo[1]).toContain(language.signOut);
+    // The page bar: the crumb, then "+ New" to a new album journal.
+    const add = page.locator(".stu .bar").getByRole("link", {
+      name: language.add,
+    });
+    await expect(add).toBeVisible();
+    await expect(add).toHaveAttribute(
+      "href",
+      `${language.prefix}/studio/journals/new`,
+    );
+    await expectTouchTarget(add);
+    await expectNoHorizontalOverflow(page);
+  }
+});
+
 const names = { artist: named("Mobile Artist"), album: named("Mobile Album") };
 let albumUrl = "";
 let journalUrl = "";

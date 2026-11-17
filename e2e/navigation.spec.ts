@@ -76,6 +76,34 @@ test("the sidebar has the same destinations on every page (v3)", async ({
   }
 });
 
+test("the Desk's page bar has + New, as in the reference; the sidebar's foot keeps the site and sign-out", async ({
+  page,
+}) => {
+  await page.goto("/studio");
+  const add = page.locator(".stu .bar").getByRole("link", { name: "+ New" });
+  await expect(add).toBeVisible();
+  await expect(add).toHaveAttribute("href", "/studio/journals/new");
+  const bar = await page.locator(".stu .bar").boundingBox();
+  const box = await add.boundingBox();
+  // At the bar's right end on a wide screen.
+  expect(bar!.x + bar!.width - (box!.x + box!.width)).toBeLessThan(48);
+  expect(box!.height).toBeGreaterThanOrEqual(44);
+  const foot = page.locator(".stu .side .foot");
+  await expect(
+    foot.getByRole("link", { name: "View the site ↗" }),
+  ).toBeVisible();
+  await expect(foot.getByRole("button", { name: "Sign out" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "View the site ↗" })).toHaveCount(
+    1,
+  );
+  // Only the Desk's bar has it.
+  await page.goto("/studio/journals");
+  await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
+  await expect(
+    page.locator(".stu .bar").getByRole("link", { name: "+ New" }),
+  ).toHaveCount(0);
+});
+
 test("Desk is current on the Desk, the Library in the journal workflows, Catalog on the music library", async ({
   page,
 }) => {

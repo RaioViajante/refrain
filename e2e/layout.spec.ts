@@ -259,7 +259,9 @@ for (const width of [...WIDTHS, 360, 320, 720, 721]) {
     const side = page.locator(".stu .side");
     await expect(side.locator(".wm")).toContainText("refrain");
     await expect(side.locator(".wm")).toContainText("studio");
-    for (const link of await side.locator("nav a").all()) {
+    // Every link shown at this width: on a phone that includes the menu's
+    // "View the site", which the sidebar's foot holds on a wider screen.
+    for (const link of await side.locator("nav a:visible").all()) {
       const target = await link.boundingBox();
       expect(target!.height, await link.innerText()).toBeGreaterThanOrEqual(
         43.5,
