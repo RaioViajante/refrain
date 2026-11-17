@@ -61,3 +61,29 @@ The checks recorded statuses, headers, and booleans only: never a credential, co
 4. Confirm the Studio sign-in on `refrain-chi`.
 
 Protection stays on All Deployments and reads stay off. The deleted vulnerable deployment (`cd34f06`) is never a target.
+
+## Redeployment of `main`, 2026-11-17
+
+The owner authorized the documented S2 sequence for the reviewed `main`, with Vercel Authentication kept on every deployment and Production public reads off. S2's environment change (`BETTER_AUTH_URL`) was already made on 2026-11-06, so this was the staged deployment, the checks, and the promotion. No environment variable, protection setting, DNS record, or hosted database row was changed, and no migration ran.
+
+| Step | Evidence |
+| --- | --- |
+| Source | `main` at **`2f64e712264a760bb45701885a5c01ea32c2b6c7`** (#124's merge). CI green on it: Verify, and Database tests on PostgreSQL 18. A fresh clone, detached at that commit, with no `.env`; its only untracked item was the `.vercel/` link. `vercel link` appends to `.gitignore` and writes a `.env.local`: both were undone before deploying. A separate clone of the same commit passed `pnpm install --frozen-lockfile` and `pnpm build` with no `DATABASE_URL` |
+| Same commit, signed in, on staging | Before Production, the same commit was deployed to the protected Preview (`dpl_3YyuwXyvysCxr2kyu8Xod8Fbtqmi`) on the isolated Neon staging database. The M4 rehearsal there passed **39 of 39** checks as the synthetic staging author: CRUD, tracklist reorder, journal, rating, track reflection, soft delete and restore, publish and unpublish, memory, PT, music search, the SQL evidence, and the phone header. Its records were removed afterwards ([Evidence: v3 presentation readiness](v3-presentation-readiness.md)) |
+| Database compatibility | `src/db/` and `drizzle.config.ts` are identical between the deployment Production served (`4caf07b`) and `2f64e71`: no new schema requirement. Production `DATABASE_URL` is unchanged since 2026-11-05. On 2026-11-06 the owner's signed-in check on `4caf07b` opened Artists and Catalog, which read migration `0005`'s columns, so the production database has `0005`. Its connection string is Sensitive and was not read |
+| Rollback preflight | `dpl_BzRwrBYXiX9U7dDVp23kbXxhDWr7` (`4caf07b`) Ready, and `refrain.raioviajante.com`, `refrain-chi.vercel.app`, and `refrain-bryanalvarenga-5889s-projects.vercel.app` all on it, checked alias by alias. No newer Ready production deployment. Production `REFRAIN_PUBLIC_READS_ENABLED=false`, `BETTER_AUTH_URL=https://refrain.raioviajante.com`. Protection All Deployments, no bypass, password, or trusted IP. DNS: the same `CNAME` from 1.1.1.1 and 8.8.8.8; TLS valid to 2027-02-04 |
+| Staged deployment | `vercel deploy --prod --skip-domain`: **`dpl_AUESugsz1wT2ZjzcU6fzMtv6mx7E`**, Ready, target production, region `gru1`, `githubCommitSha 2f64e71`, no alias. **Uploaded files: exactly the 648 tracked files except `.gitignore`**, nothing untracked. Build log clean (76 pages generated). No production alias moved |
+| Staged checks, anonymous | Ten paths (Home, Studio, sign-in, an archive, `/pt`, sitemap, `robots`, `get-session`, an RSC form, a static file): the same 263-byte `302` to Vercel's sign-in. An anonymous `POST` to the sign-in endpoint: `401` |
+| Promotion (08:11:50 UTC) | `vercel promote dpl_AUESugsz1wT2ZjzcU6fzMtv6mx7E`, with no rebuild. `refrain.raioviajante.com` and `refrain-chi.vercel.app` moved to it. `refrain-bryanalvarenga-5889s-projects.vercel.app` is an alias from 2026-11-05 that is not one of the project's domains, and stayed on the old deployment; it was pointed at the promoted one with `vercel alias set`, so all three serve the same deployment, as after the 2026-11-06 promotion |
+| After | All three hostnames answer anonymously with Vercel's `302`; `http://` answers `308` to `https://`. Protection unchanged, no bypass secret. Reads off |
+
+**Not done, and why.**
+- **The runbook's checks with the owner's Vercel session were not done.** These are step 6's sign-in page and F-01 probe, and step 8's sign-in, CRUD, and sign-out on the domain. Only the owner's session and the owner's sign-in can do them: a development token was refused for Production by the local permission policy, and no bypass was created. Code behaviour was established on this exact commit on the Preview (above), and the production configuration is the one the owner verified on 2026-11-06.
+- **The owner's first step is to sign in on `https://refrain.raioviajante.com/studio`** and open the Desk, Catalog, and a journal.
+
+**Rollback**, if that sign-in or any page fails:
+1. `vercel promote dpl_BzRwrBYXiX9U7dDVp23kbXxhDWr7` (`4caf07b`; same `BETTER_AUTH_URL`, so no environment change).
+2. `vercel alias set <its URL> refrain-bryanalvarenga-5889s-projects.vercel.app`.
+3. Check all three aliases.
+
+**Configuration the owner set and that stays as it is:** the Production music providers are `disabled` (`REFRAIN_MUSICBRAINZ_BASE_URL`, `REFRAIN_COVER_ART_ARCHIVE_BASE_URL`, `REFRAIN_WIKIMEDIA_COMMONS_BASE_URL`, `REFRAIN_WIKIDATA_BASE_URL`), so Add music fails closed on the domain. Covers are not shown (`REFRAIN_COVER_DISPLAY_ENABLED` unset). Turning either on is the owner's decision; the covers also need Deployment gate item 6.
