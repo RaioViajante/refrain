@@ -146,11 +146,12 @@ test("keeps the fallback when the archive does not answer", async ({
   await openJournal(page);
   const before = await frameOf(page).boundingBox();
   await expect(frameOf(page)).toHaveAccessibleName("Album artwork for Grace");
-  const drawn = await cover(page).evaluate((img: HTMLImageElement) => ({
-    complete: img.complete,
-    width: img.naturalWidth,
-  }));
-  expect(drawn).toEqual({ complete: true, width: 0 });
+  // The failed cover gives way to the white record label: no broken-image
+  // frame is drawn (it once was, a thin empty box with the browser's icon).
+  await expect(cover(page)).toBeHidden();
+  const label = frameOf(page).locator(":scope > .covx");
+  await expect(label).toBeVisible();
+  await expect(label).toContainText("Grace");
   // The sleeve keeps its place: a failed cover moves nothing.
   expect(await frameOf(page).boundingBox()).toEqual(before);
 });
