@@ -58,11 +58,16 @@ On the host the rehearsal passed 35 of 37 checks, including #121's three fixes: 
 
 Cleanup again removed exactly the run's records.
 
+**Third deployment (#122).** With the owner's authorization, #122 was merged as `64205b1` and deployed the same way as **`dpl_DKVcwEFuXWt2ggTSiEJEj1J4Ffvj`**, which `refrain-v3-rc.vercel.app` now serves.
+- **Before the alias moved:** the same checks passed. They covered the commit and the Preview target, anonymous `302`, the project's Preview reads still `false`, and the staging database (`f9154f7d`). They also covered protection on every deployment with no bypass secret, and every page answering through the protection.
+- **The rehearsal on the host:** **38 of 38 checks passed** (the sign-out check now waits for the redirect). That included the album sleeve, the Home's header at 320, 390, and 1440 px in EN and PT, a long artist name on desktop, long label titles, and the Home's latest-journal sleeve at 390 and 1440 px.
+- **Cleanup:** it again removed exactly the run's records. Production still serves `dpl_BzRwrBYXiX9U7dDVp23kbXxhDWr7`.
+
 **Incident.** While reading the development token, `vercel env run --environment development … -- node <file>` (Vercel CLI 64.0.1) did not run the script: it deployed the file as a new project, `envkeys`. The file was a one-line script that prints variable names, with no secret in it. Both of its deployments were behind Vercel Authentication or answered `404`. With the owner's approval, after checking that it had no link, variables, or dependencies, the project was deleted. Do not use `vercel env run` this way.
 
 **Independent review** (a separate agent, read-only, of `4ec634b..b997233` and the hosted configuration): **GO**, no Critical, High, or Medium finding. Its Low findings were stale statements in this document, corrected here, and a setup step in the sleeve test that could leave a rename behind, now one transaction. It also confirmed the protection, the alias, the deployment's commit, Production, the cancelled Git deployments, and `302` for anonymous requests.
 
-Undoing a deployment: point the alias back at the previous one, `dpl_GB4pkMdvSEwX5SvKobZj4nnaGrSs` (`b997233`), or `dpl_5NvrbDxvVA2Y2f9xdP4sj6xbR9hS` (the release candidate).
+Undoing a deployment: point the alias back at an earlier one: `dpl_37CLuc8TMkUYAqpQUCcXmnHascwd` (`6093891`), `dpl_GB4pkMdvSEwX5SvKobZj4nnaGrSs` (`b997233`), or `dpl_5NvrbDxvVA2Y2f9xdP4sj6xbR9hS` (the release candidate).
 
 ## `main`, verified locally
 
@@ -147,8 +152,8 @@ Compared with the v3 reference screens at 1440 and 390 px, in the settled state 
 | --- | --- | --- | --- |
 | Pages | Home, Albums, Artists, Memories, About, album journal, artist, 404, in EN and `/pt` | PASS (local and on the Preview, `b997233`) | Rehearsal; e2e 359; [staging audit](#the-protected-preview-before-the-deployment-audit) |
 | Pages | Album journal with a long title or artist | PASS since `b997233` (was FAIL) | [Visual fidelity](#visual-fidelity) |
-| Pages | Home on a phone: header links and languages | **FAIL on `b997233`**; PASS with the follow-up | Same |
-| Pages | Artist page with a long name (desktop); long titles on record labels | **FAIL on `b997233`**; PASS with the follow-up | Same |
+| Pages | Home on a phone: header links and languages | PASS since `6093891` (was FAIL), on the host | Same |
+| Pages | Artist page with a long name (desktop); long titles on record labels and in the Home's sleeve | PASS since `64205b1` (was FAIL), on the host | Same |
 | Studio | Desk, Library, catalog, journals, memories, Recently deleted, publish dialogs, Add music, EN and PT | PASS (local and on the Preview) | Rehearsals; e2e |
 | CRUD | Artist create, read, update, delete, refused delete | PASS (local and on the Preview) | Steps 1, 4, 6, 7, 10 |
 | CRUD | Album create, read, update, refused delete | PASS (local and on the Preview) | Steps 2, 4, 5, 8 |
@@ -163,7 +168,7 @@ Compared with the v3 reference screens at 1440 and 390 px, in the settled state 
 | Authentication | Sign-in, wrong password refused, Studio closed without a session, sign-out | PASS (local and on the Preview) | Rehearsal; e2e `authentication` |
 | Neon | Connection, TLS, and isolation from the other databases | PASS | [Deployed and verified](#deployed-and-verified-on-the-preview-2026-11-17) |
 | Neon | Migrations and schema match `main` | PASS: 6 of 6 by hash, 22 tables | Same |
-| Neon | `main` deployed on the Preview | PASS: `dpl_GB4pk…` from `b997233` | Same |
+| Neon | `main` deployed on the Preview | PASS: `dpl_DKVc…` from `64205b1` | Same |
 | Artwork | MusicBrainz search and Cover Art Archive images, live | PASS (locally through the adapters; search also from the hosted Studio) | [Providers](#music-providers-live) |
 | Artwork | Covers shown on a hosted page | **Off by design** until the rights review (Deployment gate item 6) | Preview variables |
 | Visual | v3 fidelity, public | PASS, with the recorded differences | [Visual fidelity](#visual-fidelity) |
