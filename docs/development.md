@@ -499,7 +499,7 @@ Versions are exact in `package.json`, and the lockfile is committed. Each was ch
 | --- | --- | --- |
 | Node.js | 24.22.2 | Node 24 is a maintenance LTS line, supported until 2028-04-30. Node 26 became LTS only on 2026-10-28; revisit after the presentation. |
 | pnpm | 12.15.0 | |
-| `next` | 16.4.3 | App Router, Turbopack, Cache Components |
+| `next` | 16.4.5 | App Router, Turbopack, Cache Components |
 | `react`, `react-dom` | 19.3.1 | |
 | `typescript` | 6.0.3 | TypeScript 7 is excluded: `typescript-eslint` supports only `<6.1.0`. |
 | `tailwindcss`, `@tailwindcss/postcss` | 4.3.3 | The PostCSS plugin, as the Next.js documentation describes |
@@ -511,7 +511,7 @@ Versions are exact in `package.json`, and the lockfile is committed. Each was ch
 | `zod` | 4.6.7 | Validation at server boundaries; also Better Auth's own dependency range (`^4.5.4`) |
 | `tsx` | 4.23.15 | Runs the local author command (`--conditions=react-server`, under which `server-only` permits server code) |
 | `eslint` | 9.39.5 | ESLint 10 is excluded: plugins used by `eslint-config-next` declare support only up to ESLint 9. |
-| `eslint-config-next` | 16.4.3 | |
+| `eslint-config-next` | 16.4.5 | |
 | `prettier` | 3.9.10 | |
 | `vitest` | 5.0.5 | With `vite` 8.3.5, its peer dependency |
 | `@playwright/test` | 1.64.1 | Browser tests (M1.3C). Published 2026-10-14, older than the seven-day minimum. Chromium is downloaded by `playwright install`, not by the package. |
