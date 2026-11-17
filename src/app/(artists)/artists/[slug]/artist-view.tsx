@@ -10,6 +10,8 @@ import { localizedHref } from "@/i18n/paths";
 import { dictionaryFor } from "@/i18n/dictionaries";
 import { v3StringsFor } from "@/i18n/v3";
 
+import { artistNameScale } from "./name-fit";
+
 // The public artist page (docs/design-system.md, Part I, Pages: artist): the
 // portrait torn in two as the page opens, the name between the halves with
 // what the journal knows about the artist, and their album journals on the
@@ -57,6 +59,7 @@ export function ArtistView({
   const words = artist.name.trim().split(/\s+/);
   const first = words.length > 1 ? words.slice(0, -1).join(" ") : artist.name;
   const rest = words.length > 1 ? words[words.length - 1] : "";
+  const nameScale = artistNameScale(first, rest ?? "");
   const only = artist.albums.length === 1 ? artist.albums[0]! : null;
   const labels: { label: string; value: string }[] = [
     { label: t.l1, value: String(artist.albums.length) },
@@ -127,7 +130,14 @@ export function ArtistView({
               <p className="k pix">
                 {locale === "pt-BR" ? "ARTISTA" : "ARTIST"}
               </p>
-              <h1 id="pp-h1">
+              <h1
+                id="pp-h1"
+                style={
+                  nameScale < 1
+                    ? { ["--name-scale" as string]: String(nameScale) }
+                    : undefined
+                }
+              >
                 {first}
                 {rest ? " " : null}
                 {rest ? <span className="ser">{rest}</span> : null}
