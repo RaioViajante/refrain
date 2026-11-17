@@ -76,6 +76,45 @@ async function skipTop(page: Page) {
 }
 
 for (const { name, width, height } of WIDTHS) {
+  test(`at ${name}px: a track's options are drawn checkboxes that show their state`, async ({
+    page,
+  }) => {
+    // The v3 shell once drew no box at all for these: an empty gutter beside
+    // each label. Each box must be drawn, and change when checked.
+    await openEditor(page, width, height);
+    const head = page.getByRole("button", { name: named("Editor Song 1") });
+    if ((await head.getAttribute("aria-expanded")) !== "true") {
+      await head.click();
+    }
+    for (const label of [
+      "Mark as favourite",
+      "Still writing",
+      "Include when published",
+    ]) {
+      const box = page.getByLabel(label).first();
+      await box.scrollIntoViewIfNeeded();
+      const area = (await box.boundingBox())!;
+      const clip = {
+        x: area.x - 2,
+        y: area.y - 2,
+        width: area.width + 4,
+        height: area.height + 4,
+      };
+      await expect(box).not.toBeChecked();
+      const drawn = await page.screenshot({ clip });
+      await box.evaluate((input) => (input.style.visibility = "hidden"));
+      const blank = await page.screenshot({ clip });
+      await box.evaluate((input) => (input.style.visibility = ""));
+      expect(drawn.equals(blank), `${label}: the box is drawn`).toBe(false);
+      await box.check();
+      const checked = await page.screenshot({ clip });
+      expect(checked.equals(drawn), `${label}: checked looks checked`).toBe(
+        false,
+      );
+      await box.uncheck();
+    }
+  });
+
   test(`at ${name}px: the skip link is hidden at every scroll position and shown only by the keyboard`, async ({
     page,
   }) => {
