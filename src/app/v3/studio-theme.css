@@ -682,3 +682,15 @@
     margin-left: 0;
   }
 }
+/* The track options' checkboxes. V4.4 drew them with a hand-drawn stroke
+   (--stroke-field), which the v3 shell sets to none, so an unchecked box drew
+   nothing at all. The v3 reference uses the native checkbox in its accent
+   (.chk); the whole option, with its label, stays a 44 px target. */
+.stu .studio-check input {
+  appearance: auto;
+  width: 20px;
+  height: 20px;
+  margin: 12px 2px;
+  background: none;
+  accent-color: var(--burg);
+}
