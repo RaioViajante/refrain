@@ -160,14 +160,22 @@ test("a long title and artist stay inside the sleeve, at every width", async ({
     }>("select artist_id, credited_as from album_artists where album_id = $1", [
       id,
     ]);
-    await client.query("update albums set title = $2 where id = $1", [
-      id,
-      longTitle,
-    ]);
-    await client.query(
-      "update album_artists set credited_as = $2 where album_id = $1",
-      [id, longArtist],
-    );
+    // Both renames or neither, so a failure here leaves nothing to restore.
+    await client.query("begin");
+    try {
+      await client.query("update albums set title = $2 where id = $1", [
+        id,
+        longTitle,
+      ]);
+      await client.query(
+        "update album_artists set credited_as = $2 where album_id = $1",
+        [id, longArtist],
+      );
+      await client.query("commit");
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    }
     return { id, title, credits: credits.rows };
   });
   const context = await browser.newContext({ reducedMotion: "reduce" });

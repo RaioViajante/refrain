@@ -2297,14 +2297,16 @@
 .pp .torn h1 {
   margin: 16px 0 0;
   font-weight: 700;
-  font-size: 64px;
+  /* --name-scale fits a long name above the labels (name-fit.ts); a phone
+     keeps its own sizes below, where the labels follow the name. */
+  font-size: calc(64px * var(--name-scale, 1));
   line-height: 0.9;
   letter-spacing: -0.04em;
 }
 .pp .torn h1 .ser {
   display: block;
   font-weight: 400;
-  font-size: 84px;
+  font-size: calc(84px * var(--name-scale, 1));
   font-style: italic;
   letter-spacing: -0.01em;
 }
@@ -3725,10 +3727,12 @@
   .pp .lang button {
     padding: 4px 2px;
   }
+  /* Below the three section links, each a 44 px target (12 + 3 × 44 px);
+     at 116 px the language switch sat on top of "Memories". */
   .pp .hdr:not(.in) .tools {
     position: absolute;
     left: 20px;
-    top: 116px;
+    top: 148px;
     flex-direction: column;
     align-items: flex-start;
     gap: 0;

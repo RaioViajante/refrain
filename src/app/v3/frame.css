@@ -149,6 +149,15 @@ body:has(> .pp) {
   font-weight: 400;
   font-size: 34px;
   line-height: 0.95;
+  /* A long title is cut with an ellipsis instead of running off the label
+     mid-line; the label is decorative, and its title is always given in
+     full beside it. */
+  flex-shrink: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
 }
 .pp .covx .yr {
   position: relative;

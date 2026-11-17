@@ -195,6 +195,30 @@ test("shows the kraft frame and the whole name for a band without a photograph",
   ).toHaveCount(1);
   expect((await heading(page))!.length).toBeGreaterThan(20);
   expect(await overflow(page)).toBeLessThanOrEqual(0);
+  // The long name stays above the labels and inside its column, wherever the
+  // labels sit beside it (a long name once ran over "albums written").
+  for (const width of [1024, 1440, 2560]) {
+    await page.setViewportSize({ width, height: 900 });
+    const boxes = await page.evaluate(() => {
+      const rect = (selector: string) =>
+        document.querySelector(selector)!.getBoundingClientRect();
+      const h1 = rect(".torn h1");
+      const mid = rect(".torn .mid");
+      const label = rect(".torn .lab");
+      return {
+        h1: { left: h1.left, right: h1.right, bottom: h1.bottom },
+        mid: { left: mid.left, right: mid.right },
+        labelTop: label.top,
+      };
+    });
+    expect(boxes.h1.bottom, `${width}px`).toBeLessThanOrEqual(boxes.labelTop);
+    expect(boxes.h1.left, `${width}px`).toBeGreaterThanOrEqual(
+      boxes.mid.left - 1,
+    );
+    expect(boxes.h1.right, `${width}px`).toBeLessThanOrEqual(
+      boxes.mid.right + 1,
+    );
+  }
 });
 
 test("keeps the page whole when the thumbnail cannot be loaded", async ({

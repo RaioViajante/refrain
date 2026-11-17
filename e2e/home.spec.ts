@@ -188,6 +188,45 @@ test("never scrolls sideways, at any width", async ({ page }) => {
   }
 });
 
+test("the header's links and languages never overlap, at any width, in both languages", async ({
+  page,
+}) => {
+  // On a phone the three 44 px section links once ran under the language
+  // switch, which sat on top of "Memories".
+  for (const prefix of ["", "/pt"]) {
+    const response = await page.goto(`${base}${prefix || "/"}`);
+    expect(response?.status()).toBe(200);
+    await streamed(page);
+    for (const width of [320, 390, 720, 721, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      const boxes = await page.evaluate(() => {
+        const box = (element: Element) => {
+          const r = element.getBoundingClientRect();
+          return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+        };
+        return {
+          links: [...document.querySelectorAll(".hdr nav a")].map(box),
+          languages: [
+            ...document.querySelectorAll(".hdr .lang a, .hdr .lang .lang-off"),
+          ].map(box),
+        };
+      });
+      expect(boxes.links).toHaveLength(3);
+      expect(boxes.languages.length).toBeGreaterThanOrEqual(2);
+      for (const link of boxes.links) {
+        for (const language of boxes.languages) {
+          const overlaps =
+            link.left < language.right &&
+            language.left < link.right &&
+            link.top < language.bottom &&
+            language.top < link.bottom;
+          expect(overlaps, `${prefix || "/"} at ${width}px`).toBe(false);
+        }
+      }
+    }
+  }
+});
+
 test("every link and button in the page is at least 44px tall", async ({
   page,
 }) => {
