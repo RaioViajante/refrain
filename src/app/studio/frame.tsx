@@ -275,9 +275,19 @@ export function StudioFrame({
           >
             {words.frame.catalog}
           </StudioNavLink>
+          {/* On a phone the sidebar's foot keeps only the languages, beside
+              the wordmark as in the reference; these two end the menu. */}
+          <a className="m-only" href={localizedHref(locale, "/")}>
+            {v3.s46} ↗
+          </a>
+          <span className="m-only m-signout">
+            <SignOutButton />
+          </span>
         </nav>
         <div className="foot">
-          <a href={localizedHref(locale, "/")}>{v3.s46} ↗</a>
+          <a className="hide-m" href={localizedHref(locale, "/")}>
+            {v3.s46} ↗
+          </a>
           <div className="seg" role="group" aria-label={v3.langA}>
             <a
               href={pair.en}
@@ -296,7 +306,7 @@ export function StudioFrame({
               PT
             </a>
           </div>
-          <span>
+          <span className="hide-m">
             raioviajante · <SignOutButton />
           </span>
         </div>
@@ -306,6 +316,14 @@ export function StudioFrame({
           <span className="crumb">
             <b>{crumb}</b>
           </span>
+          {current === "desk" ? (
+            <a
+              className="btn pri new"
+              href={localizedHref(locale, "/studio/journals/new")}
+            >
+              + {v3.s37}
+            </a>
+          ) : null}
         </div>
         <main
           id={STUDIO_CONTENT_ID}

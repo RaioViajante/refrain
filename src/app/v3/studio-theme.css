@@ -641,3 +641,44 @@
   font-size: 18px;
   letter-spacing: -0.01em;
 }
+
+/* The phone's copies of "View the site" and "Sign out", which end the menu
+   there (the sidebar's foot has them on a wider screen), and the Desk's
+   "+ New" in the page bar, as in the reference. Every one is a 44px target. */
+.stu .side .m-only {
+  display: none;
+}
+.stu .bar .new {
+  margin-left: auto;
+  min-height: 44px;
+}
+@media (max-width: 720px) {
+  .stu .side .m-only {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 10px;
+    color: var(--grey);
+    white-space: nowrap;
+  }
+  .stu .side .m-signout {
+    padding: 0;
+  }
+  .stu .side .m-signout button {
+    min-height: 44px;
+    padding: 0 10px;
+    border: 0;
+    background: none;
+    color: var(--grey);
+    text-decoration: underline;
+    white-space: nowrap;
+  }
+  .stu .side .foot {
+    gap: 0;
+  }
+  /* On a phone the reference sets "+ New" just after the crumb. */
+  .stu .bar .new {
+    margin-left: 0;
+  }
+}
