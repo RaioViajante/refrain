@@ -3,7 +3,7 @@ import { promisify } from "node:util";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
-import { env } from "./support";
+import { env, withDatabase } from "./support";
 
 // The public Home (M3.4) in a browser, anonymous, at 1440 px and at 390 px.
 // Populated: the second server of the same production build, with public
@@ -185,6 +185,89 @@ test("never scrolls sideways, at any width", async ({ page }) => {
   for (const width of [320, 390, 640, 720, 721, 768, 1024, 1280, 1440, 2560]) {
     await page.setViewportSize({ width, height: 900 });
     expect(await overflow(page), `${width}px`).toBeLessThanOrEqual(0);
+  }
+});
+
+test("a long title stays inside the latest journal's sleeve, at every width", async ({
+  browser,
+}) => {
+  // The sleeve shows the latest journal's album. A long title once shrank its
+  // white label until the label's own title ran out of it (as on the album
+  // journal's sleeve). That album is renamed in the disposable database for
+  // this test, in one transaction, and restored after it.
+  const context = await browser.newContext({ reducedMotion: "reduce" });
+  const page = await context.newPage();
+  await openHome(page);
+  const shown = (await page.locator(".sl.front .card h3").textContent())!
+    .trim()
+    .replace(/\.$/, "");
+  const longTitle =
+    "[Test] E2E A Very Long Album Title That Goes On Well Past Two Lines";
+  const albumId = await withDatabase(async (client) => {
+    await client.query("begin");
+    try {
+      const album = await client.query<{ id: string }>(
+        "select id from albums where title = $1",
+        [shown],
+      );
+      expect(album.rows).toHaveLength(1);
+      await client.query("update albums set title = $2 where id = $1", [
+        album.rows[0]!.id,
+        longTitle,
+      ]);
+      await client.query("commit");
+      return album.rows[0]!.id;
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    }
+  });
+  try {
+    for (const width of [390, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      await openHome(page);
+      await expect(page.locator(".sl.front .card h3")).toHaveText(
+        `${longTitle}.`,
+      );
+      const boxes = await page.evaluate(() => {
+        const rect = (selector: string) => {
+          const box = document
+            .querySelector(`.sl.front .card ${selector}`.trim())!
+            .getBoundingClientRect();
+          return { top: box.top, bottom: box.bottom };
+        };
+        return {
+          card: rect(""),
+          title: rect("h3"),
+          cover: rect("h3 + *"),
+          label: document.querySelector(".sl.front .card .covx b")
+            ? rect(".covx b")
+            : null,
+          foot: rect(".foot"),
+        };
+      });
+      for (const part of ["title", "cover", "foot"] as const) {
+        expect(boxes[part].bottom, `${part} at ${width}px`).toBeLessThanOrEqual(
+          boxes.card.bottom + 0.5,
+        );
+      }
+      if (boxes.label) {
+        expect(boxes.label.bottom, `label at ${width}px`).toBeLessThanOrEqual(
+          boxes.cover.bottom + 0.5,
+        );
+      }
+      expect(boxes.foot.top, `${width}px`).toBeGreaterThanOrEqual(
+        boxes.cover.bottom - 0.5,
+      );
+    }
+  } finally {
+    await context.close();
+    await withDatabase(async (client) => {
+      await client.query("update albums set title = $2 where id = $1", [
+        albumId,
+        shown,
+      ]);
+    });
   }
 });
 

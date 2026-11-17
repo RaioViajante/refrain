@@ -1746,13 +1746,14 @@
   line-height: 1;
 }
 /* A long title or artist must not push the cover and the foot out of the
-   square sleeve (they spilled over the eyebrow and the h1). A title of the
-   reference's length renders unchanged; a longer one keeps two lines, since
-   the page's h1 gives it in full. The cover may then shrink instead of
-   overflowing, and the handwritten artist keeps three lines, as a record
-   label's lines are cut. */
-.pp .gtop .card .gt,
-.pp .gtop .card .covx b {
+   square sleeve, on the album journal (they spilled over the eyebrow and the
+   h1) and on the Home's latest journal (the label shrank and its title ran
+   out of it). A title of the reference's length renders unchanged; a longer
+   one keeps two lines (the journal's h1, or the page it links to, gives it in
+   full). The cover may then shrink instead of overflowing, and the
+   handwritten artist keeps three lines, as a record label's lines are cut. */
+.pp .sl.front .card :is(.gt, h3),
+.pp .sl.front .card .covx b {
   flex-shrink: 0;
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -1760,17 +1761,17 @@
   line-clamp: 2;
   overflow: hidden;
 }
-.pp .gtop .card > img,
-.pp .gtop .card > .covx {
+.pp .sl.front .card > img,
+.pp .sl.front .card > .covx {
   flex: 0 1 auto;
   min-height: 0;
   overflow: hidden;
 }
-.pp .gtop .card .foot {
+.pp .sl.front .card .foot {
   flex-shrink: 0;
   gap: 12px;
 }
-.pp .gtop .card .foot .hand {
+.pp .sl.front .card .foot .hand {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
@@ -4133,12 +4134,14 @@
   }
   .pp .gtop .card .foot .hand {
     font-size: 20px;
+  }
+  .pp .sl.front .card .foot .hand {
     -webkit-line-clamp: 2;
     line-clamp: 2;
   }
   /* The 280 px sleeve has room for one line of the label's title, so a long
      one leaves its pixel line in view. */
-  .pp .gtop .card .covx b {
+  .pp .sl.front .card .covx b {
     -webkit-line-clamp: 1;
     line-clamp: 1;
   }

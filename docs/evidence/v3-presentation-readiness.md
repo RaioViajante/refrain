@@ -44,11 +44,25 @@ Each step was authorized by the owner, in this order.
    Every record the run made carried a unique `[Test] Demo <id>` prefix. A cleanup in the e2e teardown's order removed exactly those (1 album, 2 tracks, 1 artist, 1 journal, 1 memory, 2 addresses). The other records' counts were the same before and after.
 5. **Bypass.** No workflow, test, or configuration used the automation-bypass secret, and the repository has no Actions secrets. It was revoked without a replacement: `protectionBypass` is now empty, and Vercel Authentication covers every deployment.
 
+**Second deployment (#121).** With the owner's authorization, #121 was merged as `6093891` and deployed the same way as `dpl_37CLuc8TMkUYAqpQUCcXmnHascwd`, now behind `refrain-v3-rc.vercel.app`. The same checks passed before the alias moved:
+- the commit and the Preview target;
+- anonymous `302`;
+- the project's Preview reads `false`;
+- the staging database (`f9154f7d`);
+- protection on every deployment, with no bypass secret;
+- every page answering through the protection, with the token sent from memory, not with `vercel curl`.
+
+On the host the rehearsal passed 35 of 37 checks, including #121's three fixes: the Home's header at 320, 390, and 1440 px in EN and PT; the long artist name; and the shelf's label. The two failures were looked at separately:
+- **Sign-out:** the script asked for the Studio before the sign-out had finished. Waiting for it, sign-out leads to sign-in and the Studio stays closed. It works.
+- **The Home's latest-journal sleeve at 390 px:** a real defect. It is built like the album journal's sleeve, and a long title shrank its label until the label's title ran out of it. It is fixed in a further pull request by applying the album sleeve's rules to both sleeves, with a browser test that fails without the fix.
+
+Cleanup again removed exactly the run's records.
+
 **Incident.** While reading the development token, `vercel env run --environment development … -- node <file>` (Vercel CLI 64.0.1) did not run the script: it deployed the file as a new project, `envkeys`. The file was a one-line script that prints variable names, with no secret in it. Both of its deployments were behind Vercel Authentication or answered `404`. With the owner's approval, after checking that it had no link, variables, or dependencies, the project was deleted. Do not use `vercel env run` this way.
 
 **Independent review** (a separate agent, read-only, of `4ec634b..b997233` and the hosted configuration): **GO**, no Critical, High, or Medium finding. Its Low findings were stale statements in this document, corrected here, and a setup step in the sleeve test that could leave a rename behind, now one transaction. It also confirmed the protection, the alias, the deployment's commit, Production, the cancelled Git deployments, and `302` for anonymous requests.
 
-Undoing the deployment: point the alias back at `dpl_5NvrbDxvVA2Y2f9xdP4sj6xbR9hS`, the release candidate.
+Undoing a deployment: point the alias back at the previous one, `dpl_GB4pkMdvSEwX5SvKobZj4nnaGrSs` (`b997233`), or `dpl_5NvrbDxvVA2Y2f9xdP4sj6xbR9hS` (the release candidate).
 
 ## `main`, verified locally
 
