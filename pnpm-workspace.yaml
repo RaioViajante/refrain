@@ -8,3 +8,14 @@ allowBuilds:
   esbuild: false
   sharp: false
   unrs-resolver: false
+
+# Advisories recorded as not applicable (docs/development.md § Toolchain).
+# Each entry names one advisory, never a package or a severity, and is
+# removed as soon as a patched version can be installed.
+auditConfig:
+  ignoreGhsas:
+    # picomatch <= 4.0.7, ReDoS from a crafted glob pattern; no patched
+    # version yet. Development tools only (ESLint, Vite/Vitest, fast-glob):
+    # absent from `pnpm audit --prod` and from the build's server traces, and
+    # Refrain never passes untrusted input as a glob pattern.
+    - GHSA-fc5q-39xc-vjpf
