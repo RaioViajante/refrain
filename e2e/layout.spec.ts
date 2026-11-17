@@ -269,6 +269,14 @@ for (const width of [...WIDTHS, 360, 320, 720, 721]) {
       // One line: a destination never wraps.
       expect(target!.height).toBeLessThan(60);
     }
+    // On a phone the menu also ends with Sign out, a button: the same 44 px.
+    for (const button of await side.locator("nav button:visible").all()) {
+      const target = await button.boundingBox();
+      expect(target!.height, await button.innerText()).toBeGreaterThanOrEqual(
+        43.5,
+      );
+      expect(target!.height).toBeLessThan(60);
+    }
     await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
     await expectNoHorizontalOverflow(page);
   });
