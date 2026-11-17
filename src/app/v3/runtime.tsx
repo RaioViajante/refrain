@@ -31,6 +31,33 @@ export function V3Runtime() {
     const cleanups: (() => void)[] = [];
     const sfx = soundEngine();
 
+    // A cover that cannot load (the archive unreachable, the file gone, the
+    // image blocked) gives way to its record label, sent hidden beside it
+    // (cover.tsx), so no broken-image frame is drawn. A failure before this
+    // runs is found by the image's state.
+    const showLabel = (image: HTMLImageElement) => {
+      const label = image.nextElementSibling;
+      if (
+        !(label instanceof HTMLElement) ||
+        !label.classList.contains("covx")
+      ) {
+        return;
+      }
+      image.style.display = "none";
+      label.hidden = false;
+    };
+    root
+      .querySelectorAll<HTMLImageElement>("img[data-cover]")
+      .forEach((image) => {
+        if (image.complete && image.naturalWidth === 0) {
+          showLabel(image);
+          return;
+        }
+        const failed = () => showLabel(image);
+        image.addEventListener("error", failed, { once: true });
+        cleanups.push(() => image.removeEventListener("error", failed));
+      });
+
     if ("IntersectionObserver" in window) {
       const observer = new IntersectionObserver(
         (entries) => {
