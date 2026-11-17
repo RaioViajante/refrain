@@ -87,3 +87,17 @@ The owner authorized the documented S2 sequence for the reviewed `main`, with Ve
 3. Check all three aliases.
 
 **Configuration the owner set and that stays as it is:** the Production music providers are `disabled` (`REFRAIN_MUSICBRAINZ_BASE_URL`, `REFRAIN_COVER_ART_ARCHIVE_BASE_URL`, `REFRAIN_WIKIMEDIA_COMMONS_BASE_URL`, `REFRAIN_WIKIDATA_BASE_URL`), so Add music fails closed on the domain. Covers are not shown (`REFRAIN_COVER_DISPLAY_ENABLED` unset). Turning either on is the owner's decision; the covers also need Deployment gate item 6.
+
+### Second promotion, 2026-11-17 (`4a73137`)
+
+With the owner's authorization, #127 (the track options' checkboxes), #125 (the cover fallback), and #126 (this record) were merged, and the same S2 sequence was run on `main` at **`4a731370bf27ea7423123676027ebf4a6b0c0492`**. CI was green on it.
+
+| Step | Evidence |
+| --- | --- |
+| Same commit, signed in, on staging | Preview `dpl_4fsEgBA7BUepQ47vcH5oEnoPuAgu`: the hosted rehearsal passed **40 of 40**, now including the track options drawn as checkboxes at 1440 and 390 px; its records were removed afterwards |
+| Preflight | All three production hostnames on `dpl_AUESugsz1wT2ZjzcU6fzMtv6mx7E` (Ready). Production reads `false`. No production variable changed since 2026-11-06. Protection All Deployments, no bypass. `src/db/` unchanged since `2f64e71` |
+| Staged deployment | **`dpl_3vdqTQtNnpEjR7Kprg12estteMJQ`**, target production, `githubCommitSha 4a73137`, no alias. Uploaded files: exactly the 648 tracked files except `.gitignore`. Build log clean. A separate clean clone passed `pnpm install --frozen-lockfile` and `pnpm build` |
+| Staged checks, anonymous | The same ten paths: the 263-byte `302` to Vercel's sign-in; an anonymous sign-in `POST`: `401` |
+| Promotion (16:27:45 UTC) | `vercel promote`; then `refrain-bryanalvarenga-5889s-projects.vercel.app` pointed at it with `vercel alias set`, as before. All three hostnames on `dpl_3vdq…`, each answering `302` anonymously. Protection unchanged, no bypass |
+
+The owner's signed-in check on the domain is still to be done, as above. **Rollback:** `vercel promote dpl_AUESugsz1wT2ZjzcU6fzMtv6mx7E` (`2f64e71`), then the same `vercel alias set` for the third hostname; or `dpl_BzRwrBYXiX9U7dDVp23kbXxhDWr7` (`4caf07b`) to go back before v3.
