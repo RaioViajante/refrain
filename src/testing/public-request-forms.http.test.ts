@@ -168,6 +168,29 @@ describe("an address that is not served answers every request form as an unknown
     },
   );
 
+  // Next.js 16.4.5 changed how `next start` reads a segment shaped like a
+  // route placeholder (`[slug]`): it is now an ordinary value. The proxy must
+  // still answer it exactly as any unknown address, never with a page.
+  it.each([
+    ["/albums/[slug]", "/albums/"],
+    ["/albums/%5Bslug%5D", "/albums/"],
+    ["/albums/[...slug]", "/albums/"],
+    ["/pt/albums/[slug]", "/pt/albums/"],
+    ["/artists/[slug]", "/artists/"],
+    ["/memories/[slug]", "/memories/"],
+  ])(
+    "a placeholder-shaped address, %s, answers as an unknown one",
+    async (path, base) => {
+      const placeholder = path.slice(base.length);
+      const shaped = masked(await request(on.baseURL, path), [placeholder]);
+      const baseline = masked(await request(on.baseURL, `${base}${unknown}`), [
+        unknown,
+      ]);
+      expect(shaped.status, path).toBe(404);
+      expect(shaped, path).toEqual(baseline);
+    },
+  );
+
   it.each(variants(slug("grace")).map((v) => v[0]))(
     "a served address, %s, never fails and never shows private writing",
     async (name) => {
