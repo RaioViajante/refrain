@@ -168,9 +168,9 @@ describe("an address that is not served answers every request form as an unknown
     },
   );
 
-  // Next.js 16.4.5 changed how `next start` reads a segment shaped like a
-  // route placeholder (`[slug]`): it is now an ordinary value. The proxy must
-  // still answer it exactly as any unknown address, never with a page.
+  // A segment shaped like a route placeholder (`[slug]`) is an ordinary value
+  // to the proxy: it must answer exactly as any unknown address, never with a
+  // page, whatever the framework version does with such a segment.
   it.each([
     ["/albums/[slug]", "/albums/"],
     ["/albums/%5Bslug%5D", "/albums/"],
