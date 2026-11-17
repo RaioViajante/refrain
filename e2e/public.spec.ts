@@ -137,6 +137,96 @@ test("fits the screen without sideways scrolling, at every width", async ({
   }
 });
 
+test("a long title and artist stay inside the sleeve, at every width", async ({
+  browser,
+}) => {
+  // A catalog title of the reference's length fits the sleeve; a long one
+  // pushed the cover and the foot (year, handwritten artist) out of it, over
+  // the eyebrow and the h1. The album is renamed directly in the disposable
+  // database for this test and restored after it.
+  const longTitle =
+    "[Test] E2E A Very Long Album Title That Goes On Well Past Two Lines";
+  const longArtist = "[Test] E2E An Artist Credited Under A Long Name";
+  const saved = await withDatabase(async (client) => {
+    const album = await client.query<{ id: string; title: string }>(
+      `select al.id, al.title from album_journals aj
+         join albums al on al.id = aj.album_id where aj.entry_id = $1`,
+      [entryId],
+    );
+    const { id, title } = album.rows[0]!;
+    const credits = await client.query<{
+      artist_id: string;
+      credited_as: string | null;
+    }>("select artist_id, credited_as from album_artists where album_id = $1", [
+      id,
+    ]);
+    await client.query("update albums set title = $2 where id = $1", [
+      id,
+      longTitle,
+    ]);
+    await client.query(
+      "update album_artists set credited_as = $2 where album_id = $1",
+      [id, longArtist],
+    );
+    return { id, title, credits: credits.rows };
+  });
+  const context = await browser.newContext({ reducedMotion: "reduce" });
+  const page = await context.newPage();
+  try {
+    for (const width of [390, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      const response = await page.goto(`${base}/albums/${slug}`);
+      expect(response?.status()).toBe(200);
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+        longTitle,
+      );
+      const boxes = await page.evaluate(() => {
+        const rect = (selector: string) => {
+          const box = document
+            .querySelector(`.gtop .sl.front .card ${selector}`.trim())!
+            .getBoundingClientRect();
+          return { top: box.top, bottom: box.bottom };
+        };
+        return {
+          card: rect(""),
+          title: rect(".gt"),
+          cover: rect(".gt + *"),
+          foot: rect(".foot"),
+          hand: rect(".foot .hand"),
+        };
+      });
+      for (const part of ["title", "cover", "foot", "hand"] as const) {
+        expect(boxes[part].top, `${part} at ${width}px`).toBeGreaterThanOrEqual(
+          boxes.card.top - 0.5,
+        );
+        expect(boxes[part].bottom, `${part} at ${width}px`).toBeLessThanOrEqual(
+          boxes.card.bottom + 0.5,
+        );
+      }
+      expect(boxes.cover.top, `${width}px`).toBeGreaterThanOrEqual(
+        boxes.title.bottom - 0.5,
+      );
+      expect(boxes.foot.top, `${width}px`).toBeGreaterThanOrEqual(
+        boxes.cover.bottom - 0.5,
+      );
+    }
+  } finally {
+    await context.close();
+    await withDatabase(async (client) => {
+      await client.query("update albums set title = $2 where id = $1", [
+        saved.id,
+        saved.title,
+      ]);
+      for (const credit of saved.credits) {
+        await client.query(
+          "update album_artists set credited_as = $3 where album_id = $1 and artist_id = $2",
+          [saved.id, credit.artist_id, credit.credited_as],
+        );
+      }
+    });
+  }
+});
+
 test("every control is at least 44px, on the journal and on the not-found view", async ({
   page,
 }) => {
