@@ -81,16 +81,19 @@ jobs:
       # An advisory with no patched version may be recorded as not applicable
       # in pnpm-workspace.yaml (`auditConfig.ignoreGhsas`), by its ID, only
       # while its package stays outside the production dependencies. The next
-      # step holds those to no advisory of any severity, and fails if a
-      # recorded package reaches them.
+      # step holds those to no advisory of any severity apart from the
+      # recorded IDs, and fails if a recorded package reaches them: one guard
+      # per ID.
       - name: Dependency audit
         run: pnpm audit --audit-level=high
 
       - name: Dependency audit (production dependencies)
         run: |
           pnpm audit --prod
-          # GHSA-fc5q-39xc-vjpf is recorded for development tools only.
-          if pnpm why picomatch --prod | grep -q picomatch; then
+          # GHSA-fc5q-39xc-vjpf is recorded for development tools only. The
+          # output is captured first, so a failing `pnpm why` fails the step.
+          why="$(pnpm why picomatch --prod)"
+          if grep -q picomatch <<<"$why"; then
             echo "picomatch is now a production dependency: GHSA-fc5q-39xc-vjpf no longer applies as recorded"
             exit 1
           fi

@@ -15,7 +15,9 @@ allowBuilds:
 auditConfig:
   ignoreGhsas:
     # picomatch <= 4.0.7, ReDoS from a crafted glob pattern; no patched
-    # version yet. Development tools only (ESLint, Vite/Vitest, fast-glob):
-    # absent from `pnpm audit --prod` and from the build's server traces, and
-    # Refrain never passes untrusted input as a glob pattern.
+    # version yet. Installed only under development tools (ESLint,
+    # Vite/Vitest, fast-glob), absent from `pnpm audit --prod`. Next.js's own
+    # bundled copy compiles only `images` patterns from next.config.ts, which
+    # Refrain does not set (src/next-config.test.ts). Refrain never builds a
+    # glob pattern from request data.
     - GHSA-fc5q-39xc-vjpf
