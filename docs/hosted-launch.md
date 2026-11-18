@@ -1,6 +1,6 @@
 # Hosted Launch: Custom Domain and Public Release (M5)
 
-**Status (2026-11-17): S1 and S2 done; S3 and S4 not started.** The Studio is on `https://refrain.raioviajante.com`, served by `dpl_3vdqTQtNnpEjR7Kprg12estteMJQ` (`4a73137`, the v3 `main`, promoted on 2026-11-17 by the S2 sequence; before it `dpl_AUESugsz1wT2ZjzcU6fzMtv6mx7E`, `2f64e71`, and `dpl_BzRwrBYXiX9U7dDVp23kbXxhDWr7`, `4caf07b`), behind Vercel Authentication on All Deployments, with public reads off ([Evidence: M5 hosting](evidence/m5-hosting.md#redeployment-of-main-2026-11-17)). The state table in § 1 is the state before S1.
+**Status (2026-11-17): S1 and S2 done; S3 and S4 not started.** The Studio is on `https://refrain.raioviajante.com`, served by `dpl_2BNyqPYT7Xqu8VhTQLbDV31JcEVM` (`908957f`, the v3 `main` with Next.js 16.4.5, promoted on 2026-11-17 by the S2 sequence; before it `dpl_3vdqTQtNnpEjR7Kprg12estteMJQ`, `4a73137`, then `dpl_AUESugsz1wT2ZjzcU6fzMtv6mx7E`, `2f64e71`, and `dpl_BzRwrBYXiX9U7dDVp23kbXxhDWr7`, `4caf07b`), behind Vercel Authentication on All Deployments, with public reads off. MusicBrainz is on in Production by the owner's decision; the Cover Art Archive, Wikimedia Commons, and Wikidata stay off, and no cover is shown ([Evidence: M5 hosting](evidence/m5-hosting.md#third-promotion-and-musicbrainz-on-the-domain-2026-11-17-908957f)). The state table in § 1 is the state before S1.
 
 **When this plan was written, nothing below had been executed:**
 - no DNS record, Vercel domain, environment variable, deployment, or protection setting has changed;
