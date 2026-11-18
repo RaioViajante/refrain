@@ -395,9 +395,19 @@ test("offers Draft, Private, and Publish…, and lists the memory on the Desk", 
 
   await page.goto("/studio/memories");
   await expect(page.getByRole("link", { name: title.value })).toBeVisible();
+  // The memory offers Publish…, so the list never says publishing is
+  // unavailable, in either language (M3.7 left that sentence behind).
+  await expect(page.getByText(/isn’t available yet/)).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
   await axe(page);
   await shot(page, info, "03-memories-list");
+  await page.goto("/pt/studio/memories");
+  await expect(page.getByRole("link", { name: title.value })).toBeVisible();
+  await expect(page.getByText(/ainda não está disponível/)).toHaveCount(0);
+  await page.goto(memoryUrl.replace("/studio/", "/pt/studio/"));
+  await expect(
+    page.getByRole("button", { name: "Publicar…", exact: true }),
+  ).toBeEnabled();
 
   await page.goto("/studio");
   await expect(

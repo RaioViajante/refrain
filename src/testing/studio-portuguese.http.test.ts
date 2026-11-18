@@ -42,6 +42,8 @@ const MARKERS = {
   album: `[Test] PT3 ${run} private album`,
   journal: `[Test] PT3 ${run} private journal writing`,
   memory: `[Test] PT3 ${run} memória privada`,
+  draftMemory: `[Test] PT3 ${run} draft memory`,
+  publishedMemory: `[Test] PT3 ${run} published memory`,
 };
 const MARKER_LIST = Object.values(MARKERS);
 
@@ -53,6 +55,8 @@ let ids: {
   trackIds: string[];
   journalId: string;
   memoryId: string;
+  draftMemoryId: string;
+  publishedMemoryId: string;
 };
 
 beforeAll(async () => {
@@ -86,12 +90,38 @@ beforeAll(async () => {
       ],
       slug: `t${run}-pt3-memoria`,
     });
+    // A memory in each of the other two states, for what the Studio says
+    // about publishing.
+    const draftMemoryId = await createTestMemory(tx, {
+      versions: [
+        {
+          locale: "en",
+          status: "draft",
+          title: MARKERS.draftMemory,
+          text: MARKERS.draftMemory,
+        },
+      ],
+      slug: `t${run}-pt3-draft`,
+    });
+    const publishedMemoryId = await createTestMemory(tx, {
+      versions: [
+        {
+          locale: "en",
+          status: "published",
+          title: MARKERS.publishedMemory,
+          text: MARKERS.publishedMemory,
+        },
+      ],
+      slug: `t${run}-pt3-published`,
+    });
     return {
       artistId,
       albumId: album.albumId,
       trackIds: album.trackIds,
       journalId,
       memoryId,
+      draftMemoryId,
+      publishedMemoryId,
     };
   });
 }, 120_000);
@@ -99,7 +129,12 @@ beforeAll(async () => {
 afterAll(async () => {
   try {
     if (ids) {
-      for (const entryId of [ids.journalId, ids.memoryId]) {
+      for (const entryId of [
+        ids.journalId,
+        ids.memoryId,
+        ids.draftMemoryId,
+        ids.publishedMemoryId,
+      ]) {
         await db.query("delete from entry_slugs where entry_id = $1", [
           entryId,
         ]);
@@ -293,6 +328,92 @@ describe("each Portuguese Studio page, for the author", () => {
     );
     // No link is built from the query.
     expect(answer.body).not.toMatch(/href="[^"]*example\.com/);
+  });
+});
+
+// Memories are published through the same review as album journals (M3.7):
+// the Memories page once still said publishing them was not available, while
+// each memory offered Publish…. The list and each memory's controls must say
+// the same thing, in both languages, for a draft, a private, and a published
+// memory.
+describe("what the Studio says about publishing memories", () => {
+  const RETIRED = [
+    "Publishing memories isn’t available yet",
+    "Publicar memórias ainda não está disponível",
+  ];
+  const languages = [
+    { prefix: "", words: studioEn },
+    { prefix: "/pt", words: studioPtBR },
+  ];
+
+  /** The visible text of a page the author opens. */
+  async function authorPage(path: string): Promise<string> {
+    const answer = await request(base, path, {
+      headers: { cookie: author.cookie },
+    });
+    expect(answer.status, path).toBe(200);
+    return visibleText(answer.body);
+  }
+
+  it("never says on the Memories page that publishing is unavailable", async () => {
+    for (const { prefix, words } of languages) {
+      const where = `${prefix}/studio/memories`;
+      const page = await authorPage(where);
+      for (const marker of [
+        MARKERS.memory,
+        MARKERS.draftMemory,
+        MARKERS.publishedMemory,
+      ]) {
+        expect(page, where).toContain(marker);
+      }
+      expect(page, where).toContain(words.memoryStatus.published);
+      for (const retired of RETIRED) {
+        expect(page, where).not.toContain(retired);
+      }
+    }
+  });
+
+  it("offers Publish… on a draft and on a private memory, ready to press", async () => {
+    for (const { prefix, words } of languages) {
+      for (const [id, status] of [
+        [ids.draftMemoryId, "draft"],
+        [ids.memoryId, "private"],
+      ] as const) {
+        const where = `${prefix}/studio/memories/${id}`;
+        const answer = await request(base, where, {
+          headers: { cookie: author.cookie },
+        });
+        expect(answer.status, where).toBe(200);
+        const publish = [
+          ...answer.body.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g),
+        ].filter((match) =>
+          visibleText(match[2]!).includes(words.visibility.publish),
+        );
+        expect(publish, where).toHaveLength(1);
+        expect(publish[0]![1], where).not.toMatch(/\sdisabled(?:=|\s|$)/);
+        expect(publish[0]![1], where).not.toMatch(/aria-disabled="true"/);
+        const page = visibleText(answer.body);
+        expect(page, where).toContain(words.memoryControls.states[status]);
+        expect(page, where).toContain(words.visibility.privateHint);
+        expect(page, where).not.toContain(words.visibility.unpublish);
+        for (const retired of RETIRED) {
+          expect(page, where).not.toContain(retired);
+        }
+      }
+    }
+  });
+
+  it("offers Unpublish… on a published memory, and says what published means", async () => {
+    for (const { prefix, words } of languages) {
+      const where = `${prefix}/studio/memories/${ids.publishedMemoryId}`;
+      const page = await authorPage(where);
+      expect(page, where).toContain(words.memoryControls.states.published);
+      expect(page, where).toContain(words.visibility.unpublish);
+      expect(page, where).toContain(
+        words.memoryControls.publishedHint(words.publicPageNote),
+      );
+      expect(page, where).not.toContain(words.visibility.publish);
+    }
   });
 });
 
