@@ -16,6 +16,23 @@ const eslintConfig = defineConfig([
     // Local-only design references (ignored by Git).
     "reference/**",
   ]),
+  {
+    rules: {
+      // The archive is never a dependency of the new application.
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              regex: "(^|/)archive(/|$)",
+              message:
+                "The archived music diary is read-only and never imported by the new application.",
+            },
+          ],
+        },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;
