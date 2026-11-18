@@ -46,11 +46,16 @@ _Pending._
 - the layout works at 390 px, with no horizontal page scroll, and at desktop width;
 - check both before reporting done.
 
-**Artwork and references:**
-- the owner's original artwork is never generated, traced, recolored, or altered;
-- an approved asset is copied byte for byte into `public/` (or into managed storage, if the owner decides on that), with its licence recorded;
-- `reference/` (including Pinterest captures and Claude Design exports) is local-only and read-only. It is never committed, imported, or linked from code or documentation;
-- third-party images (Pinterest, album covers, photographs) are references, not assets: never ship them without verified rights.
+**Artwork and photographs:**
+- preserve originals by default: never generate the owner's artwork, and never edit an asset without the owner's explicit authorization for that edit;
+- authorized edits (color grading, cropping, restoration, upscaling or other resolution improvements) produce a new file. The original stays intact, byte for byte;
+- for each shipped asset, record its source, the original file, the edits and who authorized them, its permission or licence, and which version is the approved final one (with the PR that adds it, until the media decision in `docs/decisions/0001-rebuild-foundation.md` names a place);
+- an approved final version is copied byte for byte into `public/` (or into managed storage, once decided);
+- editing a file, by hand or with AI, does not grant copyright or publication rights. Rights come only from the owner's own authorship or a verified licence.
+
+**References:**
+- Pinterest pins and other references are inspiration, not licensed assets. Never ship, trace, or edit one into an asset without verified rights;
+- `reference/` (including Pinterest captures and Claude Design exports) is local-only and read-only. It is never committed, imported, or linked from code or documentation.
 
 **Public and private:**
 - Studio controls never appear on public pages;

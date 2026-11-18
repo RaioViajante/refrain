@@ -32,7 +32,7 @@ Instructions for anyone, human or agent, changing this repository. Tool-specific
 ## 5. Interface
 
 - Accessibility is required: keyboard operation, visible focus, 44 px targets, `prefers-reduced-motion`, and correct `lang` (`en`, `pt-BR`).
-- Do not invent a visual identity before the owner approves one. Never generate or alter the owner's artwork. `reference/` is local-only and never committed or linked.
+- Do not invent a visual identity before the owner approves one. Never generate the owner's artwork; edit artwork or photographs only with the owner's explicit authorization, keeping the originals intact and their provenance and rights recorded (`refrain-design`). `reference/` is local-only and never committed or linked.
 
 ## 6. Engineering
 
