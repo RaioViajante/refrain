@@ -86,7 +86,10 @@ The owner authorized the documented S2 sequence for the reviewed `main`, with Ve
 2. `vercel alias set <its URL> refrain-bryanalvarenga-5889s-projects.vercel.app`.
 3. Check all three aliases.
 
-**Configuration the owner set** (MusicBrainz was turned on later, on 2026-11-17: [Third promotion](#third-promotion-and-musicbrainz-on-the-domain-2026-11-17-908957f))**:** the Production music providers are `disabled` (`REFRAIN_MUSICBRAINZ_BASE_URL`, `REFRAIN_COVER_ART_ARCHIVE_BASE_URL`, `REFRAIN_WIKIMEDIA_COMMONS_BASE_URL`, `REFRAIN_WIKIDATA_BASE_URL`), so Add music fails closed on the domain. Covers are not shown (`REFRAIN_COVER_DISPLAY_ENABLED` unset). Turning either on is the owner's decision; the covers also need Deployment gate item 6.
+**Production music configuration.**
+
+- **Previous configuration** (this redeployment and the [second promotion](#second-promotion-2026-11-17-4a73137), until the third promotion at 20:43:55 UTC on 2026-11-17): every Production music provider was `disabled` (`REFRAIN_MUSICBRAINZ_BASE_URL`, `REFRAIN_COVER_ART_ARCHIVE_BASE_URL`, `REFRAIN_WIKIMEDIA_COMMONS_BASE_URL`, `REFRAIN_WIKIDATA_BASE_URL`), so Add music failed closed on the domain. Covers were not shown (`REFRAIN_COVER_DISPLAY_ENABLED` unset). `dpl_AUESugsz1wT2ZjzcU6fzMtv6mx7E` and `dpl_3vdqTQtNnpEjR7Kprg12estteMJQ` were built with it and keep it, so promoting either one back restores it.
+- **Current configuration** (since the [third promotion](#third-promotion-and-musicbrainz-on-the-domain-2026-11-17-908957f), `dpl_2BNyqPYT7Xqu8VhTQLbDV31JcEVM`): **MusicBrainz is enabled**, because the owner approved removing `REFRAIN_MUSICBRAINZ_BASE_URL` from Production. The **Cover Art Archive, Wikimedia Commons, and Wikidata stay `disabled`**, and **hosted covers stay off** (`REFRAIN_COVER_DISPLAY_ENABLED` unset). Turning on any other provider, or the covers, is the owner's separate decision; the covers also need Deployment gate item 6, and photographs item 7.
 
 ### Second promotion, 2026-11-17 (`4a73137`)
 
