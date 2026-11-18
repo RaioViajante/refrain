@@ -1,0 +1,25 @@
+# pnpm settings. The new application is a single package. The archived
+# application in archive/music-diary-v3/ has its own pnpm-workspace.yaml and
+# lockfile, and is installed separately from its own directory.
+
+# Supply chain: resolve only versions published at least seven days ago.
+minimumReleaseAge: 10080
+
+# Dependency install scripts are blocked unless listed here as allowed.
+allowBuilds:
+  esbuild: false
+  sharp: false
+  unrs-resolver: false
+
+# Advisories recorded as not applicable. Each entry names one advisory, never a
+# package or a severity, and is removed as soon as a patched version can be
+# installed.
+auditConfig:
+  ignoreGhsas:
+    # picomatch <= 4.0.7, ReDoS from a crafted glob pattern; no patched version
+    # yet. Installed only under ESLint and its plugins (development), absent
+    # from `pnpm audit --prod`. Next.js's bundled copy compiles only `images`
+    # patterns from next.config.ts, which this application does not set. The
+    # application never builds a glob pattern from request data. The same
+    # entry as the archived application's (archive/music-diary-v3/).
+    - GHSA-fc5q-39xc-vjpf

@@ -1,0 +1,9 @@
+# The archived application keeps its own formatting and is read-only.
+archive/
+# Local-only design references (also ignored by Git).
+reference/
+# Documentation is formatted by hand.
+*.md
+pnpm-lock.yaml
+# Written by Drizzle Kit; CI regenerates it and compares it byte for byte.
+src/db/migrations/meta/

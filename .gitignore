@@ -1,0 +1,45 @@
+# Operating system files
+.DS_Store
+
+# Local-only design references. Never tracked.
+/reference/
+
+# Local environment and secrets. Commit only .env.example.
+.env
+.env.*
+!.env.example
+*.pem
+
+# Database dumps and backups can contain private writing; never commit them.
+*.dump
+*.dump.sha256
+*.backup
+/backups/
+
+# Local agent settings
+.claude/settings.local.json
+
+# Dependencies, in any directory (the archive is installed separately)
+node_modules/
+
+# Next.js build output and generated types
+.next/
+/out/
+/build
+next-env.d.ts
+*.tsbuildinfo
+
+# Test output
+/coverage
+/test-results/
+/playwright-report/
+/playwright/.auth/
+/blob-report/
+/visual-review/
+
+# Package manager logs
+npm-debug.log*
+.pnpm-debug.log*
+
+# Vercel CLI link. The new application is not linked to any Vercel project.
+.vercel
