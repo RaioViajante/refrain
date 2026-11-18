@@ -1,6 +1,6 @@
 # Refrain
 
-Refrain is being rebuilt as a **personal mixtape archive**. The product is not defined yet: the repository root holds only a basic scaffold (Next.js, TypeScript, Drizzle, and PostgreSQL), with no features, no tables, and no hosting.
+Refrain is being rebuilt as a **public, artistic, personal mixtape archive**, with a private Studio for its owner, in English and Brazilian Portuguese. The repository root holds only the foundation (Next.js, TypeScript, Drizzle, and PostgreSQL). There are no features, no tables, and no hosting yet. The product model and the visual direction are still being defined ([decision 0001](docs/decisions/0001-rebuild-foundation.md)).
 
 The previous application, the Refrain **music diary (v3)**, is retired, not deleted. It lives in [`archive/music-diary-v3/`](archive/music-diary-v3/), and its final state is the tag `music-diary-v3-final`. See [`archive/music-diary-v3/ARCHIVE.md`](archive/music-diary-v3/ARCHIVE.md).
 
@@ -10,10 +10,10 @@ The previous application, the Refrain **music diary (v3)**, is retired, not dele
 | --- | --- | --- |
 | Code | `src/`, root configuration | `archive/music-diary-v3/`, read-only |
 | Database | local Compose only (`refrain-mixtapes`, port 5442); no hosted database | its own Neon databases and local Compose project `refrain`, untouched |
-| Hosting | none; not linked to any Vercel project | Vercel project `refrain` and its domain, untouched |
+| Hosting | none; not linked to any Vercel project | Vercel project `refrain` and `refrain.raioviajante.com`, untouched |
 | CI | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) | not run; its workflow is kept, inert, in the archive |
 
-The new application never imports from the archive, never shares its database, and is never deployed to the archived application's Vercel project.
+The new application never imports from the archive (ESLint refuses it), never shares its database (Drizzle Kit refuses it), and is never deployed to the archived application's Vercel project.
 
 ## Local setup
 
@@ -26,7 +26,9 @@ pnpm db:up              # local PostgreSQL 17 on 127.0.0.1:5442
 pnpm dev
 ```
 
-Checks: `pnpm lint`, `pnpm format:check`, `pnpm typecheck`, `pnpm db:check`, `pnpm build`. Drizzle Kit (`pnpm db:generate`, `pnpm db:migrate`) refuses any `DATABASE_URL` whose host is not this machine.
+Use a checkout of this application with its own `.env`. A directory that still holds the music diary's `.env` points `DATABASE_URL` at that application's data; Drizzle Kit refuses it, but the file is still the wrong one.
+
+Checks (CI runs the same): `pnpm lint`, `pnpm format:check`, `pnpm typecheck`, `pnpm test`, `pnpm audit --audit-level=high`, `pnpm db:check`, `pnpm build`.
 
 ## Licence
 
