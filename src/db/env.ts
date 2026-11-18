@@ -9,6 +9,11 @@ export class DatabaseConfigError extends Error {
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
+// The archived music diary's local databases (archive/music-diary-v3/
+// compose.yaml and its .env). A checkout that still holds that application's
+// .env would otherwise point schema tooling at its development data.
+const ARCHIVED_DATABASE_NAMES = new Set(["refrain", "refrain_test"]);
+
 /**
  * Returns the validated PostgreSQL connection string from `DATABASE_URL`.
  * Pure, with no `server-only` guard, because Drizzle Kit's config uses it
@@ -41,18 +46,34 @@ export function readDatabaseUrl(
 }
 
 /**
- * Like `readDatabaseUrl`, but refuses any host other than this machine. The
- * new application has no hosted database, so schema tooling may only ever
- * reach the local Compose database, never the archived application's.
+ * Like `readDatabaseUrl`, but refuses any host other than this machine, and
+ * the archived application's local databases. The application has no hosted
+ * database, so schema tooling may only reach its own local Compose database.
  */
 export function readLocalDatabaseUrl(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): string {
   const value = readDatabaseUrl(env);
-  if (!LOOPBACK_HOSTS.has(new URL(value).hostname)) {
+  const url = new URL(value);
+  if (!LOOPBACK_HOSTS.has(url.hostname)) {
     throw new DatabaseConfigError(
       "DATABASE_URL must point at a local database (localhost, 127.0.0.1, or ::1).",
     );
   }
+  if (ARCHIVED_DATABASE_NAMES.has(databaseName(url))) {
+    throw new DatabaseConfigError(
+      "DATABASE_URL names the archived music diary's local database. Use this application's own database (see .env.example).",
+    );
+  }
   return value;
+}
+
+function databaseName(url: URL): string {
+  try {
+    return decodeURIComponent(url.pathname.replace(/^\//, ""));
+  } catch {
+    throw new DatabaseConfigError(
+      "DATABASE_URL has a malformed database name.",
+    );
+  }
 }
