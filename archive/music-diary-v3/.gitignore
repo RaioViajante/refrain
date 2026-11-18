@@ -1,0 +1,52 @@
+# Operating system files
+.DS_Store
+
+# Local-only design references (mockups, screenshots, working files).
+# Never tracked; approved assets are promoted into public/ or docs/assets/.
+/reference/
+
+# Local environment and secrets. Commit only .env.example, which holds
+# non-secret placeholder values for local development.
+.env
+.env.*
+!.env.example
+*.pem
+
+# Database dumps can contain real writing; never commit them.
+*.dump
+
+# Local agent settings
+.claude/settings.local.json
+
+# Dependencies
+/node_modules
+
+# Next.js build output and generated types
+/.next/
+/out/
+/build
+next-env.d.ts
+*.tsbuildinfo
+
+# Test output
+/coverage
+
+# Package manager logs
+npm-debug.log*
+.pnpm-debug.log*
+
+# Browser tests (Playwright): reports, traces, screenshots, and the signed-in
+# session of the synthetic author. Never committed.
+/test-results/
+/playwright-report/
+/playwright/.auth/
+/blob-report/
+
+# Database backups hold private writing and authentication data (docs/development.md).
+# They are kept outside the repository; these are defense in depth.
+*.dump.sha256
+*.backup
+/backups/
+
+# Visual review screenshots (synthetic data, generated, never committed)
+/visual-review/

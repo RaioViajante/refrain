@@ -1,0 +1,148 @@
+# AGENTS.md
+
+Canonical instructions for anyone, human or agent, changing this repository. Tool-specific files such as [`CLAUDE.md`](CLAUDE.md) add to these instructions and never override them. Details live in [`docs/`](docs/); this file states the rules and points to them.
+
+## 1. Project
+
+Refrain is a **single-author personal music journal**: memories, artist journals, and album journals with per-track reflections, plus optional independent album and track ratings. There is one administrator, and the public can read only explicitly published entries. → [Product](docs/product.md)
+
+- **Out of scope:** reader accounts, social features, streaming, recommendations, multiple authors, multi-tenancy, and machine translation. Do not add these without an ADR and the author's approval.
+- **Academic deadline:** the presentation, first planned for 2026-11-16, was **postponed by the owner to late November 2026** (decided 2026-11-15; the exact date is not recorded yet). The freeze planned for 2026-11-16 no longer applies, and development is authorized. Work that the requirements in [Requirements](docs/requirements.md) depend on takes priority over polish.
+- **Current state:** M1.3C, recovery, browser tests, and academic verification, on top of M1.3B's catalog and album-journal CRUD, M1.3A's identity and authorization, and M1.2's relational domain: the Next.js application, the domain schema with versioned migrations, the publication predicate and read queries, transactional publication and deletion commands, single-author authentication (Better Auth), the studio's authorization boundary, catalog commands and album-journal commands (private drafts, version-checked saves, soft delete, and **restore from Recently deleted**, which never publishes), the desk, artists, albums, tracks, and journals screens plus a private *Recently deleted* page, driven by Server Actions that each authorize first, a disposable test database, integration, concurrency, HTTP, and **Playwright browser tests**, a local backup tool whose archives can be restored into a scratch database, and CI. The Studio's visual layer follows the v3 design since #112: its shell, Desk, Library, Bin, and the editors' panels ([evidence](docs/evidence/v3-public.md)); [Studio visual fidelity](docs/design/studio-visual-fidelity.md) describes the earlier V4.4 layer.md)). M2.2 (merged) adds the Track by track editor and the confirmed save, and M2.3 (merged) adds the studio's publish, unpublish, and confirm-a-change dialogs, which mark versions as published in the database only after a review and the author's confirmation. **M3.1 (merged, local only)** adds the first public page, the anonymous album journal at `/albums/<slug>`, with the sitemap and `robots.txt`: read through the Publication module's reading entry point only, behind the server-only, default-disabled `REFRAIN_PUBLIC_READS_ENABLED` switch, with real `404` and `308` statuses decided in `src/proxy.ts`, nothing cached, and tests over HTTP and in a browser. **The switch is never enabled on a reachable host, and public-release gates G1 to G8 stay open.** One private test deployment exists (F-01, issue #63): Vercel Authentication on every deployment, the switch off, synthetic data only, and automatic Git deployments suppressed. No real writing is hosted until backups (F-02, issue #65) are running and tested ([evidence](docs/evidence/m3-1.md#public-release-gates)). **M3.2 (merged, local only)** adds MusicBrainz search and Cover Art Archive artwork: server-side adapters in `src/integrations/` (identified, one request per 1.1 s, bounded, validated), the Studio's Add music with an edition picker, a review the author approves, and linking that fills only empty identifiers, and the chosen cover on the public album journal from the archive only (`img-src`); artwork cannot change while a published journal shows the album (G8 not widened), and no migration. Covers are approved for local development only: a hosted page shows them only after the rights review in [Security § Deployment gate](docs/security.md#deployment-gate), item 6, which the owner reads as covering every hosted surface, the Studio included (#82). **Real covers are the intended look** (the monochrome V4.4 interface leaves the color to them); the fallback frame is only for a missing, failed, or blocked cover. **The cover display switch is the operational control over them (local only):** `REFRAIN_COVER_DISPLAY_ENABLED`, server-only and on only for exactly `true`, is set in local development (`.env.development.local`, never `.env`) and, on a hosted deployment, only after the item 6 review; off, it hides every cover on every public and Studio surface, refuses a cover choice (`cover_display_disabled`), and keeps every stored cover; on, it publishes nothing. **M3.3 (merged, local only)** adds artist photographs from Wikimedia Commons in the studio only: a server-side adapter on the official Action API, a license and attribution policy that fails closed, Wikidata suggestions as leads, explicit review and approval, and migration `0005` (the photograph's provenance), approved by the owner; no public page shows a photograph, and a hosted page may show one only after the review in [Security § Deployment gate](docs/security.md#deployment-gate), item 7. **M3.4 (merged, local only)** replaces the placeholder at `/` with the definitive public Home from the V4.4 screen: the original character as its production copy, a neutral interim introduction (the author's own words are never generated), "Most recent", and "Recently written" and "Albums", listing only publicly visible album journals through the Publication module's reading entry point. While public reads are off it answers what a site with nothing published answers ([ADR 0006, A4](docs/decisions/0006-publication-decision-and-acknowledgement.md#a4-the-public-home-a-generic-page-that-lists-only-through-the-predicate)). **M3.5 (merged, local only)** adds public artist pages at `/artists/<address>`: an artist is public only while a served album journal credits it and it is not archived, never because of a catalog record, a photograph, or an artist journal; the page shows the photograph the author chose with its attribution, read through the Publication module's reading entry point behind the switch, with the proxy's identical `404`; an artist page opens only through a publication whose review lists it and binds it into the confirmation; a photograph change while the page is public, a credit or a restore that would open a page, are refused; renames and archives serialize with publication; removing a photograph is always allowed (ADR 0006 A5, approved by the owner on 2026-11-03). **M3.6 (merged, private studio only)** adds the Memories Studio on the existing `memory` kind: create, save (title, "when", writing, and ordered catalog recordings in one transaction under the entry lock, version-checked), draft or private, delete, and restore; the V4.4 memory editor with an in-catalog recording picker, memories on the Desk and in Recently deleted, and "Write a memory about this song" on a track's page. **M3.7 (merged, local only)** makes memories public through the same ADR 0006 engine: memory wrappers of the preview and the checked publish that check their own kind, the memory's atoms (title, writing, "when", each recording link, and their order as ordered pairs) in the review and the fingerprint, the confirmed save of a published memory in place of the M3.6 refusal, Publish…, Unpublish…, and "Update the published memory?" in the studio, and the public page `/memories/<slug>` in the V4.4 `Memory` layout, behind the switch, with the proxy's identical `404` and `308`, links only to served album journals and artists that already have a page, and served memories in the sitemap; catalog wording on a memory page stays the G8 gap. **M3.8a (merged, local only)** adds the public archives `/albums`, `/artists`, and `/memories` and the four-section navigation: read through the Publication module's reading entry point from the existing fragments, with no new visibility rule, behind the switch with the proxy's identical `404` in every request form (ADR 0006 D4, unchanged); each album once with every other published journal linked under it, exactly the artists with a page, and memories with a server-cut excerpt. **M3.8b (merged, local only)** expands the Home under ADR 0006 A6: "Recently written" lists album journals and memories together, and the Home gains Artists (three, A5's visible set, no photograph) and Memories (three, the archive's excerpt), each with its "All …" link, read in one read-only snapshot through the reading entry point, with the switch-off Home unchanged. **M4.2 (merged, #60; documentation and one browser test)** adds the academic demonstration kit, [Evidence: M4](docs/evidence/m4.md): the requirements matrix, an ER diagram, the SQL, and a runbook on the disposable test database with a synthetic author; nothing in it is marked verified before the M4.3 rehearsal. There are still no artist journals and no "Delete now". **The public pages are in English and Brazilian Portuguese** (PR 2B, [ADR 0008](docs/decisions/0008-interface-localization.md)): English at its addresses and Portuguese at `/pt`, from typed dictionaries in `src/i18n/`, with the footer language selector, under ADR 0006 A7's rules and tests. **The Writing Studio is in English and Brazilian Portuguese too** (PR 3): `/studio/**` and `/pt/studio/**`, from its own typed dictionaries in `src/i18n/studio/`, with the same authorization, private headers, and Server Actions in both, and the language selector in its footer; a memory may be written originally in either language ([ADR 0008 § 10](docs/decisions/0008-interface-localization.md#10-writing-language-of-memories)). **The initial indexing policy (local only):** every response the application controls carries `X-Robots-Tag: noindex, nofollow`, every document the same `robots` meta tag, and `robots.txt` names no sitemap; it is a constant, not a switch, and lifting it needs the owner's written decision ([Security § Indexing](docs/security.md#indexing)). Catalog edits are still last-write-wins ([Roadmap](docs/roadmap.md#catalog-edit-concurrency-last-write-wins)). Every administrative operation follows the [authorization contract](docs/security.md#authorization-contract). Each M1 increment needs the author's authorization. → [Roadmap](docs/roadmap.md), [Data Model](docs/data-model.md), [Development](docs/development.md#local-setup)
+- **Accepted decisions:** [ADR 0001](docs/decisions/0001-modular-monolith.md) (modular monolith), [ADR 0002](docs/decisions/0002-domain-model-decisions.md) (domain model), [ADR 0003](docs/decisions/0003-relational-schema-conventions.md) (schema conventions, publication history, slug retention), [ADR 0004](docs/decisions/0004-single-author-identity.md) (single-author identity and access), [ADR 0005](docs/decisions/0005-restoring-deleted-journals.md) (restoring deleted journals, with a required safety condition on the M2 publishing interface), [ADR 0006](docs/decisions/0006-publication-decision-and-acknowledgement.md) (publication decision and acknowledgement: a server-authenticated confirmation token, the rules for editing published writing, and the public page release gates; accepted; its command boundary is merged (M2.1), the confirmed save of M2.2 is merged, and the studio's dialogs of M2.3 are merged: a publish control that needs the review and the author's confirmation, two preview actions; the first public route and the public-reads switch are M3.1; amendment A2 narrowly allows the framework's generic prerendered shell and its cache marker on data-free build artifacts; amendment A3 records that the M3.2 artwork commands take entry locks, then a catalog lock, in L3's order; amendment A4, approved by the owner for M3.4, lets the Home always answer as a generic page whose listings are empty while public reads are off; amendment A5, approved by the owner for M3.5 on 2026-11-03, makes a confirmed publication the only way an artist page opens: the publication review discloses and binds the artist pages it opens, and catalog commands that could open or change one refuse or serialize with publication under entry share locks, with recorded residual windows that stay open under the release gates; amendment A6, approved by the owner for M3.8b on 2026-11-04, lets the Home also list served memories (title, "when", a server-cut excerpt, music) and public artists (name, address, served counts), from the existing fragments only, with A4's switch-off rule unchanged; amendment A7, approved by the owner on 2026-11-10, binds the `/pt` surfaces to every rule of this ADR; its public surfaces are built (PR 2B), and `/pt/studio` too (PR 3)), [ADR 0007](docs/decisions/0007-hosted-backups-and-retention.md) (hosted backups, retention, and recovery; accepted by the owner on 2026-11-07, including a bounded exception to ADR 0003's minimal retention for encrypted backups; nothing is provisioned yet, and F-02 and G6 stay open), and [ADR 0008](docs/decisions/0008-interface-localization.md) (interface localization: two root layouts, English at its current addresses and Portuguese at `/pt`, own typed dictionaries, and the URL as the only language state; accepted by the owner on 2026-11-10; the public pages are built (PR 2B), and so is the Studio (PR 3)). ADR 0002's implementation invariants (INV-1 to INV-5) are binding and each needs a test.
+- **Direction: Refrain v3 (partly accepted).** The owner approved a complete new design as final on 2026-11-15. It replaces the V4.4 identity: "v3" is newer than "V4.4", despite the numbers.
+  - **Accepted on 2026-11-15 for the work already built:** [ADR 0011](docs/decisions/0011-refrain-v3-identity-and-product.md) is partly accepted (v3 as the visual authority, the replacement of the V4.4 visual rules, and the listed implemented decisions). [ADR 0012](docs/decisions/0012-external-services-music-story-email-media.md) is accepted only for the unwired Music Story adapter. [ADR 0008 amendment 1](docs/decisions/0008-interface-localization.md#proposed-amendments-adr-0011) is accepted.
+  - **Still proposed:** everything else in those ADRs, and ADR 0006 A8 to A12. That includes whole-step track ratings (the existing half-step ratings are kept), one song per memory, one favourite, pending changes and autosave, new artist-journal publishing rules, media stored in PostgreSQL, magic-link sign-in, and the activation of any new external service, each needing its own decision.
+  - Every accepted ADR and every security and privacy contract still binds. The specification is [Design System, Part I](docs/design-system.md#part-i--refrain-v3-specification), and the rebuild is the [R track](docs/roadmap.md#refrain-v3-rebuild-r-track), each milestone separately authorized. The parts that need no decision are built (#104, integrated through #112 with #105 to #111 and #113; [evidence](docs/evidence/v3-public.md), [integration](docs/evidence/v3-integration.md)).
+
+## 2. Before you change anything
+
+1. Run `git status` and `git branch`, and read the files you are about to touch. Do not assume a file, script, command, dependency, or asset exists. Check first.
+2. Read the documents relevant to the task and every accepted ADR in [`docs/decisions/`](docs/decisions/).
+3. For visual work, read [Design System](docs/design-system.md), the tracked specification. If you have the author's local design references, also open the matching screen in `reference/refrain/pages/` or its capture in `reference/refrain/previews/`. They are not in the repository.
+4. For anything beyond a trivial change, state the scope and the acceptance criteria before starting.
+5. If the task conflicts with a documented decision, stop and raise it. Do not resolve it silently.
+
+## 3. Architecture constraints
+
+→ [Architecture](docs/architecture.md), [ADR 0001](docs/decisions/0001-modular-monolith.md)
+
+- One Next.js and TypeScript application, one PostgreSQL database, organized as a modular monolith. No extra services, queues, or caches without an ADR.
+- Modules: Catalog, Journals, Publication, Identity, Integrations, and Persistence. Import other modules only through their `index.ts`. Presentation code never imports the database client.
+- Business rules belong in server-only modules, not in React components, server actions, or route handlers. Those stay thin.
+- Prefer plain functions. Do not add repository layers, DI containers, or generic abstractions without a concrete second use.
+- The planned stack (Tailwind CSS, Drizzle, Zod, Tiptap, Better Auth, Rough.js, Vitest, Playwright, pnpm, Docker Compose, GitHub Actions) is a target. Check compatibility before installing, record the versions you chose, and replace a technology only through an ADR. Never write a version number you have not verified.
+- External providers (MusicBrainz, Cover Art Archive, Wikimedia Commons) are optional. A Music Story adapter exists, server-only and unwired ([ADR 0012 § 1](docs/decisions/0012-external-services-music-story-email-media.md#1-music-story-is-the-preferred-provider-behind-a-licensing-gate), items 1 to 3 and 8 accepted); calling it, displaying its artwork, or replacing a provider needs a separate decision. Their failure must never block catalog edits or writing. Never call them inside a database transaction.
+
+## 4. Database integrity
+
+→ [Data Model](docs/data-model.md)
+
+- Declare integrity in PostgreSQL: PKs, FKs, `NOT NULL`, `UNIQUE`, and `CHECK` constraints. ORM relations and TypeScript types do not count.
+- **Never cascade from catalog tables to authored content.** FKs from writing to the catalog are `ON DELETE RESTRICT`. Catalog records that writing references are archived, not deleted.
+- Deleting an entry sets `deleted_at` and is recoverable. Writing is permanently deleted only by the author's explicit "Delete now". **Do not implement or enable automatic purge** until backups, a tested restore, and a tested purge exist.
+- Wrap multi-row writes in one transaction, using the boundaries listed in the data model.
+- Read every generated migration's SQL. Test migrations against a database with data in it. Never apply them automatically to production.
+- The data model is preliminary. Resolve its open questions, and record the resolutions as ADRs, before or during the first migration.
+
+## 5. Privacy and security
+
+→ [Security](docs/security.md), [`SECURITY.md`](SECURITY.md)
+
+- **Security never depends on the source code being secret.** The repository is intended to become public. Assume that an attacker has read all the code, the schema, the routes, the validation, and the history. Unlinked URLs, hidden UI, and client-side checks are not controls ([Security § Public code, private writing](docs/security.md#public-code-private-writing)).
+- Report suspected vulnerabilities privately, as described in [`SECURITY.md`](SECURITY.md), never in a public issue or pull request. Never change the repository's visibility; only the owner does, after the [public-release gate](docs/security.md#public-release-gate).
+- Every studio action and route checks authorization itself. Middleware alone is not enough.
+- All public reads use the [publication predicate](docs/security.md#publication-predicate), implemented once in the Publication module. It covers metadata, sitemaps, and caches too. Visibility is per language version, and track reflections need their own explicit publication. "Still writing" never affects visibility.
+- No public sign-up. Exactly one author.
+- **Authentication changes are blocked by a known hazard.** Better Auth's magic-link verification deletes every account and session of a user whose `emailVerified` is false, and provisioning creates the author that way. No authentication change (a plugin, a sign-in method, provisioning) merges before [ADR 0012 § 3](docs/decisions/0012-external-services-music-story-email-media.md#3-the-better-auth-magic-link-account-deletion-hazard-a-mandatory-blocker) is satisfied and tested.
+- Never commit secrets, `.env` files, database dumps, or real journal writing.
+- **Never fabricate personal data:** no invented memories, reflections, ratings, favourites, dates, or biographical claims about the author. Use synthetic fixtures labeled as tests (`[Test] …`). Bracketed placeholders in the mockups are not content.
+- Do not deploy anything publicly before authentication and the privacy tests exist.
+
+## 6. Design-system boundaries
+
+**The v3 design governs** ([ADR 0011 § 1 and § 2](docs/decisions/0011-refrain-v3-identity-and-product.md#2-the-v44-rules-that-v3-supersedes), accepted on 2026-11-15). Implement [Design System, Part I](docs/design-system.md#part-i--refrain-v3-specification) faithfully, under its authority order: the rendered v3 screens, then the v3 source, then `tokens.css` and `sfx.js`, then Part I's transcription. Do not redesign it. Where v3 conflicts with an accepted security or domain contract, the contract wins and the adaptation is recorded (ADR 0011 § 3).
+
+- The v3 palette and its four typefaces (Archivo, Instrument Serif, Silkscreen, La Belle Aurore), each with one job (AR-1).
+- Inner pages carry the "refrain" wordmark; the Home's hero is the name.
+- EN/PT (`en`, `pt-BR` only) appear in the public header and footer and in the Studio's sidebar; the URL is the only language state ([ADR 0008 amendment 1](docs/decisions/0008-interface-localization.md#proposed-amendments-adr-0011)).
+- Hand-drawn strokes are SVG paths from the v3 source, `aria-hidden`, behind real semantic elements.
+
+**Still binding, unchanged by ADR 0011:** the rules for `reference/` below, that administrative controls never appear on public pages, and the accessibility rule. ADR 0011 § 5 keeps every security contract binding.
+
+**Superseded by ADR 0011 § 2** (kept below for the record, as § 2 requires; they no longer apply): the V4.4 design and its authority, monochrome, Kalam and Alegreya Sans, the character on the Home and the 404 artwork exception, no header wordmark, the footer-only selector, and Rough.js. The character's and the 404 artwork's files stay in the repository byte for byte; Rough.js still draws the Studio's rating stars until those are replaced.
+
+→ [Design System](docs/design-system.md)
+
+- *Superseded by ADR 0011 § 2.* Implement the approved V4.4 design. Do not redesign it, restyle it, or add components it does not show without the author's approval. The rendered screens outrank the exported CSS ([authority](docs/design-system.md#authority)). Studio controls required by ADR 0002 follow the [Writing Studio controls](docs/design-system.md#writing-studio-controls-for-adr-0002) specification.
+- *Superseded by ADR 0011 § 2.* Monochrome interface: color comes only from artwork and photographs. Typefaces are Kalam and Alegreya Sans, nothing else.
+- *Superseded by ADR 0011 § 2 (the files stay byte for byte).* The original character illustration appears only on the public homepage, never as a header logo. Never generate, trace, or alter it. The original file, `public/artwork/refrain-home-character.png`, stays byte for byte; the Home serves its production copy, `public/artwork/refrain-home-character.webp`, a re-encoding of that file with its dimensions and transparency kept, which the owner authorized for M3.4 ([Design System § Assets](docs/design-system.md#assets)). Any other derivative needs the owner's approval. **One narrow exception, approved by the owner (M3.1, PR #35):** the distinct, approved 404 artwork (`public/artwork/refrain-404.webp`, made from the local original `reference/refrain-404.png`) appears on the shared not-found view, and only there. It does not authorize the character on any other page ([Design System § Not found](docs/design-system.md#not-found-and-the-skip-link-m31)).
+- *Superseded by ADR 0011 § 2 and ADR 0008 amendment 1.* The public header has no logo or wordmark. The language selector (`en`, `pt-BR` only) lives only in the footer.
+- *Superseded by ADR 0011 § 2 (still used by the Studio's rating stars until replaced).* Rough.js strokes are pre-generated with fixed seeds, `aria-hidden`, and drawn behind real semantic elements.
+- **Binding.** Administrative controls never appear on public pages.
+- **Binding.** Accessibility is required: keyboard operation, visible focus, 44px targets, `prefers-reduced-motion`, and correct `lang` attributes.
+- **`reference/` is a local-only workspace** for the author's design references: mockups, screenshots, explorations, and working files. Git ignores it, and anything in it is read-only. Do not edit, move, rename, recompress, or delete it. → [Design System § Assets](docs/design-system.md#assets)
+  1. Files in `reference/` are not production assets.
+  2. Application code, tests, CI, the README, and committed documentation never import, load, or link to files in `reference/`. The repository must build, test, and run without it.
+  3. Committed documentation uses tracked assets only.
+  4. An approved asset is promoted deliberately: copied byte-for-byte into `public/` when the application uses it, or into `docs/assets/` when only documentation uses it.
+  5. Never copy an entire reference directory into the application.
+  6. Never commit local mockups, screenshots, or design experiments without the author's explicit authorization.
+
+## 7. Engineering conventions
+
+- TypeScript strict mode. Validate input with Zod at every server boundary.
+- Use pnpm with the committed lockfile, once one exists.
+- Name things after the domain: `albumJournal`, `trackReflection`, `publish`. Avoid generic names such as `item` or `data`.
+- Repository text is in English: docs, comments, commits, issues, PRs. Interface strings: the public pages are in English and Brazilian Portuguese, from `src/i18n/`; so is the Studio, from `src/i18n/studio/` ([ADR 0008](docs/decisions/0008-interface-localization.md)).
+- Keep changes focused. Do not reformat or refactor unrelated code in the same change.
+
+## 8. Testing
+
+→ [Development § Testing approach](docs/development.md#testing-approach)
+
+- Unit-test domain rules. Integration-test persistence against **real PostgreSQL**; never mock the database to prove constraints, transactions, or SQL.
+- Integration tests run only against the disposable test database (`TEST_DATABASE_URL`, `pnpm db:test:up`). Never weaken its safety checks, and never point tests, fixtures, or resets at a database whose contents matter. → [Development § Test database](docs/development.md#test-database)
+- Every privacy rule has a test, as listed in [Security § Required tests](docs/security.md#required-tests).
+- Use Playwright for critical flows at desktop width and at 390px.
+- **Never report a check as passing unless you ran it and saw the output.** If you could not run it, say so.
+
+## 9. Documentation
+
+- Update the affected documents in the same change as the behavior.
+- Distinguish implemented from planned functionality, and never describe planned work as done.
+- Record significant decisions as ADRs ([format](docs/decisions/README.md)).
+- Add commands to [Development](docs/development.md) only after they have run successfully.
+- Every relative link must resolve.
+
+## 10. Git and pull requests
+
+→ [Development § Branches and commits](docs/development.md#branches-and-commits)
+
+- Work on a focused branch (`<type>/<topic>`). Never commit directly to `main`.
+- Use Conventional Commits.
+- Open a PR describing its scope, decisions, verification, risks, and follow-ups.
+- Merge only after the checks pass and, where available, an independent review. Never merge your own work automatically. Never bypass branch protection or force-push `main`.
+- Destructive operations (deleting files or branches, rewriting history, dropping data, rewriting migrations) require explicit approval first.
+
+## 11. Definition of Done
+
+A change is done when:
+
+1. its stated acceptance criteria are met;
+2. the relevant checks were **run** and pass: format, lint, types, tests, build, once those exist;
+3. privacy, data-integrity, and accessibility implications have been considered and, where applicable, tested;
+4. the documentation and requirements evidence reflect the new state;
+5. it is on a branch with a PR, and nothing unrelated is included.
+
+## 12. Handoff
+
+End every work session with a short handoff covering:
+
+- **State:** branch, last commit, PR, and whether the working tree is clean.
+- **Done:** files changed and why.
+- **Verified:** the commands run and their actual results.
+- **Not verified / risks:** what remains uncertain, and any assumptions made.
+- **Next:** the next concrete step, and anything waiting on the author.
+
+If work stops midway, commit or record enough that someone else can continue without the conversation history.

@@ -13,36 +13,17 @@ concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# The new application at the repository root. The archived music diary
+# (archive/music-diary-v3/) is not built or tested here: its own workflow is
+# kept, inert, at archive/music-diary-v3/.github/workflows/ci.yml, and its
+# last verified state is the tag music-diary-v3-final.
 jobs:
   verify:
     name: Verify
     runs-on: ubuntu-24.04
-    # Every check below runs in this one job, browser tests included; it took
-    # about 19 minutes on PR #93 and on main, so 20 left no margin.
-    timeout-minutes: 30
+    timeout-minutes: 15
     env:
       NEXT_TELEMETRY_DISABLED: "1"
-
-    services:
-      # The disposable integration-test database. It exists only for this job
-      # and is discarded with it. No development or production data is ever
-      # reachable from CI.
-      postgres:
-        # Keep in step with the postgres-test service in compose.yaml. The
-        # verify-postgres-18 job below runs the database suites on 18.
-        image: postgres:17.11-trixie
-        env:
-          # Disposable credentials for this job's throwaway database. Not a secret.
-          POSTGRES_USER: refrain_test
-          POSTGRES_PASSWORD: refrain-test-ci-only
-          POSTGRES_DB: refrain_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -h 127.0.0.1 -p 5432 -U refrain_test -d refrain_test"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 12
 
     steps:
       # Actions are pinned to full commit SHAs; the comment names the release.
@@ -72,175 +53,23 @@ jobs:
       - name: Type check
         run: pnpm typecheck
 
-      - name: Unit tests
-        run: pnpm test
-
-      # High and critical advisories fail the run. The two moderate advisories
-      # in development tools (docs/development.md § Toolchain) are reported by
-      # `pnpm audit`, not hidden, and are reviewed with each dependency change.
-      # An advisory with no patched version may be recorded as not applicable
-      # in pnpm-workspace.yaml (`auditConfig.ignoreGhsas`), by its ID, only
-      # while its package stays outside the production dependencies. The next
-      # step holds those to no advisory of any severity apart from the
-      # recorded IDs, and fails if a recorded package reaches them: one guard
-      # per ID.
       - name: Dependency audit
         run: pnpm audit --audit-level=high
 
-      - name: Dependency audit (production dependencies)
-        run: |
-          pnpm audit --prod
-          # GHSA-fc5q-39xc-vjpf is recorded for development tools only. The
-          # output is captured first, so a failing `pnpm why` fails the step.
-          why="$(pnpm why picomatch --prod)"
-          if grep -q picomatch <<<"$why"; then
-            echo "picomatch is now a production dependency: GHSA-fc5q-39xc-vjpf no longer applies as recorded"
-            exit 1
-          fi
-
-      # The committed migrations must match the Drizzle schema, and their
-      # snapshots must be consistent. Neither command connects to a database;
-      # the Drizzle Kit config only requires DATABASE_URL to be well formed.
+      # The committed migrations must match the Drizzle schema. Neither command
+      # connects to a database; the config only requires a well-formed local URL.
       - name: Schema consistency
         run: |
           pnpm db:check
           pnpm db:generate
-          if [ -n "$(git status --porcelain -- src/db/migrations)" ]; then
-            git status --porcelain -- src/db/migrations
+          if [ -n "$(git status --porcelain -- src/db)" ]; then
+            git status --porcelain -- src/db
             echo "::error::src/db/schema.ts has changes without a committed migration. Run pnpm db:generate and commit the result."
             exit 1
           fi
         env:
           DATABASE_URL: postgres://unused:unused@127.0.0.1:5432/unused
 
-      # DATABASE_URL is deliberately absent here: the build must not depend on
-      # a database connection.
+      # DATABASE_URL is deliberately absent: the build must not need a database.
       - name: Production build
         run: pnpm build
-
-      # The integration tests refuse any database without this marker. Service
-      # containers cannot run init scripts, so the job applies the same script
-      # as the local postgres-test service, to its own throwaway container.
-      - name: Mark the service database as disposable
-        run: >-
-          docker exec -i "${{ job.services.postgres.id }}"
-          psql -v ON_ERROR_STOP=1 -U refrain_test -d refrain_test
-          < docker/postgres-test/01-mark-disposable.sql
-
-      # Global setup refuses to run unless the database is marked, then applies
-      # the versioned migrations to it before the tests.
-      - name: Integration tests (PostgreSQL 17)
-        run: pnpm test:integration
-        env:
-          TEST_DATABASE_URL: postgres://refrain_test:refrain-test-ci-only@127.0.0.1:5432/refrain_test
-          # The connection test fails unless the server is this major version.
-          EXPECTED_POSTGRES_MAJOR: "17"
-
-      # The production build from the build step, served by `next start` and
-      # tested over real HTTP. Global setup applies the same safety checks to
-      # the same throwaway database, gives the server only that database, and
-      # deletes the synthetic account it creates.
-      - name: HTTP tests (production build)
-        run: pnpm test:http
-        env:
-          TEST_DATABASE_URL: postgres://refrain_test:refrain-test-ci-only@127.0.0.1:5432/refrain_test
-
-      # Chromium only, at the version the lockfile pins. Browsers are
-      # downloaded for this job and discarded with it.
-      - name: Install Chromium for the browser tests
-        run: pnpm exec playwright install --with-deps chromium
-
-      # The same production build in a real browser: a fixed port that must be
-      # free, the disposable service database, and a synthetic author that the
-      # global setup creates and removes. No stored credentials exist anywhere:
-      # the session file is written during the run and is never uploaded.
-      - name: Browser tests (production build, Chromium)
-        run: pnpm exec playwright test
-        env:
-          TEST_DATABASE_URL: postgres://refrain_test:refrain-test-ci-only@127.0.0.1:5432/refrain_test
-
-  # The supported PostgreSQL 18 (issue #61): the hosted database's major
-  # version. The same database suites as above against a PostgreSQL 18
-  # service, in parallel with the first job. Lint, types, unit tests, the
-  # audit, and the browser tests do not depend on the server version and run
-  # once, in the job above.
-  verify-postgres-18:
-    name: Database tests (PostgreSQL 18)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    env:
-      NEXT_TELEMETRY_DISABLED: "1"
-
-    services:
-      postgres:
-        # Keep in step with the postgres-test-18 service in compose.yaml.
-        image: postgres:18.6-trixie
-        env:
-          # Disposable credentials for this job's throwaway database. Not a secret.
-          POSTGRES_USER: refrain_test
-          POSTGRES_PASSWORD: refrain-test-ci-only
-          POSTGRES_DB: refrain_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -h 127.0.0.1 -p 5432 -U refrain_test -d refrain_test"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 12
-
-    steps:
-      - name: Check out
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Set up pnpm (version from package.json packageManager)
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-
-      - name: Set up Node.js (version from .nvmrc)
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      # The HTTP tests serve this build. DATABASE_URL is absent, as above.
-      - name: Production build
-        run: pnpm build
-
-      - name: Mark the service database as disposable
-        run: >-
-          docker exec -i "${{ job.services.postgres.id }}"
-          psql -v ON_ERROR_STOP=1 -U refrain_test -d refrain_test
-          < docker/postgres-test/01-mark-disposable.sql
-
-      - name: Integration tests (PostgreSQL 18)
-        run: pnpm test:integration
-        env:
-          TEST_DATABASE_URL: postgres://refrain_test:refrain-test-ci-only@127.0.0.1:5432/refrain_test
-          EXPECTED_POSTGRES_MAJOR: "18"
-
-      - name: HTTP tests (production build, PostgreSQL 18)
-        run: pnpm test:http
-        env:
-          TEST_DATABASE_URL: postgres://refrain_test:refrain-test-ci-only@127.0.0.1:5432/refrain_test
-
-      # The hosted-backup toolchain (ops/backup, F-02) on scratch databases of
-      # the Compose postgres-test-18 service (the one the owner's drill uses),
-      # so db:backup:verify --postgres=18, which reaches its container through
-      # `docker compose exec`, runs here too and no test is skipped. It builds
-      # the tools image (Debian packages over the network) and needs no secret.
-      # POSTGRES_PASSWORD only satisfies compose.yaml's interpolation of the
-      # development service, which is never started here.
-      - name: Start the Compose PostgreSQL 18 test server
-        run: docker compose --profile test-18 up --detach --wait postgres-test-18
-        env:
-          POSTGRES_PASSWORD: unused-in-ci
-
-      - name: Hosted-backup tests (PostgreSQL 18)
-        run: pnpm test:backup
-        env:
-          TEST_DATABASE_URL: postgres://refrain_test:refrain-test-local-only@127.0.0.1:5434/refrain_test
-          POSTGRES_PASSWORD: unused-in-ci
