@@ -358,15 +358,24 @@ describe("what the Studio says about publishing memories", () => {
   it("never says on the Memories page that publishing is unavailable", async () => {
     for (const { prefix, words } of languages) {
       const where = `${prefix}/studio/memories`;
-      const page = await authorPage(where);
-      for (const marker of [
-        MARKERS.memory,
-        MARKERS.draftMemory,
-        MARKERS.publishedMemory,
-      ]) {
-        expect(page, where).toContain(marker);
+      const answer = await request(base, where, {
+        headers: { cookie: author.cookie },
+      });
+      expect(answer.status, where).toBe(200);
+      const page = visibleText(answer.body);
+      // Each memory's own row carries its own status.
+      const rows = [...answer.body.matchAll(/<li\b[\s\S]*?<\/li>/g)].map(
+        (match) => visibleText(match[0]),
+      );
+      for (const [marker, status] of [
+        [MARKERS.memory, words.memoryStatus.private],
+        [MARKERS.draftMemory, words.memoryStatus.draft],
+        [MARKERS.publishedMemory, words.memoryStatus.published],
+      ] as const) {
+        const row = rows.filter((text) => text.includes(marker));
+        expect(row, `${where} ${marker}`).toHaveLength(1);
+        expect(row[0], `${where} ${marker}`).toContain(status);
       }
-      expect(page, where).toContain(words.memoryStatus.published);
       for (const retired of RETIRED) {
         expect(page, where).not.toContain(retired);
       }
