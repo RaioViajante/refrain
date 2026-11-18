@@ -1165,7 +1165,6 @@ export const studioEn = {
     emptyBody:
       "Write down a moment a song takes you back to. It begins as a draft that only you can see, and it is saved only when you save it.",
     totalsLabel: "Memory totals",
-    publishingNote: "Publishing memories isn’t available yet.",
     kind: "Memory",
     noSongs: "No songs yet",
     andMore: (shown: string, more: number) => `${shown}, and ${more} more`,

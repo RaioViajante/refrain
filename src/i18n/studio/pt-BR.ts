@@ -1171,7 +1171,6 @@ export const studioPtBR: StudioDictionary = {
     emptyBody:
       "Anote um momento para onde uma música leva você de volta. Ela começa como um rascunho que só você vê, e só é salva quando você salva.",
     totalsLabel: "Totais de memórias",
-    publishingNote: "Publicar memórias ainda não está disponível.",
     kind: "Memória",
     noSongs: "Nenhuma música ainda",
     andMore: (shown: string, more: number) => `${shown} e mais ${more}`,

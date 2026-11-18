@@ -99,9 +99,6 @@ async function Memories({ searchParams, locale }: MemoriesProps) {
           {words.desk.recentlyDeleted(statistics.deleted + journals.deleted)}
         </Link>
       </p>
-      <p className="studio-hint" style={{ maxWidth: "62ch" }}>
-        {w.publishingNote}
-      </p>
     </StudioFrame>
   );
 }
