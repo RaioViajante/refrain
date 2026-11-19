@@ -35,10 +35,21 @@
 }
 
 .link {
+  position: relative;
   display: inline-block;
   padding: 0.7em 0;
   min-height: 44px;
   line-height: calc(44px - 1.4em);
+}
+/* At least 44 px wide, without lengthening the drawn line. */
+.link::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100%, 44px);
+  height: max(100%, 44px);
+  translate: -50% -50%;
 }
 
 .volume {

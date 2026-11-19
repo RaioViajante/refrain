@@ -1,6 +1,8 @@
 /* Reference: NotFound.dc.html / NotFoundMobile.dc.html, <header>. */
 .header {
   position: relative;
+  /* The star link reaches 2 px below the header; keep it above <main>. */
+  z-index: 1;
   display: flex;
   justify-content: center;
   /* 10 + 44 px: the reference's 54 px header, with 44 px targets. */
@@ -32,10 +34,21 @@
 
 /* 44 px tall targets; the drawn line keeps the reference's 3 px gap. */
 .link {
+  position: relative;
   display: inline-block;
   padding: 14px 0;
   line-height: 16px;
   background-position: 0 calc(100% - 11px);
+}
+/* At least 44 px wide, without lengthening the drawn line. */
+.link::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100%, 44px);
+  height: max(100%, 44px);
+  translate: -50% -50%;
 }
 
 @media (max-width: 47.99rem) {
