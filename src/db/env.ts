@@ -68,6 +68,28 @@ export function readLocalDatabaseUrl(
   return value;
 }
 
+/**
+ * The disposable integration-test database (compose.yaml, `postgres-test`).
+ * Refuses any host other than this machine and any database whose name does
+ * not end in `_test`, so tests can never truncate real data.
+ */
+export const DEFAULT_TEST_DATABASE_URL =
+  "postgres://refrain_test:refrain_test@127.0.0.1:5443/refrain_mixtapes_test";
+
+export function readTestDatabaseUrl(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): string {
+  const value = readLocalDatabaseUrl({
+    DATABASE_URL: env.TEST_DATABASE_URL?.trim() || DEFAULT_TEST_DATABASE_URL,
+  });
+  if (!databaseName(new URL(value)).endsWith("_test")) {
+    throw new DatabaseConfigError(
+      "TEST_DATABASE_URL must name a disposable database ending in _test.",
+    );
+  }
+  return value;
+}
+
 function databaseName(url: URL): string {
   try {
     return decodeURIComponent(url.pathname.replace(/^\//, ""));

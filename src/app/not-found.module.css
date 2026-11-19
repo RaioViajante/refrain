@@ -1,0 +1,155 @@
+/*
+ * Reference: NotFound.dc.html. Its <main> is 1360 px of content plus 40 px of
+ * padding on each side (content-box), so its coordinates span 1440 × 820.
+ * They are converted to container units (1cqw = 14.4 px at full width), so
+ * the composition holds from tablet to wide screens.
+ */
+.main {
+  position: relative;
+  max-width: 1440px;
+  margin: 0 auto;
+  aspect-ratio: 1440 / 820;
+  container-type: inline-size;
+}
+
+.label,
+.number {
+  position: absolute;
+  top: 4.861cqw;
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+.label {
+  left: 2.778cqw;
+  font-size: max(10.5px, 0.764cqw);
+  text-transform: uppercase;
+}
+.number {
+  right: 2.778cqw;
+  font-size: max(10.5px, 0.833cqw);
+}
+
+/* Two lines: the second starts 0.375 × the size before the first ends. */
+.title {
+  position: absolute;
+  left: 2.083cqw;
+  top: 15.972cqw;
+  margin: 0;
+  font-weight: 400;
+  font-size: 9.444cqw;
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+  white-space: nowrap;
+}
+.second {
+  display: block;
+  padding-left: 47.639cqw;
+}
+
+.star {
+  position: absolute;
+  left: 54.861cqw;
+  top: 16.389cqw;
+  width: 5.139cqw;
+}
+
+.body {
+  position: absolute;
+  left: 41.667cqw;
+  top: 37.5cqw;
+  width: 36.111cqw;
+}
+.lede {
+  margin: 0;
+  font-style: italic;
+  font-size: max(17px, 1.667cqw);
+  line-height: 1.35;
+}
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 36px;
+  margin-top: 1.944cqw;
+}
+.primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  font-size: max(16px, 1.319cqw);
+  font-weight: 700;
+}
+.primary svg {
+  width: 0.58em;
+}
+.secondary {
+  display: inline-block;
+  padding: 12px 0;
+  line-height: 20px;
+  font-size: max(14px, 1.042cqw);
+}
+
+.footerGap {
+  margin-top: 60px;
+}
+
+/* Reference: NotFoundMobile.dc.html (390 × 500 main). */
+@media (max-width: 47.99rem) {
+  .main {
+    aspect-ratio: auto;
+    height: 500px;
+    container-type: normal;
+  }
+  .label {
+    left: 20px;
+    top: 30px;
+    font-size: 10.5px;
+  }
+  .number {
+    right: 20px;
+    top: 30px;
+    font-size: 10.5px;
+  }
+  .title {
+    left: 14px;
+    right: 20px;
+    top: 120px;
+    font-size: 58px;
+    white-space: normal;
+  }
+  .second {
+    padding-left: 75px;
+  }
+  .star {
+    left: auto;
+    right: max(10px, calc(100% - 340px));
+    top: 96px;
+    width: 40px;
+  }
+  .body {
+    left: 20px;
+    top: 290px;
+    width: min(330px, calc(100% - 40px));
+  }
+  .lede {
+    font-size: 19px;
+  }
+  .links {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+    margin-top: 0;
+  }
+  .primary {
+    margin-top: 11px;
+    font-size: 17px;
+  }
+  .secondary {
+    font-size: 14px;
+  }
+  .footerGap {
+    margin-top: 70px;
+  }
+}

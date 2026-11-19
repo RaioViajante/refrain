@@ -25,6 +25,23 @@ jobs:
     env:
       NEXT_TELEMETRY_DISABLED: "1"
 
+    # Disposable database for integration tests (the same as compose.yaml's
+    # postgres-test). src/db/env.ts refuses any database not named *_test.
+    services:
+      postgres-test:
+        image: postgres:17.11-trixie
+        env:
+          POSTGRES_USER: refrain_test
+          POSTGRES_PASSWORD: refrain_test
+          POSTGRES_DB: refrain_mixtapes_test
+        ports:
+          - 5443:5432
+        options: >-
+          --health-cmd "pg_isready -U refrain_test -d refrain_mixtapes_test"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+
     steps:
       # Actions are pinned to full commit SHAs; the comment names the release.
       - name: Check out
@@ -41,6 +58,17 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
 
+      # The design reference is local-only (decision 0002); nothing under
+      # reference/ and no archive file may ever be tracked.
+      - name: No design reference tracked
+        run: |
+          tracked="$(git ls-files -- reference ':(glob)**/*.zip')"
+          if [ -n "$tracked" ]; then
+            echo "$tracked"
+            echo "::error::Files under reference/ or .zip archives are tracked. They are local-only."
+            exit 1
+          fi
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -55,6 +83,9 @@ jobs:
 
       - name: Unit tests
         run: pnpm test
+
+      - name: Integration tests (PostgreSQL)
+        run: pnpm test:db
 
       - name: Dependency audit
         run: pnpm audit --audit-level=high

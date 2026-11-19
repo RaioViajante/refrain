@@ -1,0 +1,290 @@
+/*
+ * Refrain's visual system (decision 0002, skill refrain-design). Transcribed
+ * from the approved reference: the class names below (rf, pg, nl, pl, hm, cv,
+ * mood, trk, tw, t-in, dev-in, rv, q, ph, march) are the reference's own, so
+ * each screen can be ported and compared rule by rule. Paper only: the
+ * approved direction has no dark theme.
+ */
+
+:root {
+  --paper: #fbfbf8;
+  --ink: #141414;
+  --text-soft: #2f2c27;
+  --text-mid: #4f4b44;
+  --text-meta: #6b675f;
+  /* The lightest grey allowed for text (4.6:1 on paper). */
+  --text-faint: #77736b;
+  --rule-soft: #e4e2dc;
+  /* Decorative only, never text (the ⋮ between tracks). */
+  --ornament: #a19d94;
+
+  --font-sans: var(--font-inter), "Helvetica Neue", Arial, sans-serif;
+
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* The photographic treatment: colour, without the brightness. */
+  --mood: grayscale(0) sepia(0.1) brightness(0.93) contrast(0.86) saturate(0.62);
+  --mood-warm: grayscale(0) sepia(0.06) brightness(0.98) contrast(0.92)
+    saturate(0.85);
+
+  color-scheme: light;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
+}
+
+::selection {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+a {
+  color: var(--ink);
+  transition: color 0.3s var(--ease);
+}
+a:hover {
+  color: var(--text-mid);
+}
+
+:focus-visible {
+  outline: 1px dashed currentColor;
+  outline-offset: 4px;
+}
+
+img {
+  max-width: none;
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Skip link: hidden until focused. */
+.skip {
+  position: absolute;
+  left: 16px;
+  top: -100px;
+  z-index: 10;
+  padding: 14px 16px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 13px;
+  text-decoration: none;
+}
+.skip:focus {
+  top: 8px;
+  color: var(--paper);
+}
+
+/*
+ * The reference's custom cursor (an ink dot, a record over links) is pending:
+ * its image files are not cleared for publication (docs/assets.md). Until
+ * they are, the system cursor is used.
+ */
+.rf img {
+  -webkit-user-drag: none;
+}
+
+/* Secondary link: a fine line drawn underneath. Current page keeps it. */
+.nl {
+  text-decoration: none;
+  background: linear-gradient(currentColor, currentColor) no-repeat 0
+    calc(100% - 9px) / 0 1px;
+  transition:
+    background-size 0.55s var(--out),
+    color 0.3s var(--ease);
+}
+.nl:hover,
+.nl:focus-visible,
+.nl[aria-current="page"] {
+  background-size: 100% 1px;
+  color: var(--ink);
+}
+footer .nl {
+  background-position: 0 calc(100% - 0.45em);
+}
+
+/* Home mark: the star turns a quarter on hover. */
+.hm img,
+.hm span {
+  display: block;
+  transition:
+    rotate 0.9s var(--out),
+    scale 0.9s var(--out);
+}
+.hm:hover img,
+.hm:hover span,
+.hm:focus-visible img,
+.hm:focus-visible span {
+  rotate: 90deg;
+  scale: 1.2;
+}
+
+/* Covers lift off the paper and warm up on hover. */
+.cv img,
+.tape img {
+  transition:
+    translate 0.8s var(--out),
+    box-shadow 0.8s var(--out),
+    filter 0.8s var(--ease);
+}
+.cv:hover img,
+.cv:focus-visible img,
+.tape:hover img,
+.tape:focus-visible img {
+  translate: 0 -6px;
+  box-shadow: 0 18px 22px -20px rgba(20, 20, 20, 0.6);
+}
+
+/* Primary link: bold, with a ▶ that steps forward on hover. */
+.pl {
+  text-decoration: none;
+}
+.pl svg {
+  transition: translate 0.45s var(--out);
+}
+.pl:hover svg,
+.pl:focus-visible svg {
+  translate: 5px 0;
+}
+
+.mood {
+  filter: var(--mood);
+}
+.cv:hover .mood,
+.cv:focus-visible .mood,
+.tape:hover .mood,
+.tape:focus-visible .mood {
+  filter: var(--mood-warm);
+}
+
+.trk {
+  transition: background-color 0.45s var(--ease);
+}
+.trk:hover {
+  background-color: rgba(20, 20, 20, 0.035);
+}
+
+/* Motion: only for those who have not asked for less. */
+@media (prefers-reduced-motion: no-preference) {
+  .pg {
+    animation: rf-fade 0.8s var(--ease) both;
+  }
+  .t-in {
+    animation: rf-up 1.2s var(--out) 0.12s both;
+  }
+  .t-in2 {
+    animation: rf-up 1.2s var(--out) 0.32s both;
+  }
+  .dev-in {
+    animation: rf-dev 2.4s var(--ease) both;
+    animation-delay: var(--d, 0s);
+  }
+  .tw {
+    animation: rf-tw 7s ease-in-out infinite;
+    animation-delay: var(--d, 0s);
+  }
+  .march line,
+  .march path {
+    animation: rf-march 30s linear infinite;
+  }
+  @supports (animation-timeline: view()) {
+    .rv {
+      animation: rf-up linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 90%;
+    }
+    .q {
+      animation: rf-focus linear both;
+      animation-timeline: view();
+      animation-range: entry 15% entry 100%;
+    }
+    .ph {
+      animation: rf-dev linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 100%;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@keyframes rf-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes rf-up {
+  from {
+    opacity: 0;
+    translate: 0 0.4em;
+  }
+}
+@keyframes rf-focus {
+  from {
+    opacity: 0;
+    filter: blur(6px);
+    translate: 0 0.25em;
+  }
+}
+@keyframes rf-dev {
+  from {
+    opacity: 0;
+    filter: grayscale(1) sepia(0.1) brightness(1.45) contrast(0.7)
+      saturate(0.62);
+  }
+  45% {
+    opacity: 1;
+  }
+}
+@keyframes rf-tw {
+  0%,
+  100% {
+    scale: 1;
+    opacity: 1;
+  }
+  50% {
+    scale: 0.88;
+    opacity: 0.78;
+  }
+}
+@keyframes rf-march {
+  to {
+    stroke-dashoffset: -160;
+  }
+}

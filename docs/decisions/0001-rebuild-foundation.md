@@ -1,6 +1,6 @@
 # 0001. Rebuild foundation
 
-- **Status:** Accepted by the owner, 2026-11-17 and 2026-11-18.
+- **Status:** Accepted by the owner, 2026-11-17 and 2026-11-18. Partly superseded by [0002](0002-mixtape-archive-product.md) (2026-11-19): Portuguese only, and the product model, design, authentication, media, and hosting are decided there.
 - **Scope:** what the new application is, what it is built on, and what is still open. No feature is specified here.
 
 ## Decided
