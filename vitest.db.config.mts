@@ -17,7 +17,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.db.test.ts"],
-    exclude: ["archive/**", "node_modules/**"],
+    exclude: ["archive/**", "e2e/**", "node_modules/**"],
     globalSetup: ["src/test/db-global-setup.ts"],
     fileParallelism: false,
   },

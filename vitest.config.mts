@@ -16,6 +16,6 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
-    exclude: ["archive/**", "node_modules/**", "src/**/*.db.test.ts"],
+    exclude: ["archive/**", "e2e/**", "node_modules/**", "src/**/*.db.test.ts"],
   },
 });
