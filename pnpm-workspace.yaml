@@ -18,8 +18,9 @@ auditConfig:
   ignoreGhsas:
     # picomatch <= 4.0.7, ReDoS from a crafted glob pattern; no patched version
     # yet. Installed only under ESLint and its plugins (development), absent
-    # from `pnpm audit --prod`. Next.js's bundled copy compiles only `images`
-    # patterns from next.config.ts, which this application does not set. The
-    # application never builds a glob pattern from request data. The same
-    # entry as the archived application's (archive/music-diary-v3/).
+    # from `pnpm audit --prod`. Next.js's bundled copy compiles only the
+    # `images` patterns from next.config.ts: one constant local pattern
+    # (/fotos/**), never request data. The application never builds a glob
+    # pattern from request data. The same entry as the archived application's
+    # (archive/music-diary-v3/).
     - GHSA-fc5q-39xc-vjpf

@@ -24,8 +24,11 @@ pnpm install
 cp .env.example .env    # then change POSTGRES_PASSWORD and DATABASE_URL to match
 pnpm db:up              # local PostgreSQL 17 on 127.0.0.1:5442
 pnpm db:migrate         # apply the committed migrations
+pnpm studio:hash        # prints STUDIO_PASSWORD_HASH for a password you type
 pnpm dev
 ```
+
+To sign in to the Studio (`/studio`), set `STUDIO_EMAIL` and `STUDIO_PASSWORD_HASH` in `.env`. Without them, sign-in is closed. Uploaded photographs are stored in PostgreSQL and served at `/fotos/<id>`, publicly only once their rights are confirmed and they are in public use.
 
 Use a checkout of this application with its own `.env`. A directory that still holds the music diary's `.env` points `DATABASE_URL` at that application's data; Drizzle Kit refuses it, but the file is still the wrong one.
 

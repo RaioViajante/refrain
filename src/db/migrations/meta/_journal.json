@@ -15,6 +15,20 @@
       "when": 1795059593145,
       "tag": "0001_feeling_and_text_drafts",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795061665164,
+      "tag": "0002_studio_auth_and_media",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795064829771,
+      "tag": "0003_photos_in_database",
+      "breakpoints": true
     }
   ]
 }

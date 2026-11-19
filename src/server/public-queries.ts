@@ -35,6 +35,12 @@ export type PublicImage = {
   height: number;
   focus: number;
   treatment: "mood" | "original";
+  /**
+   * Set only in Studio previews: the photo may not be public yet, so the
+   * browser fetches it with the owner's session instead of the image
+   * optimizer (which has none).
+   */
+  privatePreview?: boolean;
 };
 
 export type MixtapeSummary = {
@@ -95,7 +101,8 @@ type ImageTable = typeof images | typeof detailImages;
 
 function imageColumns(table: ImageTable) {
   return {
-    url: table.url,
+    // The application's URL for the photo (null when the join found none).
+    url: sql<string | null>`'/fotos/' || ${table.id}`,
     alt: table.alt,
     width: table.width,
     height: table.height,

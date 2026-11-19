@@ -1,0 +1,956 @@
+{
+  "id": "b2a2df6c-0839-4698-9976-1b495a7b77c4",
+  "prevId": "e722b0c6-6f35-4472-9eac-cfdbb403e1a6",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.images": {
+      "name": "images",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "url": {
+          "name": "url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "alt": {
+          "name": "alt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "width": {
+          "name": "width",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "height": {
+          "name": "height",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "focus": {
+          "name": "focus",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 4
+        },
+        "treatment": {
+          "name": "treatment",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'mood'"
+        },
+        "rights_confirmed": {
+          "name": "rights_confirmed",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "rights_note": {
+          "name": "rights_note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "images_url_key": {
+          "name": "images_url_key",
+          "columns": [
+            {
+              "expression": "url",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "images_url_source": {
+          "name": "images_url_source",
+          "value": "\"images\".\"url\" ~ '^https://' or \"images\".\"url\" ~ '^/media/[a-z0-9-]+\\.(jpg|png)$'"
+        },
+        "images_alt_length": {
+          "name": "images_alt_length",
+          "value": "char_length(\"images\".\"alt\") between 1 and 300"
+        },
+        "images_size_positive": {
+          "name": "images_size_positive",
+          "value": "\"images\".\"width\" > 0 and \"images\".\"height\" > 0"
+        },
+        "images_focus_range": {
+          "name": "images_focus_range",
+          "value": "\"images\".\"focus\" between 0 and 8"
+        },
+        "images_treatment": {
+          "name": "images_treatment",
+          "value": "\"images\".\"treatment\" in ('mood', 'original')"
+        },
+        "images_rights_note_length": {
+          "name": "images_rights_note_length",
+          "value": "char_length(\"images\".\"rights_note\") <= 500"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.mixtape_tracks": {
+      "name": "mixtape_tracks",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "mixtape_id": {
+          "name": "mixtape_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "song_id": {
+          "name": "song_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "note_side": {
+          "name": "note_side",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'right'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "mixtape_tracks_position_key": {
+          "name": "mixtape_tracks_position_key",
+          "columns": [
+            {
+              "expression": "mixtape_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "position",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "mixtape_tracks_song_key": {
+          "name": "mixtape_tracks_song_key",
+          "columns": [
+            {
+              "expression": "mixtape_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "song_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "mixtape_tracks_song_idx": {
+          "name": "mixtape_tracks_song_idx",
+          "columns": [
+            {
+              "expression": "song_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "mixtape_tracks_mixtape_id_mixtapes_id_fk": {
+          "name": "mixtape_tracks_mixtape_id_mixtapes_id_fk",
+          "tableFrom": "mixtape_tracks",
+          "tableTo": "mixtapes",
+          "columnsFrom": [
+            "mixtape_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "mixtape_tracks_song_id_songs_id_fk": {
+          "name": "mixtape_tracks_song_id_songs_id_fk",
+          "tableFrom": "mixtape_tracks",
+          "tableTo": "songs",
+          "columnsFrom": [
+            "song_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "mixtape_tracks_position_positive": {
+          "name": "mixtape_tracks_position_positive",
+          "value": "\"mixtape_tracks\".\"position\" > 0"
+        },
+        "mixtape_tracks_note_length": {
+          "name": "mixtape_tracks_note_length",
+          "value": "char_length(\"mixtape_tracks\".\"note\") <= 1000"
+        },
+        "mixtape_tracks_note_side": {
+          "name": "mixtape_tracks_note_side",
+          "value": "\"mixtape_tracks\".\"note_side\" in ('left', 'right')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.mixtapes": {
+      "name": "mixtapes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "number": {
+          "name": "number",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "slug": {
+          "name": "slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "theme": {
+          "name": "theme",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "feeling": {
+          "name": "feeling",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "reflection": {
+          "name": "reflection",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "pull_quote": {
+          "name": "pull_quote",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "pull_quote_credit": {
+          "name": "pull_quote_credit",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "playlist_url": {
+          "name": "playlist_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "year": {
+          "name": "year",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cover_image_id": {
+          "name": "cover_image_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "detail_image_id": {
+          "name": "detail_image_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "detail_caption": {
+          "name": "detail_caption",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "featured_rank": {
+          "name": "featured_rank",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "published_at": {
+          "name": "published_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "mixtapes_number_key": {
+          "name": "mixtapes_number_key",
+          "columns": [
+            {
+              "expression": "number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "mixtapes_slug_key": {
+          "name": "mixtapes_slug_key",
+          "columns": [
+            {
+              "expression": "slug",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "mixtapes_featured_rank_key": {
+          "name": "mixtapes_featured_rank_key",
+          "columns": [
+            {
+              "expression": "featured_rank",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "mixtapes_cover_image_id_images_id_fk": {
+          "name": "mixtapes_cover_image_id_images_id_fk",
+          "tableFrom": "mixtapes",
+          "tableTo": "images",
+          "columnsFrom": [
+            "cover_image_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "mixtapes_detail_image_id_images_id_fk": {
+          "name": "mixtapes_detail_image_id_images_id_fk",
+          "tableFrom": "mixtapes",
+          "tableTo": "images",
+          "columnsFrom": [
+            "detail_image_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "mixtapes_number_positive": {
+          "name": "mixtapes_number_positive",
+          "value": "\"mixtapes\".\"number\" > 0"
+        },
+        "mixtapes_slug_format": {
+          "name": "mixtapes_slug_format",
+          "value": "\"mixtapes\".\"slug\" ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and char_length(\"mixtapes\".\"slug\") <= 80"
+        },
+        "mixtapes_title_length": {
+          "name": "mixtapes_title_length",
+          "value": "char_length(\"mixtapes\".\"title\") between 1 and 120"
+        },
+        "mixtapes_theme_length": {
+          "name": "mixtapes_theme_length",
+          "value": "char_length(\"mixtapes\".\"theme\") <= 120"
+        },
+        "mixtapes_feeling_format": {
+          "name": "mixtapes_feeling_format",
+          "value": "\"mixtapes\".\"feeling\" = '' or \"mixtapes\".\"feeling\" ~ '^[a-zà-ÿ]+( [a-zà-ÿ]+)?$' and char_length(\"mixtapes\".\"feeling\") <= 30"
+        },
+        "mixtapes_description_length": {
+          "name": "mixtapes_description_length",
+          "value": "char_length(\"mixtapes\".\"description\") <= 600"
+        },
+        "mixtapes_reflection_length": {
+          "name": "mixtapes_reflection_length",
+          "value": "char_length(\"mixtapes\".\"reflection\") <= 20000"
+        },
+        "mixtapes_pull_quote_length": {
+          "name": "mixtapes_pull_quote_length",
+          "value": "char_length(\"mixtapes\".\"pull_quote\") <= 600 and char_length(\"mixtapes\".\"pull_quote_credit\") <= 200"
+        },
+        "mixtapes_playlist_url_https": {
+          "name": "mixtapes_playlist_url_https",
+          "value": "\"mixtapes\".\"playlist_url\" is null or (\"mixtapes\".\"playlist_url\" ~ '^https://' and char_length(\"mixtapes\".\"playlist_url\") <= 500)"
+        },
+        "mixtapes_year_range": {
+          "name": "mixtapes_year_range",
+          "value": "\"mixtapes\".\"year\" is null or \"mixtapes\".\"year\" between 1900 and 2100"
+        },
+        "mixtapes_detail_caption_length": {
+          "name": "mixtapes_detail_caption_length",
+          "value": "char_length(\"mixtapes\".\"detail_caption\") <= 200"
+        },
+        "mixtapes_featured_rank_range": {
+          "name": "mixtapes_featured_rank_range",
+          "value": "\"mixtapes\".\"featured_rank\" is null or \"mixtapes\".\"featured_rank\" between 1 and 3"
+        },
+        "mixtapes_status": {
+          "name": "mixtapes_status",
+          "value": "\"mixtapes\".\"status\" in ('draft', 'published')"
+        },
+        "mixtapes_published_at": {
+          "name": "mixtapes_published_at",
+          "value": "(\"mixtapes\".\"status\" = 'published') = (\"mixtapes\".\"published_at\" is not null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.site_images": {
+      "name": "site_images",
+      "schema": "",
+      "columns": {
+        "slot": {
+          "name": "slot",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "image_id": {
+          "name": "image_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "site_images_image_id_images_id_fk": {
+          "name": "site_images_image_id_images_id_fk",
+          "tableFrom": "site_images",
+          "tableTo": "images",
+          "columnsFrom": [
+            "image_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "site_images_slot_format": {
+          "name": "site_images_slot_format",
+          "value": "\"site_images\".\"slot\" ~ '^[a-z0-9]+(\\.[a-z0-9_]+)+$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.site_texts": {
+      "name": "site_texts",
+      "schema": "",
+      "columns": {
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "published": {
+          "name": "published",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "site_texts_key_format": {
+          "name": "site_texts_key_format",
+          "value": "\"site_texts\".\"key\" ~ '^[a-z0-9]+(\\.[a-z0-9_]+)+$'"
+        },
+        "site_texts_body_length": {
+          "name": "site_texts_body_length",
+          "value": "char_length(\"site_texts\".\"body\") <= 20000"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.songs": {
+      "name": "songs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "artist": {
+          "name": "artist",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "songs_title_artist_key": {
+          "name": "songs_title_artist_key",
+          "columns": [
+            {
+              "expression": "lower(\"title\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "lower(\"artist\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "songs_artist_idx": {
+          "name": "songs_artist_idx",
+          "columns": [
+            {
+              "expression": "artist",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "songs_title_length": {
+          "name": "songs_title_length",
+          "value": "char_length(btrim(\"songs\".\"title\")) between 1 and 200"
+        },
+        "songs_artist_length": {
+          "name": "songs_artist_length",
+          "value": "char_length(btrim(\"songs\".\"artist\")) between 1 and 200"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.studio_login_attempts": {
+      "name": "studio_login_attempts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "client_key": {
+          "name": "client_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "succeeded": {
+          "name": "succeeded",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attempted_at": {
+          "name": "attempted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "studio_login_attempts_client_idx": {
+          "name": "studio_login_attempts_client_idx",
+          "columns": [
+            {
+              "expression": "client_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "attempted_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "studio_login_attempts_at_idx": {
+          "name": "studio_login_attempts_at_idx",
+          "columns": [
+            {
+              "expression": "attempted_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "studio_login_attempts_client_key_format": {
+          "name": "studio_login_attempts_client_key_format",
+          "value": "\"studio_login_attempts\".\"client_key\" ~ '^[0-9a-f]{64}$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.studio_sessions": {
+      "name": "studio_sessions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "token_hash": {
+          "name": "token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_seen_at": {
+          "name": "last_seen_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "studio_sessions_token_hash_key": {
+          "name": "studio_sessions_token_hash_key",
+          "columns": [
+            {
+              "expression": "token_hash",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "studio_sessions_expires_at_idx": {
+          "name": "studio_sessions_expires_at_idx",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "studio_sessions_token_hash_format": {
+          "name": "studio_sessions_token_hash_format",
+          "value": "\"studio_sessions\".\"token_hash\" ~ '^[0-9a-f]{64}$'"
+        },
+        "studio_sessions_expiry": {
+          "name": "studio_sessions_expiry",
+          "value": "\"studio_sessions\".\"expires_at\" > \"studio_sessions\".\"created_at\""
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

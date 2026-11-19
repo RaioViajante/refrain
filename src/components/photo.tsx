@@ -50,6 +50,7 @@ export function Photo({
       aria-hidden={decorative || undefined}
       sizes={sizes}
       priority={priority}
+      unoptimized={image.privatePreview}
       className={cx(image.treatment === "mood" && "mood", className)}
       style={{
         objectFit: "cover",

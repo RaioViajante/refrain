@@ -1,0 +1,365 @@
+/*
+ * Reference: StudioMixtapes.dc.html (1440) and StudioMixtapesMobile.dc.html
+ * (390). The board's <main> is 1360 px of content plus 40 px of padding on
+ * each side (content-box in the reference, border-box here: 1440 + padding).
+ */
+.main {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 40px 140px;
+}
+
+/* ---------- hero ---------- */
+.hero {
+  position: relative;
+  height: 330px;
+}
+.label,
+.page {
+  position: absolute;
+  top: 70px;
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+.label {
+  left: 0;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+.page {
+  right: 0;
+  font-size: 12px;
+}
+.title {
+  position: absolute;
+  left: -10px;
+  top: 150px;
+  margin: 0;
+  font-weight: 400;
+  font-size: 96px;
+  letter-spacing: -0.035em;
+  line-height: 1;
+}
+.lede {
+  position: absolute;
+  /* 560 and 420 of the board's 1360 px of content. */
+  left: 41.176%;
+  top: 196px;
+  width: 30.882%;
+  margin: 0;
+  font-style: italic;
+  font-size: 22px;
+  line-height: 1.35;
+}
+.new {
+  position: absolute;
+  right: 0;
+  top: 190px;
+}
+
+/* ---------- search and filters ---------- */
+.tools {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 40px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--ink);
+}
+.search {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 420px;
+  max-width: 100%;
+}
+.searchLabel {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-meta);
+}
+.searchInput {
+  font-size: 15px;
+  padding: 8px 0 9px;
+}
+.searchInput:focus {
+  padding-bottom: 8px;
+}
+.tabs {
+  display: flex;
+  gap: 22px;
+}
+.tabs :global(.tab) {
+  white-space: nowrap;
+}
+
+.statusRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  column-gap: 24px;
+  padding: 12px 0 0;
+}
+.msg {
+  margin: 0;
+  min-height: 20px;
+  font-style: italic;
+  font-size: 13px;
+  color: var(--text-mid);
+}
+.error {
+  margin: 0;
+  font-size: 13px;
+}
+.hint {
+  margin: 0 0 0 auto;
+  font-size: 13px;
+  color: var(--text-meta);
+  line-height: 1.5;
+}
+
+/* ---------- the shelf ---------- */
+.grid,
+.item {
+  display: grid;
+  grid-template-columns:
+    44px 40px 72px minmax(0, 1.5fr) minmax(0, 1.2fr) 70px 70px
+    150px 200px;
+  gap: 18px;
+  align-items: center;
+}
+.head {
+  padding: 10px 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-meta);
+}
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.item {
+  padding: 2px 0;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.order {
+  grid-column: 1;
+  display: inline-flex;
+  flex-direction: column;
+}
+.order :global(.arw2) {
+  font-size: 13px;
+}
+.no {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+.noMobile,
+.themeMobile {
+  display: none;
+}
+.cover {
+  display: block;
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  background: var(--rule-soft);
+}
+.name {
+  min-width: 0;
+}
+.tTitle {
+  font-size: 19px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.theme {
+  font-style: italic;
+  font-size: 15px;
+  color: var(--text-soft);
+}
+.num {
+  text-align: right;
+}
+.count {
+  font-size: 15px;
+}
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 22px;
+  font-size: 13px;
+}
+.action {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.delete {
+  border: 0;
+  background: none;
+  font-family: inherit;
+  font-size: 13px;
+}
+.empty {
+  margin: 40px 0 0;
+  font-style: italic;
+  font-size: 17px;
+  color: var(--text-soft);
+}
+
+/* Narrower desktops: the hero stacks; the shelf's fixed columns shrink. */
+@media (max-width: 79.99rem) {
+  .grid,
+  .item {
+    grid-template-columns:
+      44px 32px 72px minmax(0, 1.5fr) minmax(0, 1fr) 52px 52px
+      auto auto;
+    gap: 14px;
+  }
+}
+@media (max-width: 63.99rem) {
+  .hero {
+    height: auto;
+    padding: 70px 0 60px;
+  }
+  .label,
+  .page,
+  .title,
+  .lede,
+  .new {
+    position: static;
+  }
+  .page {
+    display: none;
+  }
+  .title {
+    margin: 60px 0 0 -6px;
+  }
+  .lede {
+    width: auto;
+    max-width: 420px;
+    margin-top: 14px;
+  }
+  .new {
+    margin-top: 26px;
+  }
+  .theme {
+    display: none;
+  }
+  .grid,
+  .item {
+    grid-template-columns: 44px 32px 72px minmax(0, 1fr) 52px 52px auto auto;
+  }
+  .head > :nth-child(5) {
+    display: none;
+  }
+}
+
+/* ---------- mobile (StudioMixtapesMobile.dc.html) ---------- */
+@media (max-width: 47.99rem) {
+  .main {
+    padding: 0 20px 80px;
+  }
+  .hero {
+    padding: 34px 0 0;
+  }
+  .label {
+    font-size: 10.5px;
+  }
+  .title {
+    margin: 60px 0 0 -3px;
+    font-size: 44px;
+  }
+  .lede {
+    margin-top: 14px;
+    font-size: 17px;
+    line-height: 1.4;
+  }
+  .new {
+    display: flex;
+    width: 100%;
+  }
+  .tools {
+    display: block;
+    margin-top: 40px;
+    padding: 0;
+    border: 0;
+  }
+  .search {
+    width: 100%;
+  }
+  .tabsScroll {
+    margin-top: 6px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--ink);
+    overflow-x: auto;
+  }
+  .statusRow {
+    padding-top: 10px;
+  }
+  .hint,
+  .head,
+  .no,
+  .count {
+    display: none;
+  }
+  .item {
+    grid-template-columns: 64px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "cover name order"
+      "switch switch actions";
+    column-gap: 14px;
+    row-gap: 6px;
+    padding: 16px 0 10px;
+  }
+  .order {
+    grid-area: order;
+  }
+  .cover {
+    grid-area: cover;
+    width: 64px;
+    height: 64px;
+  }
+  .name {
+    grid-area: name;
+  }
+  .noMobile {
+    display: block;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    color: var(--text-meta);
+  }
+  .tTitle {
+    display: block;
+    margin-top: 2px;
+    font-size: 17px;
+  }
+  .themeMobile {
+    display: block;
+    margin-top: 2px;
+    font-style: italic;
+    font-size: 13px;
+    color: var(--text-soft);
+  }
+  .switch {
+    grid-area: switch;
+    justify-self: start;
+  }
+  .actions {
+    grid-area: actions;
+    gap: 18px;
+  }
+}

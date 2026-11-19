@@ -1,0 +1,576 @@
+/* Studio · fotos. Built in the language of StudioEditor and StudioSongs. */
+.main {
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 0 40px 160px;
+}
+
+/* Head: "Nº 006 · fotos", number, 96 px title, italic lede, primary. */
+.head {
+  position: relative;
+  height: 330px;
+}
+.kicker,
+.label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.label {
+  display: block;
+  color: var(--text-meta);
+}
+.kicker {
+  position: absolute;
+  left: 0;
+  top: 70px;
+}
+.number {
+  position: absolute;
+  right: 0;
+  top: 70px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+.title {
+  position: absolute;
+  left: -10px;
+  top: 150px;
+  margin: 0;
+  font-weight: 400;
+  font-size: 96px;
+  letter-spacing: -0.035em;
+  line-height: 1;
+}
+.lede {
+  position: absolute;
+  left: 560px;
+  top: 196px;
+  width: 420px;
+  margin: 0;
+  font-style: italic;
+  font-size: 22px;
+  line-height: 1.35;
+}
+.headButton {
+  position: absolute;
+  right: 0;
+  top: 190px;
+}
+
+/* Numbered sections, as in the editor. */
+.section {
+  margin-top: 90px;
+  scroll-margin-top: 24px;
+}
+.head + .section {
+  margin-top: 0;
+}
+.sectionHead {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: 18px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--ink);
+}
+.h2 {
+  grid-column: 1;
+  grid-row: 1;
+  margin: 0;
+  font-weight: 400;
+  font-size: 32px;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+.sectionAside {
+  grid-column: 2;
+  grid-row: 1;
+  font-style: italic;
+  font-size: 14px;
+  color: var(--text-soft);
+}
+.sectionNumber {
+  grid-column: 3;
+  grid-row: 1;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+.help {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--text-meta);
+  line-height: 1.5;
+}
+.section > .help {
+  margin-top: 14px;
+  max-width: 640px;
+}
+.empty {
+  margin: 30px 0 0;
+  font-size: 13px;
+  color: var(--text-meta);
+}
+.groupTitle {
+  margin: 0;
+  padding: 30px 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-meta);
+}
+.small {
+  font-size: 15px;
+}
+.msg {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.msg:empty {
+  display: none;
+}
+.notice {
+  margin-top: 14px;
+}
+.notice:focus {
+  outline: none;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 22px;
+  margin-top: 6px;
+}
+.textButton {
+  min-height: 44px;
+  padding: 12px 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  font-size: 13px;
+  text-decoration: none;
+  color: var(--ink);
+}
+.textButton:global(.del),
+.textButton:global(.ghost) {
+  color: var(--text-meta);
+}
+.textButton:global(.del):hover,
+.textButton:global(.ghost):hover {
+  color: var(--ink);
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  font-size: 15px;
+}
+.check :global(.chk) {
+  flex: none;
+}
+
+/* 01 — upload: the drop area on the left, its fields on the right. */
+.upload {
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  gap: 30px 40px;
+  margin-top: 26px;
+}
+.uploadFields {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 640px;
+}
+.uploadFields > .help {
+  margin-top: -18px;
+}
+.drop {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  aspect-ratio: 1;
+  box-sizing: border-box;
+  border: 1px dashed var(--ink);
+  overflow: hidden;
+  font-size: 13px;
+  cursor: pointer;
+}
+.dropBad {
+  border-color: #8a2a1f;
+}
+.fileInput:focus-visible + .drop {
+  outline: 1px dashed var(--ink);
+  outline-offset: 4px;
+}
+.dropPlus {
+  font-size: 32px;
+  font-weight: 300;
+  line-height: 1;
+}
+.dropText {
+  position: relative;
+  padding: 4px 8px;
+  background: var(--paper);
+}
+.dropPreview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.dropPreview + .dropText {
+  position: absolute;
+  bottom: 12px;
+}
+.fileName {
+  font-weight: 600;
+  color: var(--ink);
+  word-break: break-all;
+}
+/* Inside a slot: a smaller drop area. */
+.uploadSlot {
+  grid-template-columns: 200px minmax(0, 1fr);
+  margin-top: 18px;
+  padding: 22px 0 6px;
+  border-top: 1px solid var(--rule-soft);
+}
+
+/* 02 — the library. */
+.library,
+.slots {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+}
+.photo {
+  border-bottom: 1px solid var(--rule-soft);
+}
+.photoMain {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr) auto;
+  gap: 30px;
+  align-items: start;
+  padding: 18px 0;
+}
+.thumbBox,
+.slotBox {
+  aspect-ratio: 1;
+  overflow: hidden;
+  background: rgba(20, 20, 20, 0.03);
+}
+.thumb {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.photoInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.alt {
+  margin: 0 0 4px;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.meta {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-meta);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+/* An unconfirmed photo: impossible to miss. */
+.off {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 12px;
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border: 1px solid var(--ink);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.offTag {
+  padding: 2px 8px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.photoActions {
+  display: flex;
+  gap: 22px;
+}
+.confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 22px;
+  margin: 0 0 18px 170px;
+  padding: 16px 0 0;
+  border-top: 1px solid var(--rule-soft);
+}
+.confirmText {
+  margin: 0;
+  font-size: 15px;
+}
+.rowMsg {
+  margin: 0 0 18px 170px;
+}
+
+/* The edit panel, under its row. */
+.edit {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 30px 40px;
+  margin-left: 170px;
+  padding: 24px 0 30px;
+  border-top: 1px solid var(--rule-soft);
+}
+.editFrame {
+  aspect-ratio: 1;
+  overflow: hidden;
+}
+.editFields {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  max-width: 560px;
+}
+.segRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 20px;
+}
+.segRow .help {
+  margin: 0;
+}
+.segs {
+  display: flex;
+}
+.segNext {
+  border-left: 0;
+}
+
+/* The editor's 3 × 3 focal point grid (44 px cells). */
+.focus {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 44px);
+  border-top: 1px solid var(--rule-soft);
+  border-left: 1px solid var(--rule-soft);
+}
+.cell {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-right: 1px solid var(--rule-soft);
+  border-bottom: 1px solid var(--rule-soft);
+  background: none;
+}
+.cell:hover {
+  background: rgba(20, 20, 20, 0.04);
+}
+.cellDot {
+  width: 8px;
+  height: 8px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 1px solid var(--ink);
+}
+.cell[aria-pressed="true"] .cellDot {
+  background: var(--ink);
+}
+.focusName {
+  margin: 4px 0 0;
+  font-size: 15px;
+}
+
+/* 03 — fixed places. */
+.slot {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 30px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.slotEmpty {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  box-sizing: border-box;
+  border: 1px dashed var(--text-faint);
+  font-size: 13px;
+  font-style: italic;
+  color: var(--text-meta);
+}
+.slotInfo {
+  min-width: 0;
+}
+.slotLabel {
+  margin: 0 0 4px;
+  font-size: 17px;
+  font-weight: 700;
+}
+.slotControls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 40px;
+  margin-top: 14px;
+}
+.choose {
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+  flex: 0 1 520px;
+}
+.chooseField {
+  flex: 1;
+  min-width: 0;
+}
+.slotLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 22px;
+}
+.slotControls > .msg {
+  flex-basis: 100%;
+}
+.slotUpload .upload {
+  max-width: 900px;
+}
+
+@media (max-width: 47.99rem) {
+  .main {
+    padding: 0 20px 100px;
+  }
+  .head {
+    height: auto;
+    padding-bottom: 50px;
+  }
+  .kicker,
+  .title,
+  .lede,
+  .headButton {
+    position: static;
+  }
+  .kicker {
+    padding-top: 34px;
+    font-size: 10.5px;
+  }
+  .label,
+  .groupTitle,
+  .offTag {
+    font-size: 10.5px;
+  }
+  .number {
+    display: none;
+  }
+  .title {
+    margin: 60px 0 0 -3px;
+    font-size: 44px;
+  }
+  .lede {
+    width: auto;
+    margin: 14px 0 0;
+    font-size: 17px;
+    line-height: 1.4;
+  }
+  .headButton {
+    display: flex;
+    width: 100%;
+    box-sizing: border-box;
+    margin-top: 26px;
+  }
+  .section {
+    margin-top: 70px;
+  }
+  .sectionHead {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .sectionNumber {
+    grid-column: 1;
+    grid-row: 1;
+    margin-bottom: 8px;
+    font-size: 10.5px;
+  }
+  .h2 {
+    grid-row: 2;
+  }
+  .sectionAside {
+    grid-column: 1;
+    grid-row: 3;
+    margin-top: 6px;
+  }
+  .upload,
+  .uploadSlot {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .drop {
+    aspect-ratio: 4 / 3;
+  }
+  .photoMain {
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 16px;
+  }
+  .photoActions {
+    grid-column: 1 / -1;
+    margin-top: -8px;
+  }
+  .confirm,
+  .rowMsg,
+  .edit {
+    margin-left: 0;
+  }
+  .edit {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .editPreview {
+    width: 200px;
+  }
+  .slot {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+  .slotBox {
+    width: 120px;
+  }
+  .choose {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+  }
+  .chooseField {
+    flex: 1 1 100%;
+  }
+}
