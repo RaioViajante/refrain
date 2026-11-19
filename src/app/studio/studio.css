@@ -1,0 +1,202 @@
+/*
+ * The Studio's controls, transcribed from the reference's Studio boards
+ * (StudioEditor, StudioSongs, StudioMixtapes, StudioDashboard, StudioLogin).
+ * Global class names as in the reference; loaded only by Studio layouts.
+ */
+.fld {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 0 12px;
+  border: 0;
+  border-bottom: 1px solid var(--ink);
+  border-radius: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: 20px;
+  color: var(--ink);
+  outline: none;
+}
+.fld::placeholder {
+  color: var(--text-faint);
+}
+.fld:focus {
+  border-bottom-width: 2px;
+  padding-bottom: 11px;
+}
+/* Keyboard focus also keeps the site's dashed outline. */
+.fld:focus-visible {
+  outline: 1px dashed currentColor;
+  outline-offset: 4px;
+}
+.fld[aria-invalid="true"] {
+  border-bottom-color: #8a2a1f;
+}
+textarea.fld {
+  resize: vertical;
+  line-height: 1.55;
+  font-size: 17px;
+}
+select.fld {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ink) 50%),
+    linear-gradient(135deg, var(--ink) 50%, transparent 50%);
+  background-position:
+    calc(100% - 10px) 55%,
+    calc(100% - 5px) 55%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 24px;
+}
+
+/* Primary action: black, square corners. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: 0;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+  transition:
+    background-color 0.3s,
+    translate 0.45s var(--out);
+}
+.btn:hover {
+  background: var(--text-soft);
+  color: var(--paper);
+}
+.btn svg {
+  transition: translate 0.45s var(--out);
+}
+.btn:hover svg {
+  translate: 4px 0;
+}
+.btn:disabled {
+  background: var(--text-faint);
+}
+
+.ghost {
+  border: 0;
+  background: none;
+  font-family: inherit;
+  color: var(--text-meta);
+  min-height: 44px;
+}
+.ghost:hover {
+  color: var(--ink);
+}
+
+.seg {
+  border: 1px solid var(--ink);
+  background: transparent;
+  min-height: 44px;
+  padding: 0 14px;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--ink);
+}
+.seg[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.tab {
+  border: 0;
+  background: none;
+  padding: 12px 0;
+  min-height: 44px;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text-meta);
+}
+.tab[aria-pressed="true"],
+.tab[aria-current="page"] {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.arw2 {
+  border: 0;
+  background: none;
+  min-width: 44px;
+  min-height: 44px;
+  font-family: inherit;
+  color: var(--ink);
+}
+.arw2:disabled {
+  color: #c9c6bf;
+}
+.arw2:not(:disabled):hover {
+  background: rgba(20, 20, 20, 0.05);
+}
+
+.chk {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  border: 1px solid var(--ink);
+  background: transparent;
+  display: inline-grid;
+  place-content: center;
+}
+.chk:checked::after {
+  content: "";
+  width: 10px;
+  height: 10px;
+  background: var(--ink);
+}
+
+.del {
+  color: var(--text-meta);
+}
+.del:hover {
+  color: var(--ink);
+}
+
+.row {
+  transition: background-color 0.35s;
+}
+.row:hover {
+  background: rgba(20, 20, 20, 0.035);
+}
+
+.lnk {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+.lnk:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.drop {
+  transition: background-color 0.3s;
+}
+.drop:hover {
+  background: rgba(20, 20, 20, 0.03);
+}
+
+/* Messages after an action: polite for success, assertive for errors. */
+.msg-ok {
+  color: var(--text-meta);
+  font-style: italic;
+}
+.msg-error {
+  color: #8a2a1f;
+}

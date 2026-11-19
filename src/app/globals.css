@@ -133,16 +133,16 @@ footer .nl {
 
 /* Home mark: the star turns a quarter on hover. */
 .hm img,
-.hm span {
+.hm span[aria-hidden="true"] {
   display: block;
   transition:
     rotate 0.9s var(--out),
     scale 0.9s var(--out);
 }
 .hm:hover img,
-.hm:hover span,
+.hm:hover span[aria-hidden="true"],
 .hm:focus-visible img,
-.hm:focus-visible span {
+.hm:focus-visible span[aria-hidden="true"] {
   rotate: 90deg;
   scale: 1.2;
 }
