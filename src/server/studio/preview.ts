@@ -35,7 +35,6 @@ function publicImage(
     height: image.height,
     focus: image.focus,
     treatment: image.treatment === "original" ? "original" : "mood",
-    privatePreview: true,
   };
 }
 

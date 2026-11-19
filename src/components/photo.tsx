@@ -50,7 +50,9 @@ export function Photo({
       aria-hidden={decorative || undefined}
       sizes={sizes}
       priority={priority}
-      unoptimized={image.privatePreview}
+      // Served as is by /fotos/<id>, never through the image optimizer: its
+      // cache would outlive a revocation (src/server/media/photos.ts).
+      unoptimized
       className={cx(image.treatment === "mood" && "mood", className)}
       style={{
         objectFit: "cover",
