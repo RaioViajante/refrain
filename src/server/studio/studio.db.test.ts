@@ -1,7 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
-import { mixtapes, mixtapeTracks, songs } from "@/db/schema";
+import { imageFiles, mixtapes, mixtapeTracks, songs } from "@/db/schema";
 import { connectTestDatabase } from "@/test/db";
 import { insertImage } from "@/test/fixtures";
 
@@ -313,7 +313,8 @@ describe("photographs", () => {
     );
     await setSiteImage(db, "footer.road", null);
     await setMixtapeImage(db, id, "cover", null);
-    expect(await deleteImage(db, unconfirmed.id)).toBe(unconfirmed.url);
+    await deleteImage(db, unconfirmed.id);
+    expect(await db.select().from(imageFiles)).toEqual([]);
   });
 });
 

@@ -1,12 +1,11 @@
 // Upload of one photograph from a Studio form: validated and cleaned from its
-// bytes, stored, and recorded. Not a Server Action itself (no "use server"):
+// bytes, then stored with its record in PostgreSQL. Not a Server Action itself (no "use server"):
 // only the actions that call it are reachable, and it authorizes again.
 import "server-only";
 
 import { getDatabase } from "@/db/client";
 import { requireStudio } from "@/server/auth/studio";
 import { ImageFileError, inspectImage } from "@/server/media/image-file";
-import { removeStoredImage, storeImage } from "@/server/media/storage";
 import type { ActionResult } from "@/server/studio/errors";
 import { createImage } from "@/server/studio/images";
 import { imageFieldsSchema } from "@/server/studio/schemas";
@@ -33,18 +32,14 @@ export async function uploadImage(formData: FormData): Promise<ActionResult> {
       throw new ImageFileError("A foto passa de 4 MB.");
     }
     const image = inspectImage(new Uint8Array(await file.arrayBuffer()));
-    const url = await storeImage(image.bytes, image.kind);
-    try {
-      const id = await createImage(getDatabase(), {
-        url,
-        width: image.width,
-        height: image.height,
-        ...meta.data,
-      });
-      return { message: "foto enviada.", id };
-    } catch (error) {
-      await removeStoredImage(url);
-      throw error;
-    }
+    const id = await createImage(
+      getDatabase(),
+      { width: image.width, height: image.height, ...meta.data },
+      {
+        bytes: image.bytes,
+        contentType: image.kind === "jpeg" ? "image/jpeg" : "image/png",
+      },
+    );
+    return { message: "foto enviada.", id };
   });
 }

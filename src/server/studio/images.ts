@@ -1,11 +1,11 @@
 // Studio reads and writes for the photograph library. Callers authorize
-// first. The files themselves are stored by src/server/media/storage.ts.
+// first. The bytes live in image_files and are served by /fotos/<id>.
 import "server-only";
 
 import { desc, eq, sql } from "drizzle-orm";
 
 import { SITE_IMAGES } from "@/content/site-images";
-import { images, mixtapes, siteImages } from "@/db/schema";
+import { imageFiles, images, mixtapes, siteImages } from "@/db/schema";
 import type { Database } from "@/db/types";
 
 import { StudioError } from "./errors";
@@ -29,7 +29,7 @@ export async function listImagesForStudio(db: Database) {
   return db
     .select({
       id: images.id,
-      url: images.url,
+      url: sql<string>`'/fotos/' || ${images.id}`,
       alt: images.alt,
       width: images.width,
       height: images.height,
@@ -47,22 +47,31 @@ export type StudioImage = Awaited<
   ReturnType<typeof listImagesForStudio>
 >[number];
 
+/** Records a photograph and its bytes, in one transaction. */
 export async function createImage(
   db: Database,
   values: {
-    url: string;
     width: number;
     height: number;
     alt: string;
     rightsConfirmed: boolean;
     rightsNote: string;
   },
+  file: { bytes: Uint8Array; contentType: "image/jpeg" | "image/png" },
 ): Promise<string> {
-  const [row] = await db
-    .insert(images)
-    .values(values)
-    .returning({ id: images.id });
-  return row!.id;
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(images)
+      .values(values)
+      .returning({ id: images.id });
+    await tx.insert(imageFiles).values({
+      imageId: row!.id,
+      contentType: file.contentType,
+      byteSize: file.bytes.length,
+      bytes: Buffer.from(file.bytes),
+    });
+    return row!.id;
+  });
 }
 
 export async function updateImage(
@@ -85,8 +94,8 @@ export function usageLabel(u: ImageUsage): string {
   return SITE_IMAGES[u.label as keyof typeof SITE_IMAGES] ?? u.label;
 }
 
-/** Deletes an unused photograph's record and returns its URL for storage. */
-export async function deleteImage(db: Database, id: string): Promise<string> {
+/** Deletes an unused photograph (its bytes go with it). */
+export async function deleteImage(db: Database, id: string): Promise<void> {
   const [image] = (await listImagesForStudio(db)).filter((i) => i.id === id);
   if (!image) throw new StudioError("essa foto não existe.");
   if (image.usage.length > 0) {
@@ -95,5 +104,4 @@ export async function deleteImage(db: Database, id: string): Promise<string> {
     );
   }
   await db.delete(images).where(eq(images.id, id));
-  return image.url;
 }

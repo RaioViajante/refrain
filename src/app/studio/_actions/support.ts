@@ -4,7 +4,6 @@ import "server-only";
 import { revalidatePath } from "next/cache";
 
 import { ImageFileError } from "@/server/media/image-file";
-import { StorageError } from "@/server/media/storage";
 import { type ActionResult, StudioError } from "@/server/studio/errors";
 
 /** Runs a write; expected failures become a message for the form. */
@@ -19,11 +18,7 @@ export async function attempt(
       ? { ok: true, message: done }
       : { ok: true, ...done };
   } catch (error) {
-    if (
-      error instanceof StudioError ||
-      error instanceof ImageFileError ||
-      error instanceof StorageError
-    ) {
+    if (error instanceof StudioError || error instanceof ImageFileError) {
       return { ok: false, error: error.message };
     }
     throw error;

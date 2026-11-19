@@ -1,7 +1,13 @@
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
-import { images, mixtapes, mixtapeTracks, songs } from "@/db/schema";
+import {
+  imageFiles,
+  images,
+  mixtapes,
+  mixtapeTracks,
+  songs,
+} from "@/db/schema";
 import {
   addTrack,
   insertImage,
@@ -53,7 +59,7 @@ describe("schema integrity (PostgreSQL constraints)", () => {
     );
   });
 
-  it("refuses malformed slugs and non-https links", async () => {
+  it("refuses malformed slugs, non-https links, and unsafe photo files", async () => {
     for (const slug of ["Core", "core tape", "-core", "core--x", ""]) {
       expect(await pgError(insertMixtape(db, { slug }))).toMatchObject({
         constraint: "mixtapes_slug_format",
@@ -64,18 +70,28 @@ describe("schema integrity (PostgreSQL constraints)", () => {
         insertMixtape(db, { playlistUrl: "http://example.test/x" }),
       ),
     ).toMatchObject({ constraint: "mixtapes_playlist_url_https" });
-    for (const url of [
-      "javascript:alert(1)",
-      "http://example.test/a.jpg",
-      "/media/../secret.jpg",
-      "/media/a.gif",
-      "/elsewhere/a.jpg",
-    ]) {
-      expect(await pgError(insertImage(db, { url }))).toMatchObject({
-        constraint: "images_url_source",
-      });
-    }
-    await insertImage(db, { url: "/media/3f2a-local.jpg" });
+    const image = await insertImage(db);
+    await db.delete(imageFiles).where(eq(imageFiles.imageId, image.id));
+    expect(
+      await pgError(
+        db.insert(imageFiles).values({
+          imageId: image.id,
+          contentType: "image/svg+xml",
+          byteSize: 3,
+          bytes: Buffer.from("<s>"),
+        }),
+      ),
+    ).toMatchObject({ constraint: "image_files_content_type" });
+    expect(
+      await pgError(
+        db.insert(imageFiles).values({
+          imageId: image.id,
+          contentType: "image/png",
+          byteSize: 99,
+          bytes: Buffer.from("abc"),
+        }),
+      ),
+    ).toMatchObject({ constraint: "image_files_byte_size" });
   });
 
   it("accepts one or two lower-case words as a tape's feeling", async () => {

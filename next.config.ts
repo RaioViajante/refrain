@@ -15,11 +15,12 @@ export const BASELINE_HEADERS = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   images: {
-    // Photographs uploaded in the Studio (Vercel Blob). A constant pattern,
-    // never built from request data.
-    remotePatterns: [
-      { protocol: "https", hostname: "*.public.blob.vercel-storage.com" },
-    ],
+    // Photographs are served by the application at /fotos/<id> (a constant
+    // pattern). Optimized copies are kept at most 60 s, so a photo whose
+    // rights are revoked or whose tape is unpublished leaves every cache
+    // within a minute (src/server/media/photos.ts).
+    localPatterns: [{ pathname: "/fotos/**", search: "" }],
+    minimumCacheTTL: 60,
   },
   experimental: {
     // Photograph uploads go through Server Actions; the server itself

@@ -1,6 +1,12 @@
 // Synthetic records for integration tests. Every text is labelled [Test];
 // none is the owner's writing (AGENTS.md § 4).
-import { images, mixtapes, mixtapeTracks, songs } from "@/db/schema";
+import {
+  imageFiles,
+  images,
+  mixtapes,
+  mixtapeTracks,
+  songs,
+} from "@/db/schema";
 import type { Database } from "@/db/types";
 
 let sequence = 0;
@@ -14,14 +20,19 @@ export async function insertImage(
   const [row] = await db
     .insert(images)
     .values({
-      url: `https://example.test/images/${n}.jpg`,
       alt: `[Test] image ${n}`,
       width: 1200,
       height: 1200,
       ...values,
     })
     .returning();
-  return row!;
+  await db.insert(imageFiles).values({
+    imageId: row!.id,
+    contentType: "image/png",
+    byteSize: 8,
+    bytes: Buffer.from("[Test]px"),
+  });
+  return { ...row!, url: `/fotos/${row!.id}` };
 }
 
 export async function insertMixtape(

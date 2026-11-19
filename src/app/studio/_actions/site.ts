@@ -2,7 +2,6 @@
 
 import { getDatabase } from "@/db/client";
 import { requireStudio } from "@/server/auth/studio";
-import { removeStoredImage } from "@/server/media/storage";
 import type { ActionResult } from "@/server/studio/errors";
 import { deleteImage, updateImage } from "@/server/studio/images";
 import {
@@ -115,8 +114,7 @@ export async function deleteImageAction(
   if (!id.success) return invalid("foto inválida.");
   if (!confirmed(formData)) return invalid("confirme a exclusão.");
   return attempt(async () => {
-    const url = await deleteImage(getDatabase(), id.data);
-    await removeStoredImage(url);
+    await deleteImage(getDatabase(), id.data);
     return "a foto foi excluída.";
   });
 }

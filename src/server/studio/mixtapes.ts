@@ -68,7 +68,7 @@ export async function listStudioMixtapes(
       theme: mixtapes.theme,
       status: sql<"draft" | "published">`${mixtapes.status}`,
       featuredRank: mixtapes.featuredRank,
-      coverUrl: images.url,
+      coverUrl: sql<string | null>`'/fotos/' || ${images.id}`,
       trackCount: sql<number>`coalesce(${stats.trackCount}, 0)`.mapWith(Number),
       noteCount: sql<number>`coalesce(${stats.noteCount}, 0)`.mapWith(Number),
     })
@@ -94,6 +94,8 @@ export async function getStudioMixtape(db: Database, id: string) {
     .where(eq(mixtapes.id, id))
     .limit(1);
   if (!row) return null;
+  const withUrl = <T extends { id: string }>(image: T | null) =>
+    image ? { ...image, url: `/fotos/${image.id}` } : null;
   const tracks = await db
     .select({
       id: mixtapeTracks.id,
@@ -108,7 +110,12 @@ export async function getStudioMixtape(db: Database, id: string) {
     .innerJoin(songs, eq(songs.id, mixtapeTracks.songId))
     .where(eq(mixtapeTracks.mixtapeId, id))
     .orderBy(asc(mixtapeTracks.position));
-  return { ...row, tracks };
+  return {
+    mixtape: row.mixtape,
+    cover: withUrl(row.cover),
+    detail: withUrl(row.detail),
+    tracks,
+  };
 }
 export type StudioMixtape = NonNullable<
   Awaited<ReturnType<typeof getStudioMixtape>>

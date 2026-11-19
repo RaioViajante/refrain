@@ -6,6 +6,7 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  customType,
   index,
   integer,
   pgTable,
@@ -16,6 +17,11 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
+/** PostgreSQL bytea, as a Node Buffer. */
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType: () => "bytea",
+});
+
 const createdAt = timestamp("created_at", { withTimezone: true })
   .notNull()
   .defaultNow();
@@ -24,9 +30,10 @@ const updatedAt = timestamp("updated_at", { withTimezone: true })
   .defaultNow();
 
 /**
- * A photograph or cover uploaded by the owner. It appears on a public page
- * only once `rights_confirmed` is true (the owner confirmed the right to
- * publish it). `focus` is the 3 × 3 focal point used by `object-position`
+ * A photograph or cover uploaded by the owner. Its bytes live in
+ * `image_files`; the application serves them at /fotos/<id>, to anyone only
+ * when the photo is public (src/server/visibility.ts: rights confirmed and
+ * in public use), otherwise only to the signed-in owner. `focus` is the 3 × 3 focal point used by `object-position`
  * (0 = top left … 4 = centre … 8 = bottom right). `treatment` chooses
  * between the site's photographic filter and the original colours.
  */
@@ -34,7 +41,6 @@ export const images = pgTable(
   "images",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    url: text("url").notNull(),
     alt: text("alt").notNull(),
     width: integer("width").notNull(),
     height: integer("height").notNull(),
@@ -46,13 +52,6 @@ export const images = pgTable(
     updatedAt,
   },
   (t) => [
-    uniqueIndex("images_url_key").on(t.url),
-    // Hosted storage (https) or, in local development only, files under
-    // /media/ named by the upload itself (src/server/media/storage.ts).
-    check(
-      "images_url_source",
-      sql`${t.url} ~ '^https://' or ${t.url} ~ '^/media/[a-z0-9-]+\\.(jpg|png)$'`,
-    ),
     check("images_alt_length", sql`char_length(${t.alt}) between 1 and 300`),
     check("images_size_positive", sql`${t.width} > 0 and ${t.height} > 0`),
     check("images_focus_range", sql`${t.focus} between 0 and 8`),
@@ -60,6 +59,33 @@ export const images = pgTable(
     check(
       "images_rights_note_length",
       sql`char_length(${t.rightsNote}) <= 500`,
+    ),
+  ],
+);
+
+/**
+ * The bytes of an uploaded photograph (JPEG or PNG, cleaned of metadata,
+ * at most 4 MB), kept apart so listing photos never loads them.
+ */
+export const imageFiles = pgTable(
+  "image_files",
+  {
+    imageId: uuid("image_id")
+      .primaryKey()
+      .references(() => images.id, { onDelete: "cascade" }),
+    contentType: text("content_type").notNull(),
+    byteSize: integer("byte_size").notNull(),
+    bytes: bytea("bytes").notNull(),
+    createdAt,
+  },
+  (t) => [
+    check(
+      "image_files_content_type",
+      sql`${t.contentType} in ('image/jpeg', 'image/png')`,
+    ),
+    check(
+      "image_files_byte_size",
+      sql`${t.byteSize} between 1 and 4194304 and ${t.byteSize} = octet_length(${t.bytes})`,
     ),
   ],
 );
