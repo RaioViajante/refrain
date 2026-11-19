@@ -102,6 +102,13 @@
     right: 16px;
     top: 4px;
   }
+  /* "sair" sits close to the menu: its 44 px area reaches into the
+     header's 16 px margin rather than over "fotos". */
+  .out::after {
+    left: auto;
+    right: -16px;
+    translate: 0 -50%;
+  }
 }
 @media (max-width: 22.4rem) {
   .header {
