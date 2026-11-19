@@ -1,0 +1,84 @@
+/* Reference: NotFound.dc.html / NotFoundMobile.dc.html, <footer>. */
+.footer {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1440 / 613;
+  container-type: inline-size;
+  overflow: hidden;
+}
+
+.photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.text {
+  position: relative;
+  padding-top: 3.9cqw;
+  text-align: center;
+}
+
+.name {
+  margin: 0;
+  font-weight: 700;
+  font-size: max(16px, 1.458cqw);
+}
+
+.nav {
+  display: flex;
+  justify-content: center;
+  gap: max(28px, 2.5cqw);
+  font-size: max(13px, 0.972cqw);
+}
+
+.link {
+  display: inline-block;
+  padding: 0.7em 0;
+  min-height: 44px;
+  line-height: calc(44px - 1.4em);
+}
+
+.volume {
+  margin: 0.4cqw 0 0;
+  font-size: max(10.5px, 0.764cqw);
+  letter-spacing: 0.1em;
+  color: var(--text-soft);
+}
+
+.mobileOnly {
+  display: none;
+}
+
+@media (max-width: 47.99rem) {
+  .footer {
+    aspect-ratio: auto;
+    height: 410px;
+  }
+  .desktopOnly {
+    display: none;
+  }
+  .mobileOnly {
+    display: block;
+  }
+  .text {
+    padding-top: 40px;
+  }
+  .name {
+    font-size: 16px;
+  }
+  .nav {
+    gap: 28px;
+    font-size: 13px;
+  }
+  .link {
+    padding: 12px 0;
+    line-height: 20px;
+  }
+  .volume {
+    margin-top: 4px;
+    font-size: 10.5px;
+  }
+}

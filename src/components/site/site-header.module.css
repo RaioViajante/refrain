@@ -1,0 +1,52 @@
+/* Reference: NotFound.dc.html / NotFoundMobile.dc.html, <header>. */
+.header {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  /* 10 + 44 px: the reference's 54 px header, with 44 px targets. */
+  padding: 10px 3.2% 0;
+  font-size: 13px;
+}
+
+.home {
+  position: absolute;
+  left: calc(3.2% - 14px);
+  top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+}
+.home img {
+  width: 15px;
+  height: 15px;
+  object-fit: contain;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+/* 44 px tall targets; the drawn line keeps the reference's 3 px gap. */
+.link {
+  display: inline-block;
+  padding: 14px 0;
+  line-height: 16px;
+  background-position: 0 calc(100% - 11px);
+}
+
+@media (max-width: 47.99rem) {
+  .header {
+    padding: 2px 16px 0;
+  }
+  .home {
+    left: 4px;
+    top: 4px;
+  }
+  .nav {
+    gap: 28px;
+  }
+}
