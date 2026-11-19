@@ -1,0 +1,393 @@
+/* Studio · textos. Built in the language of StudioEditor and StudioSongs. */
+.main {
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 0 40px 160px;
+}
+
+/* Head: "Nº 005 · textos", number, 96 px title, italic lede. */
+.head {
+  position: relative;
+  height: 330px;
+}
+.kicker,
+.label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.kicker {
+  position: absolute;
+  left: 0;
+  top: 70px;
+}
+.number {
+  position: absolute;
+  right: 0;
+  top: 70px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+.title {
+  position: absolute;
+  left: -10px;
+  top: 150px;
+  margin: 0;
+  font-weight: 400;
+  font-size: 96px;
+  letter-spacing: -0.035em;
+  line-height: 1;
+}
+.lede {
+  position: absolute;
+  left: 560px;
+  top: 196px;
+  width: 420px;
+  margin: 0;
+  font-style: italic;
+  font-size: 22px;
+  line-height: 1.35;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 70px;
+  align-items: start;
+}
+.pages {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+/* The summary: counts, drafts to jump to, previews. */
+.side {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: stretch;
+}
+.sideInner {
+  position: sticky;
+  top: 24px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  padding: 2px 4px 2px 0;
+}
+.side .label {
+  color: var(--text-meta);
+}
+.counts {
+  margin: 10px 0 0;
+  font-size: 20px;
+  font-weight: 700;
+}
+.countsMore {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--text-mid);
+}
+.help {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--text-meta);
+  line-height: 1.5;
+}
+.drafts {
+  margin-top: 26px;
+  padding-top: 18px;
+  border-top: 1px solid var(--rule-soft);
+}
+.drafts ul,
+.previews {
+  list-style: none;
+  margin: 6px 0 26px;
+  padding: 0;
+}
+.drafts a,
+.previews a {
+  display: inline-block;
+  padding: 12px 0;
+  font-size: 13px;
+  line-height: 1.35;
+  text-decoration: none;
+}
+.drafts a {
+  padding: 7px 0;
+  min-height: 44px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+}
+.drafts li + li {
+  margin-top: -6px;
+}
+
+/* A page of texts: the editor's numbered section head. */
+.page + .page {
+  margin-top: 90px;
+}
+.sectionHead {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: 18px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--ink);
+}
+.h2 {
+  grid-column: 1;
+  grid-row: 1;
+  margin: 0;
+  font-weight: 400;
+  font-size: 32px;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+.sectionAside {
+  grid-column: 2;
+  grid-row: 1;
+  font-style: italic;
+  font-size: 14px;
+  color: var(--text-soft);
+}
+.sectionNumber {
+  grid-column: 3;
+  grid-row: 1;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+.previewLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 18px;
+  margin: 10px 0 0;
+  font-size: 13px;
+}
+.previewLine a {
+  display: inline-block;
+  padding: 12px 0;
+  text-decoration: none;
+}
+.previewNote {
+  font-style: italic;
+  color: var(--text-meta);
+}
+
+.group + .group {
+  margin-top: 30px;
+}
+.groupTitle {
+  margin: 0;
+  padding: 22px 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-meta);
+}
+
+/* One text. */
+.item {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr);
+  gap: 12px 40px;
+  padding: 26px 0 22px;
+  border-bottom: 1px solid var(--rule-soft);
+  scroll-margin-top: 24px;
+}
+.item:focus {
+  outline: none;
+}
+.item:target {
+  background: linear-gradient(
+    to right,
+    rgba(20, 20, 20, 0.035),
+    rgba(20, 20, 20, 0)
+  );
+}
+.itemHead {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding-top: 10px;
+}
+.itemLabel {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.state {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.dot {
+  width: 7px;
+  height: 7px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+}
+.state-publicado {
+  color: var(--ink);
+}
+.state-publicado .dot {
+  background: var(--ink);
+}
+.state-rascunho {
+  color: var(--text-meta);
+}
+.state-vazio {
+  color: var(--text-faint);
+  font-style: italic;
+}
+.state-vazio .dot {
+  border-style: dashed;
+}
+
+.itemBody {
+  min-width: 0;
+}
+.input {
+  font-size: 17px;
+}
+.textarea {
+  font-size: 17px;
+}
+.hint {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--text-meta);
+  line-height: 1.5;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  margin-top: 16px;
+}
+.actions :global(.seg) {
+  min-height: 48px;
+}
+/* Nothing to save: the primary action steps back until the text changes. */
+.actions :global(.btn):disabled {
+  background: transparent;
+  color: var(--text-faint);
+  box-shadow: inset 0 0 0 1px var(--rule-soft);
+}
+.actions :global(.seg):disabled {
+  border-color: var(--rule-soft);
+  color: var(--text-faint);
+}
+.msg {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.msg:empty {
+  display: none;
+}
+.itemBody > .msg {
+  margin-top: 10px;
+}
+
+@media (max-width: 47.99rem) {
+  .main {
+    padding: 0 20px 100px;
+  }
+  .head {
+    height: auto;
+  }
+  .kicker,
+  .title,
+  .lede {
+    position: static;
+  }
+  .kicker {
+    padding-top: 34px;
+    font-size: 10.5px;
+  }
+  .number {
+    display: none;
+  }
+  .title {
+    margin: 60px 0 0 -3px;
+    font-size: 44px;
+  }
+  .lede {
+    width: auto;
+    margin: 14px 0 0;
+    font-size: 17px;
+    line-height: 1.4;
+  }
+  .layout {
+    display: block;
+    margin-top: 34px;
+  }
+  .sideInner {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+  .side .label {
+    font-size: 10.5px;
+  }
+  .drafts ul {
+    max-height: 264px;
+    overflow-y: auto;
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  .pages {
+    margin-top: 50px;
+  }
+  .page + .page {
+    margin-top: 70px;
+  }
+  .sectionHead {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .sectionNumber {
+    grid-column: 1;
+    grid-row: 1;
+    margin-bottom: 8px;
+    font-size: 10.5px;
+  }
+  .h2 {
+    grid-row: 2;
+  }
+  .sectionAside {
+    grid-column: 1;
+    grid-row: 3;
+    margin-top: 6px;
+  }
+  .item {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+  .itemHead {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    padding-top: 0;
+  }
+  .groupTitle {
+    font-size: 10.5px;
+  }
+  .state {
+    font-size: 10.5px;
+  }
+}
