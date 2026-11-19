@@ -4,6 +4,7 @@ import "server-only";
 
 import { desc, eq, sql } from "drizzle-orm";
 
+import { SITE_IMAGES } from "@/content/site-images";
 import { images, mixtapes, siteImages } from "@/db/schema";
 import type { Database } from "@/db/types";
 
@@ -77,13 +78,20 @@ export async function updateImage(
   if (updated.length === 0) throw new StudioError("essa foto não existe.");
 }
 
+/** A readable name for where a photo is used ("capa de core", a slot's label). */
+export function usageLabel(u: ImageUsage): string {
+  if (u.kind === "cover") return `capa de ${u.label}`;
+  if (u.kind === "detail") return `foto de apoio de ${u.label}`;
+  return SITE_IMAGES[u.label as keyof typeof SITE_IMAGES] ?? u.label;
+}
+
 /** Deletes an unused photograph's record and returns its URL for storage. */
 export async function deleteImage(db: Database, id: string): Promise<string> {
   const [image] = (await listImagesForStudio(db)).filter((i) => i.id === id);
   if (!image) throw new StudioError("essa foto não existe.");
   if (image.usage.length > 0) {
     throw new StudioError(
-      `essa foto está em uso (${image.usage.map((u) => u.label).join(", ")}). tire-a de lá antes de excluir.`,
+      `essa foto está em uso (${image.usage.map(usageLabel).join(", ")}). tire-a de lá antes de excluir.`,
     );
   }
   await db.delete(images).where(eq(images.id, id));

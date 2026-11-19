@@ -5,8 +5,13 @@ import { z } from "zod";
 import { SITE_IMAGES, type SiteImageSlot } from "@/content/site-images";
 import { SITE_TEXTS, type SiteTextKey } from "@/content/site-texts";
 
+// Browsers send textarea line breaks as "\r\n"; texts are stored with "\n".
 const text = (max: number, label: string) =>
-  z.string().trim().max(max, `${label}: no máximo ${max} caracteres.`);
+  z
+    .string()
+    .overwrite((v) => v.replace(/\r\n?/g, "\n"))
+    .trim()
+    .max(max, `${label}: no máximo ${max} caracteres.`);
 
 export const idSchema = z.uuid("identificador inválido.");
 
