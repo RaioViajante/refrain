@@ -277,7 +277,12 @@ function Featured({
         </h2>
         {intro ? <p className={styles.headSub}>{intro}</p> : null}
       </div>
-      <div className={styles.cards}>
+      <div
+        className={cx(
+          styles.cards,
+          featured.length === 2 && styles.twoFeatured,
+        )}
+      >
         {featured.map((tape, i) => (
           <Link
             key={tape.slug}
@@ -529,6 +534,24 @@ const LINES: [number, number][] = [
 /* Mobile: a zigzag of slots 138 px apart, left then right (390 board). */
 const MOBILE_FIRST_Y = 210;
 const MOBILE_STEP = 138;
+const DESKTOP_BOARD_HEIGHT = 1260;
+const DESKTOP_BOTTOM_SPACE = 202;
+
+/** Keeps the original node coordinates and removes only unused board space. */
+export function archiveDesktopHeight(tapeCount: number): number {
+  const lowestTitle = Math.max(
+    ...NODES.slice(0, tapeCount).map(
+      ({ title }) => (title[1] / 100) * DESKTOP_BOARD_HEIGHT,
+    ),
+  );
+
+  return Math.round(lowestTitle) + DESKTOP_BOTTOM_SPACE;
+}
+
+/** Converts a vertical percentage of the original 1260 px board to cqw. */
+function desktopTop(percent: number): string {
+  return `${(percent * DESKTOP_BOARD_HEIGHT) / 1440}cqw`;
+}
 
 function Archive({
   tapes,
@@ -539,6 +562,7 @@ function Archive({
 }) {
   const n = tapes.length;
   const missing = NODES.length - n;
+  const desktopHeight = archiveDesktopHeight(n);
   const mobileHeight = 1240 - missing * MOBILE_STEP;
   const mobileY = (i: number) => MOBILE_FIRST_Y + i * MOBILE_STEP;
   const mobileX = (i: number) => (i % 2 === 0 ? 34 : 356);
@@ -547,7 +571,7 @@ function Archive({
     <section
       className={styles.s004}
       aria-labelledby="home-archive"
-      style={vars({ "--mh": mobileHeight })}
+      style={vars({ "--dh": desktopHeight, "--mh": mobileHeight })}
     >
       <p className={styles.num} aria-hidden="true">
         004
@@ -560,7 +584,7 @@ function Archive({
       </div>
       <svg
         aria-hidden="true"
-        viewBox="0 0 1440 1260"
+        viewBox={`0 0 1440 ${desktopHeight}`}
         preserveAspectRatio="none"
         className={cx(styles.lines, styles.desktopOnly)}
       >
@@ -602,11 +626,11 @@ function Archive({
               )}
               style={vars({
                 "--sl": `${node.star[0]}%`,
-                "--st": `${node.star[1]}%`,
+                "--st": desktopTop(node.star[1]),
                 "--cl": `${node.cover[0]}%`,
-                "--ct": `${node.cover[1]}%`,
+                "--ct": desktopTop(node.cover[1]),
                 "--tl": `${node.title[0]}%`,
-                "--tt": `${node.title[1]}%`,
+                "--tt": desktopTop(node.title[1]),
                 "--my": mobileY(i),
               })}
             >
