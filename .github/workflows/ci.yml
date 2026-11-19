@@ -25,6 +25,23 @@ jobs:
     env:
       NEXT_TELEMETRY_DISABLED: "1"
 
+    # Disposable database for integration tests (the same as compose.yaml's
+    # postgres-test). src/db/env.ts refuses any database not named *_test.
+    services:
+      postgres-test:
+        image: postgres:17.11-trixie
+        env:
+          POSTGRES_USER: refrain_test
+          POSTGRES_PASSWORD: refrain_test
+          POSTGRES_DB: refrain_mixtapes_test
+        ports:
+          - 5443:5432
+        options: >-
+          --health-cmd "pg_isready -U refrain_test -d refrain_mixtapes_test"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+
     steps:
       # Actions are pinned to full commit SHAs; the comment names the release.
       - name: Check out
@@ -66,6 +83,9 @@ jobs:
 
       - name: Unit tests
         run: pnpm test
+
+      - name: Integration tests (PostgreSQL)
+        run: pnpm test:db
 
       - name: Dependency audit
         run: pnpm audit --audit-level=high

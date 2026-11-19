@@ -30,5 +30,29 @@ services:
       start_period: 10s
     stop_grace_period: 1m
 
+  # Disposable database for integration tests (pnpm test:db). Its data lives in
+  # memory and disappears when the container stops; the credentials below are
+  # for this throwaway database only. Tests refuse any database whose name
+  # does not end in _test (src/db/env.ts).
+  postgres-test:
+    image: postgres:17.11-trixie
+    environment:
+      POSTGRES_USER: refrain_test
+      POSTGRES_PASSWORD: refrain_test
+      POSTGRES_DB: refrain_mixtapes_test
+    ports:
+      - "127.0.0.1:5443:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -h 127.0.0.1 -p 5432 -U refrain_test -d refrain_mixtapes_test",
+        ]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
 volumes:
   postgres-data:

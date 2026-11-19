@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   DatabaseConfigError,
+  DEFAULT_TEST_DATABASE_URL,
   readDatabaseUrl,
   readLocalDatabaseUrl,
+  readTestDatabaseUrl,
 } from "./env";
 
 const LOCAL = "postgres://user:s3cret@127.0.0.1:5442/refrain_mixtapes";
@@ -41,6 +43,27 @@ describe("readDatabaseUrl", () => {
     expectRefusal(
       () => readDatabaseUrl({ DATABASE_URL: "mysql://u:s3cret@127.0.0.1/db" }),
       /scheme/,
+    );
+  });
+});
+
+describe("readTestDatabaseUrl", () => {
+  it("defaults to the disposable Compose test database", () => {
+    expect(readTestDatabaseUrl({})).toBe(DEFAULT_TEST_DATABASE_URL);
+  });
+
+  it("refuses a database not named as disposable, or not local", () => {
+    expectRefusal(
+      () => readTestDatabaseUrl({ TEST_DATABASE_URL: LOCAL }),
+      /_test/,
+    );
+    expectRefusal(
+      () =>
+        readTestDatabaseUrl({
+          TEST_DATABASE_URL:
+            "postgres://u:s3cret@ep-x.sa-east-1.aws.neon.tech/refrain_test_x_test",
+        }),
+      /local database/,
     );
   });
 });
