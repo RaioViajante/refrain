@@ -1,0 +1,515 @@
+/*
+ * Reference: Catalog.dc.html. Its sections are 1360 px of content plus 40 px
+ * of padding on each side (content-box), so its coordinates span 1440. They
+ * are converted to container units (1cqw = 14.4 px at full width), so the
+ * constellation holds its composition from tablet to wide screens. The index
+ * keeps the reference's pixel grid.
+ */
+.main {
+  max-width: 1440px;
+  margin: 0 auto;
+  container-type: inline-size;
+}
+
+.inner {
+  position: relative;
+  padding: 6.25cqw 2.778cqw 0;
+}
+
+.star {
+  position: absolute;
+  right: 15.278cqw;
+  top: 4.861cqw;
+  width: 8.333cqw;
+}
+.trees {
+  position: absolute;
+  right: -0.694cqw;
+  top: 2.778cqw;
+  width: 11.806cqw;
+  opacity: 0.9;
+}
+
+.title {
+  margin: 0;
+  font-weight: 400;
+  font-size: 9.444cqw;
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px 2.778cqw;
+  margin-top: 2.083cqw;
+}
+.lede {
+  margin: 0;
+  font-style: italic;
+  font-size: max(17px, 1.528cqw);
+}
+.count {
+  margin: 0;
+  font-size: max(10.5px, 0.764cqw);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* "fitas sobre" and the two views. */
+.controls {
+  margin-top: 4.861cqw;
+  text-align: center;
+}
+.about {
+  margin: 0 0 4px;
+  font-style: italic;
+  font-size: max(13px, 1.042cqw);
+  color: var(--text-meta);
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0 0.972cqw;
+  font-style: italic;
+  font-size: max(17px, 1.458cqw);
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.972cqw;
+}
+.dot,
+.slash {
+  color: var(--ornament);
+  font-style: normal;
+}
+.button,
+.viewButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+.button {
+  font-weight: 400;
+  color: var(--text-meta);
+  transition: color 0.3s var(--ease);
+}
+.button:hover {
+  color: var(--ink);
+}
+.button.on {
+  font-weight: 700;
+  color: var(--ink);
+}
+.chipStar {
+  width: 0.75em;
+}
+
+.views {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 1.25cqw;
+  font-size: max(10.5px, 0.764cqw);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.viewButton {
+  color: var(--ink);
+}
+/* While the drawn star is pending, a line marks the current view. */
+.current {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+}
+.viewStar {
+  width: 10px;
+}
+
+/* Constellation: a 1280-wide field, its height grown for every 7 tapes. */
+.sky {
+  padding-top: 4.861cqw;
+}
+.field {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1280 / var(--field-h);
+}
+.lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.mobileOnly {
+  display: none;
+}
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tape {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  width: 19.444cqw;
+  transition: opacity 0.3s var(--ease);
+}
+.mark {
+  position: absolute;
+  left: -1.528cqw;
+  top: -1.528cqw;
+  width: 3.056cqw;
+}
+.mark img {
+  display: block;
+  width: 100%;
+}
+.skyLink {
+  display: block;
+  width: 17.361cqw;
+  margin: 1.389cqw 0 0 1.944cqw;
+  text-decoration: none;
+}
+.cover {
+  display: block;
+  width: 10.417cqw;
+  height: 10.417cqw;
+}
+.cover img,
+.thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.text {
+  display: block;
+}
+.label {
+  display: block;
+  margin-top: 0.694cqw;
+  font-size: max(10.5px, 0.694cqw);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-meta);
+}
+.name {
+  display: flex;
+  align-items: center;
+  gap: 0.694cqw;
+  margin-top: 0.208cqw;
+  font-size: max(16px, 1.528cqw);
+  font-weight: 700;
+  line-height: 1.15;
+}
+.go,
+.open {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.go {
+  display: inline-flex;
+}
+.go svg {
+  width: max(8px, 0.694cqw);
+}
+.skyLink:hover .go,
+.skyLink:focus-visible .go,
+.entryLink:hover .open,
+.entryLink:focus-visible .open {
+  opacity: 1;
+}
+.line {
+  display: block;
+  margin-top: 0.347cqw;
+  font-style: italic;
+  font-size: max(12px, 1.007cqw);
+  line-height: 1.35;
+  color: var(--text-soft);
+}
+.line.faded,
+.entryLine.faded {
+  color: var(--text-meta);
+}
+
+/* Index: the reference's grid, in pixels. */
+.index {
+  padding-top: 4.861cqw;
+}
+.grid {
+  display: grid;
+  grid-template-columns: 60px 76px 1.4fr 1fr 110px 80px 70px;
+  gap: 24px;
+}
+.head {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--ink);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-meta);
+}
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.entry {
+  border-bottom: 1px solid rgba(20, 20, 20, 0.18);
+  transition: opacity 0.3s var(--ease);
+}
+.entryLink {
+  align-items: center;
+  padding: 14px 0;
+  text-decoration: none;
+}
+.num {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--text-meta);
+}
+.thumb {
+  display: block;
+  width: 64px;
+  height: 64px;
+}
+.cell {
+  display: block;
+  min-width: 0;
+}
+.entryLabel {
+  display: none;
+}
+.entryTitle {
+  display: block;
+  font-size: 26px;
+  line-height: 1.1;
+}
+.entryLine {
+  display: block;
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--text-soft);
+}
+.theme {
+  font-size: 16px;
+  color: var(--text-mid);
+}
+.figure {
+  font-size: 15px;
+}
+.open {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.open svg {
+  width: 10px;
+}
+
+.closing {
+  padding: 10.417cqw 2.778cqw 9.722cqw;
+  text-align: center;
+}
+.closingText {
+  margin: 0;
+  font-style: italic;
+  font-size: max(15px, 1.319cqw);
+  color: var(--text-soft);
+}
+
+/* Reference: CatalogMobile.dc.html (390). */
+@media (max-width: 47.99rem) {
+  .main {
+    container-type: normal;
+  }
+  .inner {
+    padding: 60px 20px 0;
+  }
+  .star {
+    right: 24px;
+    top: 26px;
+    width: 64px;
+  }
+  .trees {
+    display: none;
+  }
+  .title {
+    font-size: 58px;
+  }
+  .row {
+    display: block;
+    margin-top: 18px;
+  }
+  .lede {
+    font-size: 17px;
+  }
+  .count {
+    margin-top: 10px;
+    font-size: 10.5px;
+  }
+
+  .controls {
+    margin-top: 34px;
+  }
+  .about {
+    margin: 0 0 2px;
+    font-size: 13px;
+  }
+  .chips {
+    gap: 0 8px;
+    font-size: 17px;
+  }
+  .chip {
+    gap: 8px;
+  }
+  .views {
+    margin-top: 10px;
+    font-size: 10.5px;
+  }
+
+  /* Constellation: one tape every 190 px, alternating sides. */
+  .sky {
+    margin: 0 -20px;
+    padding-top: 30px;
+  }
+  .field {
+    aspect-ratio: auto;
+    height: var(--mobile-h);
+  }
+  .desktopOnly {
+    display: none;
+  }
+  .mobileOnly {
+    display: block;
+  }
+  .tape {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    left: 20px;
+    right: 20px;
+    top: var(--my);
+    width: auto;
+  }
+  .flip {
+    flex-direction: row-reverse;
+    text-align: right;
+  }
+  .mark {
+    position: static;
+    flex: 0 0 30px;
+    width: 30px;
+    margin-top: 6px;
+  }
+  .skyLink {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: flex-start;
+    gap: 14px;
+    min-width: 0;
+    width: auto;
+    margin: 0;
+  }
+  .flip .skyLink {
+    flex-direction: row-reverse;
+  }
+  .cover {
+    flex: 0 0 96px;
+    width: 96px;
+    height: 96px;
+  }
+  .text {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .label {
+    margin-top: 0;
+    font-size: 10.5px;
+  }
+  .name {
+    display: block;
+    margin-top: 2px;
+    font-size: 18px;
+  }
+  .go {
+    display: none;
+  }
+  .line {
+    margin-top: 4px;
+    font-size: 13px;
+  }
+
+  /* Index: cover, number and theme, title, ▶. */
+  .index {
+    padding-top: 30px;
+  }
+  .head,
+  .num,
+  .theme,
+  .figure,
+  .entryLine,
+  .openWord {
+    display: none;
+  }
+  .entryLink {
+    display: flex;
+    gap: 14px;
+    padding: 12px 0;
+  }
+  .thumb {
+    flex: 0 0 56px;
+    width: 56px;
+    height: 56px;
+  }
+  .cell {
+    flex: 1 1 auto;
+  }
+  .entryLabel {
+    display: block;
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    color: var(--text-meta);
+  }
+  .entryTitle {
+    margin-top: 2px;
+    font-size: 17px;
+    line-height: normal;
+  }
+  .open {
+    opacity: 1;
+  }
+  .open svg {
+    width: 9px;
+  }
+
+  .closing {
+    padding: 100px 30px 110px;
+  }
+  .closingText {
+    font-size: 15px;
+    line-height: 1.45;
+  }
+}
