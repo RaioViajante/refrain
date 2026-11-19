@@ -17,7 +17,7 @@ export function connectTestDatabase(): Database {
 
   beforeEach(async () => {
     await db.execute(sql`
-      truncate mixtape_tracks, site_images, site_texts, mixtapes, songs, images
+      truncate mixtape_tracks, site_images, site_texts, mixtapes, songs, images, studio_sessions, studio_login_attempts
     `);
   });
   afterAll(async () => {

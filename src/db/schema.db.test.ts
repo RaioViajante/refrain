@@ -64,9 +64,18 @@ describe("schema integrity (PostgreSQL constraints)", () => {
         insertMixtape(db, { playlistUrl: "http://example.test/x" }),
       ),
     ).toMatchObject({ constraint: "mixtapes_playlist_url_https" });
-    expect(
-      await pgError(insertImage(db, { url: "javascript:alert(1)" })),
-    ).toMatchObject({ constraint: "images_url_https" });
+    for (const url of [
+      "javascript:alert(1)",
+      "http://example.test/a.jpg",
+      "/media/../secret.jpg",
+      "/media/a.gif",
+      "/elsewhere/a.jpg",
+    ]) {
+      expect(await pgError(insertImage(db, { url }))).toMatchObject({
+        constraint: "images_url_source",
+      });
+    }
+    await insertImage(db, { url: "/media/3f2a-local.jpg" });
   });
 
   it("accepts one or two lower-case words as a tape's feeling", async () => {

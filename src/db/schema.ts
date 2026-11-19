@@ -47,7 +47,12 @@ export const images = pgTable(
   },
   (t) => [
     uniqueIndex("images_url_key").on(t.url),
-    check("images_url_https", sql`${t.url} ~ '^https://'`),
+    // Hosted storage (https) or, in local development only, files under
+    // /media/ named by the upload itself (src/server/media/storage.ts).
+    check(
+      "images_url_source",
+      sql`${t.url} ~ '^https://' or ${t.url} ~ '^/media/[a-z0-9-]+\\.(jpg|png)$'`,
+    ),
     check("images_alt_length", sql`char_length(${t.alt}) between 1 and 300`),
     check("images_size_positive", sql`${t.width} > 0 and ${t.height} > 0`),
     check("images_focus_range", sql`${t.focus} between 0 and 8`),
@@ -97,7 +102,10 @@ export const mixtapes = pgTable(
     uniqueIndex("mixtapes_number_key").on(t.number),
     uniqueIndex("mixtapes_slug_key").on(t.slug),
     uniqueIndex("mixtapes_featured_rank_key").on(t.featuredRank),
-    check("mixtapes_number_range", sql`${t.number} between 1 and 999`),
+    // Positive only, with no upper bound: reordering the shelf moves numbers
+    // above the current range inside its transaction. The Studio caps new
+    // numbers at 999.
+    check("mixtapes_number_positive", sql`${t.number} > 0`),
     check(
       "mixtapes_slug_format",
       sql`${t.slug} ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and char_length(${t.slug}) <= 80`,
@@ -245,6 +253,56 @@ export const siteImages = pgTable(
     check(
       "site_images_slot_format",
       sql`${t.slot} ~ '^[a-z0-9]+(\\.[a-z0-9_]+)+$'`,
+    ),
+  ],
+);
+
+/**
+ * A signed-in Studio session. Only a SHA-256 of the random token is stored;
+ * the token itself lives in the owner's HttpOnly cookie.
+ */
+export const studioSessions = pgTable(
+  "studio_sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tokenHash: text("token_hash").notNull(),
+    createdAt,
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("studio_sessions_token_hash_key").on(t.tokenHash),
+    index("studio_sessions_expires_at_idx").on(t.expiresAt),
+    check(
+      "studio_sessions_token_hash_format",
+      sql`${t.tokenHash} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check("studio_sessions_expiry", sql`${t.expiresAt} > ${t.createdAt}`),
+  ],
+);
+
+/**
+ * Sign-in attempts, for throttling. `client_key` is a SHA-256 of the client's
+ * address, never the address itself. Rows older than a day are pruned.
+ */
+export const studioLoginAttempts = pgTable(
+  "studio_login_attempts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clientKey: text("client_key").notNull(),
+    succeeded: boolean("succeeded").notNull(),
+    attemptedAt: timestamp("attempted_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("studio_login_attempts_client_idx").on(t.clientKey, t.attemptedAt),
+    index("studio_login_attempts_at_idx").on(t.attemptedAt),
+    check(
+      "studio_login_attempts_client_key_format",
+      sql`${t.clientKey} ~ '^[0-9a-f]{64}$'`,
     ),
   ],
 );
