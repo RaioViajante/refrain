@@ -58,14 +58,14 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
 
-      # The design reference is local-only (decision 0002); nothing under
-      # reference/ and no archive file may ever be tracked.
+      # The design reference and the local importer are local-only (decision
+      # 0002); nothing under reference/ or local/, and no archive, is tracked.
       - name: No design reference tracked
         run: |
-          tracked="$(git ls-files -- reference ':(glob)**/*.zip')"
+          tracked="$(git ls-files -- reference local ':(glob)**/*.zip')"
           if [ -n "$tracked" ]; then
             echo "$tracked"
-            echo "::error::Files under reference/ or .zip archives are tracked. They are local-only."
+            echo "::error::Files under reference/ or local/, or .zip archives, are tracked. They are local-only."
             exit 1
           fi
 

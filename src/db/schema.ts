@@ -72,6 +72,8 @@ export const mixtapes = pgTable(
     slug: text("slug").notNull(),
     title: text("title").notNull(),
     theme: text("theme").notNull().default(""),
+    // One short word the catalogue filters by ("saudade", "estrada").
+    feeling: text("feeling").notNull().default(""),
     description: text("description").notNull().default(""),
     reflection: text("reflection").notNull().default(""),
     pullQuote: text("pull_quote").notNull().default(""),
@@ -105,6 +107,10 @@ export const mixtapes = pgTable(
       sql`char_length(${t.title}) between 1 and 120`,
     ),
     check("mixtapes_theme_length", sql`char_length(${t.theme}) <= 120`),
+    check(
+      "mixtapes_feeling_format",
+      sql`${t.feeling} = '' or ${t.feeling} ~ '^[a-zà-ÿ]+( [a-zà-ÿ]+)?$' and char_length(${t.feeling}) <= 30`,
+    ),
     check(
       "mixtapes_description_length",
       sql`char_length(${t.description}) <= 600`,
@@ -203,13 +209,15 @@ export const mixtapeTracks = pgTable(
 
 /**
  * The owner's texts on fixed pages (the home letter and quote, the about
- * page), edited in the Studio. Keys are defined in src/server/site-content.ts.
+ * page), edited in the Studio. Keys are defined in src/content/site-texts.ts.
+ * A text is public only once the owner publishes it (`published`).
  */
 export const siteTexts = pgTable(
   "site_texts",
   {
     key: text("key").primaryKey(),
     body: text("body").notNull(),
+    published: boolean("published").notNull().default(false),
     createdAt,
     updatedAt,
   },

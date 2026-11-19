@@ -1,0 +1,977 @@
+/*
+ * Reference: Main.dc.html. Six full-width sections, each a board of
+ * 1440 × <height> px: positions are kept as the reference's percentages of
+ * the board, and sizes in container units (1cqw = 14.4 px at full width).
+ * Sections whose length depends on the owner's writing (002's paragraph,
+ * 005's quote, 006's letter) keep the board's height as a minimum and let
+ * the text push it. Mobile (HomeMobile.dc.html, 390 px) is below.
+ */
+.main {
+  max-width: 1440px;
+  margin: 0 auto;
+}
+
+.s001,
+.s002,
+.s003,
+.s004,
+.s005,
+.s006 {
+  position: relative;
+  container-type: inline-size;
+  overflow: hidden;
+}
+
+.mobileOnly {
+  display: none;
+}
+
+/* Section number, top right on every board. */
+.num {
+  position: absolute;
+  left: 90.278%;
+  margin: 0;
+  font-size: max(10.5px, 0.833cqw);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Centred section headings (002 and 004). */
+.h2 {
+  margin: 0;
+  font-weight: 400;
+  font-size: 6.667cqw;
+  letter-spacing: -0.035em;
+  line-height: 1;
+}
+.headSub {
+  margin: 0.972cqw 0 0;
+  font-style: italic;
+  font-size: max(12px, 1.319cqw);
+}
+
+/* ---------- 001 · opening (1440 × 1160) ---------- */
+.s001 {
+  aspect-ratio: 1440 / 1160;
+}
+.s001 .num {
+  top: 2.069%;
+}
+.birds,
+.house,
+.horses {
+  position: absolute;
+  display: block;
+}
+.birds {
+  left: 7.778%;
+  top: 3.966%;
+  width: 16.389%;
+  height: 14.052%;
+}
+.openStar {
+  position: absolute;
+  left: 56.944%;
+  top: 10.345%;
+  width: 6.944%;
+}
+.house {
+  left: 72.917%;
+  top: 6.034%;
+  width: 20.139%;
+  height: 20.517%;
+}
+.intro {
+  position: absolute;
+  left: 15.833%;
+  top: 20.345%;
+  width: 32.639%;
+  margin: 0;
+  font-size: max(10.5px, 1.181cqw);
+  line-height: 1.32;
+}
+.intro strong {
+  font-weight: 600;
+}
+.horses {
+  left: 22.917%;
+  top: 34.828%;
+  width: 53.333%;
+  height: 29.483%;
+}
+/* Over the photograph: starts half its size above the photograph's foot. */
+.title {
+  position: absolute;
+  left: 11.667%;
+  top: 58.448%;
+  margin: 0;
+  font-weight: 400;
+  font-size: 9.444cqw;
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+  white-space: nowrap;
+}
+.title > span {
+  display: block;
+}
+.title > .second {
+  margin: -0.778cqw 0 0 30.694cqw;
+}
+.name {
+  position: absolute;
+  left: 0;
+  top: 83.276%;
+  width: 100%;
+  margin: 0;
+  font-size: max(13px, 1.458cqw);
+  font-weight: 700;
+  text-align: center;
+}
+.lede {
+  position: absolute;
+  left: 20.833%;
+  top: 87.069%;
+  width: 58.333%;
+  margin: 0;
+  font-size: max(12px, 1.25cqw);
+  font-style: italic;
+  line-height: 1.35;
+  text-align: center;
+}
+.start {
+  position: absolute;
+  left: 11.806%;
+  top: 93.103%;
+  width: 76.389%;
+  display: flex;
+  justify-content: space-between;
+  font-size: max(13px, 1.319cqw);
+  font-weight: 700;
+}
+.start a {
+  display: inline-block;
+  min-height: 44px;
+  padding: 0.4em 0;
+  text-decoration: none;
+}
+
+/* ---------- 002 · featured (1440 × 1060) ---------- */
+.s002 {
+  min-height: 73.611cqw;
+  /* The paragraph starts where the board places it (88.679%). */
+  padding: 65.278cqw 0 1.389cqw;
+}
+.s002 .num {
+  top: 1.667cqw;
+}
+.featuredStar {
+  position: absolute;
+  left: 78.472%;
+  top: 6.667cqw;
+  width: 6.25%;
+}
+.head {
+  position: absolute;
+  left: 0;
+  top: 6.667cqw;
+  width: 100%;
+  text-align: center;
+}
+.card {
+  position: absolute;
+  display: block;
+  text-decoration: none;
+}
+.card0 {
+  left: 10.417%;
+  top: 22.917cqw;
+  width: 22.917%;
+}
+.card1 {
+  left: 39.236%;
+  top: 31.389cqw;
+  width: 20.833%;
+}
+.card2 {
+  left: 66.667%;
+  top: 25cqw;
+  width: 22.917%;
+}
+.cover {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+}
+.cardMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: 1em;
+  margin-top: 0.694cqw;
+  font-size: max(10.5px, 0.729cqw);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-meta);
+}
+.cardMeta > span:first-child {
+  flex: none;
+}
+.cardMeta > span:last-child {
+  text-align: right;
+}
+.cardTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em;
+  margin-top: 0.278cqw;
+  font-size: max(13px, 1.389cqw);
+  font-weight: 700;
+}
+.cardTitle svg {
+  flex: none;
+  width: 0.55em;
+}
+.zine {
+  position: relative;
+  width: 58.333%;
+  margin: 0 auto;
+  font-size: max(12px, 1.25cqw);
+  font-style: italic;
+  line-height: 1.4;
+  text-align: center;
+}
+
+/* ---------- 003 · side A (1440 × 1340) ---------- */
+.s003 {
+  aspect-ratio: 1440 / 1340;
+}
+.s003 .num {
+  top: 1.791%;
+}
+.label {
+  position: absolute;
+  left: 0;
+  top: 5.224%;
+  width: 100%;
+  margin: 0;
+  font-size: max(10.5px, 0.764cqw);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+}
+.aStar {
+  position: absolute;
+  left: 8.333%;
+  top: 5.224%;
+  width: 6.25%;
+}
+/* The band: the photograph and the title that sits on its foot. */
+.band {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.bandPhoto {
+  position: absolute;
+  left: 15.972%;
+  top: 13.433%;
+  width: 59.722%;
+  height: 28.507%;
+  display: block;
+}
+.aTitle {
+  position: absolute;
+  left: 11.806%;
+  top: 36.866%;
+  margin: 0;
+  font-weight: 400;
+  font-size: 9.444cqw;
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+  white-space: nowrap;
+  pointer-events: auto;
+}
+.aSub {
+  position: absolute;
+  left: 0;
+  top: 52.239%;
+  width: 100%;
+  margin: 0;
+  font-size: max(12px, 1.389cqw);
+  font-style: italic;
+  text-align: center;
+}
+.tracks {
+  position: absolute;
+  left: 25.694%;
+  top: 59.701%;
+  width: 48.611%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: max(10.5px, 1.319cqw);
+  font-weight: 700;
+}
+.track {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 2.5cqw 1fr;
+  align-items: baseline;
+  padding: 0.347cqw 0;
+}
+.trackTitle,
+.trackArtist {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.trackTitle {
+  justify-content: flex-end;
+}
+.trackText {
+  flex: 0 1 auto;
+  align-self: baseline;
+}
+.trackTitle .trackText {
+  text-align: right;
+}
+.trackArtist .trackText {
+  font-weight: 400;
+  color: var(--text-mid);
+}
+.trackNo {
+  margin-right: 0.9em;
+  font-size: max(10.5px, 0.6em);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+}
+.dot {
+  text-align: center;
+}
+.gap {
+  padding: 0.139cqw 0;
+  text-align: center;
+  letter-spacing: 0.3em;
+  color: var(--ornament);
+}
+
+/*
+ * A note: a fine line from the track to the star's place, then the note in
+ * italic beyond the list (right), or before it (left), centred on the row.
+ */
+.noteLine {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 1px;
+  background: var(--ink);
+}
+.right .noteLine {
+  margin: 0 5.417cqw 0 2.4cqw;
+}
+.left .noteLine {
+  margin: 0 2.4cqw 0 5.417cqw;
+}
+.note {
+  position: absolute;
+  top: 0.278cqw;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6cqw;
+  font-size: max(10.5px, 1.181cqw);
+  font-weight: 400;
+  font-style: italic;
+  line-height: 1.35;
+  color: var(--text-soft);
+}
+.right .note {
+  left: 43.612cqw;
+}
+.left .note {
+  left: -19.444cqw;
+  flex-direction: row-reverse;
+}
+.noteStar {
+  flex: none;
+  width: 1.528cqw;
+  margin-top: 0.139cqw;
+}
+.noteStar img {
+  display: block;
+  width: 100%;
+}
+.noteText {
+  width: 20.833cqw;
+}
+.left .noteText {
+  width: 22.083cqw;
+  text-align: right;
+}
+.more {
+  position: absolute;
+  left: 0;
+  top: 89.254%;
+  width: 100%;
+  margin: 0;
+  font-size: max(10.5px, 0.903cqw);
+  font-style: italic;
+  color: var(--text-meta);
+  text-align: center;
+}
+.open {
+  position: absolute;
+  left: 0;
+  top: 91.94%;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+.openLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  min-height: 44px;
+  padding: 0.4em 0;
+  font-size: max(13px, 1.319cqw);
+  font-weight: 700;
+}
+.openLink svg {
+  width: 0.58em;
+}
+
+/* ---------- 004 · the archive (1440 × 1260) ---------- */
+.s004 {
+  aspect-ratio: 1440 / 1260;
+}
+.s004 .num {
+  top: 1.905%;
+}
+.archHead {
+  position: absolute;
+  left: 0;
+  top: 4.762%;
+  width: 100%;
+  text-align: center;
+}
+.lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.lines g {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 0.8;
+  stroke-dasharray: 2 5;
+}
+.nodes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.nodeStar {
+  position: absolute;
+  left: var(--sl);
+  top: var(--st);
+  width: 5.139%;
+}
+.nodeCover {
+  position: absolute;
+  left: var(--cl);
+  top: var(--ct);
+  width: 7.639%;
+  height: 8.73%;
+  display: block;
+}
+.nodeLink {
+  position: absolute;
+  left: var(--tl);
+  top: var(--tt);
+  display: block;
+  /* One line, as in the reference; a title that would run past the right
+     edge wraps instead of being cut. */
+  text-decoration: none;
+}
+.nodeTitle {
+  display: block;
+  font-size: max(15px, 2.361cqw);
+  font-weight: 700;
+  line-height: 1.05;
+}
+.nodeTheme {
+  display: block;
+  margin-top: 0.278cqw;
+  font-size: max(11px, 1.042cqw);
+  font-style: italic;
+  color: var(--text-mid);
+}
+.archNote {
+  position: absolute;
+  left: 0;
+  top: 93.651%;
+  width: 100%;
+  margin: 0;
+  font-size: max(10.5px, 0.903cqw);
+  font-style: italic;
+  color: var(--text-meta);
+  text-align: center;
+}
+
+/* ---------- 005 · the quote (1440 × 860) ---------- */
+.s005 {
+  min-height: 59.722cqw;
+  /* The quote starts at 55.814% of the board. */
+  padding: 33.333cqw 0 4cqw;
+}
+.s005 .num {
+  top: 1.667cqw;
+}
+.windowSlot {
+  position: absolute;
+  left: 41.667%;
+  top: 7.639cqw;
+  width: 16.667%;
+  height: 20.833cqw;
+}
+.windowStar {
+  position: absolute;
+  left: 60.417%;
+  top: 6.25cqw;
+  width: 4.167%;
+}
+.quote {
+  position: relative;
+  width: 69.444%;
+  margin: 0 auto;
+  font-size: 3.194cqw;
+  font-style: italic;
+  font-weight: 400;
+  line-height: 1.22;
+  letter-spacing: -0.01em;
+  text-align: center;
+}
+.quote p {
+  margin: 0;
+}
+
+/* ---------- 006 · the letter (1440 × 780) ---------- */
+.s006 {
+  min-height: 54.167cqw;
+  padding: 7.639cqw 0 6cqw;
+}
+.s006 .num {
+  top: 1.667cqw;
+}
+.letterStar {
+  position: absolute;
+  left: 12.5%;
+  top: 8.333cqw;
+  width: 6.25%;
+}
+.letter {
+  position: relative;
+  width: 44.444%;
+  margin-left: 27.778%;
+  font-size: max(14px, 1.458cqw);
+  line-height: 1.55;
+}
+.letter p {
+  margin: 1.1em 0 0;
+}
+.letter p:first-child {
+  margin-top: 0;
+}
+.letter .last {
+  margin-top: 1.6em;
+  font-style: italic;
+}
+
+/* No published tape: a quiet line in place of 002–004. */
+.empty {
+  padding: 120px 20px;
+  text-align: center;
+}
+.empty p {
+  margin: 0;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--text-meta);
+}
+
+/*
+ * Reference: HomeMobile.dc.html (390 px). Boards with absolute positions
+ * (001, 004, 003's band, 002's cards) are converted to container units over
+ * 390 (1cqw = 3.9 px), so they hold from 320 px to the 480 px frame; the rest
+ * flows as in the reference.
+ */
+@media (max-width: 47.99rem) {
+  .main {
+    max-width: 480px;
+  }
+  .desktopOnly {
+    display: none;
+  }
+  .mobileOnly {
+    display: block;
+  }
+  .num {
+    left: 90.256cqw;
+    font-size: 10.5px;
+  }
+  .h2 {
+    font-size: 44px;
+  }
+  .headSub {
+    margin-top: 8px;
+    font-size: 15px;
+  }
+
+  /* 001 · 390 × 900 */
+  .s001 {
+    aspect-ratio: 390 / 900;
+  }
+  .s001 .num {
+    top: 1.538cqw;
+  }
+  .birds {
+    left: 4.615cqw;
+    top: 5.641cqw;
+    width: 38.462cqw;
+    height: 26.667cqw;
+  }
+  .openStar {
+    left: 53.846cqw;
+    top: 3.59cqw;
+    width: 16.923cqw;
+  }
+  .house {
+    left: 60.513cqw;
+    top: 30.769cqw;
+    width: 35.897cqw;
+    height: 29.487cqw;
+  }
+  .intro {
+    left: 4.615cqw;
+    top: 38.462cqw;
+    width: 53.846cqw;
+    font-size: max(10.5px, 3.333cqw);
+    line-height: 1.35;
+  }
+  .horses {
+    left: 13.846cqw;
+    top: 81.538cqw;
+    width: 72.308cqw;
+    height: 46.154cqw;
+  }
+  /* On mobile the second line starts 75 px after the first. */
+  .title {
+    left: 3.59cqw;
+    top: 120.256cqw;
+    font-size: 14.872cqw;
+  }
+  .title > .second {
+    margin: 1.256cqw 0 0 19.231cqw;
+  }
+  .name {
+    top: 161.026cqw;
+    font-size: 4.103cqw;
+  }
+  .lede {
+    left: 11.282cqw;
+    top: 169.231cqw;
+    width: 77.436cqw;
+    font-size: max(12px, 3.59cqw);
+    line-height: 1.38;
+  }
+  .start {
+    left: 0;
+    top: 192.821cqw;
+    width: 100%;
+    flex-direction: column;
+    align-items: center;
+    font-size: 4.103cqw;
+  }
+  .start a {
+    display: flex;
+    align-items: center;
+    padding: 0;
+  }
+
+  /* 002 · flows: 50 px above, 70 px below */
+  .s002 {
+    min-height: 0;
+    padding: 50px 0 70px;
+  }
+  .s002 .num {
+    top: 10px;
+  }
+  .featuredStar {
+    left: 76.923%;
+    top: 40px;
+    width: 64px;
+  }
+  .head {
+    position: static;
+    margin-top: 30px;
+  }
+  .cards {
+    margin-top: 44px;
+  }
+  .card {
+    position: static;
+    margin-top: 44px;
+  }
+  .card0 {
+    width: 66.667%;
+    margin: 0 0 0 5.128%;
+  }
+  .card1 {
+    width: 61.538%;
+    margin-left: 28.205%;
+  }
+  .card2 {
+    width: 69.231%;
+    margin-left: 11.795%;
+  }
+  .cardMeta {
+    margin-top: 8px;
+    font-size: 10.5px;
+  }
+  .cardTitle {
+    margin-top: 3px;
+    font-size: 16px;
+  }
+  .cardTitle svg {
+    width: 10px;
+  }
+  .zine {
+    width: auto;
+    margin: 44px 30px 0;
+    font-size: 14px;
+    line-height: 1.42;
+  }
+
+  /* 003 · flows: 50 px above, 80 px below */
+  .s003 {
+    aspect-ratio: auto;
+    padding: 50px 0 80px;
+  }
+  .s003 .num {
+    top: 10px;
+  }
+  .label {
+    position: static;
+    font-size: 10.5px;
+  }
+  .aStar {
+    left: 14px;
+    top: 30px;
+    width: 60px;
+  }
+  .band {
+    position: relative;
+    inset: auto;
+    aspect-ratio: 390 / 230;
+    margin-top: 26px;
+  }
+  .bandPhoto {
+    left: 10.256cqw;
+    top: 0;
+    width: 84.615cqw;
+    height: 43.59cqw;
+  }
+  .aTitle {
+    left: 6.154cqw;
+    top: 36.154cqw;
+    right: 16px;
+    font-size: 14.872cqw;
+    white-space: normal;
+  }
+  .aSub {
+    position: static;
+    width: auto;
+    margin: 0 30px;
+    font-size: 15px;
+  }
+  .tracks {
+    position: static;
+    width: auto;
+    margin: 30px 16px 0;
+    font-size: 14px;
+  }
+  .track {
+    grid-template-columns: 1fr 18px 1fr;
+    padding: 4px 0;
+  }
+  .trackNo {
+    margin-right: 6px;
+    font-size: 10.5px;
+  }
+  .gap {
+    padding: 2px 0;
+    letter-spacing: normal;
+  }
+  .noteLine {
+    display: none;
+  }
+  .right .note,
+  .left .note {
+    position: static;
+    grid-column: 1 / -1;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin: 6px 0 4px;
+    font-size: 13.5px;
+    line-height: 1.35;
+  }
+  .noteStar {
+    width: 14px;
+    margin-top: 0;
+  }
+  .noteText,
+  .left .noteText {
+    width: auto;
+    text-align: center;
+  }
+  .more {
+    position: static;
+    margin-top: 26px;
+    font-size: 12px;
+  }
+  .open {
+    position: static;
+    margin-top: 10px;
+  }
+  .openLink {
+    gap: 8px;
+    padding: 12px 0;
+    font-size: 16px;
+  }
+  .openLink svg {
+    width: 10px;
+  }
+
+  /* 004 · 390 × (1240, less 138 per missing tape); slots alternate. */
+  .s004 {
+    aspect-ratio: 390 / var(--mh);
+  }
+  .s004 .num {
+    top: 2.564cqw;
+  }
+  .archHead {
+    top: 10.256cqw;
+  }
+  .nodeStar {
+    top: calc((var(--my) - 15) * 1cqw / 3.9);
+    width: 7.692cqw;
+  }
+  .nodeCover {
+    top: calc((var(--my) - 34) * 1cqw / 3.9);
+    width: 17.436cqw;
+    height: 17.436cqw;
+  }
+  .nodeLink {
+    top: calc((var(--my) - 22) * 1cqw / 3.9);
+    width: 58.974cqw;
+    /* 44 px target; the title and theme keep their reference positions. */
+    min-height: 44px;
+  }
+  .nodeLeft .nodeStar {
+    left: 4.872cqw;
+  }
+  .nodeLeft .nodeCover {
+    left: 14.872cqw;
+  }
+  .nodeLeft .nodeLink {
+    left: 34.872cqw;
+  }
+  .nodeRight .nodeStar {
+    left: 87.436cqw;
+  }
+  .nodeRight .nodeCover {
+    left: 67.692cqw;
+  }
+  .nodeRight .nodeLink {
+    left: auto;
+    right: 34.872cqw;
+    text-align: right;
+  }
+  .nodeTitle {
+    font-size: max(15px, 5.128cqw);
+    line-height: 1.1;
+  }
+  .nodeTheme {
+    margin-top: 4px;
+    font-size: max(11px, 3.205cqw);
+  }
+  .archNote {
+    left: 7.692cqw;
+    top: calc((var(--mh) - 70) * 1cqw / 3.9);
+    width: 84.615cqw;
+    font-size: 12px;
+  }
+
+  /* 005 · flows: 40 px above, 60 px below */
+  .s005 {
+    min-height: 0;
+    padding: 40px 0 60px;
+  }
+  .s005 .num {
+    top: 10px;
+  }
+  .windowSlot {
+    position: static;
+    width: 170px;
+    height: 212px;
+    margin: 20px auto 0;
+  }
+  .windowStar {
+    display: none;
+  }
+  .quote {
+    width: auto;
+    margin: 34px 24px 0;
+    font-size: 26px;
+    line-height: 1.25;
+  }
+
+  /* 006 · flows: 60 px above, 110 px below */
+  .s006 {
+    min-height: 0;
+    padding: 60px 0 110px;
+  }
+  .s006 .num {
+    top: 10px;
+  }
+  .letterStar {
+    left: 10px;
+    top: 20px;
+    width: 64px;
+  }
+  .letter {
+    width: auto;
+    margin: 40px 30px 0;
+    font-size: 17px;
+  }
+  .letter .last {
+    margin-top: 1.5em;
+  }
+
+  .empty {
+    padding: 60px 20px;
+  }
+  .empty p {
+    font-size: 12px;
+  }
+}

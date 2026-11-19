@@ -8,6 +8,10 @@
 /reference/
 *.zip
 
+# Local-only tools that read the reference or hold private content (the
+# reference importer). Never tracked.
+/local/
+
 # Local environment and secrets. Commit only .env.example.
 .env
 .env.*

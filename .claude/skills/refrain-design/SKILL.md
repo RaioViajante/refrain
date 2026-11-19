@@ -40,6 +40,12 @@ A personal mixtape archive as an editorial zine: paper, ink, one typeface, faded
 4. Interface strings come from the reference's `pt` texts; the owner's writing comes from the database (decision 0002), never hard-coded.
 5. Compare screenshots of the page and the reference at 1440 and 390 before reporting done.
 
+### Missing content
+- A missing owner text omits its element; a section with none of its own content is omitted whole (never a heading over nothing, never an empty board).
+- A missing photograph leaves its slot blank and keeps the composition's geometry; its caption is omitted with it.
+- No published tape: a quiet meta line, "nenhuma fita publicada ainda.". Drafts never appear, not even as "em construção".
+- Never show the reference's placeholders ("[ano]", "pendente", "texto provisório").
+
 ## 2. Rules that always bind
 
 **Accessibility:**

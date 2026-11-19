@@ -1,0 +1,723 @@
+/*
+ * Reference: About.dc.html. Its sections are 1360 px of content plus 40 px of
+ * padding on each side (content-box), so its coordinates span 1440. They are
+ * converted to container units (1cqw = 14.4 px at full width) over <main>,
+ * so the composition holds from tablet to wide screens. Small text is
+ * clamped so it never falls below 10.5 px.
+ */
+.main {
+  max-width: 1440px;
+  margin: 0 auto;
+  container-type: inline-size;
+}
+
+/* ---------- abertura (1440 × 1000) ---------- */
+
+.opening {
+  position: relative;
+  height: 69.444cqw;
+}
+
+.label,
+.number {
+  position: absolute;
+  top: 4.861cqw;
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+.label {
+  left: 2.778cqw;
+  font-size: max(10.5px, 0.764cqw);
+  text-transform: uppercase;
+}
+.number {
+  right: 2.778cqw;
+  font-size: max(10.5px, 0.833cqw);
+}
+
+.openingStar {
+  position: absolute;
+  left: 10.417cqw;
+  top: 9.028cqw;
+  width: 7.639cqw;
+}
+
+.trees {
+  position: absolute;
+  right: 1.389cqw;
+  top: 10.417cqw;
+  width: 15.972cqw;
+}
+
+.band {
+  position: absolute;
+  left: 20.833cqw;
+  top: 10.417cqw;
+  width: 56.944cqw;
+  height: 25.278cqw;
+}
+
+/* Over the photograph: starts half its size above the photograph's foot.
+   Two lines: the second starts 0.375 × the size before the first ends. */
+.title {
+  position: absolute;
+  left: 2.083cqw;
+  top: 30.972cqw;
+  margin: 0;
+  font-weight: 400;
+  font-size: 9.444cqw;
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+  white-space: nowrap;
+}
+.second {
+  display: block;
+  padding-left: 32.5cqw;
+}
+
+.lede {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 56.944cqw;
+  margin: 0;
+  text-align: center;
+  font-style: italic;
+  font-size: max(17px, 1.528cqw);
+}
+
+.ledeStar {
+  position: absolute;
+  left: 50%;
+  top: 61.111cqw;
+  width: 1.528cqw;
+  translate: -50% 0;
+}
+
+/* ---------- a carta ---------- */
+
+.letterSection {
+  display: grid;
+  grid-template-columns: 1fr 44.444cqw 1fr;
+  gap: 4.444cqw;
+  align-items: start;
+  padding: 4.167cqw 2.778cqw 0;
+}
+
+.leftColumn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 15.278cqw;
+  padding-top: 2.083cqw;
+}
+
+/* The figure's room (4:5 photograph and its caption), kept when the
+   photograph is absent so the aside stays beside the letter. */
+.fenceSlot {
+  width: 15.972cqw;
+  min-height: calc(19.965cqw + max(8px, 0.556cqw) + 1.25em);
+  font-size: max(10.5px, 0.764cqw);
+}
+
+.sideFigure {
+  margin: 0;
+  width: 15.972cqw;
+}
+
+.portrait {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 5;
+}
+
+.caption,
+.captionRight {
+  margin-top: max(6px, 0.556cqw);
+  font-size: max(10.5px, 0.764cqw);
+  letter-spacing: 0.06em;
+  color: var(--text-meta);
+}
+.captionRight {
+  text-align: right;
+}
+
+.aside {
+  margin: 0;
+  max-width: 15.972cqw;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.694cqw;
+  text-align: right;
+}
+/* The text keeps the width it has beside the star and the rule. */
+.aside i {
+  flex: 0 1 10.972cqw;
+  font-size: max(13px, 1.111cqw);
+  line-height: 1.4;
+  color: var(--text-soft);
+}
+.asideStar {
+  flex: 0 0 1.25cqw;
+  width: 1.25cqw;
+}
+.asideRule {
+  flex: 0 0 2.361cqw;
+  height: 1px;
+  background: var(--ink);
+}
+
+.letterLabel {
+  margin: 0 0 2.778cqw;
+  font-size: max(10.5px, 0.764cqw);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.letter {
+  font-size: max(16px, 1.458cqw);
+  line-height: 1.62;
+}
+.letter > p {
+  margin: 1.15em 0 0;
+}
+.letter > p:first-child {
+  margin-top: 0;
+}
+.letter > p.closing {
+  margin-top: 1.6em;
+  font-style: italic;
+}
+
+.signature {
+  margin: 2.778cqw 0 0;
+  font-size: max(15px, 1.181cqw);
+  line-height: 1.5;
+}
+.name {
+  font-size: max(18px, 1.458cqw);
+}
+
+.rightColumn {
+  padding-top: 38.889cqw;
+}
+
+/* Figures that only appear in the phone composition. */
+.inlineFigure,
+.mobileHouse {
+  display: none;
+}
+
+/* ---------- três palavras ---------- */
+
+.words {
+  padding: 13.889cqw 2.778cqw 0;
+}
+
+.wordsHead {
+  text-align: center;
+}
+.wordsStar {
+  width: 2.361cqw;
+}
+.wordsTitle {
+  margin: 1.25cqw 0 0;
+  font-weight: 400;
+  font-size: max(44px, 6.667cqw);
+  letter-spacing: -0.035em;
+  line-height: 1;
+}
+.wordsIntro {
+  margin: 1.25cqw 0 0;
+  font-style: italic;
+  font-size: max(13px, 1.319cqw);
+}
+
+.wordList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.word {
+  position: relative;
+  margin-top: 7.639cqw;
+}
+
+.wordMedia {
+  position: absolute;
+  top: 0;
+}
+.wordFigure {
+  margin: 0;
+}
+.wordPhoto {
+  display: block;
+  width: 100%;
+}
+.wordCaption {
+  margin-top: max(6px, 0.694cqw);
+  text-align: right;
+  font-size: max(10.5px, 0.764cqw);
+  letter-spacing: 0.06em;
+  color: var(--text-meta);
+}
+
+.term {
+  position: absolute;
+  margin: 0;
+  font-weight: 400;
+  font-size: max(36px, 5cqw);
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+  white-space: nowrap;
+}
+
+.entry {
+  position: absolute;
+  width: 26.389cqw;
+}
+.entryNumber {
+  font-size: max(10.5px, 0.833cqw);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--text-meta);
+}
+.grammar {
+  margin: max(6px, 0.694cqw) 0 0;
+  font-size: max(12px, 0.972cqw);
+  color: var(--text-meta);
+}
+.syllables {
+  letter-spacing: 0.04em;
+}
+.definition {
+  margin: 1.25cqw 0 0;
+  font-style: italic;
+  font-size: max(17px, 1.667cqw);
+  line-height: 1.4;
+  color: var(--text-soft);
+}
+/* On a phone the caption follows the definition instead. */
+.entryCaption {
+  display: none;
+}
+
+/* li#solidao: 530 tall; photograph 820 × 469 at the left. */
+.word1 {
+  height: 36.806cqw;
+}
+.word1 .wordMedia {
+  left: 0;
+  width: 56.944cqw;
+}
+.word1 .wordPhoto {
+  height: 32.569cqw;
+}
+.word1 .term {
+  left: 4.167cqw;
+  top: 30.069cqw;
+}
+.word1 .entry {
+  left: 62.5cqw;
+  top: 15.972cqw;
+}
+
+/* li#melancolia: 620 tall; photograph 440 × 550 at the right. */
+.word2 {
+  height: 43.056cqw;
+}
+.word2 .wordMedia {
+  left: 52.778cqw;
+  width: 30.556cqw;
+}
+.word2 .wordPhoto {
+  height: 38.194cqw;
+}
+.word2 .term {
+  left: 36.111cqw;
+  top: 35.694cqw;
+}
+.word2 .entry {
+  left: 8.333cqw;
+  top: 20.139cqw;
+}
+
+/* li#pertencer: 540 tall; photograph 600 × 480 in the middle. */
+.word3 {
+  height: 37.5cqw;
+}
+.word3 .wordMedia {
+  left: 13.889cqw;
+  width: 41.667cqw;
+}
+.word3 .wordPhoto {
+  height: 33.333cqw;
+}
+.word3 .term {
+  left: 9.722cqw;
+  top: 30.833cqw;
+}
+.word3 .entry {
+  left: 61.111cqw;
+  top: 17.361cqw;
+}
+
+/* ---------- pausa ---------- */
+
+.pause {
+  max-width: 72.222cqw;
+  margin: 14.583cqw auto 0;
+  padding: 0 2.778cqw;
+  box-sizing: content-box;
+  text-align: center;
+}
+.pauseStar {
+  width: 3.75cqw;
+}
+.quote {
+  margin: 1.806cqw 0 0;
+  font-style: italic;
+  font-size: max(28px, 3.75cqw);
+  line-height: 1.18;
+  letter-spacing: -0.01em;
+}
+
+/* ---------- outros lugares ---------- */
+
+.places {
+  padding: 14.583cqw 2.778cqw 0;
+}
+
+.placesHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1.528cqw;
+  padding-bottom: 1.111cqw;
+  border-bottom: 1px solid var(--ink);
+}
+.placesTitle {
+  margin: 0;
+  font-weight: 400;
+  font-size: max(32px, 4.167cqw);
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+.placesIntro {
+  font-style: italic;
+  font-size: max(13px, 1.181cqw);
+}
+
+.placeGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5.556cqw;
+  margin-top: 4.861cqw;
+}
+
+.place {
+  display: block;
+  text-decoration: none;
+}
+.place:nth-child(2) {
+  margin-top: 4.861cqw;
+}
+
+.placeLabel {
+  display: block;
+  font-size: max(10.5px, 0.833cqw);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--text-meta);
+}
+
+.placeName {
+  display: flex;
+  align-items: baseline;
+  gap: 1.111cqw;
+  margin-top: 0.694cqw;
+  font-size: max(40px, 5cqw);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1;
+}
+.placeNameText {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.arrow {
+  display: inline-block;
+  font-size: 0.5em;
+  font-weight: 400;
+  transition: transform 0.25s;
+}
+.place:hover .arrow,
+.place:focus-visible .arrow {
+  transform: translate(4px, -4px);
+}
+
+.placeDescription {
+  display: block;
+  margin-top: 1.111cqw;
+  max-width: 31.944cqw;
+  font-style: italic;
+  font-size: max(15px, 1.25cqw);
+  line-height: 1.45;
+  color: var(--text-soft);
+}
+
+.footerGap {
+  margin-top: 110px;
+}
+
+/* ---------- phone: AboutMobile.dc.html (390) ---------- */
+@media (max-width: 47.99rem) {
+  .main {
+    container-type: normal;
+  }
+
+  /* abertura: 390 × 545 */
+  .opening {
+    height: 545px;
+  }
+  .label {
+    left: 20px;
+    top: 30px;
+    font-size: 10.5px;
+  }
+  .number,
+  .trees {
+    display: none;
+  }
+  .openingStar {
+    left: auto;
+    right: 26px;
+    top: 20px;
+    width: 60px;
+  }
+  .band {
+    left: 40px;
+    top: 80px;
+    width: calc(100% - 40px);
+    height: 200px;
+  }
+  .title {
+    left: 14px;
+    right: 20px;
+    top: 251px;
+    font-size: 58px;
+    white-space: normal;
+  }
+  .second {
+    padding-left: 75px;
+  }
+  .lede {
+    left: 30px;
+    right: 30px;
+    top: 395px;
+    font-size: 17px;
+    line-height: 1.4;
+  }
+  .ledeStar {
+    top: 475px;
+    width: 18px;
+  }
+
+  /* a carta */
+  .letterSection {
+    display: block;
+    padding: 10px 30px 0;
+  }
+  .leftColumn,
+  .rightColumn {
+    display: none;
+  }
+  .letterLabel {
+    margin-bottom: 26px;
+    font-size: 10.5px;
+  }
+  .letter {
+    font-size: 17px;
+  }
+  .letter > p.closing {
+    margin-top: 1.5em;
+  }
+  .inlineFigure {
+    display: block;
+    margin: 34px 0 34px auto;
+    width: 200px;
+  }
+  .signature {
+    margin-top: 30px;
+    font-size: 15px;
+  }
+  .name {
+    font-size: 18px;
+  }
+  .mobileHouse {
+    display: block;
+    margin: 46px 0 0;
+    width: 190px;
+  }
+  .caption,
+  .captionRight {
+    margin-top: 6px;
+    font-size: 10.5px;
+  }
+
+  /* três palavras */
+  .words {
+    padding: 110px 20px 0;
+  }
+  .wordsStar {
+    width: 24px;
+  }
+  .wordsTitle {
+    margin-top: 12px;
+    font-size: 44px;
+  }
+  .wordsIntro {
+    margin-top: 10px;
+    font-size: 13px;
+  }
+  .word,
+  .word1,
+  .word2,
+  .word3 {
+    height: auto;
+    margin-top: 70px;
+  }
+  .word .wordMedia,
+  .word .term,
+  .word .entry {
+    position: relative;
+    left: auto;
+    top: auto;
+  }
+  .word .wordMedia {
+    max-width: 100%;
+  }
+  .word .wordPhoto {
+    height: 100%;
+  }
+  .wordFigure {
+    height: 100%;
+  }
+  .wordCaption {
+    display: none;
+  }
+  .word1 .wordMedia {
+    width: 350px;
+    aspect-ratio: 1.75;
+  }
+  .word2 .wordMedia {
+    width: 280px;
+    margin-left: 70px;
+    aspect-ratio: 0.8;
+  }
+  .word3 .wordMedia {
+    width: 320px;
+    aspect-ratio: 1.25;
+  }
+  .term {
+    margin-top: -18px;
+    font-size: 36px;
+    white-space: normal;
+  }
+  .word2 .term {
+    margin-left: 70px;
+  }
+  .word3 .term {
+    margin-left: 26px;
+  }
+  .word .entry {
+    width: auto;
+    margin-top: 14px;
+  }
+  .entryNumber {
+    font-size: 11px;
+  }
+  .grammar {
+    margin-top: 6px;
+    font-size: 12px;
+  }
+  .definition {
+    margin-top: 14px;
+    font-size: 17px;
+    line-height: 1.45;
+  }
+  .entryCaption {
+    display: block;
+    margin: 12px 0 0;
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    color: var(--text-meta);
+  }
+
+  /* pausa */
+  .pause {
+    max-width: none;
+    margin: 120px 24px 0;
+    padding: 0;
+  }
+  .pauseStar {
+    width: 36px;
+  }
+  .quote {
+    margin-top: 18px;
+    font-size: 28px;
+    line-height: 1.22;
+    letter-spacing: normal;
+  }
+
+  /* outros lugares */
+  .places {
+    padding: 120px 20px 0;
+  }
+  .placesHead {
+    display: block;
+    padding-bottom: 12px;
+  }
+  .placesTitle {
+    font-size: 32px;
+  }
+  .placesIntro {
+    font-size: 13px;
+  }
+  .placeGrid {
+    display: block;
+    margin-top: 0;
+  }
+  .place,
+  .place:nth-child(2) {
+    margin-top: 44px;
+  }
+  .placeLabel {
+    font-size: 10.5px;
+  }
+  .placeName {
+    gap: 10px;
+    margin-top: 6px;
+    font-size: 40px;
+    line-height: 1.05;
+  }
+  .arrow {
+    font-size: 22px;
+  }
+  .placeDescription {
+    margin-top: 10px;
+    max-width: none;
+    font-size: 15px;
+  }
+
+  .footerGap {
+    margin-top: 90px;
+  }
+}

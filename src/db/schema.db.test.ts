@@ -69,6 +69,16 @@ describe("schema integrity (PostgreSQL constraints)", () => {
     ).toMatchObject({ constraint: "images_url_https" });
   });
 
+  it("accepts one or two lower-case words as a tape's feeling", async () => {
+    await insertMixtape(db, { feeling: "saudade" });
+    await insertMixtape(db, { feeling: "raízes" });
+    for (const feeling of ["Saudade", "dor, memória", "a b c", "x1"]) {
+      expect(await pgError(insertMixtape(db, { feeling }))).toMatchObject({
+        constraint: "mixtapes_feeling_format",
+      });
+    }
+  });
+
   it("treats a song as the same song regardless of letter case", async () => {
     await insertSong(db, { title: "[Test] Angel", artist: "[Test] Band" });
     expect(

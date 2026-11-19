@@ -3,13 +3,14 @@
 import "server-only";
 
 import {
+  and,
   asc,
   count,
   countDistinct,
+  desc,
   eq,
   inArray,
   isNotNull,
-  and,
   min,
   sql,
 } from "drizzle-orm";
@@ -25,7 +26,7 @@ import {
 } from "@/db/schema";
 import type { Database } from "@/db/types";
 
-import { publicImageJoin, publicMixtape } from "./visibility";
+import { publicImageJoin, publicMixtape, publicSiteText } from "./visibility";
 
 export type PublicImage = {
   url: string;
@@ -41,6 +42,7 @@ export type MixtapeSummary = {
   slug: string;
   title: string;
   theme: string;
+  feeling: string;
   description: string;
   year: number | null;
   featuredRank: number | null;
@@ -65,6 +67,19 @@ export type PublicMixtape = Omit<MixtapeSummary, "trackCount" | "noteCount"> & {
   detailImage: PublicImage | null;
   detailCaption: string;
   tracks: PublicTrack[];
+};
+
+/** An artist and how many of a tape's tracks credit them. */
+export type ArtistCount = { artist: string; count: number };
+
+/** Everything the mixtape page shows. */
+export type MixtapePage = {
+  mixtape: PublicMixtape;
+  noteCount: number;
+  artists: ArtistCount[];
+  /** The neighbouring published tapes, wrapping around; null if alone. */
+  previous: MixtapeSummary | null;
+  next: MixtapeSummary | null;
 };
 
 export type ArchiveStats = {
@@ -134,6 +149,7 @@ function summarySelection(stats: ReturnType<typeof trackStats>) {
     slug: mixtapes.slug,
     title: mixtapes.title,
     theme: mixtapes.theme,
+    feeling: mixtapes.feeling,
     description: mixtapes.description,
     year: mixtapes.year,
     featuredRank: mixtapes.featuredRank,
@@ -178,6 +194,17 @@ export async function getPublishedMixtape(
   db: Database,
   slug: string,
 ): Promise<PublicMixtape | null> {
+  const found = await findPublishedMixtape(db, slug);
+  if (!found) return null;
+  const { id, ...mixtape } = found;
+  void id;
+  return mixtape;
+}
+
+async function findPublishedMixtape(
+  db: Database,
+  slug: string,
+): Promise<(PublicMixtape & { id: string }) | null> {
   const [row] = await db
     .select({
       id: mixtapes.id,
@@ -185,6 +212,7 @@ export async function getPublishedMixtape(
       slug: mixtapes.slug,
       title: mixtapes.title,
       theme: mixtapes.theme,
+      feeling: mixtapes.feeling,
       description: mixtapes.description,
       reflection: mixtapes.reflection,
       pullQuote: mixtapes.pullQuote,
@@ -219,13 +247,58 @@ export async function getPublishedMixtape(
     .where(eq(mixtapeTracks.mixtapeId, row.id))
     .orderBy(asc(mixtapeTracks.position));
 
-  const { id, cover, detailImage, ...mixtape } = row;
-  void id;
+  const { cover, detailImage, ...mixtape } = row;
   return {
     ...mixtape,
     cover: toPublicImage(cover),
     detailImage: toPublicImage(detailImage),
     tracks,
+  };
+}
+
+/**
+ * How many of a published tape's tracks credit each artist, most frequent
+ * first. A credit is counted as written ("Zach Bryan, Lana Del Rey" is its
+ * own credit), so band names with commas stay whole.
+ */
+export async function getArtistCounts(
+  db: Database,
+  slug: string,
+): Promise<ArtistCount[]> {
+  const trackCount = count(mixtapeTracks.id);
+  return db
+    .select({ artist: songs.artist, count: trackCount })
+    .from(mixtapeTracks)
+    .innerJoin(songs, eq(songs.id, mixtapeTracks.songId))
+    .innerJoin(
+      mixtapes,
+      and(eq(mixtapes.id, mixtapeTracks.mixtapeId), publicMixtape),
+    )
+    .where(eq(mixtapes.slug, slug))
+    .groupBy(songs.artist)
+    .orderBy(desc(trackCount), asc(songs.artist));
+}
+
+/** The mixtape page: the tape, its counts, and its neighbours. */
+export async function getMixtapePage(
+  db: Database,
+  slug: string,
+): Promise<MixtapePage | null> {
+  const [mixtape, artists, all] = await Promise.all([
+    getPublishedMixtape(db, slug),
+    getArtistCounts(db, slug),
+    listPublishedMixtapes(db),
+  ]);
+  if (!mixtape) return null;
+
+  const index = all.findIndex((m) => m.slug === slug);
+  const alone = all.length < 2 || index < 0;
+  return {
+    mixtape,
+    noteCount: mixtape.tracks.filter((t) => t.note !== "").length,
+    artists,
+    previous: alone ? null : all[(index - 1 + all.length) % all.length]!,
+    next: alone ? null : all[(index + 1) % all.length]!,
   };
 }
 
@@ -254,7 +327,7 @@ export async function getSiteTexts<K extends string>(
   const rows = await db
     .select({ key: siteTexts.key, body: siteTexts.body })
     .from(siteTexts)
-    .where(inArray(siteTexts.key, [...keys]));
+    .where(and(publicSiteText, inArray(siteTexts.key, [...keys])));
   return Object.fromEntries(rows.map((r) => [r.key, r.body])) as Partial<
     Record<K, string>
   >;
