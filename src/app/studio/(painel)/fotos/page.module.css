@@ -150,6 +150,7 @@
   margin-top: 6px;
 }
 .textButton {
+  position: relative;
   min-height: 44px;
   padding: 12px 0;
   border: 0;
@@ -158,6 +159,16 @@
   font-size: 13px;
   text-decoration: none;
   color: var(--ink);
+}
+/* At least 44 px wide, without lengthening the drawn line. */
+.textButton::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100%, 44px);
+  height: max(100%, 44px);
+  translate: -50% -50%;
 }
 .textButton:global(.del),
 .textButton:global(.ghost) {

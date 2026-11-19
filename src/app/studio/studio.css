@@ -6,6 +6,7 @@
 .fld {
   display: block;
   width: 100%;
+  min-height: 44px;
   box-sizing: border-box;
   padding: 10px 0 12px;
   border: 0;
@@ -86,11 +87,22 @@ select.fld {
 }
 
 .ghost {
+  position: relative;
   border: 0;
   background: none;
   font-family: inherit;
   color: var(--text-meta);
   min-height: 44px;
+}
+/* At least 44 px wide, without moving the word. */
+.ghost::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100%, 44px);
+  height: max(100%, 44px);
+  translate: -50% -50%;
 }
 .ghost:hover {
   color: var(--ink);
@@ -114,6 +126,7 @@ select.fld {
   border: 0;
   background: none;
   padding: 12px 0;
+  min-width: 44px;
   min-height: 44px;
   font-family: inherit;
   font-size: 13px;

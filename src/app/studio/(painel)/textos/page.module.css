@@ -109,7 +109,10 @@
 }
 .drafts a,
 .previews a {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  min-width: 44px;
+  min-height: 44px;
   padding: 12px 0;
   font-size: 13px;
   line-height: 1.35;
@@ -170,8 +173,10 @@
   font-size: 13px;
 }
 .previewLine a {
-  display: inline-block;
-  padding: 12px 0;
+  display: inline-flex;
+  align-items: center;
+  min-width: 44px;
+  min-height: 44px;
   text-decoration: none;
 }
 .previewNote {

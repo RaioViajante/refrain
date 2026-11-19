@@ -199,12 +199,24 @@
   font-size: 13px;
 }
 .action {
+  position: relative;
   display: inline-flex;
   align-items: center;
   min-height: 44px;
   padding: 0;
   text-decoration: none;
   white-space: nowrap;
+}
+/* At least 44 px wide, without lengthening the drawn line or moving the
+   shelf's columns. */
+.action::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100%, 44px);
+  height: max(100%, 44px);
+  translate: -50% -50%;
 }
 .delete {
   border: 0;

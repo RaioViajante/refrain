@@ -5,6 +5,9 @@
    the reference's height (54 px, 46 px on mobile). */
 .header {
   position: relative;
+  /* The links reach 2 px below the header; keep them above <main> and the
+     editor's sticky bar (z-index 5). The header has no background. */
+  z-index: 6;
   display: flex;
   justify-content: center;
   height: 54px;
@@ -39,10 +42,21 @@
   column-gap: 32px;
 }
 .link {
+  position: relative;
   display: inline-block;
   padding: 14px 0;
   line-height: 16px;
   background-position: 0 calc(100% - 11px);
+}
+/* At least 44 px wide, without lengthening the drawn line. */
+.link::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100%, 44px);
+  height: max(100%, 44px);
+  translate: -50% -50%;
 }
 .side {
   position: absolute;
