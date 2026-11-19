@@ -4,8 +4,8 @@ Instructions for anyone, human or agent, changing this repository. Tool-specific
 
 ## 1. State
 
-- **The root is a new application:** a public, artistic, personal mixtape archive with a private Studio, in English and Brazilian Portuguese, on Next.js, TypeScript, Drizzle, and PostgreSQL. **Its product model and visual direction are not defined yet.** Do not design tables, screens, or features until the owner defines them and authorizes the work.
-- **Decisions** are recorded in [`docs/decisions/`](docs/decisions/). [0001](docs/decisions/0001-rebuild-foundation.md) lists what is decided and what is still open. Follow them; to change one, propose a new record rather than diverging quietly.
+- **The root is a new application:** a public, artistic, personal mixtape archive with a private Studio, **in Brazilian Portuguese only**, on Next.js, TypeScript, Drizzle, and PostgreSQL. Its product model, visual direction, media, authentication, and hosting are decided in [0002](docs/decisions/0002-mixtape-archive-product.md). Features beyond them still need the owner's authorization.
+- **Decisions** are recorded in [`docs/decisions/`](docs/decisions/). Follow them; to change one, propose a new record rather than diverging quietly.
 - **The music diary (v3) is archived** in [`archive/music-diary-v3/`](archive/music-diary-v3/ARCHIVE.md), with its final state at the tag `music-diary-v3-final` and the branch `archive/music-diary-v3`. Its own `AGENTS.md` applies only to work on that branch.
 
 ## 2. The archive boundary
@@ -16,8 +16,8 @@ Instructions for anyone, human or agent, changing this repository. Tool-specific
 
 ## 3. Database and hosting
 
-- The new application has **no hosted database and no hosting.** It uses only the local Compose database (`compose.yaml`, project `refrain-mixtapes`). Drizzle Kit refuses non-local hosts and the archive's local databases ([`src/db/env.ts`](src/db/env.ts)).
-- Choosing hosting or a hosted database is an owner decision, recorded before it is set up.
+- Hosting is decided ([0002](docs/decisions/0002-mixtape-archive-product.md) § 7: a new Vercel project and a new Neon database) but **not set up yet**. Until it is, the application uses only the local Compose databases (`compose.yaml`, project `refrain-mixtapes`: development, and a disposable `postgres-test`). Drizzle Kit refuses non-local hosts and the archive's local databases ([`src/db/env.ts`](src/db/env.ts)).
+- Setting up the hosted project, applying migrations to it, and moving the domain each need the owner's explicit approval at that step.
 - Migrations are generated, read, and committed (`pnpm db:generate`); never `drizzle-kit push`, and never applied automatically to a hosted database.
 - Declare integrity in PostgreSQL (keys, `NOT NULL`, `UNIQUE`, `CHECK`), not only in TypeScript.
 
@@ -31,8 +31,8 @@ Instructions for anyone, human or agent, changing this repository. Tool-specific
 
 ## 5. Interface
 
-- Accessibility is required: keyboard operation, visible focus, 44 px targets, `prefers-reduced-motion`, and correct `lang` (`en`, `pt-BR`).
-- Do not invent a visual identity before the owner approves one. Never generate the owner's artwork; edit artwork or photographs only with the owner's explicit authorization, keeping the originals intact and their provenance and rights recorded (`refrain-design`). `reference/` is local-only and never committed or linked.
+- Accessibility is required: keyboard operation, visible focus, 44 px targets, `prefers-reduced-motion`, and `lang="pt-BR"`.
+- Implement the approved visual direction with high fidelity; do not redesign it (`refrain-design`). Never generate the owner's artwork; edit artwork or photographs only with the owner's explicit authorization, keeping the originals intact and their provenance and rights recorded (`refrain-design`). `reference/` is local-only and never committed or linked.
 
 ## 6. Engineering
 
@@ -45,3 +45,13 @@ Instructions for anyone, human or agent, changing this repository. Tool-specific
 ## 7. Handoff
 
 End each session with: **State** (branch, last commit, PR, working tree), **Done**, **Verified** (commands and actual results), **Not verified / risks**, and **Next**.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
