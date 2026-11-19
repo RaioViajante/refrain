@@ -16,8 +16,9 @@ Instructions for anyone, human or agent, changing this repository. Tool-specific
 
 ## 3. Database and hosting
 
-- Hosting is decided ([0002](docs/decisions/0002-mixtape-archive-product.md) § 7: a new Vercel project and a new Neon database) but **not set up yet**. Until it is, the application uses only the local Compose databases (`compose.yaml`, project `refrain-mixtapes`: development, and a disposable `postgres-test`). Drizzle Kit refuses non-local hosts and the archive's local databases ([`src/db/env.ts`](src/db/env.ts)).
-- Setting up the hosted project, applying migrations to it, and moving the domain each need the owner's explicit approval at that step.
+- Hosting ([0002](docs/decisions/0002-mixtape-archive-product.md) § 7): the Vercel project `refrain-mixtapes` (no Git connection, every deployment behind Vercel Authentication) and the Neon database `refrain-mixtapes-db`, connected to Preview only. Nothing is public until the cutover in [`docs/runbooks/cutover.md`](docs/runbooks/cutover.md), which runs only with the owner's final approval.
+- Local work uses only the Compose databases (`compose.yaml`, project `refrain-mixtapes`: development, and a disposable `postgres-test`). Drizzle Kit refuses non-local hosts and the archive's local databases ([`src/db/env.ts`](src/db/env.ts)). The hosted database is migrated only with `scripts/migrate-hosted.mts`, which validates the target first.
+- Never deploy from this repository to the archived application's Vercel project `refrain`, and never touch its Neon databases (`refrain-db`, `refrain-v3-staging`).
 - Migrations are generated, read, and committed (`pnpm db:generate`); never `drizzle-kit push`, and never applied automatically to a hosted database.
 - Declare integrity in PostgreSQL (keys, `NOT NULL`, `UNIQUE`, `CHECK`), not only in TypeScript.
 

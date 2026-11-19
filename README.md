@@ -9,8 +9,8 @@ The previous application, the Refrain **music diary (v3)**, is retired, not dele
 | | New application (root) | Archived music diary |
 | --- | --- | --- |
 | Code | `src/`, root configuration | `archive/music-diary-v3/`, read-only |
-| Database | local Compose only (`refrain-mixtapes`: port 5442, and a disposable test database on 5443); a new Neon database is planned | its own Neon databases and local Compose project `refrain`, untouched |
-| Hosting | none yet; a new Vercel project is planned | Vercel project `refrain` and `refrain.raioviajante.com`, untouched |
+| Database | local Compose (`refrain-mixtapes`: port 5442, and a disposable test database on 5443); Neon `refrain-mixtapes-db` for the preview | its own Neon databases and local Compose project `refrain`, untouched |
+| Hosting | Vercel project `refrain-mixtapes`, private preview only ([cutover runbook](docs/runbooks/cutover.md)) | Vercel project `refrain` and `refrain.raioviajante.com`, untouched |
 | CI | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) | not run; its workflow is kept, inert, in the archive |
 
 The new application never imports from the archive (ESLint refuses it), never shares its database (Drizzle Kit refuses it), and is never deployed to the archived application's Vercel project.
@@ -32,7 +32,18 @@ To sign in to the Studio (`/studio`), set `STUDIO_EMAIL` and `STUDIO_PASSWORD_HA
 
 Use a checkout of this application with its own `.env`. A directory that still holds the music diary's `.env` points `DATABASE_URL` at that application's data; Drizzle Kit refuses it, but the file is still the wrong one.
 
-Checks (CI runs the same): `pnpm lint`, `pnpm format:check`, `pnpm typecheck`, `pnpm test`, `pnpm test:db` (after `pnpm db:test:up`, a disposable in-memory database), `pnpm audit --audit-level=high`, `pnpm db:check`, `pnpm build`.
+Checks (CI runs the same): `pnpm lint`, `pnpm format:check`, `pnpm typecheck`, `pnpm test`, `pnpm test:db` (after `pnpm db:test:up`, a disposable in-memory database), `pnpm audit --audit-level=high`, `pnpm db:check`, `pnpm build`, `pnpm test:e2e`.
+
+Browser tests (Playwright, Chromium, at 1440 × 900 and 390 × 844) run against the production build:
+
+```sh
+pnpm test:e2e:install   # once: downloads Chromium
+pnpm db:test:up         # the disposable postgres-test service
+pnpm build              # the tests serve this build; rebuild after changes
+pnpm test:e2e           # starts `pnpm start --port 3300`, or reuses one already there
+```
+
+They use their own database, `refrain_mixtapes_e2e_test` on `postgres-test`, which `e2e/global-setup.ts` creates, rebuilds from the migrations, and seeds with synthetic `[Test]` records on every run. The Studio email and password they sign in with (`e2e/support/env.ts`) are test-only and open nothing else. Reports go to `playwright-report/` and `test-results/` (ignored by Git); `pnpm exec playwright show-report` opens the last one.
 
 Design references live in `reference/`, which is local-only and never committed (see `refrain-design`).
 
