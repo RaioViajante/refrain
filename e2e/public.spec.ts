@@ -58,6 +58,38 @@ test.describe("public pages", () => {
     ).toBeVisible();
   });
 
+  test("home lays out two tapes without changing the mobile composition", async ({
+    page,
+    isMobile,
+  }) => {
+    await page.goto("/");
+
+    const featured = page
+      .getByRole("heading", { name: "02 mixtapes" })
+      .locator("xpath=ancestor::section");
+    const cards = featured.getByRole("link");
+    const first = await cards.nth(0).boundingBox();
+    const second = await cards.nth(1).boundingBox();
+    const archive = page
+      .getByRole("heading", { name: "o arquivo" })
+      .locator("xpath=ancestor::section");
+    const archiveBox = await archive.boundingBox();
+
+    expect(first).not.toBeNull();
+    expect(second).not.toBeNull();
+    expect(archiveBox).not.toBeNull();
+
+    if (isMobile) {
+      expect(first!.x).toBeCloseTo(20, 0);
+      expect(second!.x).toBeCloseTo(110, 0);
+      expect(archiveBox!.height).toBeCloseTo(550, 0);
+    } else {
+      expect(first!.x).toBeCloseTo(362.5, 0);
+      expect(second!.x).toBeCloseTo(777.5, 0);
+      expect(archiveBox!.height).toBeCloseTo(650, 0);
+    }
+  });
+
   test("catalogue filters by feeling and switches to the index", async ({
     page,
   }) => {

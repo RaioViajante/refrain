@@ -203,6 +203,14 @@
   top: 25cqw;
   width: 22.917%;
 }
+@media (min-width: 48rem) {
+  .twoFeatured .card0 {
+    left: 25.174%;
+  }
+  .twoFeatured .card1 {
+    left: 53.993%;
+  }
+}
 .cover {
   display: block;
   width: 100%;
@@ -449,15 +457,15 @@
 
 /* ---------- 004 · the archive (1440 × 1260) ---------- */
 .s004 {
-  aspect-ratio: 1440 / 1260;
+  aspect-ratio: 1440 / var(--dh);
 }
 .s004 .num {
-  top: 1.905%;
+  top: 1.667cqw;
 }
 .archHead {
   position: absolute;
   left: 0;
-  top: 4.762%;
+  top: 4.167cqw;
   width: 100%;
   text-align: center;
 }
@@ -489,7 +497,7 @@
   left: var(--cl);
   top: var(--ct);
   width: 7.639%;
-  height: 8.73%;
+  height: 7.639cqw;
   display: block;
 }
 .nodeLink {
@@ -517,7 +525,7 @@
 .archNote {
   position: absolute;
   left: 0;
-  top: 93.651%;
+  top: calc((var(--dh) - 80) * 1cqw / 14.4);
   width: 100%;
   margin: 0;
   font-size: max(10.5px, 0.903cqw);
