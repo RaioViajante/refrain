@@ -91,6 +91,7 @@
 }
 .button,
 .viewButton {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -100,6 +101,17 @@
   background: transparent;
   font: inherit;
   cursor: pointer;
+}
+/* At least 44 px wide, without moving the toggle. */
+.button::after,
+.viewButton::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100%, 44px);
+  height: max(100%, 44px);
+  translate: -50% -50%;
 }
 .button {
   font-weight: 400;

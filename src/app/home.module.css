@@ -505,6 +505,8 @@
   left: var(--tl);
   top: var(--tt);
   display: block;
+  /* 44 px target; the title and theme keep their reference positions. */
+  min-height: 44px;
   /* One line, as in the reference; a title that would run past the right
      edge wraps instead of being cut. */
   text-decoration: none;
@@ -892,8 +894,6 @@
   .nodeLink {
     top: calc((var(--my) - 22) * 1cqw / 3.9);
     width: 58.974cqw;
-    /* 44 px target; the title and theme keep their reference positions. */
-    min-height: 44px;
   }
   .nodeLeft .nodeStar {
     left: 4.872cqw;

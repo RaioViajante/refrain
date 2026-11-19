@@ -91,7 +91,8 @@ img {
   position: absolute;
   left: 16px;
   top: -100px;
-  z-index: 10;
+  /* Above the Studio preview banner (z-index 100), so focus stays visible. */
+  z-index: 110;
   padding: 14px 16px;
   background: var(--ink);
   color: var(--paper);
