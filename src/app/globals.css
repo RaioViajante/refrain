@@ -103,41 +103,11 @@ img {
   color: var(--paper);
 }
 
-/* Cursor: an ink dot; a record seen from above over links and buttons. */
-.rf,
-.rf * {
-  cursor:
-    url(/icones/cursor-dot.png) 16 16,
-    auto;
-  cursor:
-    -webkit-image-set(
-        url(/icones/cursor-dot.png) 1x,
-        url(/icones/cursor-dot@2x.png) 2x
-      )
-      16 16,
-    auto;
-}
-.rf a,
-.rf a *,
-.rf button,
-.rf button *,
-.rf label[for],
-.rf select {
-  cursor:
-    url(/icones/cursor-ring.png) 16 16,
-    pointer;
-  cursor:
-    -webkit-image-set(
-        url(/icones/cursor-ring.png) 1x,
-        url(/icones/cursor-ring@2x.png) 2x
-      )
-      16 16,
-    pointer;
-}
-.rf input:not([type="checkbox"], [type="radio"]),
-.rf textarea {
-  cursor: text;
-}
+/*
+ * The reference's custom cursor (an ink dot, a record over links) is pending:
+ * its image files are not cleared for publication (docs/assets.md). Until
+ * they are, the system cursor is used.
+ */
 .rf img {
   -webkit-user-drag: none;
 }
@@ -162,14 +132,17 @@ footer .nl {
 }
 
 /* Home mark: the star turns a quarter on hover. */
-.hm img {
+.hm img,
+.hm span {
   display: block;
   transition:
     rotate 0.9s var(--out),
     scale 0.9s var(--out);
 }
 .hm:hover img,
-.hm:focus-visible img {
+.hm:hover span,
+.hm:focus-visible img,
+.hm:focus-visible span {
   rotate: 90deg;
   scale: 1.2;
 }

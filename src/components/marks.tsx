@@ -3,9 +3,16 @@ import type { CSSProperties } from "react";
 
 import { cx } from "@/lib/cx";
 
-// The owner's drawn marks (public/marcas/, provenance in docs/assets.md).
-// Rules (refrain-design): at most one star per section; the engraving only
-// opens inner pages; nothing right before the footer. Always decorative.
+/**
+ * Whether the drawn marks (four stars and the tree engraving) may be
+ * published. They are not yet: their authorship and licence are unverified
+ * (docs/assets.md, "Pending"). Until the owner documents them, every mark
+ * renders nothing and pages keep their layout without it. To ship them, add
+ * the files to public/marcas/, record them in docs/assets.md, and set this
+ * to true; src/assets.test.ts then checks that each file is recorded.
+ */
+export const MARKS_CLEARED = false;
+
 const SPARKLES = {
   1: { src: "/marcas/sparkle1.png", width: 360, height: 377 },
   2: { src: "/marcas/sparkle2.png", width: 392, height: 464 },
@@ -13,9 +20,18 @@ const SPARKLES = {
   4: { src: "/marcas/sparkle4.png", width: 516, height: 372 },
 } as const;
 
+export const MARK_FILES = [
+  ...Object.values(SPARKLES).map((s) => s.src),
+  "/marcas/eng_trees_r.png",
+];
+
 export type SparkleKind = keyof typeof SPARKLES;
 
-/** A drawn star that breathes (7 s), each one out of step by `delay`. */
+/**
+ * A drawn star that breathes (7 s), each one out of step by `delay`. Rules
+ * (refrain-design): at most one star per section; nothing right before the
+ * footer. Always decorative.
+ */
 export function Sparkle({
   kind,
   className,
@@ -31,6 +47,7 @@ export function Sparkle({
   rotate?: number;
   sizes?: string;
 }) {
+  if (!MARKS_CLEARED) return null;
   const { src, width, height } = SPARKLES[kind];
   return (
     <Image
@@ -63,6 +80,7 @@ export function Trees({
   style?: CSSProperties;
   sizes?: string;
 }) {
+  if (!MARKS_CLEARED) return null;
   return (
     <Image
       src="/marcas/eng_trees_r.png"

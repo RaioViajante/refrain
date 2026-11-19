@@ -18,10 +18,10 @@
   width: 44px;
   height: 44px;
 }
-.home img {
-  width: 15px;
-  height: 15px;
-  object-fit: contain;
+.star {
+  display: block;
+  font-size: 15px;
+  line-height: 1;
 }
 
 .nav {

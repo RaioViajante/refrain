@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 
 import { cx } from "@/lib/cx";
@@ -23,7 +22,11 @@ export function SiteHeader({
     <header className={styles.header}>
       {home ? null : (
         <Link href="/" className={cx("hm", styles.home)} aria-label="Início">
-          <Image src="/icones/mark_600.png" width={15} height={15} alt="" />
+          {/* The star mark is pending (docs/assets.md); a typographic star
+              stands in for it so the link stays visible. */}
+          <span aria-hidden="true" className={styles.star}>
+            ✦
+          </span>
         </Link>
       )}
       <nav aria-label="Principal" className={styles.nav}>

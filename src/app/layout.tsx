@@ -19,14 +19,8 @@ export const metadata: Metadata = {
   description:
     "um arquivo pessoal de mixtapes — músicas presas a sentimentos, lembranças e aos momentos a que pertencem.",
   robots: { index: false, follow: false },
-  icons: {
-    icon: [
-      { url: "/icones/favicon.svg", type: "image/svg+xml" },
-      { url: "/icones/favicon-32.png", sizes: "32x32", type: "image/png" },
-      { url: "/icones/favicon-16.png", sizes: "16x16", type: "image/png" },
-    ],
-    apple: { url: "/icones/apple-touch-icon.png", sizes: "180x180" },
-  },
+  // Favicons are pending: their files are not cleared for publication
+  // (docs/assets.md).
 };
 
 export const viewport: Viewport = {

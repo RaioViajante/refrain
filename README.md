@@ -35,4 +35,4 @@ Design references live in `reference/`, which is local-only and never committed 
 
 ## Licence
 
-The source code and documentation are under the [MIT License](LICENSE). The artwork in `public/marcas/` and `public/icones/` is all rights reserved ([`LICENSE-ARTWORK.md`](LICENSE-ARTWORK.md), provenance in [`docs/assets.md`](docs/assets.md)). The archived application's original artwork is all rights reserved, and the design references in the repository's history are not licensed: see [`archive/music-diary-v3/LICENSE-ARTWORK.md`](archive/music-diary-v3/LICENSE-ARTWORK.md). To report a security problem, see [SECURITY.md](SECURITY.md).
+The source code and documentation are under the [MIT License](LICENSE). It does not cover any artwork, photograph, or text the application displays ([`LICENSE-ARTWORK.md`](LICENSE-ARTWORK.md), [`docs/assets.md`](docs/assets.md)). The archived application's original artwork is all rights reserved, and the design references in the repository's history are not licensed: see [`archive/music-diary-v3/LICENSE-ARTWORK.md`](archive/music-diary-v3/LICENSE-ARTWORK.md). To report a security problem, see [SECURITY.md](SECURITY.md).

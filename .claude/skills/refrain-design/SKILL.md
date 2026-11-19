@@ -28,7 +28,7 @@ A personal mixtape archive as an editorial zine: paper, ink, one typeface, faded
 
 ### Components and layouts
 - **Shared classes** keep the reference's names so screens can be compared rule by rule: `rf` (cursor), `pg` (page fade), `nl` (line link), `pl` (▶ link), `hm` (home star), `cv`/`tape` (cover lift), `mood`, `trk` (track hover), `tw` (star breath), `t-in`/`t-in2`, `dev-in`, `rv`, `q`, `ph`, `march`.
-- **Components** (`src/components/`): `SiteHeader` (star home link, absent on the home page; centred menu; current page underlined with `aria-current`; never the word "refrain"), `SiteFooter` (the road photograph on every public page, `~ refrain ~`, menu, `vol. I · 2026`), `Sparkle` and `Trees` (marks), `PlayLink` and `LineLink`, `Photo` (owner photographs with treatment and focal point).
+- **Components** (`src/components/`): `SiteHeader` (star home link, absent on the home page; a typographic ✦ until the star mark is cleared; centred menu; current page underlined with `aria-current`; never the word "refrain"), `SiteFooter` (the road photograph on every public page, `~ refrain ~`, menu, `vol. I · 2026`), `Sparkle` and `Trees` (marks; they render nothing until cleared, `MARKS_CLEARED`), `PlayLink` and `LineLink`, `Photo` (owner photographs with treatment and focal point).
 - **Title rules:** a title over a photograph starts half its font size above the photograph's foot (68 px at 136, 29 px at 58). A two-line title's second line starts 0.375 × the size before the first line ends (51 px at 136); on mobile, always 75 px after the first line's start.
 - **Marks:** at most one star per section; the tree engraving only opens inner pages; nothing right before the footer; 22 px stars mark track notes.
 - **Studio:** same paper and type; the primary action is a black, square-cornered button.
@@ -59,7 +59,8 @@ A personal mixtape archive as an editorial zine: paper, ink, one typeface, faded
 **Artwork and photographs:**
 - preserve originals: never generate the owner's artwork, and never edit an asset without the owner's explicit authorization for that edit;
 - authorized edits produce a new file; the original stays intact, byte for byte;
-- every committed artwork file is listed in `docs/assets.md` with its source and SHA-256 (`src/assets.test.ts` enforces it), under `LICENSE-ARTWORK.md`;
+- artwork is published only with evidence of the right to publish it: the owner's documented authorship or a verifiable licence. The owner's permission alone is not that evidence. Every shipped file is listed in `docs/assets.md` with its author, evidence, and SHA-256 (`src/assets.test.ts` enforces it); the reference's marks and icons are pending there;
+- never write that the owner made or owns a file unless the owner has said so;
 - photographs are never committed. They are uploaded in the Studio and appear publicly only once the owner confirms the right to publish them;
 - editing a file, by hand or with AI, does not grant copyright or publication rights.
 
