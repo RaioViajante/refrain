@@ -19,8 +19,10 @@ Run every command from a checkout linked to `refrain-mixtapes` (`cat .vercel/pro
 
 ## 1. Backups (and a tested restore) before anything moves
 
-1. New database: `vercel env pull <outside>/preview.env --environment=preview --yes`, then `scripts/backup-hosted.sh <outside>/preview.env`. It must end with **"restore verified: every table matches."** Keep `backups/refrain-*.dump` and its `.sha256` (git-ignored) and copy them to a second place.
-2. Archived music diary (read-only, for rollback insurance): pull **its** production env into a separate file and run `pg_dump --format=custom` against it with the same Docker image (or `scripts/backup-hosted.sh` with that file), restore-test it the same way. Nothing is written to its database.
+`scripts/backup-database.sh <env-file> <label>` works for any PostgreSQL database: it discovers the tables itself, connects to the source **read-only** (`default_transaction_read_only=on`, enforced by the server), writes `backups/<label>-<UTC>.dump` with its `.sha256` (git-ignored), restores it into a throwaway container, and compares, for every table, the row count and a content checksum (an md5 per row over its full text, photos' bytes included, sorted and combined). It prints **"restore verified"** only if every table matches; otherwise it fails with the differing tables. `BACKUP_SELFTEST_TAMPER=1` alters the throwaway copy to prove a difference is caught (it must fail).
+
+1. **New Refrain:** `vercel env pull <outside>/preview.env --environment=preview --yes` (from this checkout, linked to `refrain-mixtapes`), then `scripts/backup-database.sh <outside>/preview.env refrain`. Copy the `.dump` and `.sha256` to a second place.
+2. **Archived music diary (another schema; never modified):** in a **separate, empty temporary directory** (never this checkout), `vercel link --project refrain --yes` and `vercel env pull <outside>/v3.env --environment=production --yes`; then, from this checkout, `scripts/backup-database.sh <outside>/v3.env music-diary-v3`. The script only reads the source. If the throwaway restore stops on a missing extension, note it and keep the dump: the dump itself is the backup. Delete the temporary directory and `v3.env` afterwards.
 
 ## 2. Production configuration of `refrain-mixtapes`
 
@@ -54,10 +56,10 @@ Run every command from a checkout linked to `refrain-mixtapes` (`cat .vercel/pro
 
 1. Remove `refrain.raioviajante.com` from `refrain-mixtapes`; add it back to `refrain` (the archived deployment is untouched and still built). Minutes; no DNS change.
 2. Restore `refrain-mixtapes` protection to `all`.
-3. Data: nothing to restore for the archive. For the new database, restore the step-1 dump into a Neon branch if content was damaged.
+3. Data: nothing to restore for the archive. For the new database, if content was damaged, restore the step-1 dump into a new Neon branch with `pg_restore` (Neon accepts it unchanged) and point the project at it.
 
 ## 7. Afterwards (separate owner decisions)
 
 - Revoke the preview's "automation bypass" secret if no longer needed (Project → Settings → Deployment Protection).
-- Schedule backups of the new database (e.g. weekly `scripts/backup-hosted.sh`).
+- Schedule backups of the new database (e.g. weekly `scripts/backup-database.sh`).
 - Retire the archived project and databases only on the owner's explicit instruction; never delete them as part of this cutover.
