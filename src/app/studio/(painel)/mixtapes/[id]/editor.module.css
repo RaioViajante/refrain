@@ -1,0 +1,903 @@
+/*
+ * Reference: StudioEditor.dc.html (1440) and StudioEditorMobile.dc.html
+ * (390). <main> is 1360 px of content plus 40 px of padding on each side.
+ */
+
+/* ---------- sticky bar ---------- */
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: rgba(251, 251, 248, 0.96);
+  border-bottom: 1px solid var(--ink);
+}
+.barInner {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 10px 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+.back {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 13px;
+  text-decoration: none;
+}
+.backMain {
+  display: none;
+}
+.barRight {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  column-gap: 28px;
+}
+.status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-mid);
+}
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink);
+}
+.barError {
+  margin: 0;
+  max-width: 360px;
+  font-size: 13px;
+}
+.barLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 13px;
+  text-decoration: none;
+}
+
+/* ---------- page ---------- */
+.main {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 40px 160px;
+}
+.hero {
+  position: relative;
+  display: grid;
+  /* 560 and 420 of the board's 1360 px of content. */
+  grid-template-columns: 41.176% 30.882%;
+  align-items: start;
+  min-height: 290px;
+  padding-top: 140px;
+}
+.label,
+.page {
+  position: absolute;
+  top: 60px;
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+.label {
+  left: 0;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+.page {
+  right: 0;
+  font-size: 12px;
+}
+.title {
+  margin: 0 0 0 -10px;
+  padding-right: 24px;
+  font-weight: 400;
+  font-size: 96px;
+  letter-spacing: -0.035em;
+  line-height: 1;
+  overflow-wrap: anywhere;
+}
+.untitled {
+  color: var(--text-faint);
+}
+.lede {
+  margin: 46px 0 0;
+  font-style: italic;
+  font-size: 22px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: 80px;
+  align-items: start;
+}
+
+/* ---------- sections ---------- */
+.sectionFirst {
+  margin-top: 80px;
+}
+.section {
+  margin-top: 90px;
+}
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--ink);
+}
+.sectionTitle {
+  margin: 0;
+  font-weight: 400;
+  font-size: 32px;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+.sectionAside {
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+}
+.sectionNote {
+  font-style: italic;
+  font-size: 14px;
+  color: var(--text-soft);
+}
+.sectionNo {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+.sectionHint {
+  margin: 14px 0 0;
+  font-size: 13px;
+  color: var(--text-meta);
+  line-height: 1.5;
+}
+
+/* ---------- fields ---------- */
+.field {
+  margin-top: 28px;
+}
+.fieldLabel {
+  display: block;
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-meta);
+}
+.hintText {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--text-meta);
+  line-height: 1.5;
+}
+.fieldError {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.f15 {
+  font-size: 15px;
+}
+.f17 {
+  font-size: 17px;
+}
+.f20 {
+  font-size: 20px;
+}
+.reflection {
+  font-size: 17px;
+}
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 0 30px;
+}
+.pairWide {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 0 30px;
+}
+.slug {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  font-size: 15px;
+  color: var(--text-meta);
+}
+.segGroup {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.segGroup > :global(.seg) + :global(.seg) {
+  border-left: 0;
+}
+.rankMove {
+  margin: 6px 0 0;
+  font-style: italic;
+  font-size: 14px;
+  color: var(--text-soft);
+}
+.small {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0;
+  font-size: 13px;
+  text-decoration: none;
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  font-size: 15px;
+}
+.check :global(.chk) {
+  flex: none;
+}
+
+/* ---------- 01 photographs ---------- */
+.photoCover {
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  gap: 30px 40px;
+  margin-top: 26px;
+}
+.photoDetail {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 30px 40px;
+  margin-top: 56px;
+  padding-top: 40px;
+  border-top: 1px solid var(--rule-soft);
+}
+.figure {
+  margin: 0;
+  min-width: 0;
+}
+.photo {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+  transition:
+    filter 0.5s,
+    object-position 0.5s;
+}
+.blank {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  border: 1px solid var(--rule-soft);
+  font-style: italic;
+  font-size: 14px;
+  color: var(--text-meta);
+}
+.figcaption {
+  margin-top: 8px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--text-meta);
+}
+.photoActions {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 22px;
+  margin-top: 10px;
+  font-size: 13px;
+}
+.photoActions :global(.ghost) {
+  padding: 0;
+  font-size: 13px;
+}
+.fileLabel {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+}
+.fileLabel:has(input:focus-visible) {
+  outline: 1px dashed currentColor;
+  outline-offset: 4px;
+}
+.fileInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+}
+.upload,
+.picker {
+  margin-top: 14px;
+  padding: 18px 0 4px;
+  border-top: 1px solid var(--rule-soft);
+}
+.uploadPreview {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  margin-top: 12px;
+  background: var(--rule-soft);
+}
+.uploadPreview img {
+  object-fit: cover;
+}
+.uploadActions {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  margin-top: 22px;
+}
+.panelError {
+  margin: 12px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.pickList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.pick {
+  position: relative;
+  display: block;
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.pick img {
+  display: block;
+}
+.pick:hover img {
+  outline: 1px solid var(--ink);
+}
+.pickFlag {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 1px 2px;
+  background: rgba(251, 251, 248, 0.9);
+  font-size: 10.5px;
+  color: var(--ink);
+  text-align: center;
+}
+.photoFields {
+  min-width: 0;
+}
+.photoName {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+}
+.photoFields > .hintText:first-of-type {
+  margin-top: 4px;
+}
+.rightsOk,
+.rightsMissing {
+  margin: 14px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.rightsOk {
+  color: var(--text-mid);
+}
+.rightsMissing {
+  font-style: italic;
+  color: var(--ink);
+}
+.focusRow {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-top: 28px;
+}
+.focusGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 44px);
+  border-top: 1px solid var(--rule-soft);
+  border-left: 1px solid var(--rule-soft);
+}
+.focusGrid button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-right: 1px solid var(--rule-soft);
+  border-bottom: 1px solid var(--rule-soft);
+  background: none;
+}
+.focusGrid button:hover {
+  background: rgba(20, 20, 20, 0.04);
+}
+.focusGrid span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1px solid var(--ink);
+}
+.focusGrid button[aria-pressed="true"] span {
+  background: var(--ink);
+}
+.focusName {
+  margin: 4px 0 0;
+  font-size: 15px;
+}
+.segRow {
+  margin-top: 28px;
+}
+.segRow .segGroup {
+  margin-top: 8px;
+}
+.where {
+  margin-top: 28px;
+}
+.where > .fieldLabel {
+  margin-bottom: 12px;
+}
+.whereRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 22px;
+}
+.whereFig {
+  margin: 0;
+}
+.whereFig figcaption {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-meta);
+}
+.thumbBlank {
+  display: block;
+  background: var(--rule-soft);
+}
+.whereShelf {
+  display: block;
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+}
+.wherePage {
+  position: relative;
+  width: 96px;
+  height: 104px;
+}
+.wherePageImg {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 84px;
+  height: 84px;
+  object-fit: cover;
+}
+.wherePage span:last-child,
+.whereShare span:last-child {
+  position: absolute;
+  white-space: nowrap;
+  letter-spacing: -0.04em;
+}
+.wherePage span:last-child {
+  left: 0;
+  top: 73px;
+  font-size: 22px;
+  line-height: 0.95;
+}
+.whereShare {
+  position: relative;
+  width: 150px;
+  height: 79px;
+  border: 1px solid var(--rule-soft);
+  overflow: hidden;
+}
+.whereShareImg {
+  position: absolute;
+  left: 6px;
+  top: 9px;
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+}
+.whereShare span:last-child {
+  left: 4px;
+  top: 51px;
+  font-size: 13px;
+}
+.photoNote {
+  margin: 40px 0 0;
+  padding-top: 22px;
+  border-top: 1px solid var(--rule-soft);
+  font-style: italic;
+  font-size: 14px;
+  color: var(--text-soft);
+}
+
+/* ---------- 03 tracks ---------- */
+.tracks {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+}
+.emptyTracks {
+  margin: 28px 0 0;
+  font-style: italic;
+  font-size: 17px;
+  color: var(--text-soft);
+}
+.side {
+  padding: 22px 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-meta);
+}
+.track {
+  border-bottom: 1px solid var(--rule-soft);
+}
+.trackLine {
+  display: grid;
+  grid-template-columns: 88px 40px minmax(0, 1.3fr) minmax(0, 1fr) 90px 44px;
+  align-items: center;
+  gap: 12px;
+  padding: 2px 0;
+}
+.arrows {
+  display: inline-flex;
+}
+.arrows :global(.arw2) {
+  font-size: 13px;
+}
+.trackNo {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--text-meta);
+}
+.trackTitle {
+  font-size: 18px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.trackArtist {
+  font-size: 17px;
+  color: var(--text-mid);
+  overflow-wrap: anywhere;
+}
+.trackArtistMobile {
+  display: none;
+}
+.noteBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.noteBtn:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+.noteStar,
+.noteMark {
+  font-size: 11px;
+}
+.remove {
+  width: 44px;
+  height: 44px;
+  font-size: 18px;
+}
+.notePanel {
+  padding: 4px 0 18px 100px;
+}
+.noteText {
+  font-style: italic;
+}
+.noteSide {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 12px;
+}
+.noteSide > .hintText {
+  margin: 0 14px 0 0;
+}
+.noteSide .segGroup {
+  margin-top: 0;
+}
+.add {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) auto;
+  gap: 14px 24px;
+  align-items: end;
+  margin-top: 30px;
+  padding: 22px 0 24px;
+  border-top: 1px solid var(--ink);
+}
+.addError {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 13px;
+}
+.whole {
+  margin-top: 40px;
+}
+.whole > .fieldLabel {
+  margin-bottom: 4px;
+}
+.peek {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.peekRow {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) minmax(0, 1fr) 24px;
+  gap: 12px;
+  align-items: baseline;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--rule-soft);
+  font-size: 15px;
+}
+.peekArtist {
+  display: none;
+}
+.peekArtistDesk,
+.peekArtist {
+  color: var(--text-mid);
+}
+.more {
+  min-height: 44px;
+  margin-top: 6px;
+  padding: 12px 0;
+  border: 0;
+  background-color: transparent;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+/* ---------- 04 publishing ---------- */
+.stateRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 36px;
+  padding-top: 16px;
+  border-top: 1px solid var(--rule-soft);
+}
+.stateLeft {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.stateLeft > .hintText {
+  margin: 0;
+}
+.stateRight {
+  display: flex;
+  gap: 26px;
+}
+
+/* ---------- preview ---------- */
+.asideCol {
+  align-self: stretch;
+  padding-top: 80px;
+}
+.preview {
+  position: sticky;
+  top: 100px;
+}
+.preview > .fieldLabel {
+  margin-bottom: 16px;
+}
+.previewBox {
+  padding: 24px 24px 28px;
+  border: 1px solid var(--rule-soft);
+}
+.previewLabel {
+  margin: 0;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.previewArt {
+  min-height: 330px;
+  margin-top: 14px;
+}
+.previewImg {
+  display: block;
+  width: 230px;
+  height: 230px;
+  margin-left: auto;
+  object-fit: cover;
+}
+/* A title over a photograph starts half its size above the photo's foot. */
+.previewTitle {
+  position: relative;
+  margin: -29px 0 0 -4px;
+  font-size: 58px;
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+  overflow-wrap: anywhere;
+}
+.previewDesc {
+  margin: 14px 0 0;
+  font-style: italic;
+  font-size: 15px;
+  line-height: 1.35;
+}
+.previewMeta {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-meta);
+  line-height: 1.5;
+}
+.preview > .hintText {
+  margin-top: 14px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .photo {
+    transition: none;
+  }
+}
+
+/* The preview needs its 380 px column; below that it steps aside. */
+@media (max-width: 74.99rem) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .asideCol {
+    display: none;
+  }
+}
+
+/* ---------- mobile (StudioEditorMobile.dc.html) ---------- */
+@media (max-width: 47.99rem) {
+  .barInner {
+    padding: 10px 20px;
+    gap: 12px;
+  }
+  .backBar,
+  .barLink {
+    display: none;
+  }
+  .barRight {
+    flex: 1;
+    justify-content: space-between;
+    column-gap: 12px;
+  }
+  .barError {
+    order: 3;
+    flex-basis: 100%;
+  }
+  .main {
+    padding: 0 20px 100px;
+  }
+  .backMain {
+    display: inline-flex;
+    margin-top: 18px;
+  }
+  .hero {
+    display: block;
+    min-height: 0;
+    padding: 0;
+  }
+  .label {
+    position: static;
+    margin-top: 18px;
+    font-size: 10.5px;
+  }
+  .page {
+    display: none;
+  }
+  .title {
+    margin: 40px 0 0 -3px;
+    padding: 0;
+    font-size: 44px;
+  }
+  .lede {
+    margin-top: 12px;
+    font-size: 17px;
+    line-height: 1.4;
+  }
+  .sectionFirst {
+    margin-top: 60px;
+  }
+  .sectionHead {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+  }
+  .sectionAside {
+    display: contents;
+  }
+  .sectionNo {
+    order: -1;
+    margin: 0 0 8px;
+    font-size: 10.5px;
+  }
+  .sectionNote {
+    margin-top: 6px;
+  }
+  .photoCover,
+  .photoDetail,
+  .pair,
+  .pairWide {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .trackLine {
+    grid-template-columns: 44px 34px minmax(0, 1fr) auto auto;
+  }
+  .arrows {
+    flex-direction: column;
+  }
+  .trackTitle {
+    font-size: 17px;
+  }
+  .trackArtist {
+    display: none;
+  }
+  .trackArtistMobile {
+    display: block;
+    margin-top: 2px;
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--text-mid);
+  }
+  .notePanel {
+    padding-left: 0;
+  }
+  .add {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .peekRow {
+    grid-template-columns: 40px minmax(0, 1fr) 24px;
+  }
+  .peekArtistDesk {
+    display: none;
+  }
+  .peekArtist {
+    display: inline;
+  }
+  .stateRight {
+    gap: 22px;
+  }
+}
