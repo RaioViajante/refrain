@@ -14,7 +14,7 @@ Run every command from a checkout linked to `refrain-mixtapes` (`cat .vercel/pro
 
 - [ ] `main` contains the release; CI is green on it (unit, integration, Playwright).
 - [ ] In the preview, the owner signed in with their own credentials (`pnpm studio:credentials`), reviewed and **published** the tapes and texts meant for launch, and uploaded the photographs with rights confirmed.
-- [ ] Indexing decided: pages keep `noindex` until the owner says otherwise (`next.config.ts`, `src/app/layout.tsx`).
+- [ ] Indexing (decided by the owner): the public site is indexable once officially published. Only a **production** deployment with `SITE_INDEXABLE=true` drops `noindex` (`src/lib/indexing.ts`); previews, local builds, and the Studio always send `noindex`, and `robots.txt` always disallows `/studio`.
 - [ ] The drawn marks, cursors, and favicons stay off unless their rights are documented (`docs/assets.md`).
 
 ## 1. Backups (and a tested restore) before anything moves
@@ -29,8 +29,9 @@ Run every command from a checkout linked to `refrain-mixtapes` (`cat .vercel/pro
 1. Database: connect `refrain-mixtapes-db` to the **Production** environment (Vercel → Storage → refrain-mixtapes-db → Projects → environments). The owner's reviewed content is already there.
    - Afterwards, previews should not write to the production database: disconnect it from Preview, or point Preview at a Neon branch.
 2. Owner credentials: `pnpm studio:credentials production` (prompts; nothing printed).
-3. Confirm with `vercel env ls production`: `DATABASE_URL`, `STUDIO_EMAIL`, `STUDIO_PASSWORD_HASH` present.
-4. Migrations: `HOSTED_DATABASE_URL=… node scripts/migrate-hosted.mts --expect-host <host>` (dry run), then with `--apply` if anything is pending.
+3. Indexing: `vercel env add SITE_INDEXABLE production` with the value `true` (Production only; never Preview).
+4. Confirm with `vercel env ls production`: `DATABASE_URL`, `STUDIO_EMAIL`, `STUDIO_PASSWORD_HASH`, `SITE_INDEXABLE` present.
+5. Migrations: `HOSTED_DATABASE_URL=… node scripts/migrate-hosted.mts --expect-host <host>` (dry run), then with `--apply` if anything is pending.
 
 ## 3. Production deployment (still private)
 
@@ -46,7 +47,7 @@ Run every command from a checkout linked to `refrain-mixtapes` (`cat .vercel/pro
 
 ## 5. After publication (within 15 minutes)
 
-- `curl -sI https://refrain.raioviajante.com/` → 200, `X-Robots-Tag: noindex, nofollow` (until indexing is decided), valid TLS.
+- `curl -sI https://refrain.raioviajante.com/` → 200, valid TLS, **no** `X-Robots-Tag`; `curl -sI https://refrain.raioviajante.com/studio/entrar` → `X-Robots-Tag: noindex, nofollow`; `/robots.txt` allows `/` and disallows `/studio`.
 - Pages: home, catalogue, every published tape, sobre, 404 — at 1440 and 390 px; footer and header links.
 - Privacy: a draft tape → 404; `/studio` → sign-in; a draft photo `/fotos/<id>` → 404; previews require a session.
 - Studio: sign in, save a harmless change and revert it, sign out.

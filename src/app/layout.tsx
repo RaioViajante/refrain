@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import type { ReactNode } from "react";
 
+import { isIndexable } from "@/lib/indexing";
+
 import "./globals.css";
 
 // Self-hosted at build time by next/font: no request to a font service at
@@ -18,7 +20,11 @@ export const metadata: Metadata = {
   title: { default: "refrain", template: "%s · refrain" },
   description:
     "um arquivo pessoal de mixtapes — músicas presas a sentimentos, lembranças e aos momentos a que pertencem.",
-  robots: { index: false, follow: false },
+  // Indexable only on an authorized production deployment; Studio layouts
+  // override this with noindex.
+  robots: isIndexable()
+    ? { index: true, follow: true }
+    : { index: false, follow: false },
   // Favicons are pending: their files are not cleared for publication
   // (docs/assets.md).
 };
