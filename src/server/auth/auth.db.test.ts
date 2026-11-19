@@ -32,12 +32,12 @@ describe("password hashing", () => {
   it("verifies the right password only", async () => {
     expect(await verifyPassword(PASSWORD, hash)).toBe(true);
     expect(await verifyPassword(`${PASSWORD} `, hash)).toBe(false);
-    expect(await verifyPassword(PASSWORD, "scrypt$1$1$1$x$y")).toBe(false);
+    expect(await verifyPassword(PASSWORD, "scrypt:1:1:1:x:y")).toBe(false);
   });
 
   it("refuses hashes with unsafe parameters", () => {
     expect(parsePasswordHash(hash)).not.toBeNull();
-    expect(parsePasswordHash(hash.replace("$16384$", "$1024$"))).toBeNull();
+    expect(parsePasswordHash(hash.replace(":16384:", ":1024:"))).toBeNull();
     expect(parsePasswordHash("plaintext")).toBeNull();
   });
 });

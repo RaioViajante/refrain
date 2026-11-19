@@ -1,5 +1,6 @@
 // Password hashing for the single Studio owner: scrypt from Node's crypto, no
-// dependency. Encoded as scrypt$<N>$<r>$<p>$<salt>$<hash> (base64url).
+// dependency. Encoded as scrypt:<N>:<r>:<p>:<salt>:<hash> (base64url). No "$":
+// .env loaders expand it as a variable.
 import { randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 
 const KEY_LENGTH = 64;
@@ -34,14 +35,14 @@ export async function hashPassword(
     params.p,
     salt.toString("base64url"),
     key.toString("base64url"),
-  ].join("$");
+  ].join(":");
 }
 
 type Parsed = { N: number; r: number; p: number; salt: Buffer; key: Buffer };
 
 /** Parses an encoded hash; null when malformed or outside safe parameters. */
 export function parsePasswordHash(encoded: string): Parsed | null {
-  const parts = encoded.split("$");
+  const parts = encoded.split(":");
   if (parts.length !== 6 || parts[0] !== "scrypt") return null;
   const [N, r, p] = parts.slice(1, 4).map(Number) as [number, number, number];
   const salt = Buffer.from(parts[4]!, "base64url");
