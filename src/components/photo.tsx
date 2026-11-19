@@ -50,6 +50,8 @@ export function Photo({
       aria-hidden={decorative || undefined}
       sizes={sizes}
       priority={priority}
+      // Local development storage (/media/) is served as is.
+      unoptimized={image.url.startsWith("/media/")}
       className={cx(image.treatment === "mood" && "mood", className)}
       style={{
         objectFit: "cover",

@@ -51,3 +51,6 @@ npm-debug.log*
 
 # Vercel CLI link (never committed).
 .vercel
+
+# Local development uploads (photographs). Never tracked.
+/.media/

@@ -9,3 +9,4 @@ local/
 pnpm-lock.yaml
 # Written by Drizzle Kit; CI regenerates it and compares it byte for byte.
 src/db/migrations/meta/
+.media/

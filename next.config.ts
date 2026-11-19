@@ -14,6 +14,18 @@ export const BASELINE_HEADERS = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  images: {
+    // Photographs uploaded in the Studio (Vercel Blob). A constant pattern,
+    // never built from request data.
+    remotePatterns: [
+      { protocol: "https", hostname: "*.public.blob.vercel-storage.com" },
+    ],
+  },
+  experimental: {
+    // Photograph uploads go through Server Actions; the server itself
+    // refuses anything over 4 MB (src/server/media/image-file.ts).
+    serverActions: { bodySizeLimit: "5mb" },
+  },
   async headers() {
     return [{ source: "/:path*", headers: [...BASELINE_HEADERS] }];
   },
