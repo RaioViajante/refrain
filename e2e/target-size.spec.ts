@@ -41,7 +41,7 @@ const OVERLAPPING_ROWS = [
   'a[aria-label^="Ouvir "][aria-label$=" no Spotify (abre em nova aba)"]',
   // /studio/textos, "ainda em rascunho": 38 px rows (li + li, −6 px).
   'nav[aria-label="Rascunhos"] a',
-];
+] as const;
 
 test("every visible control has a 44 × 44 px target", async ({
   browser,
@@ -149,4 +149,103 @@ test("every visible control has a 44 × 44 px target", async ({
     [...new Set(tolerated.map((f) => f.overlaps))].sort(),
     "Each OVERLAPPING_ROWS entry must still occur; remove the ones that do not.",
   ).toEqual([...OVERLAPPING_ROWS].sort());
+});
+
+test.describe("the target measurement", () => {
+  // The helper's logic does not depend on the viewport.
+  test.skip(({ isMobile }) => isMobile, "measured once, on desktop");
+
+  test("a play link whose own area is cut to 30 px is no longer tolerated", async ({
+    page,
+  }) => {
+    const playLinks = OVERLAPPING_ROWS[0];
+    const measure = async () =>
+      (await findUndersizedTargets(page, "body", OVERLAPPING_ROWS)).filter(
+        (t) => t.name.startsWith("Ouvir "),
+      );
+
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/mixtapes/e2e-fita-longa");
+    const before = await measure();
+    expect(before.length).toBeGreaterThan(0);
+    expect(before.every((t) => t.overlaps === playLinks)).toBe(true);
+
+    await page.addStyleTag({
+      content: `${playLinks}::after { height: 30px !important; }`,
+    });
+    // The reduced-motion rule gives every property a 0.01 ms transition:
+    // wait for the new height to apply.
+    await expect
+      .poll(() =>
+        page
+          .locator(playLinks)
+          .evaluateAll((links) =>
+            links.every(
+              (l) => getComputedStyle(l, "::after").height === "30px",
+            ),
+          ),
+      )
+      .toBe(true);
+    const after = await measure();
+    expect(after.length).toBeGreaterThanOrEqual(before.length);
+    expect(after.filter((t) => t.overlaps)).toEqual([]);
+  });
+
+  test("tolerates overlapping rows only with a 44 px area of their own and a clickable centre", async ({
+    page,
+  }) => {
+    const rows = ["ul.rows a"];
+    // Three rows 30 px apart; each link's ::after is set per case.
+    const fixture = (after: string, extra = "") => `
+      <style>
+        body { margin: 0; font: 13px/15px sans-serif; }
+        ul.rows { list-style: none; margin: 200px 0; padding: 0 200px; }
+        ul.rows li { height: 30px; }
+        ul.rows a { position: relative; display: inline-block; }
+        ul.rows a::after { content: ""; position: absolute; ${after} }
+        ${extra}
+      </style>
+      <ul class="rows">
+        <li><a href="#a">primeira</a></li>
+        <li><a href="#b">segunda</a></li>
+        <li><a href="#c">terceira</a></li>
+      </ul>`;
+    const measure = async (after: string, extra?: string) => {
+      await page.setContent(fixture(after, extra));
+      return findUndersizedTargets(page, "body", rows);
+    };
+    const enlarged =
+      "left: 50%; top: 50%; width: max(100%, 44px); height: 44px; translate: -50% -50%;";
+
+    // A real 44 px area, cut only by the next row's: tolerated.
+    const overlapping = await measure(enlarged);
+    expect(overlapping.length).toBeGreaterThan(0);
+    expect(overlapping.every((t) => t.overlaps === rows[0])).toBe(true);
+
+    // An absolute ::after that does not enlarge anything: not tolerated.
+    const noArea = await measure("inset: 0;");
+    expect(noArea).toHaveLength(3);
+    expect(noArea.filter((t) => t.overlaps)).toEqual([]);
+
+    // A 44 px wide but 30 px tall area: not tolerated.
+    const short = await measure(
+      "left: 50%; top: 50%; width: 44px; height: 30px; translate: -50% -50%;",
+    );
+    expect(short).toHaveLength(3);
+    expect(short.filter((t) => t.overlaps)).toEqual([]);
+
+    // A 44 px area scaled down by half: not counted, not tolerated.
+    const scaled = await measure(`${enlarged} scale: 0.5;`);
+    expect(scaled).toHaveLength(3);
+    expect(scaled.filter((t) => t.overlaps)).toEqual([]);
+
+    // A 44 px area under a cover: its centre is not clickable.
+    const covered = await measure(
+      enlarged,
+      "ul.rows li:nth-child(2) { position: relative; } ul.rows li:nth-child(2)::before { content: ''; position: absolute; inset: -20px 0; z-index: 1; }",
+    );
+    const second = covered.find((t) => t.name === "segunda");
+    expect(second).toBeDefined();
+    expect(second?.overlaps).toBeUndefined();
+  });
 });

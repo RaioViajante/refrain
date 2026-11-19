@@ -36,9 +36,10 @@ export type UndersizedTarget = {
  * A control's target is its own box or the box of one of its labels (a label
  * activates its control). A target passes when both hold:
  *
- * - **Size:** the box measures at least 44 × 44 px. A control that enlarges
- *   its hit area with an absolutely positioned `::before` or `::after` is
- *   exempt, because the next check measures that area.
+ * - **Size:** its own area measures at least 44 × 44 px: the box, joined
+ *   with each absolutely positioned `::before` / `::after` that covers the
+ *   box's centre, placed from its used size, offsets, and `translate` (a
+ *   pseudo-element with `transform`, `rotate`, or `scale` is not counted).
  * - **Hit area:** from the box's centre, `elementFromPoint` keeps answering
  *   with the control (pseudo-elements report as their element), its
  *   descendants, or its labels for at least 44 whole pixels across and 44
@@ -48,11 +49,13 @@ export type UndersizedTarget = {
  * Hit-testing resolves whole pixels; the size check makes plain boxes exact.
  *
  * `rows` lists selectors of controls stacked closer than 44 px by design: a
- * failing control that matches one and has a 44 px target of its own (box or
- * pseudo-element) is still reported, with `overlaps` set to the selector, so
- * the caller can tell it apart. What it holds alone is then cut by the next
- * row's area or, in a multi-column list, by its column's end (Chromium does
- * not hit-test overflow past a column).
+ * failing control that matches one, passes the size check, and is the
+ * control `elementFromPoint` answers with at its centre is still reported,
+ * with `overlaps` set to the selector, so the caller can tell it apart. What
+ * it holds alone is then cut by the next row's area or, in a multi-column
+ * list, by its column's end (Chromium does not hit-test overflow past a
+ * column). A covered control, one whose centre is not clickable, or one
+ * whose own area is under 44 × 44 px is never tolerated.
  *
  * Controls behind an open modal dialog are inert and skipped. A control kept
  * off the page until focused (the skip link) is measured while focused. Run
@@ -75,15 +78,58 @@ export async function findUndersizedTargets(
           node.getClientRects().length > 0;
         const clean = (text: string | null | undefined) =>
           text?.trim().replace(/\s+/g, " ") || null;
-        const enlarged = (node: Element) =>
-          (["::before", "::after"] as const).some((pseudo) => {
-            const style = getComputedStyle(node, pseudo);
-            return (
-              style.content !== "none" &&
-              style.display !== "none" &&
-              (style.position === "absolute" || style.position === "fixed")
-            );
-          });
+        // The box joined with each absolutely positioned pseudo-element that
+        // covers its centre, from the pseudo-element's used size and offsets
+        // (relative to the box's padding edge, which is its containing block
+        // when the box is positioned).
+        const ownArea = (node: Element) => {
+          const box = node.getBoundingClientRect();
+          let { left, top, right, bottom } = box;
+          const style = getComputedStyle(node);
+          if (style.position !== "static") {
+            const x0 = box.left + Number.parseFloat(style.borderLeftWidth);
+            const y0 = box.top + Number.parseFloat(style.borderTopWidth);
+            const cx = box.left + box.width / 2;
+            const cy = box.top + box.height / 2;
+            for (const pseudo of ["::before", "::after"] as const) {
+              const p = getComputedStyle(node, pseudo);
+              if (
+                p.content === "none" ||
+                p.display === "none" ||
+                p.position !== "absolute" ||
+                p.transform !== "none" ||
+                p.rotate !== "none" ||
+                p.scale !== "none"
+              ) {
+                continue;
+              }
+              const width = Number.parseFloat(p.width);
+              const height = Number.parseFloat(p.height);
+              const [tx = "0px", ty = "0px"] =
+                p.translate === "none" ? [] : p.translate.split(" ");
+              const shift = (t: string, length: number) =>
+                t.endsWith("%")
+                  ? (Number.parseFloat(t) / 100) * length
+                  : Number.parseFloat(t);
+              const l = x0 + Number.parseFloat(p.left) + shift(tx, width);
+              const t = y0 + Number.parseFloat(p.top) + shift(ty, height);
+              if (
+                ![width, height, l, t].every(Number.isFinite) ||
+                cx < l ||
+                cx > l + width ||
+                cy < t ||
+                cy > t + height
+              ) {
+                continue;
+              }
+              left = Math.min(left, l);
+              top = Math.min(top, t);
+              right = Math.max(right, l + width);
+              bottom = Math.max(bottom, t + height);
+            }
+          }
+          return { width: right - left, height: bottom - top };
+        };
 
         return elements.flatMap((element) => {
           if (!(element instanceof HTMLElement)) return [];
@@ -104,7 +150,6 @@ export async function findUndersizedTargets(
               (element.contains(node) || labels.some((l) => l.contains(node)))
             );
           };
-          const exempt = enlarged(element);
 
           const rect = element.getBoundingClientRect();
           const offPage =
@@ -136,17 +181,20 @@ export async function findUndersizedTargets(
             const inner = [-15, -11, 11, 15].every((d) =>
               [d, -d].every((e) => owns(x + d, y + e)),
             );
-            const sized = exempt || (r.width >= 43.99 && r.height >= 43.99);
+            const own = ownArea(box);
+            const sized = own.width >= 43.99 && own.height >= 43.99;
             if (width >= size && height >= size && inner && sized) {
               passes = true;
               break;
             }
-            if (sized) overlaps ??= rows.find((row) => element.matches(row));
+            if (sized && centre) {
+              overlaps ??= rows.find((row) => element.matches(row));
+            }
             const shown = sized
               ? { width, height }
               : {
-                  width: Math.min(width, Math.floor(r.width)),
-                  height: Math.min(height, Math.floor(r.height)),
+                  width: Math.min(width, Math.floor(own.width)),
+                  height: Math.min(height, Math.floor(own.height)),
                 };
             if (
               Math.min(shown.width, shown.height) >=
