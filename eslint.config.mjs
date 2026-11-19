@@ -13,8 +13,9 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // The archived application has its own configuration and is read-only.
     "archive/**",
-    // Local-only design references (ignored by Git).
+    // Local-only design references and review captures (ignored by Git).
     "reference/**",
+    "visual-review/**",
   ]),
   {
     rules: {

@@ -1,8 +1,12 @@
 # Operating system files
 .DS_Store
 
-# Local-only design references. Never tracked.
+# Local-only design references (the approved Claude Design export and its
+# ZIP). Never tracked, built, or deployed; CI fails if any path under it is
+# tracked. Archives anywhere are ignored for the same reason.
+/reference
 /reference/
+*.zip
 
 # Local environment and secrets. Commit only .env.example.
 .env
@@ -41,5 +45,5 @@ next-env.d.ts
 npm-debug.log*
 .pnpm-debug.log*
 
-# Vercel CLI link. The new application is not linked to any Vercel project.
+# Vercel CLI link (never committed).
 .vercel

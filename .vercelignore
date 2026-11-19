@@ -1,0 +1,10 @@
+# Never uploaded to Vercel: local-only design references, the archived
+# application, and local review output.
+reference/
+*.zip
+archive/
+visual-review/
+playwright-report/
+test-results/
+.env
+.env.*
