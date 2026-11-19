@@ -1,9 +1,8 @@
 import Link from "next/link";
-import { connection } from "next/server";
 
 import { Photo } from "@/components/photo";
 import { cx } from "@/lib/cx";
-import { getFooterImages, IMAGE_SLOTS } from "@/server/site";
+import { getFooterImages } from "@/server/site";
 
 import styles from "./site-footer.module.css";
 
@@ -15,11 +14,9 @@ export const VOLUME = "vol. I · 2026";
  * rights are confirmed; until then the footer stands on paper.
  */
 export async function SiteFooter() {
-  // Read per request: the build never needs a database.
-  await connection();
   const photos = await getFooterImages();
-  const desktop = photos[IMAGE_SLOTS.footerRoad];
-  const mobile = photos[IMAGE_SLOTS.footerRoadMobile] ?? desktop;
+  const desktop = photos["footer.road"];
+  const mobile = photos["footer.road_mobile"] ?? desktop;
 
   return (
     <footer className={styles.footer}>

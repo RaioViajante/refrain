@@ -11,6 +11,8 @@ import { connectTestDatabase } from "@/test/db";
 
 import {
   getArchiveStats,
+  getArtistCounts,
+  getMixtapePage,
   getPublishedMixtape,
   getSiteImages,
   getSiteTexts,
@@ -175,8 +177,8 @@ describe("getArchiveStats", () => {
 describe("site texts and images", () => {
   it("returns the requested texts only", async () => {
     await db.insert(siteTexts).values([
-      { key: "home.letter", body: "[Test] letter" },
-      { key: "about.intro", body: "[Test] intro" },
+      { key: "home.letter", body: "[Test] letter", published: true },
+      { key: "about.intro", body: "[Test] intro", published: true },
     ]);
     expect(await getSiteTexts(db, ["home.letter", "home.quote"])).toEqual({
       "home.letter": "[Test] letter",
@@ -193,5 +195,59 @@ describe("site texts and images", () => {
     const result = await getSiteImages(db, ["footer.road", "home.hero"]);
     expect(Object.keys(result)).toEqual(["footer.road"]);
     expect(result["footer.road"]?.url).toBe(ok.url);
+  });
+});
+
+describe("site text drafts", () => {
+  it("never returns an unpublished text", async () => {
+    await db.insert(siteTexts).values([
+      { key: "about.letter", body: "[Test] draft letter" },
+      { key: "about.quote", body: "[Test] quote", published: true },
+    ]);
+    expect(await getSiteTexts(db, ["about.letter", "about.quote"])).toEqual({
+      "about.quote": "[Test] quote",
+    });
+  });
+});
+
+describe("getArtistCounts", () => {
+  it("counts each credit on a published tape, most frequent first", async () => {
+    const tape = await insertMixtape(db, { status: "published", slug: "a" });
+    const draft = await insertMixtape(db, { slug: "b" });
+    const songs = [
+      await insertSong(db, { artist: "[Test] Two" }),
+      await insertSong(db, { artist: "[Test] Two" }),
+      await insertSong(db, { artist: "[Test] One, [Test] Guest" }),
+    ];
+    for (const [i, song] of songs.entries()) {
+      await addTrack(db, tape.id, song.id, i + 1);
+      await addTrack(db, draft.id, song.id, i + 1);
+    }
+    expect(await getArtistCounts(db, "a")).toEqual([
+      { artist: "[Test] Two", count: 2 },
+      { artist: "[Test] One, [Test] Guest", count: 1 },
+    ]);
+    expect(await getArtistCounts(db, "b")).toEqual([]);
+  });
+});
+
+describe("getMixtapePage", () => {
+  it("links to the neighbouring published tapes, wrapping around", async () => {
+    await insertMixtape(db, { number: 1, slug: "one", status: "published" });
+    await insertMixtape(db, { number: 2, slug: "two", status: "published" });
+    await insertMixtape(db, { number: 3, slug: "hidden" });
+    await insertMixtape(db, { number: 4, slug: "four", status: "published" });
+
+    const page = await getMixtapePage(db, "one");
+    expect(page?.previous?.slug).toBe("four");
+    expect(page?.next?.slug).toBe("two");
+    expect((await getMixtapePage(db, "four"))?.next?.slug).toBe("one");
+    expect(await getMixtapePage(db, "hidden")).toBeNull();
+  });
+
+  it("has no neighbours when it is the only published tape", async () => {
+    await insertMixtape(db, { slug: "alone", status: "published" });
+    const page = await getMixtapePage(db, "alone");
+    expect(page).toMatchObject({ previous: null, next: null, noteCount: 0 });
   });
 });
