@@ -9,7 +9,16 @@ import * as schema from "./schema";
 let database: ReturnType<typeof createDatabase> | undefined;
 
 function createDatabase() {
-  return drizzle(new Pool({ connectionString: readDatabaseUrl() }), { schema });
+  // Small and short-lived: serverless instances should not hold idle
+  // connections (the hosted URL already goes through Neon's pooler).
+  return drizzle(
+    new Pool({
+      connectionString: readDatabaseUrl(),
+      max: 5,
+      idleTimeoutMillis: 10_000,
+    }),
+    { schema },
+  );
 }
 
 /**
