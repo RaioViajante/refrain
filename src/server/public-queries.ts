@@ -35,12 +35,6 @@ export type PublicImage = {
   height: number;
   focus: number;
   treatment: "mood" | "original";
-  /**
-   * Set only in Studio previews: the photo may not be public yet, so the
-   * browser fetches it with the owner's session instead of the image
-   * optimizer (which has none).
-   */
-  privatePreview?: boolean;
 };
 
 export type MixtapeSummary = {

@@ -17,6 +17,10 @@ const eslintConfig = defineConfig([
     "reference/**",
     "visual-review/**",
     "local/**",
+    // Playwright output (ignored by Git).
+    "playwright-report/**",
+    "test-results/**",
+    "blob-report/**",
   ]),
   {
     rules: {

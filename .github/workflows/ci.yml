@@ -21,7 +21,7 @@ jobs:
   verify:
     name: Verify
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
       NEXT_TELEMETRY_DISABLED: "1"
 
@@ -107,3 +107,24 @@ jobs:
       # DATABASE_URL is deliberately absent: the build must not need a database.
       - name: Production build
         run: pnpm build
+
+      # Browser tests (Playwright, Chromium) against the build above, served by
+      # `pnpm start` on port 3300. The e2e database (refrain_mixtapes_e2e_test)
+      # is created on the postgres-test service and seeded with synthetic
+      # [Test] data by e2e/global-setup.ts; the Studio credentials are the
+      # test-only ones in e2e/support/env.ts.
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Browser tests (Playwright)
+        run: pnpm test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

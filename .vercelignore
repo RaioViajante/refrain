@@ -1,11 +1,28 @@
-# Never uploaded to Vercel: local-only design references, the archived
-# application, and local review output.
+# Never uploaded to Vercel. With this file present the CLI does not read
+# .gitignore, so everything local-only is listed here too.
+
+# Local-only design references, the reference importer, and their archives.
 reference/
+local/
 *.zip
+
+# The archived application and local review output.
 archive/
 visual-review/
-playwright-report/
-test-results/
+
+# Secrets and local environment files.
 .env
 .env.*
-local/
+!.env.example
+*.pem
+
+# Build output, dependencies, and test artifacts (Vercel builds its own).
+.next/
+node_modules/
+coverage/
+test-results/
+playwright-report/
+blob-report/
+playwright/.auth/
+*.tsbuildinfo
+.DS_Store

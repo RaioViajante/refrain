@@ -21,8 +21,11 @@
     "db:migrate": "drizzle-kit migrate",
     "db:check": "drizzle-kit check",
     "test:db": "vitest run --config vitest.db.config.mts",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install chromium",
     "db:test:up": "docker compose up --detach --wait postgres-test",
-    "studio:hash": "node scripts/hash-studio-password.mts"
+    "studio:hash": "node scripts/hash-studio-password.mts",
+    "studio:credentials": "node scripts/set-studio-credentials.mts"
   },
   "dependencies": {
     "drizzle-orm": "0.45.4",
@@ -34,6 +37,7 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@playwright/test": "1.65.0",
     "@types/node": "24.19.2",
     "@types/pg": "8.23.1",
     "@types/react": "19.3.0",

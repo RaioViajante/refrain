@@ -77,6 +77,23 @@ describe("serving photographs", () => {
     expect(await anonymous(photo.id)).toEqual({ status: 404 });
   });
 
+  it("answers a revalidation with 304 only while the photo is still visible", async () => {
+    const photo = await insertImage(db, { rightsConfirmed: true });
+    await setSiteImage(db, "footer.road", photo.id);
+    const etag = `"${photo.id}"`;
+    expect(await resolvePhoto(db, photo.id, false, etag)).toEqual({
+      status: 304,
+      cacheControl: PUBLIC_PHOTO_CACHE,
+      etag,
+    });
+    // Revoked: the stored copy must not be confirmed again.
+    await updateImage(db, photo.id, { ...fields, rightsConfirmed: false });
+    expect(await resolvePhoto(db, photo.id, false, etag)).toEqual({
+      status: 404,
+    });
+    expect(PUBLIC_PHOTO_CACHE).toBe("public, no-cache");
+  });
+
   it("answers 404 for unknown or malformed ids, revealing nothing", async () => {
     expect(await anonymous("00000000-0000-4000-8000-000000000000")).toEqual({
       status: 404,
