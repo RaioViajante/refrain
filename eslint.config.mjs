@@ -16,6 +16,7 @@ const eslintConfig = defineConfig([
     // Local-only design references and review captures (ignored by Git).
     "reference/**",
     "visual-review/**",
+    "local/**",
   ]),
   {
     rules: {
