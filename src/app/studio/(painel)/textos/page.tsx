@@ -41,7 +41,7 @@ const PAGES: Page[] = [
     preview: {
       href: "/studio/previa/home",
       label: "pré-visualizar a home",
-      note: "com os rascunhos salvos, como ficará no site. as fitas são só as publicadas.",
+      note: "com os rascunhos salvos, como ficará no site. as fitas são só as publicadas",
     },
     groups: [
       {

@@ -37,12 +37,16 @@ function leavesPage(element: Element): boolean {
 
 function onClick(event: MouseEvent) {
   if (dirty.size === 0 || event.defaultPrevented || event.button !== 0) return;
-  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
   const target =
     event.target instanceof Element
       ? event.target.closest("a[href], [data-leaves-page]")
       : null;
   if (!target || !leavesPage(target)) return;
+  // A modified click on a link opens it elsewhere (new tab or window) and
+  // keeps this page; on a control such as "sair" it still leaves.
+  const modified =
+    event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
+  if (modified && target instanceof HTMLAnchorElement) return;
   if (window.confirm(LEAVE_PROMPT)) {
     leaving = true;
     window.setTimeout(() => (leaving = false), 1000);

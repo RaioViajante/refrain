@@ -712,7 +712,7 @@ export function Editor({ tape, themes, holders, library, songs }: Props) {
                   : "rascunho: só você vê, aqui e na pré-visualização."}
                 {dirty
                   ? tape.published
-                    ? " a pré-visualização mostra só o que já foi salvo."
+                    ? " a pré-visualização mostra só o que já foi salvo. ao voltar a rascunho, as alterações são salvas antes."
                     : " a pré-visualização mostra só o que já foi salvo. ao publicar, as alterações são salvas antes."
                   : ""}
               </p>
