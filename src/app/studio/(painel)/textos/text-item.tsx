@@ -10,6 +10,7 @@ import {
   saveSiteTextAction,
   setSiteTextPublishedAction,
 } from "../../_actions/site";
+import { useUnsavedGuard } from "../../unsaved-guard";
 import styles from "./page.module.css";
 
 export type TextField = {
@@ -56,6 +57,7 @@ export function TextItem({ field }: { field: TextField }) {
   };
   // Compared as the server stores it: surrounding spaces are not a change.
   const dirty = normalizeText(value) !== normalizeText(field.body);
+  useUnsavedGuard(dirty);
   const id = `campo-${field.anchor}`;
   const hintId = `${id}-dica`;
   const errorId = `${id}-erro`;

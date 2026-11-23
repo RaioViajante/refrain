@@ -58,7 +58,11 @@ export function StudioHeader() {
           ver o site ↗
         </a>
         <form action={signOutAction}>
-          <button type="submit" className={`nl ${styles.link} ${styles.out}`}>
+          <button
+            type="submit"
+            className={`nl ${styles.link} ${styles.out}`}
+            data-leaves-page
+          >
             sair
           </button>
         </form>

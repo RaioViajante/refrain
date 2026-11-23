@@ -7,7 +7,6 @@ import {
   type InputHTMLAttributes,
   type ReactNode,
   useCallback,
-  useEffect,
   useState,
   useTransition,
 } from "react";
@@ -19,6 +18,7 @@ import {
   saveTrackNoteAction,
   setMixtapePublishedAction,
 } from "../../../_actions/mixtapes";
+import { useUnsavedGuard } from "../../../unsaved-guard";
 import { call, pad, setFlash as keepForList } from "../_ui/call";
 import { ConfirmDialog, PublishSwitch } from "../_ui/confirm-dialog";
 import styles from "./editor.module.css";
@@ -123,13 +123,8 @@ export function Editor({ tape, themes, holders, library, songs }: Props) {
   });
   const dirty = fieldsDirty || dirtyImages.length > 0 || dirtyNotes.length > 0;
 
-  // Leaving with unsaved changes asks first.
-  useEffect(() => {
-    if (!dirty) return;
-    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [dirty]);
+  // Leaving with unsaved changes asks first (any link, the tab, sign-out).
+  useUnsavedGuard(dirty);
 
   const set = (name: keyof TapeFields, value: string) => {
     setFlash("");
@@ -355,11 +350,6 @@ export function Editor({ tape, themes, holders, library, songs }: Props) {
           <Link
             href="/studio/mixtapes"
             className={`nl ${styles.back} ${styles.backBar}`}
-            onClick={(e) => {
-              if (dirty && !window.confirm("sair sem salvar as alterações?")) {
-                e.preventDefault();
-              }
-            }}
           >
             ← mixtapes
           </Link>
