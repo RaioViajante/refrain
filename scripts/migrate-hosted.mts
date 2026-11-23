@@ -25,6 +25,10 @@ const OWN_TABLES = new Set([
   "site_images",
   "studio_sessions",
   "studio_login_attempts",
+  "trash_items",
+  "trash_files",
+  "trash_image_refs",
+  "text_versions",
 ]);
 const LOCAL = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
