@@ -9,7 +9,9 @@ import {
   customType,
   index,
   integer,
+  jsonb,
   pgTable,
+  primaryKey,
   smallint,
   text,
   timestamp,
@@ -329,6 +331,167 @@ export const studioLoginAttempts = pgTable(
     check(
       "studio_login_attempts_client_key_format",
       sql`${t.clientKey} ~ '^[0-9a-f]{64}$'`,
+    ),
+  ],
+);
+
+// The Studio's trash and text history (decision 0003). A deleted item leaves
+// its live table and is kept here as a snapshot for 30 days; a replaced text
+// is kept as a version for 30 days. Public pages never read these tables.
+// `purge_after` comes from the database's clock, and nothing can be kept
+// longer than 30 days after it was deleted or replaced. The 30 days are
+// counted as 720 hours: adding days to a timestamptz depends on the session's
+// time zone, so a restore under another zone could reject rows it accepted.
+
+/** Thirty days (720 hours) after `from`. */
+const retention = (from: string) => sql.raw(`${from} + interval '720 hours'`);
+
+/**
+ * A deleted tape, song, track, or photo, as a snapshot of its rows
+ * (`payload`, in the shape `payload_version` names). `subject_id` is the
+ * deleted row's original id, which a restore reuses. Expired once
+ * `purge_after` has passed: from then on it cannot be restored, and the
+ * daily purge deletes it.
+ */
+export const trashItems = pgTable(
+  "trash_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    kind: text("kind").notNull(),
+    subjectId: uuid("subject_id").notNull(),
+    label: text("label").notNull(),
+    payload: jsonb("payload").notNull(),
+    payloadVersion: smallint("payload_version").notNull(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    purgeAfter: timestamp("purge_after", { withTimezone: true })
+      .notNull()
+      .default(retention("now()")),
+  },
+  (t) => [
+    uniqueIndex("trash_items_subject_key").on(t.kind, t.subjectId),
+    index("trash_items_purge_after_idx").on(t.purgeAfter),
+    index("trash_items_deleted_at_idx").on(t.deletedAt),
+    check(
+      "trash_items_kind",
+      sql`${t.kind} in ('mixtape', 'song', 'track', 'image')`,
+    ),
+    check(
+      "trash_items_label_length",
+      sql`char_length(${t.label}) between 1 and 500`,
+    ),
+    check(
+      "trash_items_payload_object",
+      sql`jsonb_typeof(${t.payload}) = 'object'`,
+    ),
+    check("trash_items_payload_version", sql`${t.payloadVersion} > 0`),
+    check(
+      "trash_items_retention",
+      sql`${t.purgeAfter} > ${t.deletedAt} and ${t.purgeAfter} <= ${retention(t.deletedAt.name)}`,
+    ),
+  ],
+);
+
+/**
+ * The bytes of a deleted photograph, exactly as they were in `image_files`.
+ * They belong to their trash item and go with it.
+ */
+export const trashFiles = pgTable(
+  "trash_files",
+  {
+    trashItemId: uuid("trash_item_id")
+      .primaryKey()
+      .references(() => trashItems.id, { onDelete: "cascade" }),
+    contentType: text("content_type").notNull(),
+    byteSize: integer("byte_size").notNull(),
+    bytes: bytea("bytes").notNull(),
+    createdAt,
+  },
+  (t) => [
+    check(
+      "trash_files_content_type",
+      sql`${t.contentType} in ('image/jpeg', 'image/png')`,
+    ),
+    check(
+      "trash_files_byte_size",
+      sql`${t.byteSize} between 1 and 4194304 and ${t.byteSize} = octet_length(${t.bytes})`,
+    ),
+  ],
+);
+
+/**
+ * The photographs a trash item still uses (a deleted tape's cover and
+ * support photo). While the item exists, PostgreSQL refuses to delete them.
+ */
+export const trashImageRefs = pgTable(
+  "trash_image_refs",
+  {
+    trashItemId: uuid("trash_item_id")
+      .notNull()
+      .references(() => trashItems.id, { onDelete: "cascade" }),
+    imageId: uuid("image_id")
+      .notNull()
+      .references(() => images.id, { onDelete: "restrict" }),
+    createdAt,
+  },
+  (t) => [
+    primaryKey({ columns: [t.trashItemId, t.imageId] }),
+    index("trash_image_refs_image_idx").on(t.imageId),
+  ],
+);
+
+/**
+ * A text's earlier wording, kept when a save replaced or emptied it: a site
+ * text's body (`subject_key` is its key), a tape's texts (its id), or a
+ * track's note (its id). `label` names the field as it was then.
+ */
+export const textVersions = pgTable(
+  "text_versions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    subject: text("subject").notNull(),
+    subjectKey: text("subject_key").notNull(),
+    field: text("field").notNull(),
+    label: text("label").notNull(),
+    body: text("body").notNull(),
+    replacedAt: timestamp("replaced_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    purgeAfter: timestamp("purge_after", { withTimezone: true })
+      .notNull()
+      .default(retention("now()")),
+  },
+  (t) => [
+    index("text_versions_subject_idx").on(
+      t.subject,
+      t.subjectKey,
+      t.field,
+      t.replacedAt,
+    ),
+    index("text_versions_purge_after_idx").on(t.purgeAfter),
+    check(
+      "text_versions_subject_field",
+      sql`(${t.subject} = 'site_text' and ${t.field} = 'body')
+        or (${t.subject} = 'mixtape' and ${t.field} in ('reflection', 'description', 'pull_quote', 'pull_quote_credit', 'detail_caption'))
+        or (${t.subject} = 'track' and ${t.field} = 'note')`,
+    ),
+    check(
+      "text_versions_subject_key",
+      sql`(${t.subject} = 'site_text' and ${t.subjectKey} ~ '^[a-z0-9]+(\\.[a-z0-9_]+)+$')
+        or (${t.subject} in ('mixtape', 'track') and ${t.subjectKey} ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')`,
+    ),
+    check(
+      "text_versions_label_length",
+      sql`char_length(${t.label}) between 1 and 300`,
+    ),
+    check(
+      "text_versions_body_length",
+      sql`char_length(${t.body}) between 1 and 20000`,
+    ),
+    check(
+      "text_versions_retention",
+      sql`${t.purgeAfter} > ${t.replacedAt} and ${t.purgeAfter} <= ${retention(t.replacedAt.name)}`,
     ),
   ],
 );
