@@ -5,7 +5,7 @@ import "server-only";
 import { desc, eq, sql } from "drizzle-orm";
 
 import { SITE_IMAGES } from "@/content/site-images";
-import { imageFiles, images, mixtapes, siteImages } from "@/db/schema";
+import { imageFiles, images } from "@/db/schema";
 import type { Database } from "@/db/types";
 
 import { StudioError } from "./errors";
@@ -14,16 +14,19 @@ import type { ImageFields } from "./schemas";
 export type ImageUsage = { kind: "cover" | "detail" | "slot"; label: string };
 
 export async function listImagesForStudio(db: Database) {
+  // Plain SQL with explicit table names: in a single-table select, Drizzle
+  // writes interpolated columns without their table, so "id" inside these
+  // subqueries would name the subquery's own table, never the photo's.
   const usage = sql<ImageUsage[]>`(
     select coalesce(json_agg(u), '[]'::json) from (
-      select 'cover' as kind, ${mixtapes.title} as label from ${mixtapes}
-        where ${mixtapes.coverImageId} = ${images.id}
+      select 'cover' as kind, m.title as label from mixtapes m
+        where m.cover_image_id = images.id
       union all
-      select 'detail', ${mixtapes.title} from ${mixtapes}
-        where ${mixtapes.detailImageId} = ${images.id}
+      select 'detail', m.title from mixtapes m
+        where m.detail_image_id = images.id
       union all
-      select 'slot', ${siteImages.slot} from ${siteImages}
-        where ${siteImages.imageId} = ${images.id}
+      select 'slot', s.slot from site_images s
+        where s.image_id = images.id
     ) u
   )`;
   return db

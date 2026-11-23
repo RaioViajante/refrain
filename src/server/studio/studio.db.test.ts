@@ -13,7 +13,7 @@ import {
 } from "../public-queries";
 import { getDashboard } from "./dashboard";
 import { StudioError } from "./errors";
-import { deleteImage } from "./images";
+import { deleteImage, listImagesForStudio } from "./images";
 import {
   addTrack,
   createMixtape,
@@ -315,6 +315,27 @@ describe("photographs", () => {
     await setMixtapeImage(db, id, "cover", null);
     await deleteImage(db, unconfirmed.id);
     expect(await db.select().from(imageFiles)).toEqual([]);
+  });
+
+  it("list every place a photo is used", async () => {
+    const photo = await insertImage(db);
+    const unused = await insertImage(db);
+    const id = await createMixtape(db, "[Test] Uses it");
+    await setMixtapeImage(db, id, "cover", photo.id);
+    await setMixtapeImage(db, id, "detail", photo.id);
+    await setSiteImage(db, "footer.road", photo.id);
+    const listed = new Map(
+      (await listImagesForStudio(db)).map((i) => [i.id, i.usage]),
+    );
+    expect(listed.get(photo.id)).toEqual(
+      expect.arrayContaining([
+        { kind: "cover", label: "[Test] Uses it" },
+        { kind: "detail", label: "[Test] Uses it" },
+        { kind: "slot", label: "footer.road" },
+      ]),
+    );
+    expect(listed.get(photo.id)).toHaveLength(3);
+    expect(listed.get(unused.id)).toEqual([]);
   });
 });
 
