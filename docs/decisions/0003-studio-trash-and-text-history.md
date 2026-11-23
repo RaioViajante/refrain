@@ -136,6 +136,7 @@ Three rules hold for every kind:
   If no affected tape is published, the usual confirmation is enough.
 
 **Track** (one track removed from a tape)
+- **Every removed track goes to the trash,** with or without a note (decision 1 of 2026-11-23).
 - **Comes back** onto its tape, with its id and note, at its original position, clamped to the end if the tape got shorter.
 - **Is refused, and stays in the trash,** when its tape is in the trash, or when the tape already has that song again. The message says which. When its tape was purged or has expired, the Lixeira shows it as impossible to restore until it expires; its note can still be read and copied.
 - **The song** is resolved the same way as for a tape. If the tape is published, the restore needs the same explicit confirmation as a song: it names the tape's public page and says the change is public at once (owner decision 2).
@@ -154,10 +155,10 @@ Three rules hold for every kind:
 
 - **What creates a version.** Every save that actually changes a text records the previous wording as a `text_versions` row, in the same transaction as the save. The save first locks the row (`select … for update`), so two saves from two tabs each record the wording they actually replaced. "Changes" means the new text differs from the old one compared the way the server stores it (`normalizeText`), and the old text was not empty.
 - **Which texts.** Page texts (`body`, in `saveSiteText`), a tape's `reflection`, `description`, `pull_quote`, `pull_quote_credit`, and `detail_caption` (in `updateMixtape`), and track notes (`note`, in `updateTrackNote`). Erasing a note ("anotação apagada") records it as well.
-- **No merging.** Each save is its own version; nothing is merged by time, per decision 3.
+- **No merging.** Each save is its own version; nothing is merged by time (decision 3 of 2026-11-22).
 - **Emptying a page text** records its wording as a version before the row is deleted.
 - **Where history appears.** Each field gets a "versões anteriores (n)" link, which lists its versions newest first, each with its date and the first lines.
-- **Restoring a version loads the old wording into the field without saving it** (owner decision 3). The field then shows as "alterado" and the unsaved-changes guard applies. When the owner presses "salvar", the wording being replaced becomes a version in its turn, so it can be recovered (decision 3). The owner sees the text before it reaches the site, and the existing save path and messages stay the same. On a published text, saving still means the change goes live at once, as the page already says.
+- **Restoring a version loads the old wording into the field without saving it** (decision 3 of 2026-11-23). The field then shows as "alterado" and the unsaved-changes guard applies. When the owner presses "salvar", the wording being replaced becomes a version in its turn, so it can be recovered (decision 3 of 2026-11-22). The owner sees the text before it reaches the site, and the existing save path and messages stay the same. On a published text, saving still means the change goes live at once, as the page already says.
 - **A version is never consumed by a restore.** It lasts until its own `purge_after`, 30 days for now (owner decision 5).
 - **History starts with the implementation.** Versions are captured only from the deployment that ships § 4 onwards, and the trash holds only what is deleted from the deployment that ships § 3 onwards. Wording replaced or deleted before then is not in the database, and the system cannot recover it. The pre-launch backup holds only the state of that date.
 - **When the subject is deleted,** its versions stay. If the tape or track is restored (with the same id), its history is still there. While the subject is in the trash, or after it was purged, its versions are listed in the Lixeira under its last name ("fita excluída: core"); they can be read and copied, but not loaded into a field that no longer exists.
@@ -187,14 +188,13 @@ Three rules hold for every kind:
 
 **Isolation is a mandatory gate.** It is done before the migration, as its own owner-approved step, and verified. No step of the rollout below starts until it is.
 
-Three checks come **before** the branch is created (owner decision 4):
+Three checks are verified before Preview uses the branch (owner decision 4). Access protection and the exposure rules are confirmed **before the branch is created**; credential isolation is done right after creating it, and verified **before** Preview's `DATABASE_URL` points to it:
 
 - **Access protection.** Every Preview deployment URL sits behind Vercel Authentication, and no Preview alias is public. Who holds the project's automation bypass secret is known, and whether to revoke it is decided (a pending item from the launch).
-- **Credential isolation.** A Neon branch inherits its parent's roles and passwords. So the `preview` branch's role gets a new password, or a dedicated role, so that Preview's credential cannot open `main`. Production's `DATABASE_URL` is not present in Preview's variables.
+- **Credential isolation.** A Neon branch inherits its parent's roles and passwords. So, once the branch exists, its role gets a new password, or a dedicated role is created on it, so that Preview's credential cannot open `main`; a read-only connection attempt with it against `main` must fail. Production's `DATABASE_URL` is not present in Preview's variables.
 - **No exposure of private content.** The branch holds the same drafts, unpublished texts, and private photos as Production. They stay reachable only through the Studio sign-in or behind Vercel Authentication. Preview never sets `SITE_INDEXABLE`, and no Preview log prints content.
 
 Then:
-
 
 - **Production keeps the Neon `main` branch** and its data as they are. Nothing moves.
 - **A Neon branch `preview` is created from `main`** (owner decision 4). It is a copy-on-write copy, so creating it does not modify `main`.
@@ -207,7 +207,7 @@ Then:
 
 **Backup**, immediately before the migration:
 
-- **Where the credentials come from.** Production's `DATABASE_URL` is a sensitive Vercel variable and cannot be pulled. After isolation, Preview's variables point at the `preview` branch, not at Production. So the owner copies the `main` branch's connection details from the Neon console into an env file outside the repository, deleted afterwards. The backup taken now, before isolation, can still use Preview's variables, because both point at the same database.
+- **Where the credentials come from.** Production's `DATABASE_URL` is a sensitive Vercel variable and cannot be pulled. After isolation, Preview's variables point at the `preview` branch, not at Production. So the owner copies the `main` branch's connection details from the Neon console into an env file outside the repository, deleted afterwards.
 - `scripts/backup-database.sh` dumps Production read-only. It then restores the dump into a throwaway container and compares every table's rows and checksums, photos byte for byte, ending with "restore verified".
 - The dump and its SHA-256 are kept in `backups/`.
 - **An external copy is mandatory.** The owner copies the dump to a medium off this computer (an external disk, or the owner's own cloud storage). The SHA-256 is then computed again on that copy and must match. No hosted migration runs until this is done. It is still open from the launch, where the second copy stayed on the same machine.
