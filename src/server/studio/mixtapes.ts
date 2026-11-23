@@ -11,8 +11,9 @@ import type { Database } from "@/db/types";
 import { setTrackOrder } from "../tracklist";
 import { pgCode, StudioError } from "./errors";
 import type { MixtapeFields, SongInput } from "./schemas";
+import { MAX_NUMBER, uniqueSlug } from "./shelf";
 
-export const MAX_NUMBER = 999;
+export { MAX_NUMBER };
 // Numbers are moved above this offset while the shelf is reordered, so the
 // non-deferrable UNIQUE (number) never sees two equal values.
 const NUMBER_PARKING = 10_000;
@@ -120,23 +121,6 @@ export async function getStudioMixtape(db: Database, id: string) {
 export type StudioMixtape = NonNullable<
   Awaited<ReturnType<typeof getStudioMixtape>>
 >;
-
-async function uniqueSlug(db: Database, base: string, exceptId?: string) {
-  for (let n = 1; n < 100; n++) {
-    const slug = n === 1 ? base : `${base}-${n}`;
-    const [taken] = await db
-      .select({ id: mixtapes.id })
-      .from(mixtapes)
-      .where(
-        exceptId
-          ? and(eq(mixtapes.slug, slug), ne(mixtapes.id, exceptId))
-          : eq(mixtapes.slug, slug),
-      )
-      .limit(1);
-    if (!taken) return slug;
-  }
-  throw new StudioError("não foi possível criar um endereço para essa fita.");
-}
 
 /** A new draft at the end of the shelf. Returns its id. */
 export async function createMixtape(
