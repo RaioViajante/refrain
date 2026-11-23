@@ -1,6 +1,6 @@
 # 0003. A 30-day trash and text history for the Studio
 
-- **Status:** Proposed, 2026-11-23. Nothing here is implemented, migrated, or deployed until the owner accepts it.
+- **Status:** Accepted by the owner, 2026-11-23, with the decisions in [Owner decisions of 2026-11-23](#owner-decisions-of-2026-11-23). Accepting it authorizes the PRs of § 7 only. A hosted migration, any change on Neon or Vercel, and any deploy each still need the owner's explicit approval.
 - **Builds on:** [0002](0002-mixtape-archive-product.md) (the product model, visibility, and hosting). It changes none of it.
 
 ## Context
@@ -19,13 +19,16 @@ Every deletion in the Studio is permanent today:
 
 The owner asked for a trash that keeps deleted items for 30 days, and a history of replaced texts. The owner decided on 2026-11-22:
 
-1. a restored tape always comes back as a **draft**, with its tracks, notes, and reflection, and with whatever links can still be restored. A restore never publishes anything;
+1. a restored tape always comes back as a **draft**, with its tracks, notes, and reflection, and with whatever links can still be restored. Restoring a tape never publishes it. Restoring a song or a track onto a tape that is *already* published does change that tape's public page, and only after an explicit confirmation (owner decision of 2026-11-23, item 2; § 3);
 2. a photo (and later a drawing) **cannot be deleted while anything uses it**, including an item that can still be restored from the trash. No reference may break;
 3. history covers the home and about texts, reflections, track notes, descriptions, quotes, and captions. **Every saved version is kept**, with no merging of saves made close together. Restoring an old version keeps the current one, so it can be recovered too;
 4. retention is **30 days**, purged by a daily **Vercel Cron** job authenticated with `CRON_SECRET`. The purge is idempotent. **An expired item cannot be restored even before the purge has run**;
 5. the Studio explains unsaved changes, previews, live edits, and drafts in featured places (done in PR #144).
 
-Preview and Production share one Neon database today. No hosted migration may run before there is a restorable backup and the two environments are isolated (§ 6).
+Preview and Production share one Neon database today. **Two gates are mandatory before any hosted migration** (§ 6):
+
+- the two environments are isolated and the isolation is verified;
+- a backup restores verifiably, and a copy off this computer has a validated SHA-256.
 
 ## Decision
 
@@ -125,12 +128,17 @@ Three rules hold for every kind:
   - a tape that already has the song again keeps its own track. The old note is recorded as a version of that track's note (above);
   - a tape that is itself in the trash: that track stays in the trash as its own `track` item, so it can be restored once the tape is back;
   - a tape that was purged or has expired: the track cannot come back, because its tape is gone for good. Its note is kept as a version (above), and the report says so.
-- **A song on a published tape changes the site as soon as it is restored.** So before restoring, the confirmation lists the affected tapes and marks which ones are published (open question 2).
+- **A song on a published tape changes the site as soon as it is restored.** So the restore needs an explicit confirmation (owner decision 2):
+  - it names every affected published tape and its public page (`/mixtapes/<slug>`);
+  - it says the change is public at once;
+  - nothing is written until the owner presses a separate confirm button, never the first click.
+
+  If no affected tape is published, the usual confirmation is enough.
 
 **Track** (one track removed from a tape)
 - **Comes back** onto its tape, with its id and note, at its original position, clamped to the end if the tape got shorter.
 - **Is refused, and stays in the trash,** when its tape is in the trash, or when the tape already has that song again. The message says which. When its tape was purged or has expired, the Lixeira shows it as impossible to restore until it expires; its note can still be read and copied.
-- **The song** is resolved the same way as for a tape. If the tape is published, the confirmation says the change is live (open question 2).
+- **The song** is resolved the same way as for a tape. If the tape is published, the restore needs the same explicit confirmation as a song: it names the tape's public page and says the change is public at once (owner decision 2).
 
 **Photo**
 - **Can be deleted only when nothing uses it:** a tape's cover or support photo, a page slot, or an unexpired item in the trash (through `trash_image_refs`). That last case is new, and the error message names the item in the trash that still uses the photo. An expired item no longer counts: the delete transaction first purges the expired items that reference the photo, then checks.
@@ -149,8 +157,9 @@ Three rules hold for every kind:
 - **No merging.** Each save is its own version; nothing is merged by time, per decision 3.
 - **Emptying a page text** records its wording as a version before the row is deleted.
 - **Where history appears.** Each field gets a "versões anteriores (n)" link, which lists its versions newest first, each with its date and the first lines.
-- **Restoring a version (recommended): it loads the old wording into the field without saving it.** The field then shows as "alterado" and the unsaved-changes guard applies. When the owner presses "salvar", the wording being replaced becomes a version in its turn, so it can be recovered (decision 3). The owner sees the text before it reaches the site, and the existing save path and messages stay the same. On a published text, saving still means the change goes live at once, as the page already says.
-- **A version is never consumed by a restore.** It lasts until its own `purge_after`.
+- **Restoring a version loads the old wording into the field without saving it** (owner decision 3). The field then shows as "alterado" and the unsaved-changes guard applies. When the owner presses "salvar", the wording being replaced becomes a version in its turn, so it can be recovered (decision 3). The owner sees the text before it reaches the site, and the existing save path and messages stay the same. On a published text, saving still means the change goes live at once, as the page already says.
+- **A version is never consumed by a restore.** It lasts until its own `purge_after`, 30 days for now (owner decision 5).
+- **History starts with the implementation.** Versions are captured only from the deployment that ships § 4 onwards, and the trash holds only what is deleted from the deployment that ships § 3 onwards. Wording replaced or deleted before then is not in the database, and the system cannot recover it. The pre-launch backup holds only the state of that date.
 - **When the subject is deleted,** its versions stay. If the tape or track is restored (with the same id), its history is still there. While the subject is in the trash, or after it was purged, its versions are listed in the Lixeira under its last name ("fita excluída: core"); they can be read and copied, but not loaded into a field that no longer exists.
 
 ### 5. The Lixeira page and the purge
@@ -176,10 +185,19 @@ Three rules hold for every kind:
 
 ### 6. Isolating Preview and Production; backup; hosted rollout
 
-**Isolation**, done before the migration and as its own owner-approved step:
+**Isolation is a mandatory gate.** It is done before the migration, as its own owner-approved step, and verified. No step of the rollout below starts until it is.
+
+Three checks come **before** the branch is created (owner decision 4):
+
+- **Access protection.** Every Preview deployment URL sits behind Vercel Authentication, and no Preview alias is public. Who holds the project's automation bypass secret is known, and whether to revoke it is decided (a pending item from the launch).
+- **Credential isolation.** A Neon branch inherits its parent's roles and passwords. So the `preview` branch's role gets a new password, or a dedicated role, so that Preview's credential cannot open `main`. Production's `DATABASE_URL` is not present in Preview's variables.
+- **No exposure of private content.** The branch holds the same drafts, unpublished texts, and private photos as Production. They stay reachable only through the Studio sign-in or behind Vercel Authentication. Preview never sets `SITE_INDEXABLE`, and no Preview log prints content.
+
+Then:
+
 
 - **Production keeps the Neon `main` branch** and its data as they are. Nothing moves.
-- **A Neon branch `preview` is created from `main`.** It is a copy-on-write copy, so creating it does not modify `main`.
+- **A Neon branch `preview` is created from `main`** (owner decision 4). It is a copy-on-write copy, so creating it does not modify `main`.
 - **Preview's `DATABASE_URL` points to that branch.** This is a Vercel configuration change, so it is done by the owner or with the owner's explicit authorization. First check whether the Neon integration (now connected to Preview only) rewrites that variable. If it does, set the variable by hand and disable the integration's per-deployment branching.
 - **Verified afterwards with read-only reports,** with no data read and no writes:
   - Preview's host differs from Production's;
@@ -191,10 +209,11 @@ Three rules hold for every kind:
 
 - **Where the credentials come from.** Production's `DATABASE_URL` is a sensitive Vercel variable and cannot be pulled. After isolation, Preview's variables point at the `preview` branch, not at Production. So the owner copies the `main` branch's connection details from the Neon console into an env file outside the repository, deleted afterwards. The backup taken now, before isolation, can still use Preview's variables, because both point at the same database.
 - `scripts/backup-database.sh` dumps Production read-only. It then restores the dump into a throwaway container and compares every table's rows and checksums, photos byte for byte, ending with "restore verified".
-- The dump and its SHA-256 are kept in `backups/`. The owner copies them to a medium off this computer (an external disk or the owner's own cloud storage) and confirms the SHA-256 there. This step is still open from the launch, where the second copy stayed on the same machine.
+- The dump and its SHA-256 are kept in `backups/`.
+- **An external copy is mandatory.** The owner copies the dump to a medium off this computer (an external disk, or the owner's own cloud storage). The SHA-256 is then computed again on that copy and must match. No hosted migration runs until this is done. It is still open from the launch, where the second copy stayed on the same machine.
 - Neon's own point-in-time restore is a second line of defence, not the only one. Its window depends on the plan and is checked first.
 
-**Rollout**, each step with the owner's approval:
+**Rollout**, each step with the owner's approval, and only once both gates above are met (isolation verified; backup restored, with a validated external copy):
 
 1. **Rehearsal:** create a throwaway branch from `main`, run `migrate-hosted.mts --expect-host <its host>` (first the report, then `--apply`), check the four new tables and their constraints, then delete the branch.
 2. **Apply the migration** to the `preview` branch. Deploy a Preview build and test the trash there.
@@ -223,19 +242,20 @@ Each item is its own PR, with tests on Node 24 and an independent review. None m
 
 Then the hosted rollout of § 6, run with the owner.
 
-## Open questions for the owner
+## Owner decisions of 2026-11-23
 
-Each has a recommendation; the record assumes it unless the owner chooses otherwise.
+1. **Every removed track goes to the trash,** with or without a note.
+2. **Songs and tracks can be restored onto published tapes,** only after an explicit confirmation that names the affected pages and warns that the change is public at once (§ 3). Restoring a tape never publishes it.
+3. **Restoring a text version loads it into the editor** without saving it (§ 4).
+4. **Preview gets an isolated Neon branch created from Production,** but only after access protection, credential isolation, and the absence of any exposure of private content are verified (§ 6).
+5. **Text history is kept 30 days,** to begin with.
 
-1. **Removing a single track** also goes to the trash (recommended), or only when the track has a note.
-2. **Restoring a song or a track onto a published tape** changes the site at once. Decision 1 says a restore never publishes anything; that was decided for tapes. Recommended: allow it, after a confirmation that names the published tapes and says the change goes live, because the tape was already public and only gets its track back. The alternative: refuse while the tape is published (unpublish, restore, publish again).
-3. **Restoring a text version** loads it into the field without saving (recommended), or saves it at once.
-4. **The Preview branch** is a copy of Production's data (recommended; Preview stays behind Vercel Authentication), or holds synthetic `[Test]` data only.
-5. **Text versions** are kept 30 days, like the trash (recommended), or longer.
+The owner also made two things mandatory before any hosted migration: the external backup copy with a validated checksum, and the Preview/Production separation (§ 6).
 
 ## Consequences
 
 - **Storage:** deleted photos keep their bytes in Neon for 30 days (up to 4 MB each). The Lixeira shows the total.
 - **The migration only adds tables,** and `OWN_TABLES` grows to match.
 - **Studio wording changes** from "excluir" to "mover para a lixeira", and its messages say how to restore. That includes unticking a tape in a song's form, which today only says the song "foi atualizada".
-- **Out of scope:** Spotify, the drawing editor, a "delete now" button, and any public change.
+- **History and trash start empty.** They hold only what is replaced or deleted after their deployment (§ 4).
+- **Out of scope:** Spotify, the drawing editor, a "delete now" button, and any public change beyond restoring tracks onto published tapes after confirmation.
