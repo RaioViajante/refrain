@@ -8,10 +8,14 @@ import { SITE_IMAGES } from "@/content/site-images";
 import { imageFiles, images } from "@/db/schema";
 import type { Database } from "@/db/types";
 
-import { StudioError } from "./errors";
+import { pgCode, STILL_REFERENCED, StudioError } from "./errors";
 import type { ImageFields } from "./schemas";
+import { purgeExpiredReferencesTo, trashImage } from "./trash";
 
-export type ImageUsage = { kind: "cover" | "detail" | "slot"; label: string };
+export type ImageUsage = {
+  kind: "cover" | "detail" | "slot" | "trash";
+  label: string;
+};
 
 export async function listImagesForStudio(db: Database) {
   // Plain SQL with explicit table names: in a single-table select, Drizzle
@@ -27,6 +31,10 @@ export async function listImagesForStudio(db: Database) {
       union all
       select 'slot', s.slot from site_images s
         where s.image_id = images.id
+      union all
+      select 'trash', t.label from trash_image_refs r
+        join trash_items t on t.id = r.trash_item_id
+        where r.image_id = images.id and t.purge_after > now()
     ) u
   )`;
   return db
@@ -94,17 +102,39 @@ export async function updateImage(
 export function usageLabel(u: ImageUsage): string {
   if (u.kind === "cover") return `capa de ${u.label}`;
   if (u.kind === "detail") return `foto de apoio de ${u.label}`;
+  if (u.kind === "trash") return `${u.label} (na lixeira)`;
   return SITE_IMAGES[u.label as keyof typeof SITE_IMAGES] ?? u.label;
 }
 
-/** Deletes an unused photograph (its bytes go with it). */
+/**
+ * Moves an unused photograph and its bytes to the trash for 30 days. A photo
+ * is in use while a tape, a page slot, or a restorable trash item uses it.
+ */
 export async function deleteImage(db: Database, id: string): Promise<void> {
-  const [image] = (await listImagesForStudio(db)).filter((i) => i.id === id);
-  if (!image) throw new StudioError("essa foto não existe.");
-  if (image.usage.length > 0) {
-    throw new StudioError(
-      `essa foto está em uso (${image.usage.map(usageLabel).join(", ")}). tire-a de lá antes de excluir.`,
-    );
+  try {
+    await db.transaction(async (tx) => {
+      const [locked] = await tx
+        .select({ id: images.id })
+        .from(images)
+        .where(eq(images.id, id))
+        .for("update");
+      if (!locked) throw new StudioError("essa foto não existe.");
+      await purgeExpiredReferencesTo(tx, id);
+      const [image] = (await listImagesForStudio(tx)).filter(
+        (i) => i.id === id,
+      );
+      if (image!.usage.length > 0) {
+        throw new StudioError(
+          `essa foto está em uso (${image!.usage.map(usageLabel).join(", ")}). tire-a de lá antes de excluir.`,
+        );
+      }
+      await trashImage(tx, id);
+    });
+  } catch (error) {
+    // A tape or slot took the photo while it was being deleted.
+    if (STILL_REFERENCED.has(pgCode(error) ?? "")) {
+      throw new StudioError("essa foto passou a ser usada. tente de novo.");
+    }
+    throw error;
   }
-  await db.delete(images).where(eq(images.id, id));
 }
