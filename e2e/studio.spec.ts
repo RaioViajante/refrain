@@ -18,6 +18,33 @@ function saveBar(page: Page) {
   };
 }
 
+const LEAVE = "sair sem salvar as alterações?";
+
+/** Records every dialog's message and dismisses it (or accepts, if set). */
+function answerDialogs(page: Page) {
+  const state = { asked: [] as string[], accept: false };
+  page.on("dialog", (dialog) => {
+    state.asked.push(dialog.message());
+    void (state.accept ? dialog.accept() : dialog.dismiss());
+  });
+  return state;
+}
+
+/** Deletes [Test] tapes from the list, after confirming. */
+async function deleteTapes(page: Page, titles: string[]) {
+  for (const name of titles) {
+    await page.goto("/studio/mixtapes");
+    await page.getByRole("button", { name: `Excluir ${name}` }).click();
+    await page
+      .getByRole("dialog", { name: `excluir ${name}?` })
+      .getByRole("button", { name: "excluir fita" })
+      .click();
+    await expect(
+      page.getByRole("link", { name: `Editar ${name}` }),
+    ).toHaveCount(0);
+  }
+}
+
 test.describe("sign-in", () => {
   test("a wrong password shows the error", async ({ page }) => {
     await page.goto("/studio/entrar");
@@ -312,4 +339,168 @@ test.describe("editing", () => {
       page.getByRole("button", { name: `Excluir ${renamed}` }),
     ).toHaveCount(0);
   });
+  test("a site text: surrounding spaces are not a change; leaving unsaved asks first", async ({
+    page,
+  }) => {
+    const label = "nota sob a constelação do arquivo";
+    const body = `[Test] nota do arquivo ${unique()}`;
+    await page.goto("/studio/textos");
+    const field = page.getByRole("textbox", { name: label, exact: true });
+    const form = page.locator("form").filter({ has: field });
+    const save = page.getByRole("button", { name: `salvar: ${label}` });
+    const publish = page.getByRole("button", { name: `publicar: ${label}` });
+    const dialogs = answerDialogs(page);
+
+    // Saved with a trailing space and line break: stored trimmed, and the
+    // field is no longer "alterado", so it can be published.
+    await field.fill(`${body} \n`);
+    await save.click();
+    await expect(form.getByRole("status")).toHaveText("texto salvo.");
+    await expect(field).toHaveValue(body);
+    await expect(save).toBeDisabled();
+    await expect(publish).toBeEnabled();
+
+    // Only surrounding spaces typed: still nothing to save.
+    await field.fill(`  ${body}  `);
+    await expect(save).toBeDisabled();
+    await expect(form.getByRole("status")).not.toContainText("alterado");
+
+    // A space typed while a (slow) save is on its way is kept.
+    await page.route("**/studio/textos", async (route) => {
+      if (route.request().method() === "POST") {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
+      await route.fallback();
+    });
+    await field.fill(`${body} x`);
+    await save.click();
+    await field.press("End");
+    await field.pressSequentially(" ");
+    await expect(form.getByRole("status")).toHaveText("texto salvo.");
+    await field.pressSequentially("y");
+    await expect(field).toHaveValue(`${body} x y`);
+    await page.unroute("**/studio/textos");
+
+    // A real change, unsaved: the Studio menu, the keyboard, and "sair"
+    // ask before leaving; dismissing keeps the page and what was typed.
+    const nav = page.getByRole("navigation", { name: "Studio" });
+    await nav.getByRole("link", { name: "mixtapes" }).click();
+    await expect.poll(() => dialogs.asked).toEqual([LEAVE]);
+    await nav.getByRole("link", { name: "músicas" }).press("Enter");
+    await expect.poll(() => dialogs.asked).toEqual([LEAVE, LEAVE]);
+    await page.getByRole("button", { name: "sair" }).click();
+    await expect.poll(() => dialogs.asked).toEqual([LEAVE, LEAVE, LEAVE]);
+    await page.waitForLoadState("networkidle");
+    await expect(page).toHaveURL(/\/studio\/textos$/);
+    await expect(field).toHaveValue(`${body} x y`);
+
+    // A link to a place on this same page never asks.
+    await page.locator('a[href="#conteudo"]').focus();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(/\/studio\/textos#conteudo$/);
+    expect(dialogs.asked).toHaveLength(3);
+
+    // Emptied and saved: the [Test] text is deleted, nothing left dirty, and
+    // leaving no longer asks.
+    await field.fill("");
+    await save.click();
+    await expect(form.getByRole("status")).toHaveText("texto apagado.");
+    await nav.getByRole("link", { name: "mixtapes" }).click();
+    await expect(page).toHaveURL(/\/studio\/mixtapes$/);
+    expect(dialogs.asked).toHaveLength(3);
+  });
+
+  test("the editor: leaving unsaved asks first; hints explain preview and drafts in featured places", async ({
+    page,
+  }) => {
+    const title = `[Test] destaque ${unique()}`;
+    const id = await createTape(page, title);
+    const bar = saveBar(page);
+    const dialogs = answerDialogs(page);
+
+    // An unsaved change: the hint says the preview shows only saved content,
+    // and both the bar's "← mixtapes" and the Studio menu ask first.
+    await page.getByLabel("frase da fita").fill("[Test] frase não salva");
+    await expect(bar.status).toHaveText("alterações não salvas");
+    await expect(
+      page.getByText("a pré-visualização mostra só o que já foi salvo."),
+    ).toBeVisible();
+    await page
+      .locator("#mx-form")
+      .getByRole("link", { name: "← mixtapes" })
+      .click();
+    await expect.poll(() => dialogs.asked).toEqual([LEAVE]);
+    await page
+      .getByRole("navigation", { name: "Studio" })
+      .getByRole("link", { name: "textos" })
+      .click();
+    await expect.poll(() => dialogs.asked).toEqual([LEAVE, LEAVE]);
+    await page.waitForLoadState("networkidle");
+    await expect(page).toHaveURL(new RegExp(`/studio/mixtapes/${id}$`));
+    await expect(page.getByLabel("frase da fita")).toHaveValue(
+      "[Test] frase não salva",
+    );
+
+    // A draft in a featured place: the editor says it stays off the home.
+    await page.getByRole("button", { name: "3º lugar" }).click();
+    await bar.save.click();
+    await expect(bar.status).toHaveText("salvo agora");
+    await expect(page.getByText("3º: esta fita (rascunho)")).toBeVisible();
+    await expect(
+      page.getByText(
+        "rascunho: a fita só aparece na home depois de publicada.",
+      ),
+    ).toBeVisible();
+
+    // Another tape's editor names the draft holder as off the home.
+    const other = `[Test] outra ${unique()}`;
+    await createTape(page, other);
+    await expect(
+      page.getByText(`3º: ${title} (rascunho, fora da home)`),
+    ).toBeVisible();
+
+    // Accepting the prompt leaves, asking exactly once.
+    await page.getByLabel("frase da fita").fill("[Test] outra frase");
+    dialogs.accept = true;
+    await page
+      .getByRole("navigation", { name: "Studio" })
+      .getByRole("link", { name: "músicas" })
+      .click();
+    await expect(page).toHaveURL(/\/studio\/musicas$/);
+    expect(dialogs.asked).toEqual([LEAVE, LEAVE, LEAVE]);
+
+    // The preview's banner says unsaved changes do not appear.
+    await page.goto(`/studio/previa/mixtapes/${id}`);
+    await expect(
+      page.getByRole("complementary", { name: "Prévia" }),
+    ).toContainText("o que não foi salvo não aparece.");
+
+    await deleteTapes(page, [title, other]);
+    expect(dialogs.asked).toHaveLength(3);
+  });
+});
+
+// The editor's own back link at both widths (on phones it is the one in the
+// page, not the save bar's).
+test("the editor's back link asks before leaving unsaved changes", async ({
+  page,
+}) => {
+  await signIn(page);
+  const title = `[Test] voltar ${unique()}`;
+  await createTape(page, title);
+  const dialogs = answerDialogs(page);
+  await page.getByLabel("frase da fita").fill("[Test] frase não salva");
+  const back = page
+    .getByRole("link", { name: "← mixtapes" })
+    .filter({ visible: true });
+  await expect(back).toHaveCount(1);
+  await back.click();
+  await expect.poll(() => dialogs.asked).toEqual([LEAVE]);
+  await page.waitForLoadState("networkidle");
+  await expect(page).toHaveURL(/\/studio\/mixtapes\/[0-9a-f-]{36}$/);
+  dialogs.accept = true;
+  await back.click();
+  await expect(page).toHaveURL(/\/studio\/mixtapes$/);
+  expect(dialogs.asked).toEqual([LEAVE, LEAVE]);
+  await deleteTapes(page, [title]);
 });

@@ -88,7 +88,10 @@ export default async function MixtapeEditorPage({
   const holders = Object.fromEntries(
     shelf
       .filter((s) => s.featuredRank !== null && s.id !== m.id)
-      .map((s) => [String(s.featuredRank), s.title]),
+      .map((s) => [
+        String(s.featuredRank),
+        { title: s.title, published: s.status === "published" },
+      ]),
   );
 
   return (

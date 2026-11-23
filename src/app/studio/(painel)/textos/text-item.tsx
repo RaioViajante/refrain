@@ -3,12 +3,14 @@
 import { type FormEvent, useActionState, useState, useTransition } from "react";
 
 import { cx } from "@/lib/cx";
+import { normalizeText } from "@/lib/text";
 import type { ActionResult } from "@/server/studio/errors";
 
 import {
   saveSiteTextAction,
   setSiteTextPublishedAction,
 } from "../../_actions/site";
+import { useUnsavedGuard } from "../../unsaved-guard";
 import styles from "./page.module.css";
 
 export type TextField = {
@@ -31,6 +33,21 @@ export type TextField = {
  */
 export function TextItem({ field }: { field: TextField }) {
   const [value, setValue] = useState(field.body);
+  // The field exactly as it was when "salvar" was pressed. When the save
+  // comes back, the field shows the text as stored (trimmed, "\n" line
+  // breaks) only if nothing was typed meanwhile: a space typed while the
+  // save was on its way is kept.
+  const [submitted, setSubmitted] = useState<string | null>(null);
+  const [storedBody, setStoredBody] = useState(field.body);
+  if (field.body !== storedBody) {
+    setStoredBody(field.body);
+    if (
+      value === submitted &&
+      normalizeText(value) === normalizeText(field.body)
+    ) {
+      setValue(field.body);
+    }
+  }
   const [result, dispatch, pending] = useActionState(
     (prev: ActionResult | null, formData: FormData) =>
       formData.has("published")
@@ -43,9 +60,12 @@ export function TextItem({ field }: { field: TextField }) {
     event.preventDefault();
     const submitter = (event.nativeEvent as SubmitEvent).submitter;
     const formData = new FormData(event.currentTarget, submitter);
+    if (!formData.has("published")) setSubmitted(value);
     start(() => dispatch(formData));
   };
-  const dirty = value !== field.body;
+  // Compared as the server stores it: surrounding spaces are not a change.
+  const dirty = normalizeText(value) !== normalizeText(field.body);
+  useUnsavedGuard(dirty);
   const id = `campo-${field.anchor}`;
   const hintId = `${id}-dica`;
   const errorId = `${id}-erro`;

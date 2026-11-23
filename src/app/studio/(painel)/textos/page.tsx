@@ -15,7 +15,7 @@ type Page = {
   id: string;
   title: string;
   aside: string;
-  preview: { href: string; label: string } | null;
+  preview: { href: string; label: string; note: string } | null;
   groups: Group[];
 };
 
@@ -38,7 +38,11 @@ const PAGES: Page[] = [
     id: "home",
     title: "home",
     aside: "a abertura do site",
-    preview: { href: "/studio/previa/home", label: "pré-visualizar a home" },
+    preview: {
+      href: "/studio/previa/home",
+      label: "pré-visualizar a home",
+      note: "com os rascunhos salvos, como ficará no site. as fitas são só as publicadas",
+    },
     groups: [
       {
         title: null,
@@ -65,7 +69,11 @@ const PAGES: Page[] = [
     id: "sobre",
     title: "sobre",
     aside: "a carta e o que vem com ela",
-    preview: { href: "/studio/previa/sobre", label: "pré-visualizar o sobre" },
+    preview: {
+      href: "/studio/previa/sobre",
+      label: "pré-visualizar o sobre",
+      note: "com os rascunhos salvos, como ficará no site",
+    },
     groups: [
       {
         title: null,
@@ -190,7 +198,8 @@ export default async function TextsPage() {
             </p>
             <p className={styles.help}>
               um rascunho não aparece no site até você publicá-lo. num texto já
-              publicado, cada alteração salva vai para o site na hora.
+              publicado, cada alteração salva vai para o site na hora. as
+              prévias mostram só o que já foi salvo.
             </p>
             {drafts.length > 0 ? (
               <nav aria-label="Rascunhos" className={styles.drafts}>
@@ -259,9 +268,7 @@ export default async function TextsPage() {
                     {p.preview.label} ↗
                     <span className="visually-hidden"> (abre em nova aba)</span>
                   </a>
-                  <span className={styles.previewNote}>
-                    com os rascunhos, como ficará no site
-                  </span>
+                  <span className={styles.previewNote}>{p.preview.note}</span>
                 </p>
               ) : null}
               {p.groups.map((g, j) => (

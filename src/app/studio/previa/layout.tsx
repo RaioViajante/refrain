@@ -26,8 +26,8 @@ export default async function PreviewLayout({
     <>
       <aside aria-label="Prévia" className={styles.banner}>
         <p className={styles.text}>
-          <span className={styles.label}>prévia</span> — como ficará no site.
-          rascunhos incluídos.
+          <span className={styles.label}>prévia</span> — como ficará no site,
+          com os rascunhos salvos. o que não foi salvo não aparece.
         </p>
         <Link href="/studio" className={styles.back}>
           voltar ao studio
