@@ -45,7 +45,7 @@ type Props = {
   tape: EditorTape;
   themes: string[];
   /** The tape holding each featured place ("1"–"3"), other than this one. */
-  holders: Record<string, string>;
+  holders: Record<string, { title: string; published: boolean }>;
   library: LibraryImage[];
   songs: { title: string; artist: string }[];
 };
@@ -336,7 +336,17 @@ export function Editor({ tape, themes, holders, library, songs }: Props) {
     );
 
   const rank = fields.featuredRank;
-  const taken = rank ? holders[rank] : undefined;
+  const taken = rank ? holders[rank]?.title : undefined;
+  // What the home shows in each place: only published tapes appear there.
+  const holderLabel = (r: "1" | "2" | "3") => {
+    if (rank === r)
+      return tape.published ? "esta fita" : "esta fita (rascunho)";
+    const holder = holders[r];
+    if (!holder) return "livre";
+    return holder.published
+      ? holder.title
+      : `${holder.title} (rascunho, fora da home)`;
+  };
 
   return (
     <>
@@ -649,12 +659,14 @@ export function Editor({ tape, themes, holders, library, songs }: Props) {
                 </div>
                 <p className={styles.hintText}>
                   {(["1", "2", "3"] as const)
-                    .map(
-                      (r) =>
-                        `${r}º: ${rank === r ? "esta fita" : (holders[r] ?? "livre")}`,
-                    )
+                    .map((r) => `${r}º: ${holderLabel(r)}`)
                     .join(" · ")}
                 </p>
+                {rank && !tape.published ? (
+                  <p className={styles.hintText}>
+                    rascunho: a fita só aparece na home depois de publicada.
+                  </p>
+                ) : null}
                 {taken && rank !== saved.featuredRank ? (
                   <p className={styles.rankMove}>
                     ao salvar, {taken} sai do {rank}º lugar e esta fita entra.
@@ -696,9 +708,13 @@ export function Editor({ tape, themes, holders, library, songs }: Props) {
               </div>
               <p className={styles.hintText}>
                 {tape.published
-                  ? "publicada: a fita está na estante do site."
+                  ? "publicada: a fita está na estante do site. cada alteração salva vai para o site na hora."
                   : "rascunho: só você vê, aqui e na pré-visualização."}
-                {dirty ? " ao publicar, as alterações são salvas antes." : ""}
+                {dirty
+                  ? tape.published
+                    ? " a pré-visualização mostra só o que já foi salvo."
+                    : " a pré-visualização mostra só o que já foi salvo. ao publicar, as alterações são salvas antes."
+                  : ""}
               </p>
             </Section>
           </div>
