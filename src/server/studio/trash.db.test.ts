@@ -1,5 +1,8 @@
 import { and, asc, eq, sql } from "drizzle-orm";
+import { Pool } from "pg";
 import { describe, expect, it } from "vitest";
+
+import { readTestDatabaseUrl } from "@/db/env";
 
 import {
   imageFiles,
@@ -220,7 +223,7 @@ describe("a deleted tape", () => {
     ).toHaveLength(0);
   });
 
-  it("recreates a song deleted meanwhile, merges one renamed into its name, and holds back a duplicate", async () => {
+  it("recreates a song deleted meanwhile, and holds back a track whose name now collides", async () => {
     const { tape, songs: s } = await richTape();
     await deleteMixtape(db, tape.id);
     // s[0] is deleted for good (its own trash item expires and is purged).
@@ -236,8 +239,8 @@ describe("a deleted tape", () => {
     const item = (await itemFor("mixtape", tape.id))!;
     const result = await restoreFromTrash(db, item.id);
     const tracks = await tracklist(tape.id);
-    // s[0] recreated with a new id; s[1]'s track merged into s[2] (same
-    // name now); s[2]'s own track held back as a track item.
+    // s[0] is recreated with a new id. s[2]'s own track keeps s[2] (same
+    // id); s[1]'s track matches s[2] only by name, so it is held back.
     expect(tracks).toHaveLength(2);
     const [recreated] = await db
       .select()
@@ -249,17 +252,100 @@ describe("a deleted tape", () => {
       note: "[Test] note a",
       position: 1,
     });
-    expect(tracks[1]).toMatchObject({ songId: s[2]!.id, position: 2 });
-    const held = (
-      await db.select().from(trashItems).where(eq(trashItems.kind, "track"))
-    )[0]!;
-    expect(held.deletedAt).toEqual(item.deletedAt);
-    expect(held.purgeAfter).toEqual(item.purgeAfter);
-    expect(held.payload).toMatchObject({
-      track: { note: "[Test] note c", noteSide: "left", mixtapeId: tape.id },
+    expect(tracks[1]).toMatchObject({
+      songId: s[2]!.id,
+      note: "[Test] note c",
+      noteSide: "left",
+      position: 2,
+    });
+    const [held] = await db
+      .select()
+      .from(trashItems)
+      .where(eq(trashItems.kind, "track"));
+    expect(held!.deletedAt).toEqual(item.deletedAt);
+    expect(held!.purgeAfter).toEqual(item.purgeAfter);
+    expect(held!.payload).toMatchObject({
+      track: { song: { id: s[1]!.id }, position: 2, mixtapeId: tape.id },
     });
     expect(result.message).toMatch(/ficou na lixeira/);
+    expect(result.message).toMatch(/renomeie uma das duas/);
     expect(result.message).toMatch(/voltou ao catálogo/);
+
+    // As the message says, renaming one of the two frees the held track.
+    expect((await failure(restoreFromTrash(db, held!.id))).message).toMatch(
+      /já tem/,
+    );
+    await updateSong(db, s[2]!.id, {
+      title: "[Test] renamed",
+      artist: s[1]!.artist,
+    });
+    await restoreFromTrash(db, held!.id);
+    expect((await tracklist(tape.id)).map((t) => t.position)).toEqual([
+      1, 2, 3,
+    ]);
+  });
+
+  it("waits for a note being saved, so the snapshot holds the saved note", async () => {
+    const tape = await insertMixtape(db);
+    const song = await insertSong(db);
+    await addTrack(db, tape.id, song.id, 1, "[Test] old");
+    const [track] = await tracklist(tape.id);
+    const other = new Pool({ connectionString: readTestDatabaseUrl() });
+    const client = await other.connect();
+    try {
+      await client.query("begin");
+      await client.query("update mixtape_tracks set note = $1 where id = $2", [
+        "[Test] new",
+        track!.id,
+      ]);
+      const deleting = deleteMixtape(db, tape.id);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      await client.query("commit");
+      await deleting;
+    } finally {
+      client.release();
+      await other.end();
+    }
+    const item = (await itemFor("mixtape", tape.id))!;
+    expect(item.payload).toMatchObject({
+      tracks: [{ id: track!.id, note: "[Test] new" }],
+    });
+  });
+
+  it("restores a track while another track of its tape is being removed", async () => {
+    const tape = await insertMixtape(db);
+    const [a, b, c] = [
+      await insertSong(db),
+      await insertSong(db),
+      await insertSong(db),
+    ];
+    await addTrack(db, tape.id, a!.id, 1);
+    await addTrack(db, tape.id, b!.id, 2);
+    await addTrack(db, tape.id, c!.id, 3);
+    const [ta, , tc] = await tracklist(tape.id);
+    await removeTrack(db, tc!.id);
+    const other = new Pool({ connectionString: readTestDatabaseUrl() });
+    const client = await other.connect();
+    try {
+      await client.query("begin");
+      await client.query("delete from mixtape_tracks where id = $1", [ta!.id]);
+      const restoring = restoreFromTrash(
+        db,
+        (await itemFor("track", tc!.id))!.id,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      await client.query("commit");
+      await restoring;
+    } finally {
+      client.release();
+      await other.end();
+    }
+    expect(
+      (await tracklist(tape.id)).map((t) => [t.songId, t.position]),
+    ).toEqual([
+      [b!.id, 1],
+      [c!.id, 2],
+    ]);
   });
 
   it("serializes concurrent restores that compete for the end of the shelf", async () => {

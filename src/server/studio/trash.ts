@@ -30,7 +30,7 @@ import {
 } from "@/db/schema";
 import type { Database } from "@/db/types";
 
-import { setTrackOrder } from "../tracklist";
+import { setTrackOrder, TracklistError } from "../tracklist";
 import { pgCode, StudioError } from "./errors";
 import { MAX_NUMBER, uniqueSlug } from "./shelf";
 
@@ -232,6 +232,9 @@ async function compact(tx: Database, mixtapeId: string) {
 
 /** Moves a tape, its tracklist, and its notes to the trash. */
 export async function trashMixtape(tx: Database, mixtapeId: string) {
+  // The shelf lock a restore takes, taken first, so the two never wait on
+  // each other's locks in opposite order.
+  await tx.execute(sql`lock table ${mixtapes} in share row exclusive mode`);
   const [m] = await tx
     .select()
     .from(mixtapes)
@@ -252,7 +255,9 @@ export async function trashMixtape(tx: Database, mixtapeId: string) {
     .from(mixtapeTracks)
     .innerJoin(songs, eq(songs.id, mixtapeTracks.songId))
     .where(eq(mixtapeTracks.mixtapeId, mixtapeId))
-    .orderBy(asc(mixtapeTracks.position));
+    .orderBy(asc(mixtapeTracks.position))
+    // A note being saved meanwhile is waited for, so the snapshot holds it.
+    .for("update", { of: mixtapeTracks });
   await putInTrash(tx, {
     kind: "mixtape",
     subjectId: m.id,
@@ -359,7 +364,9 @@ export async function trashSong(tx: Database, songId: string) {
     .from(mixtapeTracks)
     .innerJoin(mixtapes, eq(mixtapes.id, mixtapeTracks.mixtapeId))
     .where(eq(mixtapeTracks.songId, songId))
-    .orderBy(asc(mixtapes.number));
+    .orderBy(asc(mixtapes.number))
+    // A note being saved meanwhile is waited for, so the snapshot holds it.
+    .for("update", { of: mixtapeTracks });
   await putInTrash(tx, {
     kind: "song",
     subjectId: s.id,
@@ -555,6 +562,8 @@ async function insertTrackAt(
       .from(mixtapeTracks)
       .where(eq(mixtapeTracks.mixtapeId, mixtapeId))
       .orderBy(asc(mixtapeTracks.position))
+      // Locked now, so a track removed meanwhile is already out of the list.
+      .for("update")
   ).map((t) => t.id);
   const [last] = await tx
     .select({ p: max(mixtapeTracks.position) })
@@ -625,8 +634,15 @@ async function readItem(tx: Database, itemId: string, lock: boolean) {
   return row.item;
 }
 
-const snapshotOf = <K extends TrashKind>(item: Item, kind: K): Snapshot<K> =>
-  SNAPSHOTS[kind].parse(item.payload) as Snapshot<K>;
+function snapshotOf<K extends TrashKind>(item: Item, kind: K): Snapshot<K> {
+  const parsed = SNAPSHOTS[kind].safeParse(item.payload);
+  if (!parsed.success) {
+    throw new StudioError(
+      "esse item da lixeira está incompleto e não pode ser restaurado.",
+    );
+  }
+  return parsed.data as Snapshot<K>;
+}
 
 /** Where a deleted song's tracks would go, decided before anything is written. */
 async function planSong(tx: Database, item: Item, lock: boolean) {
@@ -791,13 +807,27 @@ async function restoreMixtape(
     createdAt: new Date(m.createdAt),
   });
 
-  // Every song is resolved before its track is written; a second track that
-  // resolves to a song already on the tape stays in the trash.
+  // Every song is resolved before any track is written. A track whose own
+  // song still exists (same id) keeps it first; a track that matches only by
+  // name and collides with one already on the tape stays in the trash, and
+  // renaming one of the two songs frees it.
+  const resolved = [];
+  for (const t of [...tracks].sort((a, b) => a.position - b.position)) {
+    resolved.push({ t, existing: await existingSong(tx, t.song) });
+  }
+  const ownSongs = new Set(
+    resolved.flatMap((r) =>
+      r.existing && !r.existing.merged ? [r.existing.id] : [],
+    ),
+  );
   const onTape = new Set<string>();
   let position = 0;
-  for (const t of [...tracks].sort((a, b) => a.position - b.position)) {
-    const existing = await existingSong(tx, t.song);
-    if (existing && onTape.has(existing.id)) {
+  for (const { t, existing } of resolved) {
+    const collides =
+      existing &&
+      (onTape.has(existing.id) ||
+        (existing.merged && ownSongs.has(existing.id)));
+    if (collides) {
       const held: TrackSnapshot = {
         id: t.id,
         mixtapeId: m.id,
@@ -816,7 +846,7 @@ async function restoreMixtape(
         dates: item,
       });
       notes.push(
-        `${t.song.title} ficou na lixeira: outra faixa da fita já é essa música (renomeie uma delas para restaurá-la)`,
+        `${t.song.title} ficou na lixeira: a fita já tem uma música com esse nome (renomeie uma das duas para restaurá-la)`,
       );
       continue;
     }
@@ -1010,7 +1040,10 @@ export async function restoreFromTrash(
     });
   } catch (error) {
     if (error instanceof StudioError) throw error;
-    if (CONCURRENT.has(pgCode(error) ?? "")) {
+    if (
+      error instanceof TracklistError ||
+      CONCURRENT.has(pgCode(error) ?? "")
+    ) {
       throw new StudioError("algo mudou enquanto restaurava; tente de novo.");
     }
     throw error;
