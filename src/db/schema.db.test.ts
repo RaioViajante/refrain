@@ -14,7 +14,7 @@ import {
   insertMixtape,
   insertSong,
 } from "@/test/fixtures";
-import { pgError, connectTestDatabase } from "@/test/db";
+import { connectTestDatabase, pgError, RESTRICTED } from "@/test/db";
 
 const db = connectTestDatabase();
 
@@ -139,10 +139,10 @@ describe("schema integrity (PostgreSQL constraints)", () => {
 
     expect(
       await pgError(db.delete(songs).where(eq(songs.id, song.id))),
-    ).toMatchObject({ code: "23503" });
+    ).toMatchObject({ code: RESTRICTED });
     expect(
       await pgError(db.delete(mixtapes).where(eq(mixtapes.id, tape.id))),
-    ).toMatchObject({ code: "23503" });
+    ).toMatchObject({ code: RESTRICTED });
     expect(await db.select().from(mixtapeTracks)).toHaveLength(1);
   });
 
@@ -151,6 +151,6 @@ describe("schema integrity (PostgreSQL constraints)", () => {
     await insertMixtape(db, { coverImageId: cover.id });
     expect(
       await pgError(db.delete(images).where(eq(images.id, cover.id))),
-    ).toMatchObject({ code: "23503" });
+    ).toMatchObject({ code: RESTRICTED });
   });
 });

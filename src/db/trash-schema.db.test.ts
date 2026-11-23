@@ -11,7 +11,7 @@ import {
   trashImageRefs,
   trashItems,
 } from "@/db/schema";
-import { connectTestDatabase, pgError } from "@/test/db";
+import { connectTestDatabase, pgError, RESTRICTED } from "@/test/db";
 import { insertImage } from "@/test/fixtures";
 
 const db = connectTestDatabase();
@@ -204,7 +204,7 @@ describe("photos a trash item still uses (PostgreSQL constraints)", () => {
     expect(
       await pgError(db.delete(images).where(eq(images.id, cover.id))),
     ).toMatchObject({
-      code: "23503",
+      code: RESTRICTED,
       constraint: "trash_image_refs_image_id_images_id_fk",
     });
     expect(

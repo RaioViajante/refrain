@@ -11,8 +11,10 @@ import type { Database } from "@/db/types";
 import { setTrackOrder } from "../tracklist";
 import { pgCode, StudioError } from "./errors";
 import type { MixtapeFields, SongInput } from "./schemas";
+import { MAX_NUMBER, uniqueSlug } from "./shelf";
+import { trashMixtape, trashTrack } from "./trash";
 
-export const MAX_NUMBER = 999;
+export { MAX_NUMBER };
 // Numbers are moved above this offset while the shelf is reordered, so the
 // non-deferrable UNIQUE (number) never sees two equal values.
 const NUMBER_PARKING = 10_000;
@@ -121,23 +123,6 @@ export type StudioMixtape = NonNullable<
   Awaited<ReturnType<typeof getStudioMixtape>>
 >;
 
-async function uniqueSlug(db: Database, base: string, exceptId?: string) {
-  for (let n = 1; n < 100; n++) {
-    const slug = n === 1 ? base : `${base}-${n}`;
-    const [taken] = await db
-      .select({ id: mixtapes.id })
-      .from(mixtapes)
-      .where(
-        exceptId
-          ? and(eq(mixtapes.slug, slug), ne(mixtapes.id, exceptId))
-          : eq(mixtapes.slug, slug),
-      )
-      .limit(1);
-    if (!taken) return slug;
-  }
-  throw new StudioError("não foi possível criar um endereço para essa fita.");
-}
-
 /** A new draft at the end of the shelf. Returns its id. */
 export async function createMixtape(
   db: Database,
@@ -210,16 +195,12 @@ export async function setMixtapePublished(
   if (updated.length === 0) throw new StudioError("essa fita não existe.");
 }
 
-/** Deletes a tape and its tracklist (its songs stay in the catalogue). */
+/**
+ * Moves a tape, its tracklist, and its notes to the trash for 30 days (its
+ * songs stay in the catalogue).
+ */
 export async function deleteMixtape(db: Database, id: string): Promise<void> {
-  await db.transaction(async (tx) => {
-    await tx.delete(mixtapeTracks).where(eq(mixtapeTracks.mixtapeId, id));
-    const deleted = await tx
-      .delete(mixtapes)
-      .where(eq(mixtapes.id, id))
-      .returning({ id: mixtapes.id });
-    if (deleted.length === 0) throw new StudioError("essa fita não existe.");
-  });
+  await db.transaction((tx) => trashMixtape(tx, id));
 }
 
 /** Swaps a tape with its neighbour on the shelf (its number with theirs). */
@@ -342,33 +323,15 @@ export async function addTrack(
   );
 }
 
-/** Rewrites a tape's positions 1…n in their current order. */
-async function compact(db: Database, mixtapeId: string) {
-  const rest = await db
-    .select({ id: mixtapeTracks.id })
-    .from(mixtapeTracks)
-    .where(eq(mixtapeTracks.mixtapeId, mixtapeId))
-    .orderBy(asc(mixtapeTracks.position));
-  await setTrackOrder(
-    db,
-    mixtapeId,
-    rest.map((t) => t.id),
-  );
-}
-
-/** Removes a track; the tape's positions close the gap. Its note goes with it. */
+/**
+ * Moves a track and its note to the trash for 30 days; the tape's positions
+ * close the gap.
+ */
 export async function removeTrack(
   db: Database,
   trackId: string,
 ): Promise<void> {
-  await db.transaction(async (tx) => {
-    const [track] = await tx
-      .delete(mixtapeTracks)
-      .where(eq(mixtapeTracks.id, trackId))
-      .returning({ mixtapeId: mixtapeTracks.mixtapeId });
-    if (!track) throw new StudioError("essa faixa não existe.");
-    await compact(tx, track.mixtapeId);
-  });
+  await db.transaction((tx) => trashTrack(tx, trackId));
 }
 
 /** Moves a track one place up or down on its tape. */

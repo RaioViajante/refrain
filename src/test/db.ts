@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import { afterAll, beforeEach } from "vitest";
+import { afterAll, beforeEach, expect } from "vitest";
 
 import { readTestDatabaseUrl } from "@/db/env";
 import * as schema from "@/db/schema";
@@ -26,6 +26,13 @@ export function connectTestDatabase(): Database {
 
   return db;
 }
+
+/**
+ * The code of a delete refused by an ON DELETE RESTRICT foreign key:
+ * 23503 (foreign_key_violation) up to PostgreSQL 17, 23001
+ * (restrict_violation) from PostgreSQL 18, which the hosted database runs.
+ */
+export const RESTRICTED = expect.stringMatching(/^(23503|23001)$/);
 
 /** The PostgreSQL error code (and constraint) behind a failed query. */
 export async function pgError(

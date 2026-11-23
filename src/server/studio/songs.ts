@@ -1,14 +1,14 @@
 // Studio reads and writes for the song catalogue. Callers authorize first.
 import "server-only";
 
-import { and, asc, count, desc, eq, ne, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, sql, type SQL } from "drizzle-orm";
 
 import { mixtapes, mixtapeTracks, songs } from "@/db/schema";
 import type { Database } from "@/db/types";
 
-import { setTrackOrder } from "../tracklist";
 import { pgCode, StudioError } from "./errors";
 import type { SongInput } from "./schemas";
+import { trashSong } from "./trash";
 
 export type SongAppearance = {
   mixtapeId: string;
@@ -169,36 +169,9 @@ export async function updateSong(db: Database, id: string, input: SongInput) {
 }
 
 /**
- * Deletes a song and removes it from every tape it is on (their notes for it
- * go too), closing the gaps in those tapes, in one transaction.
+ * Moves a song to the trash for 30 days, with its track and note on every
+ * tape it is on; those tapes close their gaps. One transaction.
  */
 export async function deleteSong(db: Database, id: string): Promise<void> {
-  await db.transaction(async (tx) => {
-    const removed = await tx
-      .delete(mixtapeTracks)
-      .where(eq(mixtapeTracks.songId, id))
-      .returning({ mixtapeId: mixtapeTracks.mixtapeId });
-    for (const { mixtapeId } of removed) {
-      const rest = await tx
-        .select({ id: mixtapeTracks.id })
-        .from(mixtapeTracks)
-        .where(
-          and(
-            eq(mixtapeTracks.mixtapeId, mixtapeId),
-            ne(mixtapeTracks.songId, id),
-          ),
-        )
-        .orderBy(asc(mixtapeTracks.position));
-      await setTrackOrder(
-        tx,
-        mixtapeId,
-        rest.map((t) => t.id),
-      );
-    }
-    const deleted = await tx
-      .delete(songs)
-      .where(eq(songs.id, id))
-      .returning({ id: songs.id });
-    if (deleted.length === 0) throw new StudioError("essa música não existe.");
-  });
+  await db.transaction((tx) => trashSong(tx, id));
 }
