@@ -3,6 +3,7 @@
 import { type FormEvent, useActionState, useState, useTransition } from "react";
 
 import { cx } from "@/lib/cx";
+import { normalizeText } from "@/lib/text";
 import type { ActionResult } from "@/server/studio/errors";
 
 import {
@@ -31,6 +32,14 @@ export type TextField = {
  */
 export function TextItem({ field }: { field: TextField }) {
   const [value, setValue] = useState(field.body);
+  // When a save comes back, the field shows the text as stored (trimmed,
+  // "\n" line breaks), unless it was edited again meanwhile.
+  const [storedBody, setStoredBody] = useState(field.body);
+  if (field.body !== storedBody) {
+    setStoredBody(field.body);
+    if (normalizeText(value) === normalizeText(field.body))
+      setValue(field.body);
+  }
   const [result, dispatch, pending] = useActionState(
     (prev: ActionResult | null, formData: FormData) =>
       formData.has("published")
@@ -45,7 +54,8 @@ export function TextItem({ field }: { field: TextField }) {
     const formData = new FormData(event.currentTarget, submitter);
     start(() => dispatch(formData));
   };
-  const dirty = value !== field.body;
+  // Compared as the server stores it: surrounding spaces are not a change.
+  const dirty = normalizeText(value) !== normalizeText(field.body);
   const id = `campo-${field.anchor}`;
   const hintId = `${id}-dica`;
   const errorId = `${id}-erro`;
