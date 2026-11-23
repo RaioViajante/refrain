@@ -1,7 +1,9 @@
 // Refrain's schema (decision 0002). Integrity lives here, in PostgreSQL:
 // keys, NOT NULL, UNIQUE, and CHECK. Authored content (mixtapes, track notes,
-// site texts) is never removed by a cascade: every foreign key restricts, and
-// the Studio deletes dependent rows explicitly, in one transaction.
+// site texts) is never removed by a cascade: every foreign key from authored
+// content restricts, and the Studio deletes dependent rows explicitly, in one
+// transaction. Only a row's own bytes or bookkeeping cascade with it
+// (image_files; trash_files and trash_image_refs with their trash item).
 import { sql } from "drizzle-orm";
 import {
   boolean,
@@ -338,8 +340,10 @@ export const studioLoginAttempts = pgTable(
 // The Studio's trash and text history (decision 0003). A deleted item leaves
 // its live table and is kept here as a snapshot for 30 days; a replaced text
 // is kept as a version for 30 days. Public pages never read these tables.
-// `purge_after` comes from the database's clock, and nothing can be kept
-// longer than 30 days after it was deleted or replaced. The 30 days are
+// `purge_after` comes from the database's clock, and a CHECK keeps it within
+// 30 days of the deletion or replacement (decision 0003 § 2 asks only that it
+// come after it): carrying an item over never extends its time, and a longer
+// retention would need a migration that changes the CHECK. The 30 days are
 // counted as 720 hours: adding days to a timestamptz depends on the session's
 // time zone, so a restore under another zone could reject rows it accepted.
 

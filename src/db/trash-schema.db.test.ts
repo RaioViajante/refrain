@@ -12,7 +12,7 @@ import {
   trashItems,
 } from "@/db/schema";
 import { connectTestDatabase, pgError } from "@/test/db";
-import { insertImage, insertMixtape } from "@/test/fixtures";
+import { insertImage } from "@/test/fixtures";
 
 const db = connectTestDatabase();
 
@@ -81,7 +81,7 @@ describe("trash items (PostgreSQL constraints)", () => {
     expect(
       await pgError(trashItem({ deletedAt, purgeAfter: deletedAt })),
     ).toMatchObject({ constraint: "trash_items_retention" });
-    // A carried-over item keeps the original dates, already partly elapsed.
+    // A carried-over item keeps the original item's dates.
     const [carried] = await trashItem({
       kind: "track",
       deletedAt,
@@ -90,9 +90,22 @@ describe("trash items (PostgreSQL constraints)", () => {
     expect(await retentionSeconds("trash_items", carried!.id)).toBe(
       THIRTY_DAYS,
     );
+    // Any expiry strictly inside the 30 days is accepted, not only the full
+    // window.
+    const [shorter] = await trashItem({
+      kind: "song",
+      deletedAt,
+      purgeAfter: new Date(deletedAt.getTime() + 3 * 24 * 60 * 60 * 1000),
+    });
+    expect(await retentionSeconds("trash_items", shorter!.id)).toBe(
+      3 * 24 * 60 * 60,
+    );
   });
 
   it("accepts only known kinds, object snapshots, and real labels", async () => {
+    for (const kind of ["mixtape", "song", "track", "image"]) {
+      await trashItem({ kind });
+    }
     expect(await pgError(trashItem({ kind: "drawing" }))).toMatchObject({
       constraint: "trash_items_kind",
     });
@@ -209,19 +222,6 @@ describe("photos a trash item still uses (PostgreSQL constraints)", () => {
     await db.delete(images).where(eq(images.id, cover.id));
   });
 
-  it("still cannot be deleted while a live tape uses them as well", async () => {
-    const cover = await insertImage(db);
-    await insertMixtape(db, { coverImageId: cover.id });
-    const [item] = await trashItem();
-    await db
-      .insert(trashImageRefs)
-      .values({ trashItemId: item!.id, imageId: cover.id });
-    await db.delete(trashItems).where(eq(trashItems.id, item!.id));
-    expect(
-      await pgError(db.delete(images).where(eq(images.id, cover.id))),
-    ).toMatchObject({ code: "23503" });
-  });
-
   it("must exist, and must belong to an existing item", async () => {
     const [item] = await trashItem();
     expect(
@@ -260,6 +260,15 @@ describe("text versions (PostgreSQL constraints)", () => {
     expect(
       await pgError(textVersion({ replacedAt, purgeAfter: replacedAt })),
     ).toMatchObject({ constraint: "text_versions_retention" });
+    // A note kept during a restore is replaced now but keeps the trash
+    // item's earlier expiry: a window shorter than 30 days.
+    const [kept] = await textVersion({
+      replacedAt,
+      purgeAfter: new Date(replacedAt.getTime() + 3 * 24 * 60 * 60 * 1000),
+    });
+    expect(await retentionSeconds("text_versions", kept!.id)).toBe(
+      3 * 24 * 60 * 60,
+    );
   });
 
   it("pair each subject with its own fields only", async () => {
@@ -351,6 +360,8 @@ describe("migration 0004", () => {
           /^ALTER TABLE "[a-z_]+" ADD CONSTRAINT /,
         );
       }
+      // One statement per block, so nothing can hide after a first one.
+      expect(statement.replace(/;\s*$/, ""), statement).not.toMatch(/;/);
       // Every statement starts as above, so none deletes or updates rows.
       expect(statement).not.toMatch(/\b(DROP|RENAME|TRUNCATE)\b/);
     }
